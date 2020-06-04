@@ -1034,7 +1034,7 @@ MonoBehaviour:
   CardsDatabase: {fileID: 4900000, guid: b959cbc5c3159e64285fcc2d6c64172b, type: 3}
   middleManager: {fileID: 1346127328}
   deckCollection: {fileID: 310488422}
-  currentDeckPath: Assets/StreamingAssets/Decks/player_default.json
+  currentDeckPath: 
   DecksPath: []
   NRDecks: []
   NFDecks: []

@@ -14,7 +14,11 @@ public class DeckController : MonoBehaviour
     public CollectionManager deckCollection;
 
     public string currentDeckPath;
+
+    // The deck folders path in the local disk
     public List<string> DecksPath = new List<string>();// 0:NR | 1:NF | 2:SC | 3:M
+
+    // A list of deck paths for each faction
     public List<string> NRDecks;
     public List<string> NFDecks;
     public List<string> SCDecks;
@@ -23,26 +27,26 @@ public class DeckController : MonoBehaviour
     //[HideInInspector] // List of all cards (each card has unique stats)
     public List<Card> allCards;
     public Deck my_deck;
-    public Deck first_timer;
+    //public Deck first_timer;
 
     // Loads Cards Data (Database and loaded deck)
     private void Start()
     {
-        Debug.Log(Application.streamingAssetsPath);
-        currentDeckPath = Application.streamingAssetsPath + "/Decks/player_default.json";
+        string deckDir = Path.Combine(Application.persistentDataPath, "Decks");
         DecksPath = new List<string> {
-        Application.streamingAssetsPath + "/Decks/Player/NR",
-        Application.streamingAssetsPath + "/Decks/Player/NF",
-        Application.streamingAssetsPath + "/Decks/Player/SC",
-        Application.streamingAssetsPath + "/Decks/Player/M" };
+        Path.Combine(deckDir, "NR"),
+        Path.Combine(deckDir, "NF"),
+        Path.Combine(deckDir, "SC"),
+        Path.Combine(deckDir, "M") };
 
         // Get Player Deck
+        currentDeckPath = Path.Combine(Application.streamingAssetsPath, "__empty__.json");
         if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath))
             currentDeckPath = ApplicationModel.playerDeckPath;
-        Debug.Log("Current deck path is: " + currentDeckPath);
+        Debug.Log("DeckController: Current deck path is: " + currentDeckPath);
 
         SetUpData();
-        first_timer = my_deck;
+        //first_timer = my_deck;
     }
 
     //-----------------------------------------------Functions----------------------------------------------------//
@@ -67,12 +71,16 @@ public class DeckController : MonoBehaviour
         NRDecks.Clear();
         NFDecks.Clear();
         SCDecks.Clear();
-        for (int i = 0; i < DecksPath.Count; i++)
-        {
-            MDecks.Clear();
+        MDecks.Clear();
 
+        for (int i = 0; i < DecksPath.Count; i++) // For each faction
+        {
             DirectoryInfo info = new DirectoryInfo(DecksPath[i]);
             FileInfo[] fileInfos = info.GetFiles();
+
+            if (fileInfos.Length < 0) // No decks found in the folder
+                return;
+
             foreach (FileInfo file in fileInfos)
             {
                 if (file.ToString().EndsWith(".json"))
@@ -320,6 +328,7 @@ public class DeckController : MonoBehaviour
         if (string.IsNullOrEmpty(input.text))
             return;
 
+        // Check if name already exists; if not store new name
         for (int i = 0; i < middleManager.deckPicker.options.Count; i++)
         {
             //Debug.Log("Option" + i + ": " + middleManager.deckPicker.options[i].text);
@@ -337,24 +346,26 @@ public class DeckController : MonoBehaviour
             Leader = my_deck.Leader,
             Cards = { }
         };
+
+        Debug.Log("New Deck: Faction: " + newDeck.Faction);
         string newPath;
         string fileName = FormatDeckName(input.text) + ".json";
-        switch (my_deck.Faction)
+        switch (newDeck.Faction)
         {
             case "NR":
-                newPath = DecksPath[0] + "/" + fileName;
+                newPath = Path.Combine(DecksPath[0], fileName);
                 break;
             case "NF":
-                newPath = DecksPath[1] + "/" + fileName;
+                newPath = Path.Combine(DecksPath[1], fileName);
                 break;
             case "SC":
-                newPath = DecksPath[2] + "/" + fileName;
+                newPath = Path.Combine(DecksPath[2], fileName);
                 break;
             case "M":
-                newPath = DecksPath[3] + "/" + fileName;
+                newPath = Path.Combine(DecksPath[3], fileName);
                 break;
             default:
-                newPath = Application.streamingAssetsPath + "/Decks/errorDeck.json";
+                newPath = Path.Combine(Application.persistentDataPath, "/Decks/errorDeck.json");
                 break;
         }
         WriteDeckToFile(newDeck, newPath);
@@ -378,6 +389,8 @@ public class DeckController : MonoBehaviour
     {
         input.text = FormatInput(input.text);
         if (string.IsNullOrEmpty(input.text))
+            return;
+        if (my_deck.Name == "__emptyname__")
             return;
 
         Debug.Log("Renaming deck to: " + input.text);
@@ -487,17 +500,24 @@ public class DeckController : MonoBehaviour
 
     public void WriteDeckToFile(Deck deck, string file_path)
     {
-        //Debug.Log("Writing deck to file: " + file_path);
-        //Debug.Log("Deck Name: " + deck.Name);
-        //Debug.Log("Deck Faction: " + deck.Faction);
-        //Debug.Log("Number of cards: " + deck.Cards.Count);
-
         string json = JsonUtility.ToJson(deck);
         //Debug.Log(json);
         File.WriteAllText(file_path, json);
         Debug.Log("Deck saved correctly under: " + file_path);
     }
 
+    public bool IsDeckValid(Deck deck)
+    {
+        bool isValid = false;
+
+        int units_number = GetUnitCards(GetCardsFromDeck(deck)).Count();
+        Debug.Log("Units number in deck: " + units_number);
+
+        if (units_number >= 22)
+            isValid = true;
+
+        return isValid;
+    }
 
     //--------To Main Menu
     public void ToMainMenu()

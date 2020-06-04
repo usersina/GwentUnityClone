@@ -19,8 +19,8 @@ public class SceneController : MonoBehaviour
 
     public TextAsset CardsDatabase;
     //public TextAsset PlayerDeck;
-    private string PlayerDeck;
-    private string EnemyDeck;
+    public string PlayerDeck;
+    public TextAsset EnemyDeck;
 
     public GameObject PlayerField;
     public GameObject EnemyField;
@@ -48,8 +48,7 @@ public class SceneController : MonoBehaviour
 
     private void Start()
     {
-        PlayerDeck = Application.streamingAssetsPath + "/Decks/player_default.json";
-        EnemyDeck = Application.streamingAssetsPath + "/Decks/AI/AI_Monsters.json";
+        PlayerDeck = Path.Combine(Application.streamingAssetsPath, "player_default.json");
 
         // Get Player Deck
         if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath))
@@ -142,7 +141,7 @@ public class SceneController : MonoBehaviour
         // TODO: Avatar
 
         // Setup Enemy Info
-        Deck oppDeck = JsonUtility.FromJson<Deck>(File.ReadAllText(EnemyDeck));
+        Deck oppDeck = JsonUtility.FromJson<Deck>(EnemyDeck.text);
         // TODO: Name
         // TODO: Avatar
 
@@ -272,16 +271,17 @@ public class SceneController : MonoBehaviour
     private void PrepareNextRound(string round_winner)
     {
         Debug.Log("Preparing next round");
-        // Clear field (watch out for cow ability)
 
         List<MainInfo> infos = new List<MainInfo> { PlayerInfo, EnemyInfo };
+        // Related to Monsters Faction
         int random_unit = -1;
         bool recovered = false;
         string add_to = "none";
-        //yield return new WaitForSeconds(1f);
 
         foreach (MainInfo info in infos)
         {
+            bool there_is_cow = false;
+
             if (info.Faction == "M")
             {
                 random_unit = -1;
@@ -317,6 +317,8 @@ public class SceneController : MonoBehaviour
                 for (int i = 0; i < info.RangeList.Count; i++)
                 {
                     int card_id = info.RangeList[i];
+                    if (card_id == 16)
+                        there_is_cow = true;
                     if (info.Faction == "M" && !recovered)
                     {
                         if (random_unit == card_id)
@@ -403,6 +405,9 @@ public class SceneController : MonoBehaviour
                         break;
                 }
             }
+
+            if (there_is_cow)
+                info.CloseList.Add(9);
         }
 
         LogList(PlayerInfo.CloseList, "Player Close");
@@ -620,6 +625,8 @@ public class SceneController : MonoBehaviour
             Debug.Log("Round has ended");
 
             // Either PrepareNextRound() or ConcludeBattle(); // Depending on Lives
+            PlayerInfo.hasPassed = false;
+            EnemyInfo.hasPassed = false;
             ManageOutcome();
         }
         else if (PlayerInfo.hasPassed && !EnemyInfo.hasPassed)

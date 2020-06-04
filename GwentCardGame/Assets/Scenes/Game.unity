@@ -1257,8 +1257,8 @@ MonoBehaviour:
     type: 3}
   WeatherField: {fileID: 1716941889}
   CardsDatabase: {fileID: 4900000, guid: b959cbc5c3159e64285fcc2d6c64172b, type: 3}
-  PlayerDeck: Assets/StreamingAssets/Decks/player_default.json
-  EnemyDeck: Assets/StreamingAssets/Decks/AI/AI_Monsters.json
+  PlayerDeck: 
+  EnemyDeck: {fileID: 4900000, guid: 91a8115580686d848a7c0bc89efe114f, type: 3}
   PlayerField: {fileID: 35476508}
   EnemyField: {fileID: 657734807}
   allCards: []

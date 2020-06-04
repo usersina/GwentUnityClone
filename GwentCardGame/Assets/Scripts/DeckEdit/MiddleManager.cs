@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,8 +16,8 @@ public class MiddleManager : MonoBehaviour
     public List<Card> deckCards;
     public List<TextMeshProUGUI> deckInfo;
 
-    List<Deck> myDecks = new List<Deck>();
-    List<string> myPaths = new List<string>();
+    public List<Deck> myDecks = new List<Deck>();
+    public List<string> myPaths = new List<string>();
 
     IEnumerator Start()
     {
@@ -24,18 +25,18 @@ public class MiddleManager : MonoBehaviour
         InitializeDeck();
         LoadDecks();
 
-        yield return new WaitForSeconds(0.2f);
-        Deck first_timer = deckController.first_timer;
-        Debug.Log("Deck to select: " + first_timer.Name);
-        //Switch to the panel of the selected deck(first time only)
-        int index = -1;
-        for (int i = 0; i < deckPicker.options.Count; i++)
-        {
-            string name = deckPicker.options[i].text;
-            if (first_timer.Name == name)
-                index = i;
-        }
-        deckPicker.value = index;
+        //yield return new WaitForSeconds(0.2f);
+        //Deck first_timer = deckController.first_timer;
+        //Debug.Log("Deck to select: " + first_timer.Name);
+        ////Switch to the panel of the selected deck(first time only)
+        //int index = -1;
+        //for (int i = 0; i < deckPicker.options.Count; i++)
+        //{
+        //    string name = deckPicker.options[i].text;
+        //    if (first_timer.Name == name)
+        //        index = i;
+        //}
+        //deckPicker.value = index;
     }
 
     // Updates the deck UI and Leader from deckController.my_deck
@@ -54,31 +55,32 @@ public class MiddleManager : MonoBehaviour
         deckPicker.ClearOptions();
 
         List<TMP_Dropdown.OptionData> decks_list_drop = new List<TMP_Dropdown.OptionData>();
-        List<string> my_list;
+        List<string> deck_paths_list;
 
         switch (deckController.my_deck.Faction)
         {
             case "NR":
-                my_list = deckController.NRDecks;
+                deck_paths_list = deckController.NRDecks;
                 break;
             case "NF":
-                my_list = deckController.NFDecks;
+                deck_paths_list = deckController.NFDecks;
                 break;
             case "SC":
-                my_list = deckController.SCDecks;
+                deck_paths_list = deckController.SCDecks;
                 break;
             case "M":
-                my_list = deckController.MDecks;
+                deck_paths_list = deckController.MDecks;
                 break;
             default:
-                my_list = deckController.NRDecks;
+                deck_paths_list = deckController.NRDecks;
                 break;
         }
 
         myDecks.Clear();
         myPaths.Clear();
+
         // Add decks to options and to global deck list
-        foreach (string path in my_list)
+        foreach (string path in deck_paths_list)
         {
             Deck auxdeck = deckController.LoadDeckFromPath(path);
             TMP_Dropdown.OptionData dropItem = new TMP_Dropdown.OptionData(auxdeck.Name);
@@ -89,12 +91,12 @@ public class MiddleManager : MonoBehaviour
         deckPicker.AddOptions(decks_list_drop);
 
         // Reload the first deck just in case
-        if (my_list.Count > 0)
+        if (deck_paths_list.Count > 0)
             deckCollection.OnDeckChange(myDecks[0], myPaths[0]);
         else
         {
-            // Clear the collection (my_deck is empty at this point: Cleared from UpdateSelectedFaction) 
-            deckCollection.OnDeckChange(deckController.my_deck, Application.persistentDataPath + "/Deck/Player");
+            // Clear the collection (my_deck is empty at this point: Cleared from UpdateSelectedFaction)
+            deckCollection.OnDeckChange(deckController.my_deck, Path.Combine(Application.streamingAssetsPath, "__empty__.json"));
         }
         InitializeDeck();
     }

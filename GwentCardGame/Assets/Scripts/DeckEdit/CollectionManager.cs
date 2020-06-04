@@ -41,21 +41,21 @@ public class CollectionManager : MonoBehaviour
         {
             LoadFromDeck();
             // Switch to the panel of the selected deck (first time only)
-            switch (deckController.my_deck.Faction)
-            {
-                case "NR":
-                    headerSnap.GoToPanel(0);
-                    break;
-                case "NF":
-                    headerSnap.GoToPanel(1);
-                    break;
-                case "SC":
-                    headerSnap.GoToPanel(2);
-                    break;
-                case "M":
-                    headerSnap.GoToPanel(3);
-                    break;
-            }
+            //switch (deckController.my_deck.Faction)
+            //{
+            //    case "NR":
+            //        headerSnap.GoToPanel(0);
+            //        break;
+            //    case "NF":
+            //        headerSnap.GoToPanel(1);
+            //        break;
+            //    case "SC":
+            //        headerSnap.GoToPanel(2);
+            //        break;
+            //    case "M":
+            //        headerSnap.GoToPanel(3);
+            //        break;
+            //}
         }
         else
             CardsToDisplay = deckController.allCards;
@@ -325,12 +325,8 @@ public class CollectionManager : MonoBehaviour
         LoadFromDeck();
         Select(selectedTab);
 
-        // Save deck path to playerprefs
-        if (deckController.currentDeckPath.EndsWith(".json"))
-        {
-            PlayerPrefs.SetString("playerDeckPath", deckController.currentDeckPath);
-            Debug.Log("New selected deck: " + deckController.currentDeckPath);
-        }
+        // Save to prefs
+        SaveDeckToPrefs();
     }
 
     // From Double Clicking a card
@@ -342,6 +338,24 @@ public class CollectionManager : MonoBehaviour
 
         // Save to the current deck
         deckController.WriteDeckToFile(deckController.my_deck, deckController.currentDeckPath);
+
+        // Save to prefs
+        SaveDeckToPrefs();
+    }
+
+
+    public void SaveDeckToPrefs()
+    {
+        // Save deck path to playerprefs
+        if (deckController.currentDeckPath.EndsWith(".json") && deckController.my_deck.Name != "__emptyname__")
+        {
+            // Further check if deck is valid
+            if (!deckController.IsDeckValid(deckController.my_deck))
+                return;
+
+            PlayerPrefs.SetString("playerDeckPath", deckController.currentDeckPath);
+            Debug.Log("New selected deck: " + deckController.currentDeckPath);
+        }
     }
 
 }
