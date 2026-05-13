@@ -42,6 +42,7 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
             case "play":
                 if ((lastClick + interval) > Time.time)
                 {
+                    GameAudio.PlaySfx("ability_medic");
                     Debug.Log("Reviving card: " + cardId);
 
                     // Panel GameObject
@@ -82,6 +83,7 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
             case "draw":
                 if ((lastClick + interval) > Time.time)
                 {
+                    GameAudio.PlaySfx("card_draw");
                     Debug.Log("Choosing on: " + cardId);
 
                     // Panel GameObject
@@ -100,6 +102,7 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
             case "view":
                 if ((lastClick + interval) > Time.time)
                 {
+                    GameAudio.PlaySfx("card_select");
                     GameObject PanelParent = transform.parent.parent.parent.gameObject;
                     controller.TurnCallBack(isPlayerCard);
                     PanelParent.SetActive(false);

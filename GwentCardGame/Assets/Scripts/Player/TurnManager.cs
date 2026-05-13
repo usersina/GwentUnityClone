@@ -17,6 +17,7 @@ public class TurnManager : MonoBehaviour
 
     public void GoFirst()
     {
+        GameAudio.PlaySfx("ui_click");
         Debug.Log("Going First");
         controller.TurnCallBack(false);
         gameObject.SetActive(false);
@@ -25,6 +26,7 @@ public class TurnManager : MonoBehaviour
     public void GoSecond()
     {
         // Start Enemy Turn
+        GameAudio.PlaySfx("ui_click");
         Debug.Log("Going Second");
         controller.TurnCallBack(true);
         gameObject.SetActive(false);

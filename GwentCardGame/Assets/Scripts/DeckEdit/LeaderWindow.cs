@@ -17,6 +17,7 @@ public class LeaderWindow : MonoBehaviour, IPointerClickHandler
             if ((lastClick + interval) > Time.time)
             {
                 // Double Click
+                GameAudio.PlaySfx("deck_select");
                 GameObject leaderPickerGo = transform.parent.parent.parent.gameObject;
                 DeckController deckController = leaderPickerGo.GetComponent<LeaderPicker>().deckController;
                 CollectionManager deckCollection = leaderPickerGo.GetComponent<LeaderPicker>().deckCollection;

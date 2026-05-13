@@ -33,10 +33,9 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
     {
         if (controller.battleState == BattleState.PLAYERTURN)
         {
-            if (controller.selectedCard != null && isWeatherCard)
+            if (controller.selectedCard != null && isWeatherCard && controller.TryPlaySelectedCardOnBoard())
             {
                 Debug.Log("Player placing weather card !");
-                controller.DirectlyPlaceCard(controller.selectedCard, gameObject, true);
             }
         }
     }
