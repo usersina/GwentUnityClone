@@ -96,7 +96,7 @@ public class MiddleManager : MonoBehaviour
         else
         {
             // Clear the collection (my_deck is empty at this point: Cleared from UpdateSelectedFaction)
-            deckCollection.OnDeckChange(deckController.my_deck, Path.Combine(Application.streamingAssetsPath, "__empty__.json"));
+            deckCollection.OnDeckChange(deckController.my_deck, DeckController.EmptyDeckResourcePath);
         }
         InitializeDeck();
     }
@@ -104,6 +104,7 @@ public class MiddleManager : MonoBehaviour
 
     public void OnOptionChanged(int index)
     {
+        GameAudio.PlaySfx("deck_select");
         //Debug.Log("Option Changed to: " + myDecks[index].Name);
         deckCollection.OnDeckChange(myDecks[index], myPaths[index]);
         InitializeDeck();

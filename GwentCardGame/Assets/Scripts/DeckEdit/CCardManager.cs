@@ -41,6 +41,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         // Detect Card Right Click
         if (eventData.button == PointerEventData.InputButton.Right)
         {
+            GameAudio.PlaySfx("card_select");
             ShowBigCard();
         }
 
@@ -53,6 +54,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
                 if (transform.parent.parent.parent.CompareTag("Player"))
                 {
                     // Remove card from deck
+                    GameAudio.PlaySfx("deck_remove");
                     Debug.Log("Removing card from deck: " + deckController.my_deck.Name);
                     deckController.my_deck.Cards.Remove(cardStats._id);
                     deckCollection.OnDeckEdit();
@@ -61,7 +63,10 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
                 {
                     // Add card to selected deck if exists
                     if (deckController.my_deck.Name == "__emptyname__")
+                    {
+                        GameAudio.PlaySfx("invalid");
                         Debug.Log("No selected deck to add card to !");
+                    }
                     else
                     {
                         int occurences = deckController.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
@@ -71,6 +76,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
                         {
                             if (occurences > 0)
                             {
+                                GameAudio.PlaySfx("invalid");
                                 Debug.Log("Cannot add hero card to deck, already contains: " + occurences);
                                 return;
                             }
@@ -81,6 +87,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
                         {
                             if (occurences >= 3)
                             {
+                                GameAudio.PlaySfx("invalid");
                                 Debug.Log("Cannot add card to deck, already contains: " + occurences);
                                 return;
                             }
@@ -92,12 +99,14 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
                             int specialsOcc = deckController.GetSpecialsOccurence(deckController.my_deck);
                             if (specialsOcc >= 10)
                             {
+                                GameAudio.PlaySfx("invalid");
                                 Debug.Log("Cannot add special card to deck, deck already contains " + specialsOcc + " specials.");
                                 return;
                             }
                         }
 
                         // If all checks don't match, add the card to deck
+                        GameAudio.PlaySfx("deck_add");
                         deckController.my_deck.Cards.Add(cardStats._id);
                         deckCollection.OnDeckEdit();
                     }

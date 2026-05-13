@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 
 public class DeckController : MonoBehaviour
 {
+    public const string EmptyDeckResourcePath = "resource://Decks/__empty__";
 
     public TextAsset CardsDatabase;
     public MiddleManager middleManager;
@@ -32,6 +33,8 @@ public class DeckController : MonoBehaviour
     // Loads Cards Data (Database and loaded deck)
     private void Start()
     {
+        GameAudio.PlayDeckMusic();
+
         string deckDir = Path.Combine(Application.persistentDataPath, "Decks");
         DecksPath = new List<string> {
         Path.Combine(deckDir, "NR"),
@@ -40,7 +43,7 @@ public class DeckController : MonoBehaviour
         Path.Combine(deckDir, "M") };
 
         // Get Player Deck
-        currentDeckPath = Path.Combine(Application.streamingAssetsPath, "__empty__.json");
+        currentDeckPath = EmptyDeckResourcePath;
         if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath))
             currentDeckPath = ApplicationModel.playerDeckPath;
         Debug.Log("DeckController: Current deck path is: " + currentDeckPath);
@@ -62,7 +65,22 @@ public class DeckController : MonoBehaviour
 
     public Deck LoadDeckFromPath(string path)
     {
+        if (path == EmptyDeckResourcePath)
+            return LoadDeckFromResource("Decks/__empty__");
+
         return JsonUtility.FromJson<Deck>(File.ReadAllText(path));
+    }
+
+    private Deck LoadDeckFromResource(string resourcePath)
+    {
+        TextAsset deckAsset = Resources.Load<TextAsset>(resourcePath);
+        if (deckAsset == null)
+        {
+            Debug.LogError("Missing deck resource: " + resourcePath);
+            return new Deck();
+        }
+
+        return JsonUtility.FromJson<Deck>(deckAsset.text);
     }
 
     // TODO: Make sure to call every time a deck is added
@@ -365,10 +383,11 @@ public class DeckController : MonoBehaviour
                 newPath = Path.Combine(DecksPath[3], fileName);
                 break;
             default:
-                newPath = Path.Combine(Application.persistentDataPath, "/Decks/errorDeck.json");
+                newPath = Path.Combine(Application.persistentDataPath, "Decks/errorDeck.json");
                 break;
         }
         WriteDeckToFile(newDeck, newPath);
+        GameAudio.PlaySfx("deck_save");
         PopulateDeckAssets();
         middleManager.LoadDecks();
 
@@ -415,7 +434,7 @@ public class DeckController : MonoBehaviour
                 newPath = DecksPath[3] + "/" + fileName;
                 break;
             default:
-                newPath = Application.streamingAssetsPath + "/Decks/errorDeck.json";
+                newPath = Path.Combine(Application.persistentDataPath, "Decks/errorDeck.json");
                 break;
         }
 
@@ -426,6 +445,7 @@ public class DeckController : MonoBehaviour
         Debug.Log("Old deck path: " + currentDeckPath);
         Debug.Log("Renaming file to: " + newPath);
         File.Move(currentDeckPath, newPath);
+        GameAudio.PlaySfx("deck_save");
         PopulateDeckAssets();
 
         // Refresh in UI
@@ -473,6 +493,7 @@ public class DeckController : MonoBehaviour
         }
 
         File.Delete(filePath);
+        GameAudio.PlaySfx("deck_remove");
         Debug.Log("Deleting: " + filePath);
 
         PopulateDeckAssets();
@@ -500,6 +521,12 @@ public class DeckController : MonoBehaviour
 
     public void WriteDeckToFile(Deck deck, string file_path)
     {
+        if (file_path == EmptyDeckResourcePath)
+        {
+            Debug.LogWarning("Skipping write to built-in empty deck resource.");
+            return;
+        }
+
         string json = JsonUtility.ToJson(deck);
         //Debug.Log(json);
         File.WriteAllText(file_path, json);
@@ -522,6 +549,7 @@ public class DeckController : MonoBehaviour
     //--------To Main Menu
     public void ToMainMenu()
     {
+        GameAudio.PlaySfx("ui_click");
         SceneManager.LoadScene(0);
     }
 }

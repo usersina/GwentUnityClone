@@ -40,14 +40,18 @@ public class LeaderManager : MonoBehaviour
     {
         if (controller.battleState == BattleState.PLAYERTURN)
         {
-            // Disable the button
-            DisableButtonRC();
-
             // Activate the leader's ability
             if (!controller.disableLeader && controller.PlayerInfo.canLeader)
+            {
+                // Disable the button
+                DisableButtonRC();
                 controller.ActivateLeader(leaderId, true);
+            }
             else
+            {
+                GameAudio.PlaySfx("invalid");
                 Debug.Log("Leader ability disabled !");
+            }
         }
     }
 }

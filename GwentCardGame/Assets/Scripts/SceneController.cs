@@ -11,6 +11,8 @@ public enum BattleState { START, PLAYERTURN, ENEMYTURN, ROUNDOVER, WON, LOST, DR
 
 public class SceneController : MonoBehaviour
 {
+    private const string WeatherOverlayName = "WeatherOverlay";
+
     public BattleState battleState;
 
     public GameObject PostGame;
@@ -48,7 +50,9 @@ public class SceneController : MonoBehaviour
 
     private void Start()
     {
-        PlayerDeck = Path.Combine(Application.streamingAssetsPath, "player_default.json");
+        GameAudio.PlayGameMusic();
+
+        PlayerDeck = "Decks/player_default";
 
         // Get Player Deck
         if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath))
@@ -63,6 +67,7 @@ public class SceneController : MonoBehaviour
 
         // Setup the battle
         Debug.Log("Starting battle...");
+        GameAudio.PlaySfx("game_start");
         battleState = BattleState.START;
         SetupBattle();
 
@@ -76,7 +81,7 @@ public class SceneController : MonoBehaviour
     {
         if (battleState == BattleState.START)
         {
-            if (Input.GetMouseButtonDown(1))
+            if (ShouldSkipCardExchange())
             {
                 Debug.Log("Player has skipped cards exchanging !");
                 PlayerInfo.CanExchange = false;
@@ -127,6 +132,32 @@ public class SceneController : MonoBehaviour
         //    Debug.Log("Pressed primary button
     }
 
+    private bool ShouldSkipCardExchange()
+    {
+        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
+            return true;
+
+        if (Input.touchCount >= 2 && Input.GetTouch(1).phase == TouchPhase.Began)
+            return true;
+
+        return false;
+    }
+
+    private Deck LoadPlayerDeck()
+    {
+        if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath) && File.Exists(ApplicationModel.playerDeckPath))
+            return JsonUtility.FromJson<Deck>(File.ReadAllText(ApplicationModel.playerDeckPath));
+
+        TextAsset deckAsset = Resources.Load<TextAsset>("Decks/player_default");
+        if (deckAsset == null)
+        {
+            Debug.LogError("Missing player default deck resource.");
+            return new Deck();
+        }
+
+        return JsonUtility.FromJson<Deck>(deckAsset.text);
+    }
+
     //----------------------------------------------BATTLE STATES HANDLING---------------------------------------------------//
     // On Battle Start: Draw 10 cards then change two cards or not at all
     private void SetupBattle()
@@ -136,7 +167,7 @@ public class SceneController : MonoBehaviour
         allCards = cards_db.Cards;
 
         // Setup Player Info
-        Deck myDeck = JsonUtility.FromJson<Deck>(File.ReadAllText(PlayerDeck));
+        Deck myDeck = LoadPlayerDeck();
         // TODO: Name
         // TODO: Avatar
 
@@ -264,7 +295,24 @@ public class SceneController : MonoBehaviour
         }
         else
         {
+            PlayRoundOutcomeAudio(round_winner);
             PrepareNextRound(round_winner);
+        }
+    }
+
+    private void PlayRoundOutcomeAudio(string round_winner)
+    {
+        switch (round_winner)
+        {
+            case "player":
+                GameAudio.PlaySfx("round_win");
+                break;
+            case "enemy":
+                GameAudio.PlaySfx("round_lose");
+                break;
+            default:
+                GameAudio.PlaySfx("round_end");
+                break;
         }
     }
 
@@ -461,11 +509,13 @@ public class SceneController : MonoBehaviour
                 PostGame.GetComponent<PostGameManager>().ShowDraw();
                 break;
             case "WON":
+                GameAudio.PlaySfx("victory");
                 battleState = BattleState.WON;
                 PostGame.SetActive(true);
                 PostGame.GetComponent<PostGameManager>().ShowWin();
                 break;
             case "LOST":
+                GameAudio.PlaySfx("defeat");
                 battleState = BattleState.LOST;
                 PostGame.SetActive(true);
                 PostGame.GetComponent<PostGameManager>().ShowLose();
@@ -518,6 +568,7 @@ public class SceneController : MonoBehaviour
             deck_list.RemoveRange(0, num);
             SetDeckObject(deck_list, deck_back, is_player_deck);
             SetHandObject(hand_list, is_player_deck);
+            GameAudio.PlaySfx("card_draw");
         }
     }
 
@@ -599,6 +650,7 @@ public class SceneController : MonoBehaviour
         }
         yield return new WaitForSeconds(1f);
         Debug.Log("Player Turn !");
+        GameAudio.PlaySfx("turn_player");
         battleState = BattleState.PLAYERTURN;
     }
 
@@ -611,6 +663,7 @@ public class SceneController : MonoBehaviour
         }
         battleState = BattleState.ENEMYTURN;
         Debug.Log("Enemey Turn !");
+        GameAudio.PlaySfx("turn_enemy");
         yield return new WaitForSeconds(2f); // Order of this is essential
         AIManager.AIStartTurn();
         //StartCoroutine(PlayerTurn()); Turn is started from directly place card (enemy)
@@ -682,9 +735,30 @@ public class SceneController : MonoBehaviour
                 }
                 else // A "weather" card or a "one_time" card_row effect
                 {
-                    // Highlights the weather board
-                    WeatherField.GetComponent<Image>().sprite = WeatherField.GetComponent<WeatherManager>().weatherSelected;
-                    WeatherField.GetComponent<WeatherManager>().isWeatherCard = true;
+                    if (card_stats._idstr == "decoy")
+                    {
+                        Sprite closeSprite = my_object.GetComponent<RowPicker>().closeSelected;
+                        Sprite rangeSprite = my_object.GetComponent<RowPicker>().rangeSelected;
+                        Sprite siegeSprite = my_object.GetComponent<RowPicker>().siegeSelected;
+                        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = closeSprite;
+                        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = rangeSprite;
+                        my_object.transform.Find("Siege").Find("Unit").GetComponent<Image>().sprite = siegeSprite;
+                    }
+                    else
+                    {
+                        Sprite closeSprite = my_object.GetComponent<RowPicker>().closeSelected;
+                        Sprite rangeSprite = my_object.GetComponent<RowPicker>().rangeSelected;
+                        Sprite siegeSprite = my_object.GetComponent<RowPicker>().siegeSelected;
+                        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = closeSprite;
+                        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = rangeSprite;
+                        my_object.transform.Find("Siege").Find("Unit").GetComponent<Image>().sprite = siegeSprite;
+
+                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Close").Find("Unit").gameObject);
+                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Range").Find("Unit").gameObject);
+                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Siege").Find("Unit").gameObject);
+
+                        WeatherField.GetComponent<WeatherManager>().isWeatherCard = true;
+                    }
                 }
                 break;
             default: // other than Special, "NR", "NF"... meaning a unit card
@@ -756,6 +830,152 @@ public class SceneController : MonoBehaviour
         WeatherField.GetComponent<WeatherManager>().isWeatherCard = false;
     }
 
+    private void PlayCardAudio(CardStats cardStats)
+    {
+        if (cardStats == null)
+            return;
+
+        string ability = cardStats.ability;
+        string id = cardStats._idstr;
+
+        if (cardStats.faction == "Special")
+        {
+            if (cardStats.row == "weather")
+            {
+                switch (id)
+                {
+                    case "biting_frost":
+                        GameAudio.PlaySfx("ability_weather_frost");
+                        break;
+                    case "impenetrable_fog":
+                        GameAudio.PlaySfx("ability_weather_fog");
+                        break;
+                    case "torrential_rain":
+                        GameAudio.PlaySfx("ability_weather_rain");
+                        break;
+                    case "clear_weather":
+                        GameAudio.PlaySfx("ability_weather_clear");
+                        break;
+                    default:
+                        GameAudio.PlaySfx("ability_weather");
+                        break;
+                }
+                return;
+            }
+
+            if (cardStats.row == "one_time")
+            {
+                if (id == "scorch")
+                    GameAudio.PlaySfx("ability_scorch");
+                else if (id == "decoy")
+                    GameAudio.PlaySfx("ability_decoy");
+                else
+                    GameAudio.PlaySfx("card_play_special");
+                return;
+            }
+
+            if (id == "commander_horn")
+                GameAudio.PlaySfx("ability_horn");
+            else
+                GameAudio.PlaySfx("card_play_special");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(ability))
+        {
+            if (ability == "spy")
+            {
+                GameAudio.PlaySfx("ability_spy");
+                return;
+            }
+            if (ability == "medic")
+            {
+                GameAudio.PlaySfx("ability_medic");
+                return;
+            }
+            if (ability == "muster")
+            {
+                GameAudio.PlaySfx("ability_muster");
+                return;
+            }
+            if (ability == "commander_horn")
+            {
+                GameAudio.PlaySfx("ability_horn");
+                return;
+            }
+            if (ability == "morale_boost")
+            {
+                GameAudio.PlaySfx("ability_morale");
+                return;
+            }
+            if (ability == "tight_bond")
+            {
+                GameAudio.PlaySfx("ability_tight_bond");
+                return;
+            }
+            if (ability.Contains("scorch"))
+            {
+                GameAudio.PlaySfx("ability_scorch");
+                return;
+            }
+        }
+
+        if (cardStats.unique)
+            GameAudio.PlaySfx("card_play_hero");
+        else
+            GameAudio.PlaySfx("card_play_unit");
+    }
+
+    public bool TryPlaySelectedCardOnBoard()
+    {
+        if (battleState != BattleState.PLAYERTURN || selectedCard == null)
+            return false;
+
+        CardStats selectedStats = selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        if (selectedStats.faction != "Special")
+            return false;
+
+        if (selectedStats.row != "weather" && selectedStats._idstr != "scorch")
+            return false;
+
+        DirectlyPlaceCard(selectedCard, WeatherField, true);
+        return true;
+    }
+
+    public bool TryPlaySelectedDecoyOnCard(GameObject targetCard)
+    {
+        if (battleState != BattleState.PLAYERTURN || selectedCard == null)
+            return false;
+
+        CardStats selectedStats = selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        if (selectedStats._idstr != "decoy")
+            return false;
+
+        CardStats targetStats = targetCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        if (!targetCard.CompareTag("Player") || targetStats.faction == "Special" || targetStats.unique || targetStats.ability == "leader")
+        {
+            GameAudio.PlaySfx("invalid");
+            Debug.Log("Cannot Decoy !");
+            return true;
+        }
+
+        string row = targetCard.transform.parent.parent.name.ToLower();
+        if (row != "close" && row != "range" && row != "siege")
+        {
+            GameAudio.PlaySfx("invalid");
+            Debug.Log("Cannot Decoy !");
+            return true;
+        }
+
+        PlayCardAudio(selectedStats);
+        selectedCard.GetComponent<CardHover>().DestroyEffect();
+        selectedCard = null;
+
+        PlayerInfo.HandList.Remove(selectedStats._id);
+        ActuallyDecoy(targetStats._id, row, true, selectedStats._id);
+        return true;
+    }
+
     // Directly places a specific card_go on a field_go
     public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
     {
@@ -779,6 +999,7 @@ public class SceneController : MonoBehaviour
         }
 
         CardStats card_stats = card_go.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        card_go.GetComponent<CardHover>().DestroyEffect();
         bool waitMedic = false;
         bool isScorch = false;
         bool isScorchAbility = false;
@@ -787,6 +1008,7 @@ public class SceneController : MonoBehaviour
         if (card_stats.faction == "Special") card_type = "special"; else card_type = "unit";
         string card_row = card_stats.row;
         string field_row = field_go.transform.parent.name.ToLower();
+        PlayCardAudio(card_stats);
         //Debug.Log("Card type is: " + card_type);
         //Debug.Log("Card row is: " + card_row);
         //Debug.Log("Field row is: " + field_row);
@@ -951,6 +1173,8 @@ public class SceneController : MonoBehaviour
     // Reference: PassManager event (hold to pass button)
     public void SkipTurn(bool is_player_turn)
     {
+        GameAudio.PlaySfx("pass");
+
         MainInfo info;
         if (is_player_turn)
             info = PlayerInfo;
@@ -1070,6 +1294,8 @@ public class SceneController : MonoBehaviour
     // Exchange a card with another from deck (shuffle card back into the deck then draw)
     public void ExchangeCard(int card_id, bool is_player_card)
     {
+        GameAudio.PlaySfx("card_exchange");
+
         MainInfo info;
         if (is_player_card)
             info = PlayerInfo;
@@ -1092,6 +1318,8 @@ public class SceneController : MonoBehaviour
     // Discard 
     public void DiscardCard(int card_id, bool is_player_card)
     {
+        GameAudio.PlaySfx("card_discard");
+
         MainInfo info;
         if (is_player_card)
             info = PlayerInfo;
@@ -1361,7 +1589,64 @@ public class SceneController : MonoBehaviour
         //-----------------------Refresh Weather Field
         WeatherField.GetComponent<WeatherManager>().ClearWeatherObject();
         CreateCardObjects(WeatherField, weatherList, false, is_player_field);
+        RefreshWeatherOverlays(my_object);
 
+    }
+
+    private void RefreshWeatherOverlays(GameObject field)
+    {
+        SetWeatherOverlay(field.transform.Find("Close"), weatherList.Contains(200), "Cards/EffectBox/overlay_frost", new Color32(108, 198, 255, 78));
+        SetWeatherOverlay(field.transform.Find("Range"), weatherList.Contains(204), "Cards/EffectBox/overlay_fog", new Color32(185, 190, 188, 86));
+        SetWeatherOverlay(field.transform.Find("Siege"), weatherList.Contains(206), "Cards/EffectBox/overlay_rain", new Color32(61, 111, 184, 86));
+    }
+
+    private void SetWeatherOverlay(Transform row, bool isActive, string spriteResourcePath, Color fallbackColor)
+    {
+        if (row == null)
+            return;
+
+        Transform unitRow = row.Find("Unit");
+        if (unitRow == null)
+            return;
+
+        Transform existingOverlay = unitRow.Find(WeatherOverlayName);
+        if (!isActive)
+        {
+            if (existingOverlay != null)
+                Destroy(existingOverlay.gameObject);
+            return;
+        }
+
+        GameObject overlayObject;
+        if (existingOverlay == null)
+        {
+            overlayObject = new GameObject(WeatherOverlayName, typeof(RectTransform));
+            overlayObject.transform.SetParent(unitRow, false);
+
+            LayoutElement layoutElement = overlayObject.AddComponent<LayoutElement>();
+            layoutElement.ignoreLayout = true;
+
+            Image image = overlayObject.AddComponent<Image>();
+            image.raycastTarget = false;
+            image.preserveAspect = false;
+
+            RectTransform rectTransform = overlayObject.GetComponent<RectTransform>();
+            rectTransform.anchorMin = Vector2.zero;
+            rectTransform.anchorMax = Vector2.one;
+            rectTransform.offsetMin = Vector2.zero;
+            rectTransform.offsetMax = Vector2.zero;
+        }
+        else
+        {
+            overlayObject = existingOverlay.gameObject;
+        }
+
+        overlayObject.transform.SetAsLastSibling();
+
+        Image overlayImage = overlayObject.GetComponent<Image>();
+        Sprite overlaySprite = Resources.Load<Sprite>(spriteResourcePath);
+        overlayImage.sprite = overlaySprite;
+        overlayImage.color = overlaySprite != null ? new Color(1f, 1f, 1f, 0.82f) : fallbackColor;
     }
 
     // Updates the UI scores
@@ -2196,7 +2481,7 @@ public class SceneController : MonoBehaviour
             Debug.Log("Invalid Move");
     }
 
-    private void ActuallyDecoy(int card_id, string row, bool is_player_card)
+    private void ActuallyDecoy(int card_id, string row, bool is_player_card, int decoy_id = -1)
     {
         MainInfo info;
         if (is_player_card)
@@ -2210,19 +2495,27 @@ public class SceneController : MonoBehaviour
             case "close":
                 info.CloseList.Remove(card_id);
                 info.HandList.Add(card_id);
+                if (decoy_id != -1)
+                    info.CloseList.Add(decoy_id);
                 break;
             case "range":
                 info.RangeList.Remove(card_id);
                 info.HandList.Add(card_id);
+                if (decoy_id != -1)
+                    info.RangeList.Add(decoy_id);
                 break;
             case "siege":
                 info.SiegeList.Remove(card_id);
                 info.HandList.Add(card_id);
+                if (decoy_id != -1)
+                    info.SiegeList.Add(decoy_id);
                 break;
         }
 
         UpdateLists();
         RefreshFields(is_player_card);
+        LightoffField(true);
+        LightoffField(false);
         UpdateUIScores(is_player_card);
 
         swapActivated = false;
@@ -2506,6 +2799,8 @@ public class SceneController : MonoBehaviour
     // Activate the leader's ACTIVE ability
     public void ActivateLeader(int leader_id, bool is_player_turn)
     {
+        GameAudio.PlaySfx("leader");
+
         MainInfo info;
         if (is_player_turn)
             info = PlayerInfo;
@@ -2892,6 +3187,7 @@ public class SceneController : MonoBehaviour
     //--------------ToMainMenu
     public void ToMainMenu()
     {
+        GameAudio.PlaySfx("ui_click");
         SceneManager.LoadScene(0);
     }
 }

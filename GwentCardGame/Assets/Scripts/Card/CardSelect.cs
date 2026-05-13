@@ -30,13 +30,20 @@ public class CardSelect : MonoBehaviour
                 controller.LightoffField(false);
                 if (CheckSameCard())
                 {
-                    gameObject.GetComponent<CardHover>().isHoverable = true;
+                    GameAudio.PlaySfx("card_select");
+                    CardHover hover = gameObject.GetComponent<CardHover>();
+                    hover.isHoverable = true;
+                    hover.DestroyEffect();
                     controller.selectedCard = null;
                     //Debug.Log("Player deselected a card !");
                 }
                 else
                 {
-                    gameObject.GetComponent<CardHover>().isHoverable = false;
+                    GameAudio.PlaySfx("card_select");
+                    CardHover hover = gameObject.GetComponent<CardHover>();
+                    hover.isHoverable = false;
+                    hover.TranslateUp();
+                    hover.ShowPreview();
                     controller.selectedCard = gameObject;
                     //Debug.Log("Player selected a new card!");
                     // Hightlights the appropriate field based on: Card Faction AND Card Row
@@ -45,7 +52,13 @@ public class CardSelect : MonoBehaviour
             }
         }
 
-        // Related to card swapping (Decoy)
+        if (!isSelectable && controller.TryPlaySelectedDecoyOnCard(gameObject))
+            return;
+
+        if (!isSelectable && controller.TryPlaySelectedCardOnBoard())
+            return;
+
+        // Related to the legacy two-step decoy flow.
         if (controller.swapActivated && !isSelectable)
         {
             CardStats card_stats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
@@ -55,8 +68,32 @@ public class CardSelect : MonoBehaviour
                 controller.Decoy(card_stats._id, gameObject.tag, transform.parent.parent.name);
             }
             else
+            {
+                GameAudio.PlaySfx("invalid");
                 Debug.Log("Cannot Decoy !");
+            }
         }
+        else if (!isSelectable)
+        {
+            TryActivateLeaderCard();
+        }
+    }
+
+    private bool TryActivateLeaderCard()
+    {
+        if (controller.battleState != BattleState.PLAYERTURN || !gameObject.CompareTag("Player"))
+            return false;
+
+        CardStats cardStats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        if (cardStats.ability != "leader")
+            return false;
+
+        LeaderManager leaderManager = GetComponentInParent<LeaderManager>();
+        if (leaderManager == null)
+            return false;
+
+        leaderManager.ActivateLeader();
+        return true;
     }
 
     // Check if the player selected a new card, if yes deselect it else select the appropriate card
@@ -67,14 +104,20 @@ public class CardSelect : MonoBehaviour
             if (controller.selectedCard == gameObject)//Same card
             {
                 //gameObject.GetComponent<CardHover>().isCardUp = true; // Deprecated
+                CardHover hover = gameObject.GetComponent<CardHover>();
+                hover.isHoverable = true;
+                hover.TranslateDown();
+                hover.DestroyEffect();
                 controller.selectedCard = null;
                 //sameCard = true;
                 return true;
             }
             else
             {
-                controller.selectedCard.gameObject.GetComponent<CardHover>().isHoverable = true;
-                controller.selectedCard.gameObject.GetComponent<CardHover>().TranslateDown();
+                CardHover hover = controller.selectedCard.gameObject.GetComponent<CardHover>();
+                hover.isHoverable = true;
+                hover.TranslateDown();
+                hover.DestroyEffect();
                 controller.selectedCard = null;
                 return false;
                 //sameCard = false;

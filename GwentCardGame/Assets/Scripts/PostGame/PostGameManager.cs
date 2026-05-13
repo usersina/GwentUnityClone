@@ -49,6 +49,7 @@ public class PostGameManager : MonoBehaviour
     // Reference: Button
     public void ToMainMenu()
     {
+        GameAudio.PlaySfx("ui_click");
         SceneManager.LoadScene(0);
     }
 }

@@ -28,6 +28,9 @@ public class CardHover : MonoBehaviour
 
     public void OnHoverEnter()
     {
+        if (Application.isMobilePlatform)
+            return;
+
         ShowBigInfo();
 
         if (isHoverable && !isCardUp)
@@ -38,6 +41,9 @@ public class CardHover : MonoBehaviour
 
     public void OnHoverExit()
     {
+        if (Application.isMobilePlatform)
+            return;
+
         DestroyEffect();
 
         if (isHoverable && isCardUp)
@@ -48,11 +54,17 @@ public class CardHover : MonoBehaviour
 
     public void TranslateUp()
     {
+        if (isCardUp)
+            return;
+
         transform.Translate(0, 10, 0);
         isCardUp = true;
     }
     public void TranslateDown()
     {
+        if (!isCardUp)
+            return;
+
         transform.Translate(0, -10, 0);
         isCardUp = false;
     }
@@ -61,6 +73,12 @@ public class CardHover : MonoBehaviour
     {
         Destroy(bigImage);
         Destroy(bigEffect);
+    }
+
+    public void ShowPreview()
+    {
+        DestroyEffect();
+        ShowBigInfo();
     }
 
 

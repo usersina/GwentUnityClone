@@ -38,15 +38,47 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
         {
             if (controller.selectedCard != null)
             {
-                if (highLighted_fields.Contains(gameObject))
+                GameObject targetField = GetPlayableTargetField(highLighted_fields);
+                if (targetField != null)
                 {
                     // Debug.Log("Yeap, it's me, place the card directly without checking any single other thing !!!!");
                     // Just be sure to update the lists
-                    controller.DirectlyPlaceCard(controller.selectedCard, gameObject, true);
+                    controller.DirectlyPlaceCard(controller.selectedCard, targetField, true);
                 }
             }
             else
                 Debug.Log("Player has no card selected to play !");
         }
+    }
+
+    private GameObject GetPlayableTargetField(List<GameObject> highLightedFields)
+    {
+        CardStats selectedStats = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        if (selectedStats.faction == "Special")
+        {
+            if (selectedStats.row == "weather" || selectedStats._idstr == "scorch")
+            {
+                WeatherManager weatherManager = controller.WeatherField.GetComponent<WeatherManager>();
+                if (weatherManager.isWeatherCard)
+                    return controller.WeatherField;
+            }
+
+            if (selectedStats.row == "special")
+            {
+                if (highLightedFields.Contains(gameObject))
+                    return gameObject;
+
+                Transform specialRow = transform.parent.Find("Special");
+                if (specialRow != null && highLightedFields.Contains(specialRow.gameObject))
+                    return specialRow.gameObject;
+            }
+
+            return null;
+        }
+
+        if (highLightedFields.Contains(gameObject))
+            return gameObject;
+
+        return null;
     }
 }
