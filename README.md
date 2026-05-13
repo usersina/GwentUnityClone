@@ -1,5 +1,5 @@
 # GwentUnityClone
- The Witcher 3 card game (Gwent Legacy Version)
+ The Witcher 3 card game (Gwent Legacy Version). Android and Windows versions are available and both apps are inside the folders \GwentCardGame\builds/windows or / android under builds direcotry.
  
  Showcase video: [Youtube video link](https://youtu.be/k31I2_2ARas)
 
