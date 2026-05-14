@@ -10,5 +10,6 @@ public static class AppPlatformSettings
         Screen.autorotateToLandscapeLeft = true;
         Screen.autorotateToLandscapeRight = true;
         Screen.orientation = ScreenOrientation.LandscapeLeft;
+        Input.simulateMouseWithTouches = true;
     }
 }
