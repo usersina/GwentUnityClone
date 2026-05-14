@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
 public class DeckController : MonoBehaviour
@@ -34,6 +35,7 @@ public class DeckController : MonoBehaviour
     private void Start()
     {
         GameAudio.PlayDeckMusic();
+        ConfigureMobileDeckBuilder();
 
         string deckDir = Path.Combine(Application.persistentDataPath, "Decks");
         DecksPath = new List<string> {
@@ -41,6 +43,7 @@ public class DeckController : MonoBehaviour
         Path.Combine(deckDir, "NF"),
         Path.Combine(deckDir, "SC"),
         Path.Combine(deckDir, "M") };
+        EnsureDeckDirectories();
 
         // Get Player Deck
         currentDeckPath = EmptyDeckResourcePath;
@@ -50,6 +53,49 @@ public class DeckController : MonoBehaviour
 
         SetUpData();
         //first_timer = my_deck;
+    }
+
+    private void EnsureDeckDirectories()
+    {
+        foreach (string deckPath in DecksPath)
+            Directory.CreateDirectory(deckPath);
+    }
+
+    private void ConfigureMobileDeckBuilder()
+    {
+        if (!Application.isMobilePlatform)
+            return;
+
+        Input.simulateMouseWithTouches = true;
+
+        if (EventSystem.current != null)
+            EventSystem.current.pixelDragThreshold = Mathf.Max(EventSystem.current.pixelDragThreshold, 20);
+
+        foreach (TMP_InputField input in FindObjectsOfType<TMP_InputField>())
+        {
+            input.shouldHideMobileInput = false;
+            input.shouldHideSoftKeyboard = false;
+            input.onSelect.AddListener(delegate { input.ActivateInputField(); });
+        }
+
+        ExpandTouchTarget("AddBtn", 52f, 52f);
+        ExpandTouchTarget("RenameBtn", 52f, 52f);
+        ExpandTouchTarget("DeleteBtn", 52f, 52f);
+    }
+
+    private void ExpandTouchTarget(string objectName, float minimumWidth, float minimumHeight)
+    {
+        GameObject buttonObject = GameObject.Find(objectName);
+        if (buttonObject == null)
+            return;
+
+        RectTransform rectTransform = buttonObject.GetComponent<RectTransform>();
+        if (rectTransform == null)
+            return;
+
+        rectTransform.sizeDelta = new Vector2(
+            Mathf.Max(rectTransform.sizeDelta.x, minimumWidth),
+            Mathf.Max(rectTransform.sizeDelta.y, minimumHeight));
     }
 
     //-----------------------------------------------Functions----------------------------------------------------//
@@ -342,6 +388,10 @@ public class DeckController : MonoBehaviour
     //------------------------------------Middle Action Buttons---------------------------------------------------//
     public void AddDeck(TMP_InputField input)
     {
+        if (input == null)
+            return;
+
+        input.DeactivateInputField();
         input.text = FormatInput(input.text);
         if (string.IsNullOrEmpty(input.text))
             return;
@@ -386,6 +436,7 @@ public class DeckController : MonoBehaviour
                 newPath = Path.Combine(Application.persistentDataPath, "Decks/errorDeck.json");
                 break;
         }
+        Directory.CreateDirectory(Path.GetDirectoryName(newPath));
         WriteDeckToFile(newDeck, newPath);
         GameAudio.PlaySfx("deck_save");
         PopulateDeckAssets();
@@ -406,6 +457,10 @@ public class DeckController : MonoBehaviour
     // NOTE: .meta warning (prolly not important)
     public void RenameDeck(TMP_InputField input)
     {
+        if (input == null)
+            return;
+
+        input.DeactivateInputField();
         input.text = FormatInput(input.text);
         if (string.IsNullOrEmpty(input.text))
             return;
@@ -444,6 +499,7 @@ public class DeckController : MonoBehaviour
         // Rename file
         Debug.Log("Old deck path: " + currentDeckPath);
         Debug.Log("Renaming file to: " + newPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(newPath));
         File.Move(currentDeckPath, newPath);
         GameAudio.PlaySfx("deck_save");
         PopulateDeckAssets();

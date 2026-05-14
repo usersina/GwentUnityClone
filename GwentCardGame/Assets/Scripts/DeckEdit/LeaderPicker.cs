@@ -17,7 +17,7 @@ public class LeaderPicker : MonoBehaviour
     private void Update()
     {
         // Close window on right click
-        if (Input.GetMouseButtonDown(1))
+        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
             gameObject.SetActive(false);
     }
 

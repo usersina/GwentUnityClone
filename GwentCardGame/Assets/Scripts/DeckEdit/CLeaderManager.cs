@@ -22,16 +22,8 @@ public class CLeaderManager : MonoBehaviour, IPointerClickHandler
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if ((lastClick + interval) > Time.time)
-            {
-                // Double Click
-                if (deckController.my_deck.Name == "__emptyname__")
-                    return;
-
-                LeaderPicker.SetActive(true);
-                LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
-                LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardStats>().faction);
-            }
+            if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
+                OpenLeaderPicker();
             else
             {
                 // Single Click
@@ -39,5 +31,15 @@ public class CLeaderManager : MonoBehaviour, IPointerClickHandler
             lastClick = Time.time;
         }
 
+    }
+
+    private void OpenLeaderPicker()
+    {
+        if (deckController.my_deck.Name == "__emptyname__")
+            return;
+
+        LeaderPicker.SetActive(true);
+        LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
+        LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardStats>().faction);
     }
 }

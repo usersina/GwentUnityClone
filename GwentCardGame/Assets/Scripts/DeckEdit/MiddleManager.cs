@@ -104,6 +104,9 @@ public class MiddleManager : MonoBehaviour
 
     public void OnOptionChanged(int index)
     {
+        if (index < 0 || index >= myDecks.Count || index >= myPaths.Count)
+            return;
+
         GameAudio.PlaySfx("deck_select");
         //Debug.Log("Option Changed to: " + myDecks[index].Name);
         deckCollection.OnDeckChange(myDecks[index], myPaths[index]);
