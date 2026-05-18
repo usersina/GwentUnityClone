@@ -47,6 +47,7 @@ public class SceneController : MonoBehaviour
     public bool swapActivated;
 
     private AIManager AIManager;
+    private bool enemyTurnDelayHasPlayed;
 
     private void Start()
     {
@@ -88,21 +89,11 @@ public class SceneController : MonoBehaviour
             }
         }
 
-        // Disabled the pass button of not the player turn
-        if (battleState == BattleState.PLAYERTURN)
-        {
-            if (PassBtn.GetComponent<PassManager>().isActiveAndEnabled)
-                return;
-            else
-                PassBtn.GetComponent<PassManager>().gameObject.SetActive(true);
-        }
-        else
-        {
-            if (!PassBtn.GetComponent<PassManager>().isActiveAndEnabled)
-                return;
-            else
-                PassBtn.GetComponent<PassManager>().gameObject.SetActive(false);
-        }
+        // Keep the pass button available during redraw so mobile can skip it.
+        bool shouldShowPassButton = battleState == BattleState.PLAYERTURN ||
+            (battleState == BattleState.START && PlayerInfo.CanExchange);
+        if (PassBtn.activeSelf != shouldShowPassButton)
+            PassBtn.SetActive(shouldShowPassButton);
 
 
         // TODO: Change image, a bit lame (grass pass crown)
@@ -664,7 +655,9 @@ public class SceneController : MonoBehaviour
         battleState = BattleState.ENEMYTURN;
         Debug.Log("Enemey Turn !");
         GameAudio.PlaySfx("turn_enemy");
-        yield return new WaitForSeconds(2f); // Order of this is essential
+        float delay = enemyTurnDelayHasPlayed ? 2f : 0.45f;
+        enemyTurnDelayHasPlayed = true;
+        yield return new WaitForSeconds(delay); // Order of this is essential
         AIManager.AIStartTurn();
         //StartCoroutine(PlayerTurn()); Turn is started from directly place card (enemy)
     }
@@ -1126,8 +1119,8 @@ public class SceneController : MonoBehaviour
         UpdateLists();
 
         // Refresh the enemy and the player fields from the updated lists
-        RefreshFields(false);
-        RefreshFields(true);
+        RefreshFields(false, !is_player_turn);
+        RefreshFields(true, is_player_turn);
 
         // Lights off the enemy and the player fields
         LightoffField(true);
@@ -1173,6 +1166,13 @@ public class SceneController : MonoBehaviour
     // Reference: PassManager event (hold to pass button)
     public void SkipTurn(bool is_player_turn)
     {
+        if (battleState == BattleState.START && is_player_turn)
+        {
+            GameAudio.PlaySfx("card_exchange");
+            PlayerInfo.CanExchange = false;
+            return;
+        }
+
         GameAudio.PlaySfx("pass");
 
         MainInfo info;
@@ -1533,7 +1533,7 @@ public class SceneController : MonoBehaviour
 
     // Regenerate objects from the lists
     // TODO: TEST THOUROUGHLY
-    private void RefreshFields(bool is_player_field)
+    private void RefreshFields(bool is_player_field, bool refreshHand = true)
     {
         MainInfo my_info;
         GameObject my_object;
@@ -1550,9 +1550,12 @@ public class SceneController : MonoBehaviour
         }
 
         // Refresh Hand Object (or simply SetHandObject(my_info.HandList, is_player_field);)
-        my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ClearHandObject();
-        CreateCardObjects(my_object.transform.Find("Hand").gameObject, my_info.HandList, true, is_player_field);
-        my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ResizeHand();
+        if (refreshHand)
+        {
+            my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ClearHandObject();
+            CreateCardObjects(my_object.transform.Find("Hand").gameObject, my_info.HandList, true, is_player_field);
+            my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ResizeHand();
+        }
 
         //------------------------Refresh Units Objects
         // Refresh Close

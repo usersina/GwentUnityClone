@@ -28,6 +28,12 @@ public class CardExchange : MonoBehaviour
         // Check if the player can exchange cards (redraw two initially drawn cards)
         if (controller.PlayerInfo.CanExchange && gameObject.CompareTag("Player") && isExchangeable)
         {
+            if (Application.isMobilePlatform)
+            {
+                ExchangeThisCard();
+                return;
+            }
+
             if (controller.PlayerInfo.CardsExchanged < 2)
             {
                 if (Input.GetMouseButtonUp(0))
@@ -44,6 +50,20 @@ public class CardExchange : MonoBehaviour
             }
         }
     }
+
+    private void ExchangeThisCard()
+    {
+        if (controller.PlayerInfo.CardsExchanged >= 2)
+        {
+            controller.PlayerInfo.CanExchange = false;
+            return;
+        }
+
+        controller.ExchangeCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
+        controller.PlayerInfo.CardsExchanged++;
+        if (controller.PlayerInfo.CardsExchanged == 2)
+            controller.PlayerInfo.CanExchange = false;
+    }
     
     // Couroutine Double Click Exchange Detection
     private IEnumerator ExchangeDetection()
@@ -56,10 +76,9 @@ public class CardExchange : MonoBehaviour
                 //Debug.Log("Double Clicked: " + GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._idstr);
                 if (gameObject.CompareTag("Player"))
                 {
-                    controller.ExchangeCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
-                    controller.PlayerInfo.CardsExchanged++;
-                    if (controller.PlayerInfo.CardsExchanged == 2)
-                        controller.PlayerInfo.CanExchange = false;
+                    ExchangeThisCard();
+                    clickCounter = 0;
+                    yield break;
                 }
             }
             yield return new WaitForEndOfFrame();
