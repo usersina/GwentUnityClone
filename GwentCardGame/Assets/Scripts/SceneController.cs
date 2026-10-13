@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Gwent.Rules;
-using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -14,10 +13,10 @@ public enum BattleState { START, PLAYERTURN, ENEMYTURN, ROUNDOVER, WON, LOST, DR
 // A multi-step player action in progress. While one is pending the turn cannot end (pass / leader are blocked).
 public enum PendingAction { None, PanelChoice, PlacePickedCard, DiscardCards }
 
-// Runs the battle: turns, rounds and the board UI. The rules themselves live in Gwent.Rules.
-public class SceneController : MonoBehaviour
+// Runs the battle: setup, turns, rounds and playing cards (leaders and pickers: SceneController.Leaders.cs).
+// The rules themselves live in Gwent.Rules; BoardView draws the board from the model.
+public partial class SceneController : MonoBehaviour
 {
-    private const string WeatherOverlayName = "WeatherOverlay";
     private const string DefaultDeckResource = "Decks/player_default";
 
     public static SceneController Instance { get; private set; }
@@ -54,14 +53,8 @@ public class SceneController : MonoBehaviour
     public GameObject TempObject { get; private set; }
 
     private AIManager AIManager;
-    private FieldView playerView;
-    private FieldView enemyView;
-    private WeatherManager weatherManager;
-    private Image weatherImage;
+    private BoardView board;
     private GameObject mulliganPrompt;
-    private TextMeshProUGUI mulliganCount;
-    private string mulliganHint;
-    private int mulliganShown = -1;
     private Coroutine turnRoutine;
     private int turnGeneration;
 
@@ -73,70 +66,12 @@ public class SceneController : MonoBehaviour
         public Sprite DeckBSprite;
     }
 
-    //----------------------------------------Cached scene references----------------------------------------//
-    // Looked up once instead of transform.Find chains on every refresh / every frame
-    private class RowView
-    {
-        public RowManager Manager;
-        public GameObject Unit;
-        public GameObject Special;
-        public Image UnitImage;
-        public Image SpecialImage;
-    }
-
-    private class FieldView
-    {
-        public GameObject Root;
-        public RowPicker Picker;
-        public HandManager Hand;
-        public DeckManager Deck;
-        public PileManager Discard;
-        public GameObject DiscardPile;
-        public StatsManager Stats;
-        public LeaderManager Leader;
-        public GameObject LeaderHolder;
-        public GameObject LeadMarker;   // the laurel around the total of the side that is ahead (as in The Witcher 3)
-        public GameObject PassedLabel;  // "Passed" under the panel of a side that has passed
-        public readonly Dictionary<string, RowView> Rows = new Dictionary<string, RowView>();
-
-        public FieldView(GameObject root)
-        {
-            Root = root;
-            Transform t = root.transform;
-            Picker = root.GetComponent<RowPicker>();
-            Hand = t.Find("Hand").GetComponent<HandManager>();
-            Deck = t.Find("Deck").GetComponent<DeckManager>();
-            Discard = t.Find("Discard").GetComponent<PileManager>();
-            DiscardPile = t.Find("Discard").Find("Pile").gameObject;
-            Stats = t.Find("Stats").GetComponent<StatsManager>();
-            Leader = t.Find("Leader").GetComponent<LeaderManager>();
-            LeaderHolder = t.Find("Leader").Find("Holder").gameObject;
-            LeadMarker = t.Find("Stats").Find("Total").Find("Laurel").gameObject;
-            PassedLabel = t.Find("Stats").Find("Passed").gameObject;
-            foreach (string row in Gwent.Rules.Rows.Units)
-            {
-                Transform row_t = t.Find(char.ToUpper(row[0]) + row.Substring(1));
-                Rows[row] = new RowView
-                {
-                    Manager = row_t.GetComponent<RowManager>(),
-                    Unit = row_t.Find("Unit").gameObject,
-                    Special = row_t.Find("Special").gameObject,
-                    UnitImage = row_t.Find("Unit").GetComponent<Image>(),
-                    SpecialImage = row_t.Find("Special").GetComponent<Image>(),
-                };
-            }
-        }
-    }
-
     private void Awake()
     {
         Instance = this;
         Db = CardLibrary.Get(CardsDatabase);
         TempObject = GameObject.Find("Temp");
-        playerView = new FieldView(PlayerField);
-        enemyView = new FieldView(EnemyField);
-        weatherManager = WeatherField.GetComponent<WeatherManager>();
-        weatherImage = WeatherField.GetComponent<Image>();
+        board = new BoardView(this);
         AIManager = GetComponent<AIManager>();
     }
 
@@ -157,14 +92,14 @@ public class SceneController : MonoBehaviour
         UIOverlay.SetEscapeAction(PauseMenu.Open);
         battleState = BattleState.START;
         SetupBattle();
-        ShowMulliganPrompt();
+        if (PlayerInfo.CanExchange)
+            mulliganPrompt = RedrawPicker.ShowPhase(this);
 
         StartCoroutine(FirstTurnPicker());
     }
 
     private void Update()
     {
-        UpdateMulliganCount();
         if (battleState == BattleState.START && PlayerInfo.CanExchange && ShouldSkipCardExchange())
         {
             GameLog.Info("Player has skipped cards exchanging !");
@@ -176,17 +111,7 @@ public class SceneController : MonoBehaviour
         if (PassBtn.activeSelf != can_pass)
             PassBtn.SetActive(can_pass);
 
-        int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
-        SetActiveIfChanged(playerView.LeadMarker, player_total > enemy_total);
-        SetActiveIfChanged(enemyView.LeadMarker, enemy_total > player_total);
-        SetActiveIfChanged(playerView.PassedLabel, PlayerInfo.hasPassed);
-        SetActiveIfChanged(enemyView.PassedLabel, EnemyInfo.hasPassed);
-    }
-
-    private static void SetActiveIfChanged(GameObject go, bool active)
-    {
-        if (go.activeSelf != active)
-            go.SetActive(active);
+        board.UpdateMarkers();
     }
 
     // Right click (or a second finger) keeps the hand; Escape opens the pause menu instead
@@ -198,7 +123,7 @@ public class SceneController : MonoBehaviour
     //----------------------------------------------Info helpers---------------------------------------------------//
     private MainInfo Info(bool is_player) { return is_player ? PlayerInfo : EnemyInfo; }
     private MainInfo Opponent(bool is_player) { return is_player ? EnemyInfo : PlayerInfo; }
-    private FieldView View(bool is_player) { return is_player ? playerView : enemyView; }
+    private BoardView.FieldView View(bool is_player) { return board.View(is_player); }
 
     public bool IsPlayerActionAllowed
     {
@@ -265,7 +190,7 @@ public class SceneController : MonoBehaviour
     // Sets the leader in the UI
     public void SetLeaderCard(int leader_id, bool is_player_deck)
     {
-        FieldView view = View(is_player_deck);
+        BoardView.FieldView view = View(is_player_deck);
         view.Leader.leaderId = leader_id;
         view.Leader.type = Db.Get(leader_id).row;
         CreateCardObjects(view.LeaderHolder, new List<int> { leader_id }, false, is_player_deck);
@@ -276,55 +201,7 @@ public class SceneController : MonoBehaviour
             randomMedic = true;
     }
 
-    //----------------------------------------------Mulligan---------------------------------------------------//
-    private void ShowMulliganPrompt()
-    {
-        if (!PlayerInfo.CanExchange)
-            return;
-        // As in The Witcher 3: a dark band "Choose a card to redraw. 0/2" above the hand shown as big cards
-        UITheme theme = UITheme.Current;
-        RectTransform root = UIKit.Rect("MulliganPrompt", UIOverlay.Root).Stretch();
-        RectTransform band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.78f)).rectTransform;
-        band.anchorMin = new Vector2(0, 1);
-        band.anchorMax = new Vector2(1, 1);
-        band.pivot = new Vector2(0.5f, 0.5f);
-        band.anchoredPosition = new Vector2(0, -150);
-        band.sizeDelta = new Vector2(0, 116);
-        foreach (float edge in new[] { 0f, 1f })
-        {
-            Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
-            line.rectTransform.anchorMin = new Vector2(0, edge);
-            line.rectTransform.anchorMax = new Vector2(1, edge);
-            line.rectTransform.sizeDelta = new Vector2(0, 2);
-        }
-
-        mulliganCount = UIKit.Text(band, "", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
-        mulliganCount.fontSize = 36;
-        mulliganCount.color = theme.text;
-        mulliganCount.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -38), new Vector2(1100, 50));
-        string how = Application.isMobilePlatform
-            ? "Tap a card to bring it forward, tap it again to redraw it"
-            : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click keeps your hand";
-        TextMeshProUGUI hint = UIKit.Text(band, how, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
-        hint.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
-        mulliganHint = "Choose a card to redraw.";
-
-        Button done = UIKit.Button(band, "Done", UIKit.ButtonStyle.Primary, FinishCardExchange, new Vector2(200, 60));
-        ((RectTransform)done.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
-
-        RedrawPicker.Create(root, this, new Vector2(0, 50));
-        mulliganPrompt = root.gameObject;
-        UpdateMulliganCount();
-    }
-
-    private void UpdateMulliganCount()
-    {
-        if (mulliganCount == null || mulliganShown == PlayerInfo.CardsExchanged)
-            return;
-        mulliganShown = PlayerInfo.CardsExchanged;
-        mulliganCount.text = mulliganHint + " " + mulliganShown + "/2";
-    }
-
+    //----------------------------------------------Redraw---------------------------------------------------//
     public void FinishCardExchange()
     {
         PlayerInfo.CanExchange = false;
@@ -492,8 +369,8 @@ public class SceneController : MonoBehaviour
         EnemyInfo.hasPassed = false;
 
         // Update UI Gems
-        playerView.Stats.UIUpdateGemLives(PlayerInfo.Lives);
-        enemyView.Stats.UIUpdateGemLives(EnemyInfo.Lives);
+        View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
+        View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
         if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
             ConcludeBattle(BattleState.DRAW);
@@ -767,599 +644,28 @@ public class SceneController : MonoBehaviour
             GameAudio.PlaySfx(card.unique ? "card_play_hero" : "card_play_unit");
     }
 
-    //----------------------------------------------HIGHLIGHTING---------------------------------------------------//
-    // Highlights the rows where the selected card can go, and stores them in the RowPicker
-    public void HighlightField(CardStats card_stats, bool is_player_turn)
-    {
-        FieldView mine = View(is_player_turn);
-        FieldView opp = View(!is_player_turn);
-
-        mine.Picker.ResetStored();
-        weatherManager.isWeatherCard = false;
-
-        if (card_stats.faction == Factions.Special)
-        {
-            if (card_stats.row == Rows.Special)
-            {
-                // Commander's Horn: any of the three special slots
-                foreach (RowView row in mine.Rows.Values)
-                {
-                    row.SpecialImage.sprite = mine.Picker.specialSelected;
-                    mine.Picker.StoreField(row.Special);
-                }
-            }
-            else
-            {
-                // Weather / scorch go on the weather board; decoy targets a card on the rows
-                HighlightUnitRows(mine, Rows.Units, card_stats.ability != Abilities.Decoy);
-                if (card_stats.ability != Abilities.Decoy)
-                    weatherManager.isWeatherCard = true;
-            }
-            return;
-        }
-
-        // Spies are played on the opponent's side
-        FieldView target = card_stats.ability == Abilities.Spy ? opp : mine;
-        target.Picker.ResetStored();
-        string[] rows = card_stats.row == Rows.Agile ? new[] { Rows.Close, Rows.Range } : new[] { card_stats.row };
-        HighlightUnitRows(target, rows.Where(Rows.IsUnitRow).ToArray(), true);
-    }
-
-    private static void HighlightUnitRows(FieldView view, string[] rows, bool store)
-    {
-        foreach (string row in rows)
-        {
-            view.Rows[row].UnitImage.sprite = SelectedSprite(view.Picker, row);
-            if (store)
-                view.Picker.StoreField(view.Rows[row].Unit);
-        }
-    }
-
-    private static Sprite SelectedSprite(RowPicker picker, string row)
-    {
-        switch (row)
-        {
-            case Rows.Close: return picker.closeSelected;
-            case Rows.Range: return picker.rangeSelected;
-            default: return picker.siegeSelected;
-        }
-    }
-
-    private static Sprite IdleSprite(RowPicker picker, string row)
-    {
-        switch (row)
-        {
-            case Rows.Close: return picker.close;
-            case Rows.Range: return picker.range;
-            default: return picker.siege;
-        }
-    }
-
-    // Lights off any highlighted field
-    public void LightoffField(bool is_player_turn)
-    {
-        FieldView view = View(is_player_turn);
-        view.Picker.ResetStored();
-        foreach (KeyValuePair<string, RowView> row in view.Rows)
-        {
-            row.Value.SpecialImage.sprite = view.Picker.special;
-            row.Value.UnitImage.sprite = IdleSprite(view.Picker, row.Key);
-        }
-
-        // Light off the weather board and deselect weather card
-        weatherImage.sprite = weatherManager.weather;
-        weatherManager.isWeatherCard = false;
-    }
-
-    //----------------------------------------------PANELS (pickers)---------------------------------------------------//
-    private PanelManager OpenPanel()
-    {
-        pendingAction = PendingAction.PanelChoice;
-        Panel.SetActive(true);
-        return Panel.GetComponent<PanelManager>();
-    }
-
-    // A card was chosen in a "play" panel (medic / weather from deck): it is moved to the hand, then placed on the board
-    public void PlayBtnCleanUp(string field, int card_id, bool is_player_turn)
-    {
-        MainInfo info = Info(is_player_turn);
-        GameLog.Info("Playing from: " + field);
-        switch (field)
-        {
-            case "deck_list":
-                info.DeckList.Remove(card_id);
-                SetDeckObject(info, is_player_turn);
-                break;
-            case "discard_list":
-                info.DiscardList.Remove(card_id);
-                SetDiscardObject(info.DiscardList, is_player_turn);
-                break;
-        }
-
-        // Removed from the hand again when placed
-        info.HandList.Add(card_id);
-        pendingAction = PendingAction.PlacePickedCard;
-    }
-
-    // A card was chosen in a "draw" panel (leader abilities): it goes to the hand and the turn ends
-    public void ActuallyPickCard(string field, int card_id, bool is_player_turn)
-    {
-        MainInfo info = Info(is_player_turn);
-        MainInfo opp_info = Opponent(is_player_turn);
-
-        GameLog.Info("Picking from: " + field);
-        switch (field)
-        {
-            case "deck_list":
-                info.DeckList.Remove(card_id);
-                SetDeckObject(info, is_player_turn);
-                break;
-            case "discard_list":
-                info.DiscardList.Remove(card_id);
-                SetDiscardObject(info.DiscardList, is_player_turn);
-                break;
-            case "opp_discard_list":
-                opp_info.DiscardList.Remove(card_id);
-                SetDiscardObject(opp_info.DiscardList, !is_player_turn);
-                break;
-        }
-
-        info.HandList.Add(card_id);
-        info.CanDiscard = false;
-        SetHandObject(info.HandList, is_player_turn);
-        TurnCallBack(is_player_turn);
-    }
-
-    // Panel "Skip" button: give up the choice and end the turn (nothing is ever left half done)
-    public void CancelPanel()
-    {
-        Panel.SetActive(false);
-        GameAudio.PlaySfx("ui_click");
-        DeselectCard();
-        RefreshBoard();
-        if (battleState == BattleState.PLAYERTURN)
-            TurnCallBack(true);
-        else
-            pendingAction = PendingAction.None;
-    }
-
-    // Discard (Eredin, Bringer of Death: discard 2 then pick 1 from the deck)
-    public void DiscardCard(int card_id, bool is_player_card)
-    {
-        MainInfo info = Info(is_player_card);
-        if (!info.HandList.Remove(card_id))
-            return;
-
-        GameAudio.PlaySfx("card_discard");
-        info.DiscardList.Add(card_id);
-        SetHandObject(info.HandList, is_player_card);
-        SetDiscardObject(info.DiscardList, is_player_card);
-    }
-
-    // Initialize the Deck List on screen
-    public void DeckCardPicker(bool is_player_turn)
-    {
-        MainInfo info = Info(is_player_turn);
-        info.CanDiscard = false;
-        if (info.DeckList.Count > 0)
-            OpenPanel().ShowToDraw("deck_list", info.DeckList, is_player_turn);
-        else
-            TurnCallBack(is_player_turn);
-    }
-
-    //----------------------------------------------LEADERS---------------------------------------------------//
-    private enum LeaderOutcome { Unavailable, Instant, Pending }
-
-    public bool CanUseLeader(bool is_player)
-    {
-        MainInfo info = Info(is_player);
-        if (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Rows.LeaderActive)
-            return false;
-        return is_player ? IsPlayerActionAllowed : battleState == BattleState.ENEMYTURN;
-    }
-
-    // Activate the leader's ACTIVE ability. Does nothing (and keeps the leader) when it would have no effect.
-    public void ActivateLeader(int leader_id, bool is_player_turn)
-    {
-        if (!CanUseLeader(is_player_turn))
-        {
-            GameAudio.PlaySfx("invalid");
-            if (is_player_turn && Info(true).leaderDisabled)
-                UIOverlay.Toast("Your leader ability was cancelled by the opponent's leader");
-            return;
-        }
-
-        string reason;
-        LeaderOutcome outcome = ApplyLeader(leader_id, is_player_turn, out reason);
-        if (outcome == LeaderOutcome.Unavailable)
-        {
-            GameAudio.PlaySfx("invalid");
-            if (is_player_turn)
-                UIOverlay.Toast(reason);
-            return;
-        }
-
-        GameAudio.PlaySfx("leader");
-        Info(is_player_turn).canLeader = false;
-        View(is_player_turn).Leader.DisableButtonRC();
-
-        RecalculateStrengths();
-        RefreshBoard();
-
-        // Pending abilities end the turn once their choice is made
-        if (outcome == LeaderOutcome.Instant)
-            TurnCallBack(is_player_turn);
-    }
-
-    private LeaderOutcome ApplyLeader(int leader_id, bool is_player_turn, out string reason)
-    {
-        MainInfo info = Info(is_player_turn);
-        reason = null;
-
-        string weather_row = LeaderIds.WeatherPickRow(leader_id);
-        if (weather_row != null)
-        {
-            reason = "No matching weather card left in your deck";
-            return PickWeatherCard(weather_row, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
-        }
-
-        // Horns, scorches, clear weather, double spies, agile: resolved by the rules right away
-        if (LeaderRules.IsInstant(leader_id))
-        {
-            Board board = CurrentBoard();
-            bool applied = LeaderRules.ApplyInstant(board, leader_id, is_player_turn, out reason);
-            doubleSpies = board.DoubleSpies;
-            return applied ? LeaderOutcome.Instant : LeaderOutcome.Unavailable;
-        }
-
-        switch (leader_id)
-        {
-            case LeaderIds.EredinBringerOfDeath:
-                if (!is_player_turn || info.HandList.Count < 2)
-                {
-                    reason = "You need at least 2 cards in hand";
-                    return LeaderOutcome.Unavailable;
-                }
-                info.CanDiscard = true;
-                info.CardsDiscarded = 0;
-                pendingAction = PendingAction.DiscardCards;
-                UIOverlay.Toast((Application.isMobilePlatform ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
-                return LeaderOutcome.Pending;
-            case LeaderIds.EredinDestroyerOfWorlds:
-                reason = "No unit in your discard pile to restore";
-                return PickDiscardCard(is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
-            case LeaderIds.EmhyrTheRelentless:
-                reason = "No unit in your opponent's discard pile";
-                return PickOppDiscard(is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
-            case LeaderIds.EmhyrEmperorOfNilfgaard:
-                reason = "Your opponent has no cards in hand";
-                return LookHandRandom(3, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
-        }
-        reason = "This leader ability is passive";
-        return LeaderOutcome.Unavailable;
-    }
-
-    // Plays a weather card from deck (except clear weather); false when there is none
-    public bool PickWeatherCard(string row, bool is_player_turn)
-    {
-        if (!is_player_turn)
-            return false;
-        List<int> weather_cards = new List<int>();
-        foreach (int card_id in PlayerInfo.DeckList)
-        {
-            Card card = Db.Get(card_id);
-            if (card.row != Rows.Weather || card.ability == Abilities.ClearWeather)
-                continue;
-            if (row == "all" || card_id == CardIds.WeatherFor(row))
-                weather_cards.Add(card_id);
-        }
-        if (weather_cards.Count == 0)
-            return false;
-        OpenPanel().ShowToPlay("deck_list", weather_cards, true);
-        return true;
-    }
-
-    // Draw a unit from your own discard pile (no heroes or special cards); false when there is none
-    public bool PickDiscardCard(bool is_player_card)
-    {
-        List<int> units_list = AbilityRules.MedicCandidates(Info(is_player_card).DiscardList, Db);
-        if (!is_player_card || units_list.Count == 0)
-            return false;
-        OpenPanel().ShowToDraw("discard_list", units_list, true);
-        return true;
-    }
-
-    // Draw a unit from the opponent's discard pile (no heroes or special cards); false when there is none
-    public bool PickOppDiscard(bool is_player_turn)
-    {
-        List<int> units_list = AbilityRules.MedicCandidates(Opponent(is_player_turn).DiscardList, Db);
-        if (!is_player_turn || units_list.Count == 0)
-            return false;
-        OpenPanel().ShowToDraw("opp_discard_list", units_list, true);
-        return true;
-    }
-
-    // View random cards from the opponent's hand; false when the hand is empty
-    public bool LookHandRandom(int cards_num, bool is_player_turn)
-    {
-        MainInfo opp_info = Opponent(is_player_turn);
-        if (!is_player_turn || opp_info.HandList.Count < 1)
-            return false;
-        List<int> random_list = Rng.Shuffle(opp_info.HandList).Take(cards_num).ToList();
-        OpenPanel().ShowToView(random_list, true);
-        return true;
-    }
-
-    // AI leader that plays a weather card from its deck (chosen by the AI)
-    public bool AiUseWeatherLeader(int weather_card_id)
-    {
-        if (!CanUseLeader(false) || LeaderIds.WeatherPickRow(EnemyInfo.Leader) == null || !EnemyInfo.DeckList.Remove(weather_card_id))
-            return false;
-        EnemyInfo.canLeader = false;
-        enemyView.Leader.DisableButtonRC();
-        GameAudio.PlaySfx("leader");
-        EnemyInfo.HandList.Add(weather_card_id);
-        PlayCard(weather_card_id, Rows.Weather, false);
-        return true;
-    }
-
-    //----------------------------------------------HIDER---------------------------------------------------//
-    // Hides the player's hand interactability
-    public void SetHider(bool hidden)
-    {
-        hiderObject.transform.localPosition = hidden ? new Vector2(0, -461) : new Vector2(0, -618);
-    }
-
-    //----------------------------------------------BOARD REFRESH---------------------------------------------------//
+    //----------------------------------------------Board (drawn by BoardView)---------------------------------------------------//
     private void RecalculateStrengths()
     {
         StrengthCalculator.Recalculate(PlayerInfo, weatherList, doubleSpies, Db);
         StrengthCalculator.Recalculate(EnemyInfo, weatherList, doubleSpies, Db);
     }
 
-    // Rebuilds both sides from the lists, then scores and highlights
+    // Recalculates the strengths, then shows both sides from the lists
     private void RefreshBoard()
     {
         RecalculateStrengths();
-        RefreshFields(true);
-        RefreshFields(false);
-        RefreshWeather();
-        LightoffField(true);
-        LightoffField(false);
-        UpdateUIScores(true);
-        UpdateUIScores(false);
+        board.Refresh();
     }
 
-    // Updates the deck count and the stack of card backs
-    private void SetDeckObject(MainInfo info, bool is_player_deck)
-    {
-        View(is_player_deck).Deck.UIUpdateDeckBase(info.DeckBSprite, info.DeckList.Count);
-    }
-
-    // Create Hand Cards from hand_list and updates card count
-    public void SetHandObject(List<int> hand_list, bool is_player_hand)
-    {
-        FieldView view = View(is_player_hand);
-        view.Hand.ClearHandObject();
-        CreateCardObjects(view.Hand.gameObject, hand_list, true, is_player_hand);
-        view.Hand.ResizeHand();
-        view.Stats.UIUpdateHandCount(hand_list.Count);
-    }
-
-    // True when a container already shows exactly these cards, in this order (card objects are named after their
-    // id; other children such as the weather overlay are ignored). Refreshes skip such containers: rebuilding the
-    // whole board on every play cost ~30 ms in the editor on a busy board, several times that on a phone.
-    private static bool ShowsCards(Transform container, List<int> card_ids)
-    {
-        int shown = 0;
-        foreach (Transform child in container)
-        {
-            if (child.GetComponent<CardDisplay>() == null)
-                continue;
-            if (shown >= card_ids.Count || child.name != card_ids[shown].ToString())
-                return false;
-            shown++;
-        }
-        return shown == card_ids.Count;
-    }
-
-    // Makes a container show exactly these cards, in this order, reusing the card objects already there: a play
-    // only creates the cards that arrived and removes the ones that left. For containers without per-card state
-    // (rows, horn slots, the discard pile, the weather slot); other children (the weather overlay) stay after them.
-    // Returns false when nothing changed.
-    private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card)
-    {
-        Transform parent = container.transform;
-        if (ShowsCards(parent, card_ids))
-            return false;
-
-        Dictionary<int, Queue<GameObject>> existing = new Dictionary<int, Queue<GameObject>>();
-        List<GameObject> unused = new List<GameObject>();
-        foreach (Transform child in parent)
-        {
-            if (child.GetComponent<CardDisplay>() == null)
-                continue;
-            int id;
-            if (!int.TryParse(child.name, out id))
-            {
-                unused.Add(child.gameObject);
-                continue;
-            }
-            Queue<GameObject> queue;
-            if (!existing.TryGetValue(id, out queue))
-                existing[id] = queue = new Queue<GameObject>();
-            queue.Enqueue(child.gameObject);
-        }
-
-        List<GameObject> ordered = new List<GameObject>(card_ids.Count);
-        foreach (int id in card_ids)
-        {
-            Queue<GameObject> queue;
-            GameObject card;
-            if (existing.TryGetValue(id, out queue) && queue.Count > 0)
-                card = queue.Dequeue();
-            else
-            {
-                card = CreateCardObject(Db.Get(id), is_player_card);
-                card.GetComponent<CardSelect>().isSelectable = false;
-                card.GetComponent<CardHover>().isHoverable = false;
-                card.GetComponent<CardExchange>().isExchangeable = false;
-                card.transform.SetParent(parent, false);
-            }
-            ordered.Add(card);
-        }
-        foreach (Queue<GameObject> queue in existing.Values)
-            unused.AddRange(queue);
-        foreach (GameObject card in unused)
-        {
-            card.transform.SetParent(null, false); // out of the container now: counts and layouts must not see it
-            Destroy(card);
-        }
-        for (int i = 0; i < ordered.Count; i++)
-            ordered[i].transform.SetSiblingIndex(i);
-        return true;
-    }
-
-    private void SetDiscardObject(List<int> discard_list, bool is_player_hand)
-    {
-        FieldView view = View(is_player_hand);
-        if (!SyncCards(view.DiscardPile, discard_list, is_player_hand))
-            return;
-
-        // A visible stack, as in The Witcher 3: older cards peek out to the bottom right of the top one
-        Transform pile = view.DiscardPile.transform;
-        int top = pile.childCount - 1;
-        for (int i = 0; i < pile.childCount; i++)
-        {
-            float depth = Mathf.Min(top - i, 12) * 0.7f;
-            pile.GetChild(i).localPosition = new Vector3(depth, -depth, 0);
-        }
-    }
-
-    private void RefreshFields(bool is_player_field)
-    {
-        MainInfo info = Info(is_player_field);
-        FieldView view = View(is_player_field);
-
-        if (ShowsCards(view.Hand.transform, info.HandList))
-            view.Stats.UIUpdateHandCount(info.HandList.Count);
-        else
-            SetHandObject(info.HandList, is_player_field);
-
-        foreach (string row in Rows.Units)
-        {
-            RowView row_view = view.Rows[row];
-            List<int> units = info.UnitRow(row);
-            if (SyncCards(row_view.Unit, units, is_player_field))
-                row_view.Manager.ResizeUnitObject(units.Count);
-            SyncCards(row_view.Special, info.SpecialRow(row), is_player_field);
-        }
-
-        SetDiscardObject(info.DiscardList, is_player_field);
-        RefreshWeatherOverlays(view);
-    }
-
-    private void RefreshWeather()
-    {
-        SyncCards(WeatherField, weatherList, true);
-    }
-
-    private void RefreshWeatherOverlays(FieldView view)
-    {
-        SetWeatherOverlay(view.Rows[Rows.Close].Unit.transform, weatherList.Contains(CardIds.BitingFrost), "Cards/EffectBox/overlay_frost", new Color32(108, 198, 255, 78));
-        SetWeatherOverlay(view.Rows[Rows.Range].Unit.transform, weatherList.Contains(CardIds.ImpenetrableFog), "Cards/EffectBox/overlay_fog", new Color32(185, 190, 188, 86));
-        SetWeatherOverlay(view.Rows[Rows.Siege].Unit.transform, weatherList.Contains(CardIds.TorrentialRain), "Cards/EffectBox/overlay_rain", new Color32(61, 111, 184, 86));
-    }
-
-    private void SetWeatherOverlay(Transform unitRow, bool isActive, string spriteResourcePath, Color fallbackColor)
-    {
-        Transform existingOverlay = unitRow.Find(WeatherOverlayName);
-        if (!isActive)
-        {
-            if (existingOverlay != null)
-                Destroy(existingOverlay.gameObject);
-            return;
-        }
-
-        GameObject overlayObject;
-        if (existingOverlay == null)
-        {
-            overlayObject = new GameObject(WeatherOverlayName, typeof(RectTransform));
-            overlayObject.transform.SetParent(unitRow, false);
-
-            LayoutElement layoutElement = overlayObject.AddComponent<LayoutElement>();
-            layoutElement.ignoreLayout = true;
-
-            Image image = overlayObject.AddComponent<Image>();
-            image.raycastTarget = false;
-            image.preserveAspect = false;
-
-            RectTransform rectTransform = overlayObject.GetComponent<RectTransform>();
-            rectTransform.anchorMin = Vector2.zero;
-            rectTransform.anchorMax = Vector2.one;
-            rectTransform.offsetMin = Vector2.zero;
-            rectTransform.offsetMax = Vector2.zero;
-        }
-        else
-            overlayObject = existingOverlay.gameObject;
-
-        overlayObject.transform.SetAsLastSibling();
-
-        Image overlayImage = overlayObject.GetComponent<Image>();
-        Sprite overlaySprite = SpriteCache.Load(spriteResourcePath);
-        overlayImage.sprite = overlaySprite;
-        overlayImage.color = overlaySprite != null ? new Color(1f, 1f, 1f, 0.82f) : fallbackColor;
-    }
-
-    // Updates the UI scores
-    private void UpdateUIScores(bool is_player_field)
-    {
-        MainInfo info = Info(is_player_field);
-        FieldView view = View(is_player_field);
-
-        // The card objects were just re-created: their strength labels update next frame (coroutine)
-        foreach (string row in Rows.Units)
-        {
-            RowManager manager = view.Rows[row].Manager;
-            StartCoroutine(manager.UIUpdateUnitsStrength(info.BaseStrengths(row), info.ModifiedStrengths(row)));
-            manager.UpdateRowScore(info.ModifiedStrengths(row));
-        }
-
-        view.Stats.UIUpdateTotalScore(info.MCloseStrength, info.MRangeStrength, info.MSiegeStrength);
-        SetDeckObject(info, is_player_field);
-        view.Stats.UIUpdateHandCount(info.HandList.Count);
-    }
-
-    // Generate Cards GameObject from cards prefab and set their parent to the passed gameobject
-    private void CreateCardObjects(GameObject my_object, List<int> card_list, bool isSelectable, bool is_player_card)
-    {
-        foreach (int card_id in card_list)
-        {
-            GameObject instantiatedCard = CreateCardObject(Db.Get(card_id), is_player_card);
-            instantiatedCard.GetComponent<CardSelect>().isSelectable = isSelectable;
-            instantiatedCard.GetComponent<CardHover>().isHoverable = isSelectable;
-            instantiatedCard.GetComponent<CardExchange>().isExchangeable = Db.Get(card_id).ability != Abilities.Leader;
-            instantiatedCard.transform.SetParent(my_object.transform, false);
-        }
-    }
-
-    // A card object with its stats filled in (not parented)
-    public GameObject CreateCardObject(Card card, bool is_player_card)
-    {
-        GameObject instantiatedCard = Instantiate(CardPrefab);
-        instantiatedCard.name = card._id.ToString();
-        CardStats stats = instantiatedCard.transform.Find("Stats").GetComponent<CardStats>();
-        stats.name = card.name;
-        stats._id = card._id;
-        stats._idstr = card._idstr;
-        stats.faction = card.faction;
-        stats.unique = card.unique;
-        stats.strength = card.strength;
-        stats.row = card.row;
-        stats.ability = card.ability;
-        instantiatedCard.tag = is_player_card ? "Player" : "Enemy";
-        return instantiatedCard;
-    }
+    private void SetDeckObject(MainInfo info, bool is_player_deck) { board.SetDeck(info, is_player_deck); }
+    public void SetHandObject(List<int> hand_list, bool is_player_hand) { board.SetHand(hand_list, is_player_hand); }
+    private void SetDiscardObject(List<int> discard_list, bool is_player) { board.SetDiscard(discard_list, is_player); }
+    private void CreateCardObjects(GameObject my_object, List<int> card_list, bool isSelectable, bool is_player_card) { board.CreateCardObjects(my_object, card_list, isSelectable, is_player_card); }
+    public GameObject CreateCardObject(Card card, bool is_player_card) { return board.CreateCardObject(card, is_player_card); }
+    public void HighlightField(CardStats card_stats, bool is_player_turn) { board.Highlight(card_stats, is_player_turn); }
+    public void LightoffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
+    public void SetHider(bool hidden) { board.SetHider(hidden); }
 
     //----------------------------------------------Queries---------------------------------------------------//
     public Card GetCardStats(int card_id)

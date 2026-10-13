@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -22,6 +23,8 @@ public class RedrawPicker : MonoBehaviour
     private SceneController controller;
     private Image details;
     private int detailsFor = -1;
+    private TextMeshProUGUI counter;
+    private int counterShows = -1;
     private readonly List<int> shownHand = new List<int>();
     private readonly List<CarouselCard> cards = new List<CarouselCard>();
     private int focus;
@@ -45,6 +48,45 @@ public class RedrawPicker : MonoBehaviour
     public RectTransform CardAt(int index)
     {
         return index >= 0 && index < cards.Count ? cards[index].rect : null;
+    }
+
+    // The whole redraw phase UI: a dark band "Choose a card to redraw. 0/2" (with the Done button) above the
+    // carousel. Returns its root, which the battle destroys when the phase ends.
+    public static GameObject ShowPhase(SceneController controller)
+    {
+        UITheme theme = UITheme.Current;
+        RectTransform root = UIKit.Rect("MulliganPrompt", UIOverlay.Root).Stretch();
+        RectTransform band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.78f)).rectTransform;
+        band.anchorMin = new Vector2(0, 1);
+        band.anchorMax = new Vector2(1, 1);
+        band.pivot = new Vector2(0.5f, 0.5f);
+        band.anchoredPosition = new Vector2(0, -150);
+        band.sizeDelta = new Vector2(0, 116);
+        foreach (float edge in new[] { 0f, 1f })
+        {
+            Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
+            line.rectTransform.anchorMin = new Vector2(0, edge);
+            line.rectTransform.anchorMax = new Vector2(1, edge);
+            line.rectTransform.sizeDelta = new Vector2(0, 2);
+        }
+
+        TextMeshProUGUI counter = UIKit.Text(band, "", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
+        counter.fontSize = 36;
+        counter.color = theme.text;
+        counter.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -38), new Vector2(1100, 50));
+        string how = Application.isMobilePlatform
+            ? "Tap a card to bring it forward, tap it again to redraw it"
+            : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click keeps your hand";
+        TextMeshProUGUI hint = UIKit.Text(band, how, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+        hint.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
+
+        Button done = UIKit.Button(band, "Done", UIKit.ButtonStyle.Primary, controller.FinishCardExchange, new Vector2(200, 60));
+        ((RectTransform)done.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
+
+        RedrawPicker picker = Create(root, controller, new Vector2(0, 50));
+        picker.counter = counter;
+        picker.UpdateCounter();
+        return root.gameObject;
     }
 
     public static RedrawPicker Create(Transform parent, SceneController controller, Vector2 center)
@@ -77,6 +119,16 @@ public class RedrawPicker : MonoBehaviour
         HandleInput();
         Animate(1f - Mathf.Exp(-Time.unscaledDeltaTime * 14f));
         UpdateDetails();
+        UpdateCounter();
+    }
+
+    private void UpdateCounter()
+    {
+        int redrawn = controller.PlayerInfo.CardsExchanged;
+        if (counter == null || counterShows == redrawn)
+            return;
+        counterShows = redrawn;
+        counter.text = "Choose a card to redraw. " + redrawn + "/2";
     }
 
     private void UpdateDetails()

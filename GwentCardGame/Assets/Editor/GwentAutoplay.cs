@@ -798,9 +798,10 @@ public static class GwentAutoplay
                 Click(0.4, CardPosition);
                 Click(1.2, CardPosition);
                 At(1.8, () => check(c.PlayerInfo.CardsExchanged == 0, "two clicks 0.8 s apart on a hand card do not redraw it"));
+                // Slow, but with a margin under the 0.5 s window: the virtual clicks are timed by editor ticks
                 Click(2.2, CardPosition);
-                Click(2.65, CardPosition);
-                At(3.2, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a slow double-click (0.45 s) on a hand card redraws it"));
+                Click(2.58, CardPosition);
+                At(3.2, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a slow double-click (0.38 s) on a hand card redraws it"));
                 Click(3.6, DonePosition);
                 At(4.1, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
             }
