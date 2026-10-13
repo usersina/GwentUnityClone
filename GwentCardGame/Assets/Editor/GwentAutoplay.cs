@@ -13,6 +13,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 // End-to-end smoke test: plays whole battles in the real Game scene with a random "player" against the AI.
 // The first two battles start with the redraw played through real input (a virtual mouse and keyboard at human speed),
@@ -134,6 +135,8 @@ public static class GwentAutoplay
         private bool pauseChecked;
         private bool passKeyChecked;
         private bool endScreenChecked;
+        private int roundEndChecked;
+        private readonly HashSet<int> turnsChecked = new HashSet<int>();
         private int boardMismatchMatch = -1;
         private bool menuInputStarted;
 
@@ -183,6 +186,7 @@ public static class GwentAutoplay
         private void NextMatch(bool first = false)
         {
             match++;
+            turnsChecked.Clear();
             if (match >= totalMatches)
             {
                 // Battles done: on to the deck builder
@@ -293,6 +297,13 @@ public static class GwentAutoplay
                 return;
             }
 
+            // The round's result shows over the board before it clears
+            if (c.battleState == BattleState.ROUNDOVER && c.PlayerInfo.RoundsScore.Count != roundEndChecked)
+            {
+                roundEndChecked = c.PlayerInfo.RoundsScore.Count;
+                Check(BattleBanner.Busy, "the round's result is announced", "round end");
+            }
+
             if (inputCheck != null)
             {
                 inputCheck.Tick();
@@ -367,7 +378,12 @@ public static class GwentAutoplay
             if (c.battleState != BattleState.PLAYERTURN)
                 return;
             if (c.pendingAction == PendingAction.None)
+            {
                 CheckBoardShowsModel(c);
+                // The Witcher 3: a side with nothing left to play passes automatically, it never gets a turn
+                if (c.PlayerInfo.HandList.Count == 0 && turnsChecked.Add(c.PlayerInfo.RoundsScore.Count * 100 + c.EnemyInfo.HandList.Count))
+                    Check(c.CanUseLeader(true), "a turn with an empty hand still has the leader to use", "auto pass");
+            }
 
             switch (c.pendingAction)
             {
@@ -435,6 +451,19 @@ public static class GwentAutoplay
                 return;
             CardStats stats = c.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
             Count("play " + (stats.faction == Factions.Special ? stats._idstr : string.IsNullOrEmpty(stats.ability) ? "unit" : stats.ability));
+
+            // Only where the card can go lights up: no rows for a decoy (its targets get a frame) or a weather card
+            List<GameObject> lit = c.PlayerField.GetComponent<RowPicker>().highLightedRows.Concat(c.EnemyField.GetComponent<RowPicker>().highLightedRows).ToList();
+            WeatherManager weather_board = c.WeatherField.GetComponent<WeatherManager>();
+            bool weather_lit = c.WeatherField.GetComponent<Image>().sprite == weather_board.weatherSelected;
+            if (stats.ability == Abilities.Decoy)
+            {
+                int frames = c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == "DecoyTarget");
+                int swappable = Rows.Units.Sum(row => c.PlayerInfo.UnitRow(row).Count(id => !c.Db.Get(id).unique && !c.Db.Get(id).IsSpecial));
+                Check(lit.Count == 0 && !weather_lit && frames == swappable, "a decoy frames its " + swappable + " targets and lights no row (" + frames + " frames, " + lit.Count + " rows)", "highlight");
+            }
+            else if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
+                Check(lit.Count == 0 && weather_lit, "a weather card lights only the weather board", "highlight");
 
             if (stats.ability == Abilities.Decoy)
             {
@@ -784,6 +813,7 @@ public static class GwentAutoplay
         private readonly double start;
         private int next;
         private Mouse mouse;
+        private readonly List<double> releases = new List<double>();
         private Keyboard keyboard;
         private float savedMasterVolume = -1;
         private bool settingsChanged;
@@ -805,14 +835,28 @@ public static class GwentAutoplay
                 At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
             if (scenario == InputScenario.RedrawSlowClicksThenDone)
             {
+                // The virtual clicks are timed by editor ticks: when the editor stalls, the real gap between two clicks
+                // is not the planned one, and a check about that gap says so instead of failing
+                int exchanged = 0;
                 Click(0.4, CardPosition);
                 Click(1.2, CardPosition);
-                At(1.8, () => check(c.PlayerInfo.CardsExchanged == 0, "two clicks 0.8 s apart on a hand card do not redraw it"));
-                // Slow, but with a margin under the 0.5 s window: the virtual clicks are timed by editor ticks
+                At(1.8, () =>
+                {
+                    double gap = ClickGap(0, 1);
+                    exchanged = c.PlayerInfo.CardsExchanged;
+                    check(gap < 0.55 || exchanged == 0, "two clicks " + gap.ToString("0.00") + " s apart on a hand card do not redraw it");
+                });
+                // Slow, but with a margin under the 0.5 s window
                 Click(2.2, CardPosition);
                 Click(2.58, CardPosition);
-                At(3.2, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a slow double-click (0.38 s) on a hand card redraws it"));
-                Click(3.6, DonePosition);
+                At(3.2, () =>
+                {
+                    double gap = ClickGap(2, 3);
+                    check(gap > 0.45 || (c.PlayerInfo.CardsExchanged == exchanged + 1 && c.PlayerInfo.HandList.Count == 10),
+                        "a slow double-click (" + gap.ToString("0.00") + " s) on a hand card redraws it");
+                });
+                // Two redraws end the phase on their own (possible after a stall): then there is no Done to click
+                Click(3.6, () => c.PlayerInfo.CanExchange ? DonePosition() : CardPosition());
                 At(4.1, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
             }
             else if (scenario == InputScenario.RedrawTwice)
@@ -938,7 +982,13 @@ public static class GwentAutoplay
             Vector2 at = Vector2.zero;
             At(time - 0.05, () => { at = position(); Send(at, button, false); });
             At(time, () => Send(at, button, true));
-            At(time + PressDuration, () => Send(at, button, false));
+            At(time + PressDuration, () => { Send(at, button, false); releases.Add(EditorApplication.timeSinceStartup); });
+        }
+
+        // Real time between two clicks of this check (counted from 0), as they were sent
+        private double ClickGap(int first, int second)
+        {
+            return second < releases.Count ? releases[second] - releases[first] : 0;
         }
 
         private void Move(double time, Func<Vector2> position)

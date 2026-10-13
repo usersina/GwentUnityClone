@@ -37,9 +37,9 @@ Sorry, no multiplayer :/ (yet)
 |---|---|---|
 | Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. Double-clicking it in your hand works too. **Done** or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
 | Select a card from your hand | Click it (click again to deselect) | Tap it |
-| Play the selected card | Click a highlighted row (weather/scorch: the weather board, decoy: one of your units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand | Same, with taps (the warning sound, no cursor) |
+| Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand | Same, with taps (the warning sound, no cursor) |
 | Use your leader | Click the leader card or its button | Tap |
-| Pass | Hold Space, or hold the **Hold to pass** button | Hold the button |
+| Pass (for the rest of the round) | Hold Space, or hold the **Hold to pass** button | Hold the button |
 | Scoia'tael: choose who starts | **Go first** or **Go second** in the dialog at the start of the battle | Tap |
 | After the battle | The end screen shows every round's score; **Play again** or **Main menu** | Tap |
 | Pause (resume, settings, leave the battle) | Esc or the menu button at the top right | Back button or the menu button |
@@ -52,7 +52,24 @@ The deck you last selected in the deck builder is used in battle, as long as it 
 heroes once, other cards up to 3 times). The line at the bottom of the deck builder shows which deck that is. Without a valid deck,
 the battle uses the built-in Northern Realms deck.
 
-House rule: Muster also pulls the matching cards from your hand, not only from your deck (as written on the card).
+## Rules, as in The Witcher 3
+
+- Each turn you do one thing: play a card, use your leader or pass. Playing a card ends your turn. Passing is final for the round:
+  the other side keeps playing until it passes too, then the higher total wins the round. A side with no card left and no leader
+  ability to use passes automatically.
+- The winner of a round starts the next one (after a drawn round, whoever passed last). Scoia'tael decide who starts the battle.
+- A leader ability that would do nothing right now (no weather to clear, an enemy row under 10 for a scorch, no matching weather card
+  in the deck...) can't be used, so it is never wasted. Passive leaders (The Treacherous, Invader of the North, The White Flame,
+  Daisy of the Valley) work from the start; The White Flame cancels the other leader, passive ones included.
+- A decoy on a row is not a unit: morale, horns and scorch ignore it, and Monsters never keep it (nor a hero) at the end of a round.
+- The Cow summons the Bovine Defense Force when it goes to the discard pile; the Defense Force arrives when the board is cleared for
+  the next round, and vanishes instead of going to the discard pile.
+- Muster also pulls the matching cards from your hand, not only from your deck (The Witcher 3 does this too, although the card only
+  says "deck"). The Arachas Behemoth calls the Arachas and Gaunter O'Dimm calls the Darkness, but not the other way round.
+
+Differences that remain: decks may hold up to 3 copies of any non-hero card (The Witcher 3 allows only the copies that exist), the
+Ice Giant is 6 strength as on its card (5 in The Witcher 3), the Eredin leader cards carry swapped names on their art (their
+abilities are right), and the Skellige faction (Blood and Wine) is not in the game.
 
 # Download:
 If you don't have Unity Game Engine or simply want to test this game for fun.
