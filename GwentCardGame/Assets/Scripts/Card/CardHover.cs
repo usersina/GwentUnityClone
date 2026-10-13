@@ -95,9 +95,12 @@ public class CardHover : MonoBehaviour
         Destroy(bigEffect);
     }
 
-    // Replaces any preview this card already shows (a second enter event used to leave a ghost preview)
+    // Replaces any preview this card already shows (a second enter event used to leave a ghost preview).
+    // Not during the redraw: the carousel shows the cards big, with their description
     public void ShowPreview()
     {
+        if (RedrawPicker.IsOpen)
+            return;
         DestroyEffect();
         ShowBigInfo();
     }
@@ -124,18 +127,28 @@ public class CardHover : MonoBehaviour
             graphic.raycastTarget = false;
     }
 
-    // Description box shown next to the big card (also used by the deck builder)
+    // Description box shown next to the big card (also used by the deck builder and the redraw carousel)
     public static string EffectBoxPath(CardStats cardStats)
     {
-        if (cardStats.faction == "Special")
-            return "Cards/EffectBox/" + cardStats._idstr;
-        if (cardStats.ability == "leader")
-            return "Cards/EffectBox/Leader/" + cardStats._id;
-        if (!string.IsNullOrEmpty(cardStats.ability))
-            return "Cards/EffectBox/" + cardStats.ability;
-        if (cardStats.unique)
+        return EffectBoxPath(cardStats.faction, cardStats._idstr, cardStats.ability, cardStats._id, cardStats.unique, cardStats.row);
+    }
+
+    public static string EffectBoxPath(Gwent.Rules.Card card)
+    {
+        return EffectBoxPath(card.faction, card._idstr, card.ability, card._id, card.unique, card.row);
+    }
+
+    private static string EffectBoxPath(string faction, string idstr, string ability, int id, bool unique, string row)
+    {
+        if (faction == "Special")
+            return "Cards/EffectBox/" + idstr;
+        if (ability == "leader")
+            return "Cards/EffectBox/Leader/" + id;
+        if (!string.IsNullOrEmpty(ability))
+            return "Cards/EffectBox/" + ability;
+        if (unique)
             return "Cards/EffectBox/hero";
-        if (cardStats.row == "close_range")
+        if (row == "close_range")
             return "Cards/EffectBox/agile";
         return "Cards/EffectBox/normal_unit";
     }

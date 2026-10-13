@@ -46,9 +46,6 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
     private void Exchange()
     {
         lastExchangeTime = Time.unscaledTime;
-        controller.ExchangeCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
-        controller.PlayerInfo.CardsExchanged++;
-        if (controller.PlayerInfo.CardsExchanged >= 2)
-            controller.FinishCardExchange();
+        controller.RedrawPlayerCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id);
     }
 }

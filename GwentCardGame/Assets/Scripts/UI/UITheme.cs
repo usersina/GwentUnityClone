@@ -48,6 +48,7 @@ public class UITheme : ScriptableObject
     public Sprite iconBack;
     public Sprite iconTrash;
     public Sprite iconEdit;
+    public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
 
     private static UITheme current;
 

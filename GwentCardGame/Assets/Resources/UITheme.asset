@@ -49,3 +49,4 @@ MonoBehaviour:
   iconBack: {fileID: 21300000, guid: 9aa01236082e928f2aed0b81afade690, type: 3}
   iconTrash: {fileID: 21300000, guid: d300d694e3f6f57a6b28389c531d3d61, type: 3}
   iconEdit: {fileID: 21300000, guid: a300519d6bea215d6ab620baaf9aa4f9, type: 3}
+  softShadow: {fileID: 21300000, guid: 7d0cda7be02823c7d8759f7bf3548013, type: 3}

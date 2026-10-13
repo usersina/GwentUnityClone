@@ -427,6 +427,7 @@ public static class UISpriteGenerator
         theme.iconBack = sprite("IconBack");
         theme.iconTrash = sprite("IconTrash");
         theme.iconEdit = sprite("IconEdit");
+        theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
         EditorUtility.SetDirty(theme);
         AssetDatabase.SaveAssets();
     }

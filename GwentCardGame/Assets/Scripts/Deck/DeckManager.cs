@@ -8,6 +8,7 @@ public class DeckManager : MonoBehaviour
 
     private Transform deckBase;
     private TextMeshProUGUI deckCount;
+    private GameObject shadow;
 
     private void CacheReferences()
     {
@@ -15,6 +16,13 @@ public class DeckManager : MonoBehaviour
             return;
         deckBase = transform.Find("DeckBase");
         deckCount = transform.Find("DeckCount").Find("Number").GetComponent<TextMeshProUGUI>();
+
+        // Soft shadow under the stack, like the cards on the board
+        Image shadow_image = UIKit.NewImage(transform, "Shadow", UITheme.Current.softShadow, new Color(0, 0, 0, 0.65f));
+        RectTransform card = (RectTransform)transform.Find("DeckHolder");
+        shadow_image.rectTransform.Place(card.anchorMin, card.anchoredPosition + new Vector2(5, -8), card.sizeDelta + new Vector2(30, 34), card.pivot);
+        shadow_image.transform.SetAsFirstSibling();
+        shadow = shadow_image.gameObject;
     }
 
     // Updates the card number and the stack of card backs (only adds/removes the difference)
@@ -22,6 +30,7 @@ public class DeckManager : MonoBehaviour
     {
         CacheReferences();
         deckCount.text = cards_number.ToString();
+        shadow.SetActive(cards_number > 0);
 
         // Remove extra card backs from the top of the stack
         for (int i = deckBase.childCount - 1; i >= cards_number; i--)

@@ -281,15 +281,15 @@ public class SceneController : MonoBehaviour
     {
         if (!PlayerInfo.CanExchange)
             return;
-        // A dark band across the board, like The Witcher 3's "Choose a card to redraw. 0/2"
+        // As in The Witcher 3: a dark band "Choose a card to redraw. 0/2" above the hand shown as big cards
         UITheme theme = UITheme.Current;
-        RectTransform band = UIKit.NewImage(UIOverlay.Root, "MulliganPrompt", null, new Color(0, 0, 0, 0.78f)).rectTransform;
-        // Across the middle of the board: the rows there are still empty, and both panels stay visible
-        band.anchorMin = new Vector2(0, 0.5f);
-        band.anchorMax = new Vector2(1, 0.5f);
+        RectTransform root = UIKit.Rect("MulliganPrompt", UIOverlay.Root).Stretch();
+        RectTransform band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.78f)).rectTransform;
+        band.anchorMin = new Vector2(0, 1);
+        band.anchorMax = new Vector2(1, 1);
         band.pivot = new Vector2(0.5f, 0.5f);
-        band.anchoredPosition = new Vector2(0, 40);
-        band.sizeDelta = new Vector2(0, 132);
+        band.anchoredPosition = new Vector2(0, -150);
+        band.sizeDelta = new Vector2(0, 116);
         foreach (float edge in new[] { 0f, 1f })
         {
             Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
@@ -301,15 +301,19 @@ public class SceneController : MonoBehaviour
         mulliganCount = UIKit.Text(band, "", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
         mulliganCount.fontSize = 36;
         mulliganCount.color = theme.text;
-        mulliganCount.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -44), new Vector2(1100, 50));
-        string how = Application.isMobilePlatform ? "Double-tap a card in your hand to redraw it" : "Double-click a card in your hand to redraw it, right-click to keep your hand";
+        mulliganCount.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -38), new Vector2(1100, 50));
+        string how = Application.isMobilePlatform
+            ? "Tap a card to bring it forward, tap it again to redraw it"
+            : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click keeps your hand";
         TextMeshProUGUI hint = UIKit.Text(band, how, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
-        hint.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -92), new Vector2(1100, 34));
+        hint.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
         mulliganHint = "Choose a card to redraw.";
 
         Button done = UIKit.Button(band, "Done", UIKit.ButtonStyle.Primary, FinishCardExchange, new Vector2(200, 60));
         ((RectTransform)done.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
-        mulliganPrompt = band.gameObject;
+
+        RedrawPicker.Create(root, this, new Vector2(0, 50));
+        mulliganPrompt = root.gameObject;
         UpdateMulliganCount();
     }
 
@@ -324,6 +328,17 @@ public class SceneController : MonoBehaviour
     public void FinishCardExchange()
     {
         PlayerInfo.CanExchange = false;
+    }
+
+    // One redraw of the player's (double-click in the hand, or the redraw picker); the second one ends the phase
+    public void RedrawPlayerCard(int card_id)
+    {
+        if (!PlayerInfo.CanExchange || PlayerInfo.CardsExchanged >= 2 || !PlayerInfo.HandList.Contains(card_id))
+            return;
+        ExchangeCard(card_id, true);
+        PlayerInfo.CardsExchanged++;
+        if (PlayerInfo.CardsExchanged >= 2)
+            FinishCardExchange();
     }
 
     // The menu button at the top right
@@ -1136,6 +1151,15 @@ public class SceneController : MonoBehaviour
         FieldView view = View(is_player_hand);
         view.Discard.ClearDiscardPile();
         CreateCardObjects(view.DiscardPile, discard_list, false, is_player_hand);
+
+        // A visible stack, as in The Witcher 3: older cards peek out to the bottom right of the top one
+        Transform pile = view.DiscardPile.transform;
+        int top = pile.childCount - 1;
+        for (int i = 0; i < pile.childCount; i++)
+        {
+            float depth = Mathf.Min(top - i, 12) * 0.7f;
+            pile.GetChild(i).localPosition += new Vector3(depth, -depth, 0);
+        }
     }
 
     private void RefreshFields(bool is_player_field)

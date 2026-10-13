@@ -132,6 +132,7 @@ public static class GwentAutoplay
         private int redrawChecks;
         private bool selectionChecked;
         private bool pauseChecked;
+        private bool passKeyChecked;
         private bool menuInputStarted;
 
         public Runner(int total_matches, int seed, bool batch, string report_path)
@@ -309,9 +310,9 @@ public static class GwentAutoplay
         {
             if (c.battleState == BattleState.START && c.PlayerInfo.CanExchange)
             {
-                if (redrawChecks < 2)
+                if (redrawChecks < 3)
                 {
-                    InputScenario scenario = redrawChecks++ == 0 ? InputScenario.RedrawSlowClicksThenDone : InputScenario.RedrawTwice;
+                    InputScenario scenario = new[] { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel }[redrawChecks++];
                     inputCheck = new InputCheck(c, scenario, (ok, what) => Check(ok, what, "redraw input"));
                     return;
                 }
@@ -382,6 +383,12 @@ public static class GwentAutoplay
             {
                 pauseChecked = true;
                 inputCheck = new InputCheck(c, InputScenario.PauseMenu, (ok, what) => Check(ok, what, "pause menu input"));
+                return;
+            }
+            if (!passKeyChecked)
+            {
+                passKeyChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.PassWithSpace, (ok, what) => Check(ok, what, "pass input"));
                 return;
             }
 
@@ -702,11 +709,13 @@ public static class GwentAutoplay
     //----------------------------------------Real mouse input----------------------------------------//
     private enum InputScenario
     {
-        RedrawSlowClicksThenDone, // two slow clicks (no redraw), a burst of four clicks (one redraw only), then Done
-        RedrawTwice,              // a quick double-click, then a slow one (the second redraw ends the redraw phase)
+        RedrawSlowClicksThenDone, // two slow clicks (no redraw), a slow double-click (redraw), then Done
+        RedrawTwice,              // a burst of four clicks (one redraw only), then the carousel's front card (ends it)
+        RedrawCarousel,           // carousel: Right arrow, click a side card, Enter redraws it, right-click keeps the hand
         SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
                                   // click deselects it, right-click does nothing
         PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
+        PassWithSpace,            // a short press of Space does not pass, holding it does
         MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
     }
 
@@ -746,23 +755,34 @@ public static class GwentAutoplay
                 Click(0.4, CardPosition);
                 Click(1.2, CardPosition);
                 At(1.8, () => check(c.PlayerInfo.CardsExchanged == 0, "two clicks 0.8 s apart on a hand card do not redraw it"));
-                // Clicks 3 and 4 land on the card that replaced the redrawn one: they must not redraw it too
                 Click(2.2, CardPosition);
-                Click(2.34, CardPosition);
-                Click(2.48, CardPosition);
-                Click(2.62, CardPosition);
-                At(3.3, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a burst of four clicks redraws one card only"));
+                Click(2.65, CardPosition);
+                At(3.2, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a slow double-click (0.45 s) on a hand card redraws it"));
                 Click(3.6, DonePosition);
                 At(4.1, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
             }
             else if (scenario == InputScenario.RedrawTwice)
             {
+                // Clicks 3 and 4 land on the card that replaced the redrawn one: they must not redraw it too
                 Click(0.4, CardPosition);
-                Click(0.52, CardPosition);
-                At(1.0, () => check(c.PlayerInfo.CardsExchanged == 1, "a quick double-click (0.12 s) on a hand card redraws it"));
-                Click(1.3, CardPosition);
-                Click(1.75, CardPosition);
-                At(2.3, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "a slow double-click (0.45 s) redraws a second card and ends the redraw"));
+                Click(0.54, CardPosition);
+                Click(0.68, CardPosition);
+                Click(0.82, CardPosition);
+                At(1.5, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a burst of four clicks redraws one card only"));
+                At(1.5, () => check(Picker() != null && Picker().CardCount == 10 && c.PlayerInfo.HandList.Contains(Picker().FocusedCardId), "the redraw carousel follows the hand"));
+                Click(1.8, CarouselCard(-1));
+                At(2.4, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "clicking the carousel's front card redraws it (and ends the redraw)"));
+            }
+            else if (scenario == InputScenario.RedrawCarousel)
+            {
+                Key(0.4, UnityEngine.InputSystem.Key.RightArrow);
+                At(0.8, () => check(Picker() != null && Picker().FocusIndex == 1, "the Right arrow brings the next card forward"));
+                Click(1.1, CarouselCard(3));
+                At(1.6, () => check(Picker() != null && Picker().FocusIndex == 3, "clicking a side card brings it forward"));
+                Key(1.9, UnityEngine.InputSystem.Key.Enter);
+                At(2.4, () => check(c.PlayerInfo.CardsExchanged == 1, "Enter redraws the front card"));
+                Click(2.7, CardPosition, MouseButton.Right);
+                At(3.2, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 1, "right-click keeps the rest of the hand"));
             }
             else if (scenario == InputScenario.PauseMenu)
             {
@@ -774,6 +794,15 @@ public static class GwentAutoplay
                 At(2.4, () => check(PauseMenu.IsOpen, "the menu button opens the pause menu"));
                 Click(2.7, Named("Item Resume"));
                 At(3.2, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
+            }
+            else if (scenario == InputScenario.PassWithSpace)
+            {
+                PassManager pass = UnityEngine.Object.FindAnyObjectByType<PassManager>(FindObjectsInactive.Include);
+                float hold = pass != null ? pass.requiredHoldTime : 1f;
+                KeyHold(0.3, UnityEngine.InputSystem.Key.Space, 0.25);
+                At(0.9, () => check(!c.PlayerInfo.hasPassed, "a short press of Space does not pass"));
+                KeyHold(1.2, UnityEngine.InputSystem.Key.Space, hold + 0.4);
+                At(1.2 + hold + 0.8, () => check(c.PlayerInfo.hasPassed, "holding Space passes"));
             }
             else if (scenario == InputScenario.MainMenuSettings)
             {
@@ -852,6 +881,12 @@ public static class GwentAutoplay
             At(time, () => Send(position(), MouseButton.Left, false));
         }
 
+        private void KeyHold(double time, Key key, double duration)
+        {
+            At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
+            At(time + duration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
+        }
+
         private void Key(double time, Key key)
         {
             At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
@@ -893,6 +928,23 @@ public static class GwentAutoplay
             if (card == null && hand.childCount > 0)
                 card = hand.GetChild(hand.childCount / 2);
             return card != null ? ScreenPoint(card) : Vector2.zero;
+        }
+
+        private static RedrawPicker Picker()
+        {
+            return UnityEngine.Object.FindAnyObjectByType<RedrawPicker>();
+        }
+
+        // A card of the redraw carousel (-1: the front one), where it is when the click happens
+        private Func<Vector2> CarouselCard(int index)
+        {
+            return () =>
+            {
+                RedrawPicker picker = Picker();
+                RectTransform card = picker != null ? picker.CardAt(index < 0 ? picker.FocusIndex : index) : null;
+                check(card != null, "the redraw carousel shows card " + index);
+                return card != null ? ScreenPoint(card) : Vector2.zero;
+            };
         }
 
         // 3 pixels above the bottom edge of the (not yet raised) card
