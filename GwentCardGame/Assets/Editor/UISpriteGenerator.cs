@@ -73,8 +73,9 @@ public static class UISpriteGenerator
 
         AssetDatabase.Refresh();
         foreach (string folder in new[] { SpriteFolder, BoardFolder })
-            foreach (string file in Directory.GetFiles(folder, "*.png"))
-                ConfigureImporter(file.Replace('\\', '/'), folder == BoardFolder ? 100 : PixelsPerUnit);
+            foreach (string file in Directory.GetFiles(folder))
+                if (file.EndsWith(".png") || file.EndsWith(".jpg"))
+                    ConfigureImporter(file.Replace('\\', '/'), folder == BoardFolder ? 100 : PixelsPerUnit);
         AssetDatabase.Refresh();
         WireTheme();
         Debug.Log("UI sprites and theme regenerated in " + SpriteFolder);
@@ -141,6 +142,39 @@ public static class UISpriteGenerator
         Reframe("Assets/Resources/UnitsRows/hand_row.png", "Row_hand", false);
         Reframe("Assets/Resources/PowerRows/special.png", "Row_special", false);
         Reframe("Assets/Resources/PowerRows/special_selected.png", "Row_special_selected", true);
+
+        string sources = BoardFolder + "/Sources";
+        if (Directory.Exists(sources))
+            foreach (string source in Directory.GetFiles(sources, "*.jpg"))
+                Table(source, "Table_" + Path.GetFileNameWithoutExtension(source).Replace("_diff_2k", ""));
+    }
+
+    // Table under the board: the middle of a square wood texture cropped to 16:9, darkened so the rows stand
+    // out, with a soft vignette
+    private static void Table(string source, string name)
+    {
+        Texture2D input = new Texture2D(2, 2);
+        input.LoadImage(File.ReadAllBytes(source));
+        const int w = 1920, h = 1080;
+        float v_span = (float)h / w * input.width / input.height;
+        Color[] pixels = new Color[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float u = (x + 0.5f) / w, t = (y + 0.5f) / h;
+                Color color = input.GetPixelBilinear(u, 0.5f + (t - 0.5f) * v_span);
+                float dx = (u - 0.5f) * 2, dy = (t - 0.5f) * 2;
+                float vignette = 1 - 0.5f * Smooth((Mathf.Sqrt(dx * dx * 0.8f + dy * dy) - 0.45f) / 0.9f);
+                pixels[y * w + x] = Shade(color, 0.85f * vignette);
+            }
+        Texture2D output = new Texture2D(w, h, TextureFormat.RGB24, false);
+        output.SetPixels(pixels);
+        output.Apply();
+        string path = BoardFolder + "/" + name + ".jpg";
+        File.WriteAllBytes(path, output.EncodeToJPG(92));
+        Borders[path] = Vector4.zero;
+        UnityEngine.Object.DestroyImmediate(input);
+        UnityEngine.Object.DestroyImmediate(output);
     }
 
     // Score medallion: beveled metal rim around a colored disc (dark numbers go on top)
@@ -319,7 +353,8 @@ public static class UISpriteGenerator
         importer.alphaIsTransparency = true;
         importer.wrapMode = TextureWrapMode.Clamp;
         importer.filterMode = FilterMode.Bilinear;
-        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        // Small shapes stay exact; the big table photos are compressed like any texture
+        importer.textureCompression = path.EndsWith(".jpg") ? TextureImporterCompression.CompressedHQ : TextureImporterCompression.Uncompressed;
         Vector4 border;
         if (Borders.TryGetValue(path, out border))
             importer.spriteBorder = border;

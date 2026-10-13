@@ -74,7 +74,7 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 | `Assets/Scripts/DeckController.cs`, `DeckEdit/` | The deck builder |
 | `Assets/Scripts/Utility` | Audio, settings, deck files, card database, runtime UI layer (toasts, dialogs, Escape handling), logging |
 | `Assets/Scripts/UI` | The menus' look: theme (`Resources/UITheme.asset`: fonts, colors, sprites), UI kit (buttons, menu entries, sliders, switches, steppers), settings screen, pause menu |
-| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`): **Gwent > UI > Regenerate Sprites and Theme** |
+| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`) and the board pieces (`Assets/UI/Board`: score medallions, gems, portrait ring, row frames, the table): **Gwent > UI > Regenerate Sprites and Theme** |
 | `Assets/Resources/Cards` | `cards_db.json` (every card's stats), `AI_Monsters.json` (the AI's deck) and the card images |
 | `Assets/Tests/EditMode` | Unit tests for the rules |
 | `Assets/Editor/GwentAutoplay.cs` | End-to-end smoke test that plays full battles |
@@ -118,3 +118,4 @@ This is a non-commercial fan project.
 The source code is released under the [MIT License](LICENSE).
 The license does not cover the Gwent/Witcher card art, names and other CD PROJEKT RED material, which remain the property of their owners.
 The fonts keep their own licenses: Cinzel and Alegreya Sans (SIL Open Font License 1.1), Roboto (Apache 2.0); see `GwentCardGame/Assets/Fonts/FONTS-LICENSE.md`.
+The table under the board is "Dark Wood" from [Poly Haven](https://polyhaven.com/a/dark_wood) (CC0); see `GwentCardGame/Assets/UI/Board/Sources/CREDITS.md`.
