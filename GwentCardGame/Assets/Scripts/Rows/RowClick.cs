@@ -51,6 +51,8 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
                     CardStats selected = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
                     if (selected.ability == Abilities.Decoy)
                         UIOverlay.Toast("Decoy: click one of your units to take it back to your hand");
+                    else if (selected.row == Rows.Weather || selected._id == CardIds.Scorch)
+                        UIOverlay.Toast("Weather and Scorch go on the weather board");
                 }
             }
             else
@@ -63,13 +65,7 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
         CardStats selectedStats = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
         if (selectedStats.faction == Factions.Special)
         {
-            if (selectedStats.row == Rows.Weather || selectedStats._id == CardIds.Scorch)
-            {
-                WeatherManager weatherManager = controller.WeatherField.GetComponent<WeatherManager>();
-                if (weatherManager.isWeatherCard)
-                    return controller.WeatherField;
-            }
-
+            // Weather and scorch only go on the weather board
             if (selectedStats.row == Rows.Special)
             {
                 if (highLightedFields.Contains(gameObject))

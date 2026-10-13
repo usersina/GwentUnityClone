@@ -357,19 +357,26 @@ public class BoardView
         {
             if (card_stats.row == Rows.Special)
             {
-                // Commander's Horn: any of the three special slots
-                foreach (RowView row in mine.Rows.Values)
+                // Commander's Horn: any special slot that has no horn yet (one per row)
+                PlayerState side = is_player_turn ? (PlayerState)controller.PlayerInfo : controller.EnemyInfo;
+                foreach (KeyValuePair<string, RowView> row in mine.Rows)
                 {
-                    row.SpecialImage.sprite = mine.Picker.specialSelected;
-                    mine.Picker.StoreField(row.Special);
+                    if (side.HasHorn(row.Key))
+                        continue;
+                    row.Value.SpecialImage.sprite = mine.Picker.specialSelected;
+                    mine.Picker.StoreField(row.Value.Special);
                 }
+            }
+            else if (card_stats.ability == Abilities.Decoy)
+            {
+                // Decoy goes on a card, not a row: frame the units it can take back
+                MarkDecoyTargets(mine, true);
             }
             else
             {
-                // Weather / scorch go on the weather board; decoy targets a card on the rows
-                HighlightUnitRows(mine, Rows.Units, card_stats.ability != Abilities.Decoy);
-                if (card_stats.ability != Abilities.Decoy)
-                    Weather.isWeatherCard = true;
+                // Weather and scorch go on the weather board
+                weatherImage.sprite = Weather.weatherSelected;
+                Weather.isWeatherCard = true;
             }
             return;
         }
@@ -378,16 +385,10 @@ public class BoardView
         FieldView target = card_stats.ability == Abilities.Spy ? opp : mine;
         target.Picker.ResetStored();
         string[] rows = card_stats.row == Rows.Agile ? new[] { Rows.Close, Rows.Range } : new[] { card_stats.row };
-        HighlightUnitRows(target, rows.Where(Rows.IsUnitRow).ToArray(), true);
-    }
-
-    private static void HighlightUnitRows(FieldView view, string[] rows, bool store)
-    {
-        foreach (string row in rows)
+        foreach (string row in rows.Where(Rows.IsUnitRow))
         {
-            view.Rows[row].UnitImage.sprite = SelectedSprite(view.Picker, row);
-            if (store)
-                view.Picker.StoreField(view.Rows[row].Unit);
+            target.Rows[row].UnitImage.sprite = SelectedSprite(target.Picker, row);
+            target.Picker.StoreField(target.Rows[row].Unit);
         }
     }
 
@@ -425,6 +426,36 @@ public class BoardView
         // Light off the weather board and deselect weather card
         weatherImage.sprite = Weather.weather;
         Weather.isWeatherCard = false;
+        MarkDecoyTargets(view, false);
+    }
+
+    // A gold frame around each unit of this side a decoy can take back (non-hero units on the rows)
+    private const string DecoyFrame = "DecoyTarget";
+
+    private void MarkDecoyTargets(FieldView view, bool on)
+    {
+        foreach (RowView row in view.Rows.Values)
+            foreach (Transform card in row.Unit.transform)
+            {
+                CardDisplay display = card.GetComponent<CardDisplay>();
+                if (display == null)
+                    continue;
+                Transform frame = card.Find(DecoyFrame);
+                CardStats stats = display.cardStats.GetComponent<CardStats>();
+                bool target = on && !stats.unique && stats.faction != Factions.Special;
+                if (target && frame == null)
+                {
+                    Image image = UIKit.NewImage(card, DecoyFrame, UITheme.Current.panelOutline, UITheme.Current.goldBright);
+                    image.raycastTarget = false;
+                    image.rectTransform.Stretch(-4, -4, -4, -4);
+                    image.gameObject.AddComponent<UIPulse>();
+                }
+                else if (!target && frame != null)
+                {
+                    frame.SetParent(null, false);
+                    Object.Destroy(frame.gameObject);
+                }
+            }
     }
 
     // Hides the player's hand interactability
