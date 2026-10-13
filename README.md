@@ -62,6 +62,7 @@ Builds are not committed to the repository (the `Builds/` folder is git-ignored)
 # Development
 
 Open `GwentCardGame/` with **Unity 6.6 (6000.6.5f1)**. The project was upgraded from 2019.4; the last 2019.4 commit is `a228947`.
+Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Settings`). The game is all UI, so HDR, MSAA, shadows and post-processing are off.
 
 | Folder | What's inside |
 |---|---|
