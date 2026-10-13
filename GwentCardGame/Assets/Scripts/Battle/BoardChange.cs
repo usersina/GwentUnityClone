@@ -40,7 +40,8 @@ public class BoardChange
     public readonly List<Departure> Gone = new List<Departure>(); // left the board for good
 
     // Pairs each arrival with a departure of the same card: on the same side first, else from a hand (a spy goes
-    // to the other side) or the weather slot (it has no side)
+    // to the other side) or the weather slot (it has no side), else from anywhere (a spy a medic brings back goes to
+    // the other side; Emhyr the Relentless takes a card from the other side's discard pile)
     public BoardChange(List<Arrival> arrivals, List<Departure> departures)
     {
         Arrivals = arrivals;
@@ -49,7 +50,8 @@ public class BoardChange
         foreach (Arrival arrival in arrivals)
         {
             Departure from = left.Find(d => d.CardId == arrival.CardId && d.IsPlayer == arrival.IsPlayer)
-                ?? left.Find(d => d.CardId == arrival.CardId && (d.From == Place.Hand || d.From == Place.Weather || arrival.To == Place.Weather));
+                ?? left.Find(d => d.CardId == arrival.CardId && (d.From == Place.Hand || d.From == Place.Weather || arrival.To == Place.Weather))
+                ?? left.Find(d => d.CardId == arrival.CardId);
             if (from == null)
             {
                 New.Add(arrival);

@@ -27,15 +27,9 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
         if (controller == null)
             controller = SceneController.Instance;
 
-        // Check if the player can exchange cards (redraw two initially drawn cards)
-        if (!controller.PlayerInfo.CanExchange || !gameObject.CompareTag("Player") || !isExchangeable)
+        // Only during the redraw phase (it opens after the opening notices), on the player's own cards
+        if (!controller.PlayerInfo.CanExchange || !RedrawPicker.IsOpen || !gameObject.CompareTag("Player") || !isExchangeable)
             return;
-
-        if (controller.PlayerInfo.CardsExchanged >= 2)
-        {
-            controller.FinishCardExchange();
-            return;
-        }
 
         // With the redraw carousel open, a click brings the card to its front first; only a double-click on the front
         // card redraws it, so a quick double-click on a card further away never swaps it by accident

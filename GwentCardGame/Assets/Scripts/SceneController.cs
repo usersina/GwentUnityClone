@@ -29,7 +29,6 @@ public partial class SceneController : MonoBehaviour
     public GameObject WeatherField;
 
     public TextAsset CardsDatabase;
-    public string PlayerDeck;
     public TextAsset EnemyDeck;
 
     public GameObject PlayerField;
@@ -106,7 +105,7 @@ public partial class SceneController : MonoBehaviour
 
         GameLog.Info("Starting battle...");
         GameAudio.PlaySfx("game_start");
-        UIOverlay.SetEscapeAction(PauseMenu.Open);
+        UIOverlay.SetEscapeAction(OnEscape);
         battleState = BattleState.START;
         SetupBattle();
         StartCoroutine(BattleOpening());
@@ -234,13 +233,11 @@ public partial class SceneController : MonoBehaviour
             List<string> errors = DeckRules.Validate(deck, Db);
             if (errors.Count == 0)
             {
-                PlayerDeck = path;
                 return deck;
             }
             UIOverlay.Toast("Your selected deck can't be used (" + errors[0] + "). Playing with the default deck.", 4f);
         }
 
-        PlayerDeck = DefaultDeckResource;
         TextAsset deckAsset = Resources.Load<TextAsset>(DefaultDeckResource);
         return DeckRules.Sanitize(CardLibrary.ParseDeck(deckAsset.text, DefaultDeckResource), Db);
     }
@@ -426,7 +423,6 @@ public partial class SceneController : MonoBehaviour
     {
         if (PlayerInfo.hasPassed && EnemyInfo.hasPassed)
         {
-            battleState = BattleState.ROUNDOVER;
             GameLog.Info("Round has ended");
             ManageOutcome();
         }
@@ -462,8 +458,7 @@ public partial class SceneController : MonoBehaviour
     // The Witcher 3: a side with no card in hand and no leader ability left passes automatically
     private bool OutOfPlays(bool is_player)
     {
-        MainInfo info = Info(is_player);
-        return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Rows.LeaderActive);
+        return RoundRules.OutOfPlays(Info(is_player), Db);
     }
 
     private void MarkPassed(bool is_player)
@@ -513,11 +508,12 @@ public partial class SceneController : MonoBehaviour
         while (BattleBanner.Busy)
             yield return null;
 
+        List<Coroutine> shatters = new List<Coroutine>();
         foreach (bool is_player in new[] { true, false })
             if (lost[is_player ? 0 : 1])
-                StartCoroutine(CardEffects.Shatter(View(is_player).Stats.LostGem(Info(is_player).Lives), View(is_player).Stats.greyRuby));
-        if (lost[0] || lost[1])
-            yield return new WaitForSeconds(CardEffects.GemPulseSeconds + CardEffects.ShardSeconds);
+                shatters.Add(StartCoroutine(CardEffects.Shatter(View(is_player).Stats.LostGem(Info(is_player).Lives), View(is_player).Stats.greyRuby)));
+        foreach (Coroutine shatter in shatters)
+            yield return shatter;
         View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
         View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
@@ -583,7 +579,11 @@ public partial class SceneController : MonoBehaviour
 
     public bool IsBattleOver
     {
-        get { return battleState == BattleState.WON || battleState == BattleState.LOST || battleState == BattleState.DRAW; }
+        get
+        {
+            return battleState == BattleState.WON || battleState == BattleState.LOST || battleState == BattleState.DRAW
+                || PlayerInfo.Lives == 0 || EnemyInfo.Lives == 0; // decided: the last round's result is showing
+        }
     }
 
     // Giving up (pause menu): everything in progress stops and the battle is lost
@@ -693,12 +693,15 @@ public partial class SceneController : MonoBehaviour
         presented.Add(change);
         // Never left waiting: a presentation that fails or runs too long is cut short (game time, the pause stops it)
         bool finished = false;
-        StartCoroutine(Then(show, () => finished = true));
+        Coroutine running = StartCoroutine(Then(show, () => finished = true));
         float limit = Time.time + PresentationLimit;
         while (!finished && Time.time < limit)
             yield return null;
         if (!finished)
+        {
+            StopCoroutine(running);
             Debug.LogError("A play's presentation did not end, the board shows the result at once");
+        }
         change.Flush();
         presented.Remove(change);
         presenting--;
@@ -813,9 +816,25 @@ public partial class SceneController : MonoBehaviour
         Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => TurnCallBack(is_player_card));
     }
 
-    private bool IsSelectedCardPlayable()
+    // Escape (the back button on Android) puts a selected card back first, as in The Witcher 3; otherwise it pauses
+    private void OnEscape()
     {
-        return battleState == BattleState.PLAYERTURN && selectedCard != null
+        if (selectedCard != null && IsPlayerActionAllowed)
+            PutBackSelectedCard();
+        else
+            PauseMenu.Open();
+    }
+
+    public void PutBackSelectedCard()
+    {
+        GameAudio.PlaySfx("card_select");
+        DeselectCard();
+    }
+
+    // A card is selected and can be placed now (from the hand, or picked from a pile by a medic or a leader)
+    public bool IsSelectedCardPlayable()
+    {
+        return battleState == BattleState.PLAYERTURN && selectedCard != null && presenting == 0
             && (pendingAction == PendingAction.None || pendingAction == PendingAction.PlacePickedCard);
     }
 
@@ -912,17 +931,7 @@ public partial class SceneController : MonoBehaviour
         return Db.Get(card_id);
     }
 
-    public List<Card> GetCardsList(List<int> card_list)
-    {
-        return Db.GetCards(card_list);
-    }
 
-    // Gets the row total or the field total of a player
-    public int GetTotalScore(bool is_player, string row)
-    {
-        MainInfo info = Info(is_player);
-        return row == "all" ? info.TotalScore() : info.RowScore(row);
-    }
 
     //--------------ToMainMenu
     public void ToMainMenu()

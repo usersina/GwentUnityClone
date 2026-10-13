@@ -8,9 +8,6 @@ using UnityEngine;
 // and always ends the AI's turn (falls back to passing if an action cannot be carried out).
 public class AIManager : MonoBehaviour
 {
-    public GameObject tempObject;
-    public GameObject cardPrefab;
-
     private SceneController controller;
 
     public void AIInitialize()

@@ -84,9 +84,12 @@ public static class CardMotion
         return rect;
     }
 
-    public static void Hide(GameObject card, bool hidden)
+    // A hidden card does not catch the pointer either (unless it stays clickable: the selected card's empty slot)
+    public static void Hide(GameObject card, bool hidden, bool clickable = false)
     {
         SetAlpha(card, hidden ? 0 : 1);
+        if (card != null)
+            Group(card).blocksRaycasts = !hidden || clickable;
     }
 
     public static void SetAlpha(GameObject card, float alpha)

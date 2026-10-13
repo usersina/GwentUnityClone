@@ -27,7 +27,7 @@ public static class GameSettings
     public static readonly string[] GameSpeedNames = { "Slow", "Normal", "Fast" };
     private static readonly float[] GameSpeedScales = { 0.75f, 1f, 3f };
 
-    // Raised after any change (GameAudio and the overlay canvas listen)
+    // Raised after any change (GameAudio listens; the overlay canvas reads the menu size every frame)
     public static event Action Changed;
 
     public static bool IsMobile { get { return Application.isMobilePlatform; } }
@@ -188,9 +188,9 @@ public static class GameSettings
         Saved(null);
     }
 
+    // Written to disk when the settings close (a slider changes the value every frame while dragged)
     private static void Saved(Action apply)
     {
-        PlayerPrefs.Save();
         if (apply != null)
             apply();
         RaiseChanged();

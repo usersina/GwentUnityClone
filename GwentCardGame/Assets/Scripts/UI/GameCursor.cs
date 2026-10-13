@@ -100,11 +100,11 @@ public class GameCursor : MonoBehaviour
         WeatherManager weather = hovered.GetComponentInParent<WeatherManager>();
         if (card == null && row == null && weather == null)
             return null;
-        bool my_turn = battle.battleState == BattleState.PLAYERTURN;
+        bool my_turn = battle.IsPlayerActionAllowed;
 
-        // A hand card: playable on the player's turn (or redrawable at the start)
+        // A hand card: playable when the player can act (or redrawable during the redraw)
         if (card != null && card.isSelectable && card.CompareTag("Player"))
-            return my_turn || battle.battleState == BattleState.START ? State.Interact : State.Invalid;
+            return my_turn || RedrawPicker.IsOpen ? State.Interact : State.Invalid;
 
         // The player's leader card uses the leader ability
         if (card != null && !card.isSelectable && card.CompareTag("Player") && battle.selectedCard == null)

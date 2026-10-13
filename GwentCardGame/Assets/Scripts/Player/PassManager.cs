@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Hold to pass: the left button (or a finger) on the button, or the Space key as in The Witcher 3
-public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
+public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
 {
     private bool pointerDown;
     private float pointerDownTimer;
@@ -28,6 +28,13 @@ public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void OnPointerUp(PointerEventData eventData)
     {
         if (eventData.button == PointerEventData.InputButton.Left)
+            Reset();
+    }
+
+    // Sliding off the button cancels a press (not a held Space)
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (!keyHeld)
             Reset();
     }
 
@@ -51,7 +58,15 @@ public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     private void Update()
     {
-        // Space counts while it stays down; releasing it (or a dialog opening) cancels the hold
+        // A dialog (the pause menu) cancels any hold: the turn must not pass behind it
+        if (UIOverlay.HasModal)
+        {
+            if (pointerDown)
+                Reset();
+            return;
+        }
+
+        // Space counts while it stays down; releasing it cancels the hold
         Keyboard keyboard = Keyboard.current;
         bool key_down = keyboard != null && keyboard.spaceKey.isPressed && !UIOverlay.HasModal;
         if (key_down && !keyHeld && keyboard.spaceKey.wasPressedThisFrame)

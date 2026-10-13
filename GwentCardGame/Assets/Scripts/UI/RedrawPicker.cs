@@ -34,6 +34,7 @@ public class RedrawPicker : MonoBehaviour
     private float lastRedraw = float.NegativeInfinity;
     private float scrolled;
     private int arriving = -1; // the card coming up from the deck into its place, hidden until it lands
+    private int flights;       // redraws still on their way
     private float frontSince;  // when the front card came forward
     private int frontCard = -1;
     private bool detailsPlaced;
@@ -63,7 +64,7 @@ public class RedrawPicker : MonoBehaviour
     }
 
     // A redrawn card is still on its way (the phase ends once it has landed)
-    public static bool IsAnimating { get { return current != null && current.arriving >= 0; } }
+    public static bool IsAnimating { get { return current != null && current.flights > 0; } }
 
     public int FocusIndex { get { return focus; } }
     public int CardCount { get { return cards.Count; } }
@@ -243,6 +244,7 @@ public class RedrawPicker : MonoBehaviour
 
     private IEnumerator RedrawFlight(int redrawn, Rect slot, int index)
     {
+        flights++;
         arriving = index;
         Rect deck = controller.DeckScreenRect(true);
         yield return Glide(Ghost(redrawn, slot), () => deck, true);
@@ -251,7 +253,9 @@ public class RedrawPicker : MonoBehaviour
             RectTransform target = cards[index].rect;
             yield return Glide(Ghost(shownHand[index], deck), () => target != null ? CardMotion.ScreenRect(target) : deck, true);
         }
-        arriving = -1;
+        if (arriving == index)
+            arriving = -1;
+        flights--;
     }
 
     // An image of a card on the carousel's canvas (above the board), over a screen rectangle
@@ -339,7 +343,8 @@ public class RedrawPicker : MonoBehaviour
 
     public void RedrawFocused()
     {
-        if (Time.unscaledTime - lastRedraw < RedrawCooldown || focus >= shownHand.Count)
+        // Not a card still on its way or just brought forward (the same guards as a click)
+        if (Time.unscaledTime - lastRedraw < RedrawCooldown || focus >= shownHand.Count || IsAnimating || !IsReadyToRedraw(FocusedCardId))
             return;
         lastRedraw = Time.unscaledTime;
         controller.RedrawPlayerCard(shownHand[focus]);
@@ -358,7 +363,7 @@ public class RedrawPicker : MonoBehaviour
                 SetFocus(focus + 1);
             // Enter redraws, unless a button elsewhere has keyboard focus (Enter presses that button)
             GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-            bool other_button = selected != null && !selected.transform.IsChildOf(transform);
+            bool other_button = selected != null && selected.activeInHierarchy && !selected.transform.IsChildOf(transform);
             if (!other_button && (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
                 RedrawFocused();
         }

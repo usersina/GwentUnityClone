@@ -73,8 +73,10 @@ public class PanelManager : MonoBehaviour
     public void ResizeContainer(int cardsNum)
     {
         RectTransform containerTr = container.GetComponent<RectTransform>();
+        // Up to 3 cards fit the view: they are centred in it; more scroll sideways
+        container.GetComponent<UnityEngine.UI.GridLayoutGroup>().childAlignment = cardsNum <= 3 ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft;
         cardsNum -= 3;                                           // 3 Cards already have space
-        float width = (cardsNum * 380) + (cardsNum - 1) * 25;   // Card width: 380, Spacing: 25
+        float width = Mathf.Max(0, (cardsNum * 380) + (cardsNum - 1) * 25);   // Card width: 380, Spacing: 25
         containerTr.offsetMin = new Vector2(0, 0);
         containerTr.offsetMax = new Vector2(width, 0);
     }

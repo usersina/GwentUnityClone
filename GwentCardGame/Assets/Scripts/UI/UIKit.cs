@@ -45,6 +45,15 @@ public static class UIKit
         return rect;
     }
 
+    // Shrinks a dialog that would not fit its area (a big menu size, a narrow screen), keeping a margin around it
+    public static RectTransform FitInside(this RectTransform panel, RectTransform area, float margin = 24)
+    {
+        Vector2 room = area.rect.size - Vector2.one * 2 * margin;
+        float scale = Mathf.Min(1f, room.x / panel.sizeDelta.x, room.y / panel.sizeDelta.y);
+        panel.localScale = Vector3.one * Mathf.Max(0.1f, scale);
+        return panel;
+    }
+
     // A plain rectangular frame (square corners) around its parent: four bars, outset by the given margin
     public static RectTransform Frame(Transform parent, string name, Color color, float thickness, float outset = 0)
     {

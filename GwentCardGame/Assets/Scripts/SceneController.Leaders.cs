@@ -39,9 +39,6 @@ public partial class SceneController
     // A card was chosen in a "draw" panel (leader abilities): it goes to the hand and the turn ends
     public void ActuallyPickCard(string field, int card_id, bool is_player_turn)
     {
-        MainInfo info = Info(is_player_turn);
-        MainInfo opp_info = Opponent(is_player_turn);
-
         TakeToHand(field, card_id, is_player_turn);
         TurnCallBack(is_player_turn);
     }
@@ -139,6 +136,8 @@ public partial class SceneController
         }
 
         string reason;
+        if (is_player_turn)
+            DeselectCard(); // a selected card goes back to the hand (it would stay raised, still selected)
         CardShowcase.Clear();
         board.BeginChange();
         LeaderOutcome outcome = ApplyLeader(leader_id, is_player_turn, out reason);
@@ -155,7 +154,6 @@ public partial class SceneController
         Info(is_player_turn).canLeader = false;
         View(is_player_turn).Leader.MarkUsed();
 
-        RecalculateStrengths();
         RefreshBoard();
         BoardChange change = board.EndChange();
 

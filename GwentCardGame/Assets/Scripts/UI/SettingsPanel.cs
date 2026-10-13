@@ -45,6 +45,7 @@ public class SettingsPanel : MonoBehaviour
 
     private void OnClosed()
     {
+        PlayerPrefs.Save();
         if (current == this)
             current = null;
         if (onClosed != null)
@@ -60,7 +61,7 @@ public class SettingsPanel : MonoBehaviour
     //----------------------------------------Layout----------------------------------------//
     private void Build(RectTransform dimmer, int tab)
     {
-        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1040, 800));
+        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1040, 800)).FitInside(dimmer);
 
         TextMeshProUGUI title = UIKit.Text(panel, "Settings", UIKit.TextStyle.Heading);
         title.rectTransform.Place(new Vector2(0, 1), new Vector2(64, -52), new Vector2(600, 60), new Vector2(0, 0.5f));
@@ -211,7 +212,7 @@ public class SettingsPanel : MonoBehaviour
         int[] rates = GameSettings.FrameRates;
         UIStepper frame_rate = StepperRow(page, row++, "Frame rate", rates.Select(GameSettings.FrameRateLabel).ToArray(),
             Mathf.Max(0, Array.IndexOf(rates, GameSettings.FrameRate)), i => GameSettings.FrameRate = rates[i],
-            GameSettings.IsMobile ? "Lower values save battery" : "VSync matches your screen and avoids tearing");
+            GameSettings.IsMobile ? "Lower values save battery" : "VSync follows your screen");
         if (first == null)
             first = frame_rate.left;
 
@@ -228,7 +229,7 @@ public class SettingsPanel : MonoBehaviour
     {
         RectTransform page = Page(content, "Game");
         UIStepper speed = StepperRow(page, 0, "Game speed", GameSettings.GameSpeedNames, GameSettings.GameSpeed,
-            i => GameSettings.GameSpeed = i, "How fast cards move, notices pass and the opponent plays");
+            i => GameSettings.GameSpeed = i, "Cards, notices and the opponent");
         firstControls.Add(speed.left);
         return page;
     }

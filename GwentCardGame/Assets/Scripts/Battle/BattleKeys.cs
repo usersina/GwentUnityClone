@@ -18,10 +18,23 @@ public class BattleKeys : MonoBehaviour
         if (keyboard == null || battle == null || UIOverlay.HasModal)
             return;
 
+        // The "press X again" window closed: the leader button gives up the focus (Enter would use the leader)
+        if (leaderArmedUntil > 0 && Time.unscaledTime > leaderArmedUntil)
+        {
+            leaderArmedUntil = -1;
+            if (EventSystem.current != null && battle.PlayerLeader.Button != null && EventSystem.current.currentSelectedGameObject == battle.PlayerLeader.Button.gameObject)
+                EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        // Right-click puts a selected card back in the hand (The Witcher 3)
+        if (GameInput.SecondaryPressed() && battle.selectedCard != null && battle.IsPlayerActionAllowed)
+            battle.PutBackSelectedCard();
+
         if (keyboard.xKey.wasPressedThisFrame)
             LeaderKey(battle);
         // Enter on a focused button is that button's (dialogs, the leader after X)
-        bool button_focused = EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null;
+        GameObject focused = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+        bool button_focused = focused != null && focused.activeInHierarchy;
         if ((keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) && !button_focused)
             PlayWhereItFits(battle);
     }
@@ -49,7 +62,7 @@ public class BattleKeys : MonoBehaviour
     // The lit rows (both sides: spies), the lit weather board and the units framed for a decoy
     private static void PlayWhereItFits(SceneController battle)
     {
-        if (battle.selectedCard == null || !battle.IsPlayerActionAllowed)
+        if (!battle.IsSelectedCardPlayable())
             return;
         List<GameObject> rows = battle.PlayerField.GetComponent<RowPicker>().highLightedRows
             .Concat(battle.EnemyField.GetComponent<RowPicker>().highLightedRows).ToList();

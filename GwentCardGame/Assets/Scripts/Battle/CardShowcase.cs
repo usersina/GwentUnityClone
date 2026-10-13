@@ -28,7 +28,7 @@ public static class CardShowcase
         Rect slot = CardMotion.ScreenRect((RectTransform)hand_card.transform);
         Vector2 size = slot.size * Pop;
         handCard = hand_card;
-        CardMotion.Hide(hand_card, true);
+        CardMotion.Hide(hand_card, true, true); // its empty slot puts it back when clicked
         Show(card, new Rect(slot.center.x - size.x / 2, slot.yMin, size.x, size.y), true);
     }
 
@@ -70,7 +70,8 @@ public static class CardShowcase
         Rect last = CardMotion.ScreenRect(card);
         card.GetComponent<OverlayGlide>().To(() => slot != null ? last = CardMotion.ScreenRect((RectTransform)slot.transform) : last, ReturnSeconds, () =>
         {
-            CardMotion.Hide(slot, false);
+            if (handCard != slot) // selected again meanwhile: it stays in the showcase
+                CardMotion.Hide(slot, false);
             UnityEngine.Object.Destroy(card.gameObject);
         });
     }

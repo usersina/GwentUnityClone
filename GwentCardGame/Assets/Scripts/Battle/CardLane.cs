@@ -35,14 +35,6 @@ public class CardLane : MonoBehaviour
         return lane;
     }
 
-    // Where a card of this lane will stand once it settles (local to the lane)
-    public Vector2 TargetOf(RectTransform card)
-    {
-        Collect();
-        int index = cards.IndexOf(card);
-        return index < 0 ? card.anchoredPosition : Target(index, cards.Count, card);
-    }
-
     // Puts a card in its place at once (its flight is about to bring it there); the others make room
     public void Snap(RectTransform card)
     {
@@ -60,8 +52,9 @@ public class CardLane : MonoBehaviour
     private void Collect()
     {
         cards.Clear();
-        foreach (Transform child in transform)
+        for (int i = 0; i < transform.childCount; i++) // by index: no enumerator to allocate every frame
         {
+            Transform child = transform.GetChild(i);
             if (!child.gameObject.activeSelf)
                 continue;
             LaneHold hold = child.GetComponent<LaneHold>();
@@ -95,11 +88,14 @@ public class CardLane : MonoBehaviour
                 card.sizeDelta = cellSize;
                 card.anchoredPosition = target;
             }
-            else
-                card.anchoredPosition = Vector2.Lerp(card.anchoredPosition, target, blend);
+            else if (card.anchoredPosition != target)
+                card.anchoredPosition = (target - card.anchoredPosition).sqrMagnitude < 0.01f ? target : Vector2.Lerp(card.anchoredPosition, target, blend);
         }
-        placed.RemoveWhere(card => card == null || card.parent != transform);
+        if (placed.Count > cards.Count)
+            placed.RemoveWhere(gone ?? (gone = card => card == null || card.parent != transform)); // a card left: forget it
     }
+
+    private System.Predicate<RectTransform> gone;
 }
 
 // The battle's choreography in a card lane: a spacer keeps the room of a card that left until it is taken away, and a

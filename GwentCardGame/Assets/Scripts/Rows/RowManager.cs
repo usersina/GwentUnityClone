@@ -24,26 +24,6 @@ public class RowManager : MonoBehaviour
         scoreText = transform.Find("ScoreCount").Find("Number").GetComponent<TextMeshProUGUI>();
     }
 
-    // This is the main field_go, either Close / Range / Siege (which has a unit and a special child)
-    public void ClearUnitObject()
-    {
-        GameObject unit_go = UnitRow;
-        for (int i = 0; i < unit_go.transform.childCount; i++)
-        {
-            Destroy(unit_go.transform.GetChild(i).gameObject);
-        }
-        // Do not remove this, otherwise count will still get the previous frame's count (NOT 0);
-        unit_go.transform.DetachChildren();
-    }
-    public void ClearSpecialObject()
-    {
-        GameObject special_go = SpecialRow;
-        for (int i = 0; i < special_go.transform.childCount; i++)
-        {
-            Destroy(special_go.transform.GetChild(i).gameObject);
-        }
-        special_go.transform.DetachChildren();
-    }
 
     //
     public void UpdateRowScore(List<int> row_list)

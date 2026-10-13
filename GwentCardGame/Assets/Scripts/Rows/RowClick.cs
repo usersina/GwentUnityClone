@@ -36,7 +36,7 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
 
         if (controller.battleState == BattleState.PLAYERTURN) // Just to be extra sure
         {
-            if (controller.selectedCard != null)
+            if (controller.IsSelectedCardPlayable())
             {
                 GameObject targetField = GetPlayableTargetField(highLighted_fields);
                 if (targetField != null)

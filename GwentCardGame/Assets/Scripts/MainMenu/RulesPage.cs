@@ -64,7 +64,7 @@ public class RulesPage : MonoBehaviour
             Entries = new[]
             {
                 new Entry("Cards/Nature/unique", "Heroes", "The gold-framed units. Nothing changes them: no weather, horn, morale boost, scorch, decoy or medic. A hero can be in a deck only once."),
-                new Entry("Cards/Nature/not_unique", "Units", "Everything else on the rows. Most can be taken up to three times."),
+                new Entry("Cards/Nature/not_unique", "Units", "Everything else on the rows. Most exist once; a few, such as the Mahakaman Defender, several times."),
                 new Entry("Cards/Special/decoy", "Special cards", "Weather, Commander's Horn, Decoy and Scorch: they shape the board instead of adding strength."),
                 new Entry(null, "Leader", "One ability you can use once per battle. A few leaders' abilities are always in effect instead."),
             },
@@ -116,8 +116,15 @@ public class RulesPage : MonoBehaviour
         new Topic
         {
             Name = "Controls",
-            Intro = "The mouse does everything; the keyboard has shortcuts.",
-            Entries = new[]
+            Intro = Application.isMobilePlatform ? "Everything is done with taps." : "The mouse does everything; the keyboard has shortcuts.",
+            Entries = Application.isMobilePlatform ? new[]
+            {
+                new Entry(null, "Play a card", "Tap it in your hand (it shows large on the right), then tap where it lights up."),
+                new Entry(null, "Leader", "Tap the leader's button."),
+                new Entry(null, "Pass", "Hold the Hold to pass button."),
+                new Entry(null, "Look", "Tap a card in your hand to see it large; tap a discard pile to look through it."),
+                new Entry(null, "Pause", "The back button or the menu button: resume, settings, or give up the battle."),
+            } : new[]
             {
                 new Entry(null, "Play a card", "Click it in your hand, then click where it lights up (Enter does it when only one place fits). The cursor shows a red sign where it can't go."),
                 new Entry(null, "Leader", "Click the leader's button, or press X twice."),
@@ -144,7 +151,7 @@ public class RulesPage : MonoBehaviour
     private void Build(RectTransform dimmer)
     {
         UITheme theme = UITheme.Current;
-        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500, 900));
+        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500, 900)).FitInside(dimmer);
         TextMeshProUGUI title = UIKit.Text(panel, "How to play", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
         title.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(1200, 64));
         UIKit.Ornament(panel, new Vector2(0.5f, 1), new Vector2(0, -106), 420);

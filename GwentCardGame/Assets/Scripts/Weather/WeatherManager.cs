@@ -41,12 +41,4 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
         }
     }
 
-    public void ClearWeatherObject()
-    {
-        for (int i=0; i< gameObject.transform.childCount; i++)
-        {
-            Destroy(gameObject.transform.GetChild(i).gameObject);
-        }
-        gameObject.transform.DetachChildren();
-    }
 }

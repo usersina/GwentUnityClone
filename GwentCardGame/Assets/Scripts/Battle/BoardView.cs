@@ -316,6 +316,8 @@ public class BoardView
     // then moves them as The Witcher 3 does.
     public void BeginChange()
     {
+        if (arrivals != null)
+            EndChange().Flush(); // a play that failed halfway left its change open: show it as it is
         arrivals = new List<BoardChange.Arrival>();
         departures = new List<BoardChange.Departure>();
     }

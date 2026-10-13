@@ -26,7 +26,7 @@ public class OpponentPicker : MonoBehaviour
         CardDatabase db = CardLibrary.Get();
         List<TextAsset> decks = OpponentDecks.All();
         int rows = (decks.Count + 2) / 2;
-        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1300, 230 + rows * RowStep + 70));
+        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1300, 230 + rows * RowStep + 70)).FitInside(dimmer);
 
         TextMeshProUGUI title = UIKit.Text(panel, "Choose your opponent", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
         title.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0, -64), new Vector2(1100, 64));

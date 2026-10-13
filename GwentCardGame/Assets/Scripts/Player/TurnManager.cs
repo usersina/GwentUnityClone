@@ -49,7 +49,7 @@ public class TurnManager : MonoBehaviour
             controller = SceneController.Instance;
         GameLog.Info("Going First");
         controller.ChooseFirstPlayer(true);
-        gameObject.SetActive(false);
+        Close();
     }
 
     public void GoSecond()
@@ -58,6 +58,14 @@ public class TurnManager : MonoBehaviour
             controller = SceneController.Instance;
         GameLog.Info("Going Second");
         controller.ChooseFirstPlayer(false);
+        Close();
+    }
+
+    // The dialog's buttons give up the keyboard focus (it would swallow Enter in the redraw that follows)
+    private void Close()
+    {
+        if (UnityEngine.EventSystems.EventSystem.current != null)
+            UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
         gameObject.SetActive(false);
     }
 }
