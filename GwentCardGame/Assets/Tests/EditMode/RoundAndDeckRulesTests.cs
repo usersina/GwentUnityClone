@@ -1,0 +1,160 @@
+using System;
+using System.Collections.Generic;
+using NUnit.Framework;
+using Gwent.Rules;
+
+namespace Gwent.Rules.Tests
+{
+    public class RoundRulesTests
+    {
+        private const int Fiend = 47;           // M close 6
+        private const int EarthElemental = 30;  // M siege 6
+
+        [Test]
+        public void NilfgaardWinsTies_UnlessBothAreNilfgaard()
+        {
+            Assert.AreEqual(RoundWinner.Player, RoundRules.DecideRound(11, 10, Factions.Monsters, Factions.Monsters));
+            Assert.AreEqual(RoundWinner.Player, RoundRules.DecideRound(10, 10, Factions.Nilfgaard, Factions.Monsters));
+            Assert.AreEqual(RoundWinner.Enemy, RoundRules.DecideRound(10, 10, Factions.Scoiatael, Factions.Nilfgaard));
+            Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(10, 10, Factions.Nilfgaard, Factions.Nilfgaard));
+            Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(0, 0, Factions.NorthernRealms, Factions.Monsters));
+        }
+
+        [Test]
+        public void DrawCostsBothALife()
+        {
+            PlayerState p = TestBoard.Player();
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            RoundRules.ApplyRoundResult(p, e, RoundWinner.Draw);
+            Assert.AreEqual(1, p.Lives);
+            Assert.AreEqual(1, e.Lives);
+            Assert.AreEqual(1, p.RoundsScore.Count);
+        }
+
+        [Test]
+        public void MonstersMirrorMatchKeepsEachUnitOnItsOwnRow()
+        {
+            for (int seed = 0; seed < 20; seed++)
+            {
+                PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+                PlayerState e = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
+                p.CloseList.Add(Fiend);
+                e.SiegeList.Add(EarthElemental);
+                Random rnd = new Random(seed);
+
+                RoundRules.CleanupBoard(p, rnd, TestBoard.Db);
+                RoundRules.CleanupBoard(e, rnd, TestBoard.Db);
+
+                CollectionAssert.AreEqual(new[] { Fiend }, p.CloseList);
+                CollectionAssert.AreEqual(new[] { EarthElemental }, e.SiegeList);
+                Assert.IsEmpty(e.CloseList);
+                Assert.IsEmpty(p.DiscardList);
+                Assert.IsEmpty(e.DiscardList);
+            }
+        }
+
+        [Test]
+        public void CowLeavingTheBoardSummonsTheBovineDefenseForce()
+        {
+            PlayerState p = TestBoard.Player();
+            p.RangeList.Add(CardIds.Cow);
+            RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+            CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.DiscardList);
+        }
+
+        [Test]
+        public void DrawingFromAShortDeckDrawsWhatIsLeft()
+        {
+            PlayerState p = TestBoard.Player();
+            p.DeckList.Add(Fiend);
+            Assert.AreEqual(1, RoundRules.Draw(p, 2));
+            CollectionAssert.AreEqual(new[] { Fiend }, p.HandList);
+            Assert.IsEmpty(p.DeckList);
+            Assert.AreEqual(0, RoundRules.Draw(p, 2));
+        }
+    }
+
+    public class DeckRulesTests
+    {
+        // Resources/Decks/player_default.json
+        private static Deck DefaultDeck()
+        {
+            return new Deck
+            {
+                Faction = Factions.NorthernRealms,
+                Name = "NR Default",
+                Leader = LeaderIds.FoltestTheSiegemaster,
+                Cards = new List<int> { 203, 203, 202, 202, 205, 200, 14, 143, 135, 92, 132, 45, 96, 11, 11, 123, 123, 4, 4, 99, 17, 17, 28, 115, 7, 7, 7, 119 }
+            };
+        }
+
+        [Test]
+        public void NamesThatOnlyDifferByCaseOrSpacingCollide()
+        {
+            Assert.IsTrue(DeckRules.NamesCollide("My Deck", "my deck"));
+            Assert.IsTrue(DeckRules.NamesCollide("My  Deck ", "MY DECK"));
+            Assert.IsTrue(DeckRules.NamesCollide("my deck!", "My_Deck"));
+            Assert.IsFalse(DeckRules.NamesCollide("Deck A", "Deck B"));
+        }
+
+        [Test]
+        public void FileNamesAreSanitized()
+        {
+            Assert.AreEqual("hello_world", DeckRules.ToFileName("  Hello   World! "));
+            Assert.AreEqual("etcpasswd", DeckRules.ToFileName("../../etc/passwd"));
+            Assert.AreEqual("a_b", DeckRules.ToFileName("a/ b"));
+            Assert.IsNull(DeckRules.ToFileName("   "));
+            Assert.IsNull(DeckRules.ToFileName("???"));
+            Assert.IsNull(DeckRules.ToFileName(DeckRules.EmptyDeckName));
+        }
+
+        [Test]
+        public void DisplayNamesAreTrimmedAndCapped()
+        {
+            Assert.AreEqual("My Deck", DeckRules.NormalizeDisplayName("  My \t Deck  "));
+            Assert.AreEqual(DeckRules.MaxNameLength, DeckRules.NormalizeDisplayName(new string('x', 80)).Length);
+        }
+
+        [Test]
+        public void DefaultDeckIsValid()
+        {
+            CollectionAssert.IsEmpty(DeckRules.Validate(DefaultDeck(), TestBoard.Db));
+        }
+
+        [Test]
+        public void InvalidDecksAreRejected()
+        {
+            Deck small = DefaultDeck();
+            small.Cards.RemoveRange(0, 20);
+            Assert.IsFalse(DeckRules.IsValid(small, TestBoard.Db), "too few units");
+
+            Deck wrong_leader = DefaultDeck();
+            wrong_leader.Leader = LeaderIds.EredinTheTreacherous;
+            Assert.IsFalse(DeckRules.IsValid(wrong_leader, TestBoard.Db), "leader from another faction");
+
+            Deck many_specials = DefaultDeck();
+            many_specials.Cards.AddRange(new[] { 200, 200, 201, 201, 204 });
+            Assert.IsFalse(DeckRules.IsValid(many_specials, TestBoard.Db), "11 specials");
+
+            Deck two_heroes = DefaultDeck();
+            two_heroes.Cards.Add(14);
+            Assert.IsFalse(DeckRules.IsValid(two_heroes, TestBoard.Db), "same hero twice");
+
+            Deck unknown = DefaultDeck();
+            unknown.Cards.Add(9999);
+            Assert.IsFalse(DeckRules.IsValid(unknown, TestBoard.Db), "unknown card");
+        }
+
+        [Test]
+        public void SanitizeDropsUnknownCardsAndFixesTheLeader()
+        {
+            Deck deck = DefaultDeck();
+            deck.Cards.Add(9999);
+            deck.Leader = LeaderIds.EredinTheTreacherous;
+            DeckRules.Sanitize(deck, TestBoard.Db);
+            Assert.That(deck.Cards, Has.No.Member(9999));
+            Assert.AreEqual(LeaderIds.FoltestKingOfTemeria, deck.Leader);
+        }
+    }
+}
