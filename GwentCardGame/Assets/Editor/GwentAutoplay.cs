@@ -107,6 +107,7 @@ public static class GwentAutoplay
         private readonly List<string> failures = new List<string>();
         private readonly List<string> results = new List<string>();
         private readonly List<string> errors = new List<string>();
+        private int ignoredEditorErrors;
         private readonly Dictionary<string, int> stats = new Dictionary<string, int>();
         private List<Deck> decks;
 
@@ -140,8 +141,15 @@ public static class GwentAutoplay
 
         private void OnLog(string message, string stack, LogType type)
         {
-            if (type == LogType.Exception || type == LogType.Error || type == LogType.Assert)
-                errors.Add("[" + Label() + "] " + type + ": " + message + "\n" + stack.Split('\n').Take(4).Aggregate("", (a, b) => a + "    " + b + "\n"));
+            if (type != LogType.Exception && type != LogType.Error && type != LogType.Assert)
+                return;
+            // Unity 6 editor bug: Quick Search indexing throws on startup when no index exists yet (not game code)
+            if (stack.Contains("UnityEditor.Search.SearchInit.IndexationOnStartup"))
+            {
+                ignoredEditorErrors++;
+                return;
+            }
+            errors.Add("[" + Label() + "] " + type + ": " + message + "\n" + stack.Split('\n').Take(4).Aggregate("", (a, b) => a + "    " + b + "\n"));
         }
 
         private string Label()
@@ -560,7 +568,7 @@ public static class GwentAutoplay
             report.AppendLine("Failures: " + failures.Count);
             foreach (string failure in failures)
                 report.AppendLine("  " + failure);
-            report.AppendLine("Errors logged: " + errors.Count);
+            report.AppendLine("Errors logged: " + errors.Count + (ignoredEditorErrors > 0 ? " (ignored " + ignoredEditorErrors + " known Unity editor-internal error(s))" : ""));
             foreach (string error in errors.Take(40))
                 report.AppendLine("  " + error);
 
