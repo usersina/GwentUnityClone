@@ -82,6 +82,12 @@ public static class GwentAutoplay
 
     private static void OnPlayModeChanged(PlayModeStateChange state)
     {
+        // Play mode stopped in the middle of a run: report what was done instead of staying hooked to the editor
+        if (state == PlayModeStateChange.ExitingPlayMode && runner != null && runner.Running)
+        {
+            runner.Abort("play mode was stopped before the run ended");
+            return;
+        }
         if (state != PlayModeStateChange.EnteredPlayMode || !SessionState.GetBool(ActiveKey, false))
             return;
         SessionState.SetBool(ActiveKey, false);
@@ -149,8 +155,17 @@ public static class GwentAutoplay
             rnd = new System.Random(seed);
         }
 
+        public bool Running { get; private set; }
+
+        public void Abort(string why)
+        {
+            failures.Add("[" + Label() + "] ABORTED: " + why);
+            Finish();
+        }
+
         public void Start()
         {
+            Running = true;
             Application.logMessageReceived += OnLog;
             EditorApplication.update += Tick;
             Time.timeScale = TimeScale;
@@ -195,6 +210,7 @@ public static class GwentAutoplay
                 // Battles done: on to the deck builder
                 deckPhase = true;
                 deckPhaseFrames = 0;
+                lastProgress = EditorApplication.timeSinceStartup;
                 currentDeck = "deck builder";
                 SceneManager.LoadScene(SceneNames.Deck);
                 return;
@@ -261,7 +277,15 @@ public static class GwentAutoplay
             {
                 controller = SceneController.Instance;
                 if (controller == null)
+                {
+                    // The battle scene never started (it failed to load, or threw while starting)
+                    if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
+                    {
+                        failures.Add("[" + Label() + "] the battle did not start");
+                        NextMatch();
+                    }
                     return;
+                }
             }
             SceneController c = controller;
 
@@ -522,7 +546,12 @@ public static class GwentAutoplay
         {
             DeckController dc = DeckController.Instance;
             if (dc == null || !dc.IsReady || ++deckPhaseFrames < 30)
-                return; // let every Start() of the scene run first
+            {
+                // let every Start() of the scene run first, but not forever (the scene failed to load)
+                if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
+                    Abort("the deck builder did not start");
+                return;
+            }
 
             string saved_battle_deck = PlayerPrefs.GetString("playerDeckPath", null);
             List<string> created = new List<string>();
@@ -734,7 +763,13 @@ public static class GwentAutoplay
 
         private void Finish()
         {
+            if (!Running)
+                return;
+            Running = false;
             EndInputCheck();
+            // The generated battle decks were temporary files
+            foreach (string temp in Directory.GetFiles(Application.temporaryCachePath, "autoplay_*.json"))
+                File.Delete(temp);
             OpponentDecks.Override = null;
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;

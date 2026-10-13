@@ -17,7 +17,7 @@ Every other asset I made myself using Adobe Photoshop.
 
 Some of them are clunky, but the game rules are covered by automated tests (see [Tests](#tests)).
 
-This game supports full deck editing and has an AI playing a Monsters deck.
+This game supports full deck editing and has an AI opponent with 9 decks across the four factions.
 
 Sorry, no multiplayer :/ (yet)
 
@@ -97,18 +97,21 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 | `Assets/Scripts/DeckController.cs`, `DeckEdit/` | The deck builder |
 | `Assets/Scripts/Utility` | Audio, settings, deck files, card database, runtime UI layer (toasts, dialogs, Escape handling), logging |
 | `Assets/Scripts/UI` | The menus' look: theme (`Resources/UITheme.asset`: fonts, colors, sprites), UI kit (buttons, menu entries, sliders, switches, steppers), settings screen, pause menu |
-| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`) and the board pieces (`Assets/UI/Board`: score discs, gems, portrait frame, card shadow, row frames, the table): **Gwent > UI > Regenerate Sprites and Theme** |
-| `Assets/Resources/Cards` | `cards_db.json` (every card's stats), `AI_Monsters.json` (the AI's deck) and the card images |
+| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`) and the board pieces (`Assets/UI/Board`: portrait frame, card shadow, row frames, the table; the gems and score discs are The Witcher 3's art): **Gwent > UI > Regenerate Sprites and Theme** |
+| `Assets/Resources/Cards` | `cards_db.json` (every card's stats, including how many copies The Witcher 3 has of it) and the card images |
+| `Assets/Resources/Decks` | `player_default.json` (the built-in deck), `__empty__.json`, and the AI's 9 decks in `AI/` |
+| `Assets/Resources/W3` | The Witcher 3's interface art: notices' emblems, ability effects (see `CREDITS.md`) |
 | `Assets/Tests/EditMode` | Unit tests for the rules |
 | `Assets/Editor/GwentAutoplay.cs` | End-to-end smoke test that plays full battles |
 
-Saved decks live in `Application.persistentDataPath/Decks/<faction>/<name>.json`; settings are saved in `PlayerPrefs`.
+Saved decks live in `Application.persistentDataPath/Decks/<faction>/<file name>.json`, the file name being the deck's name in lower case
+with anything unsafe removed (`My Deck!` is `my_deck.json`); settings are saved in `PlayerPrefs`.
 Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or with the `GWENT_VERBOSE_LOGS` define).
 
 ## Tests
 
 - **Rules unit tests**: Window > General > Test Runner > EditMode > Run All.
-- **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI, and fails on errors in the log, on a game that stops progressing, or on cards appearing or disappearing. Parts of it go through real input (a virtual mouse and keyboard at human speed): the redraw, card selection, the pause menu and the main menu's settings. The report is written to `Logs/autoplay-report.txt`.
+- **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI (cycling through the AI's 9 decks), and fails on errors in the log, on a game that stops progressing, on cards appearing or disappearing, or on a board that shows other cards than the game. Parts of it go through real input (a virtual mouse and keyboard at human speed): the redraw, card selection, holding Space to pass, the pause menu, and the main menu's settings and How to play. It then checks the deck builder (adding, renaming, deleting decks, invalid and corrupt files). The report is written to `Logs/autoplay-report.txt`.
 
 From the command line (close the project in the editor first), with the [Unity CLI](https://docs.unity.com) signed in (`unity auth`):
 
