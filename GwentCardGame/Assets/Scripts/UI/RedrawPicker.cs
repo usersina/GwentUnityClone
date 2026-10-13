@@ -34,6 +34,9 @@ public class RedrawPicker : MonoBehaviour
     private float lastRedraw = float.NegativeInfinity;
     private float scrolled;
     private int arriving = -1; // the card coming up from the deck into its place, hidden until it lands
+    private float frontSince;  // when the front card came forward
+    private int frontCard = -1;
+    private bool detailsPlaced;
 
     private class CarouselCard
     {
@@ -44,6 +47,20 @@ public class RedrawPicker : MonoBehaviour
 
     // While open, hovering hand cards shows no big preview on the right
     public static bool IsOpen { get { return current != null; } }
+
+    // A card is redrawn only once it has been at the front for a moment: a quick double-click on a card further away
+    // brings it forward and does not swap it by accident
+    public static bool IsReadyToRedraw(int card_id)
+    {
+        return current != null && current.FocusedCardId == card_id && Time.unscaledTime - current.frontSince >= DoubleClick.Interval;
+    }
+
+    // Brings a card of the hand to the front (a click on it in the hand)
+    public static void Bring(int card_id)
+    {
+        if (current != null && current.shownHand.Contains(card_id))
+            current.SetFocus(current.shownHand.IndexOf(card_id));
+    }
 
     // A redrawn card is still on its way (the phase ends once it has landed)
     public static bool IsAnimating { get { return current != null && current.arriving >= 0; } }
@@ -123,6 +140,17 @@ public class RedrawPicker : MonoBehaviour
     {
         if (!SameHand())
             Rebuild();
+        if (FocusedCardId != frontCard)
+        {
+            frontCard = FocusedCardId;
+            frontSince = Time.unscaledTime;
+        }
+        if (!detailsPlaced)
+        {
+            // The front card's description where the card info's description goes: at the bottom right
+            PlaceOnScreen(details.rectTransform, CardShowcase.DescriptionScreenRect());
+            detailsPlaced = true;
+        }
         HandleInput();
         Animate(1f - Mathf.Exp(-Time.unscaledDeltaTime * 14f));
         UpdateDetails();
@@ -294,10 +322,10 @@ public class RedrawPicker : MonoBehaviour
     //----------------------------------------Input----------------------------------------//
     public void OnCardClicked(int index)
     {
-        if (index == focus)
-            RedrawFocused();
-        else
+        if (index != focus)
             SetFocus(index);
+        else if (IsReadyToRedraw(FocusedCardId))
+            RedrawFocused();
     }
 
     public void SetFocus(int index)

@@ -804,8 +804,10 @@ public static class GwentAutoplay
     //----------------------------------------Real mouse input----------------------------------------//
     private enum InputScenario
     {
-        RedrawSlowClicksThenDone, // two slow clicks (no redraw), a slow double-click (redraw), then Done
-        RedrawTwice,              // a burst of four clicks (one redraw only), then the carousel's front card (ends it)
+        RedrawSlowClicksThenDone, // two slow clicks (no redraw), a slow double-click on the front card (redraw), a quick
+                                  // double-click on a card further away (brings it forward, no redraw), then Done
+        RedrawTwice,              // a burst of four clicks on the front card (one redraw only), then the carousel's front
+                                  // card (ends it)
         RedrawCarousel,           // carousel: Right arrow, click a side card, Enter redraws it, right-click keeps the hand
         SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
                                   // click deselects it, right-click does nothing
@@ -851,8 +853,8 @@ public static class GwentAutoplay
                 // The virtual clicks are timed by editor ticks: when the editor stalls, the real gap between two clicks
                 // is not the planned one, and a check about that gap says so instead of failing
                 int exchanged = 0;
-                Click(0.4, CardPosition);
-                Click(1.2, CardPosition);
+                Click(0.4, FrontHandCard);
+                Click(1.2, FrontHandCard);
                 At(1.8, () =>
                 {
                     double gap = ClickGap(0, 1);
@@ -860,25 +862,35 @@ public static class GwentAutoplay
                     check(gap < 0.55 || exchanged == 0, "two clicks " + gap.ToString("0.00") + " s apart on a hand card do not redraw it");
                 });
                 // Slow, but with a margin under the 0.5 s window
-                Click(2.2, CardPosition);
-                Click(2.58, CardPosition);
+                Click(2.2, FrontHandCard);
+                Click(2.58, FrontHandCard);
                 At(3.2, () =>
                 {
                     double gap = ClickGap(2, 3);
                     check(gap > 0.45 || (c.PlayerInfo.CardsExchanged == exchanged + 1 && c.PlayerInfo.HandList.Count == 10),
-                        "a slow double-click (" + gap.ToString("0.00") + " s) on a hand card redraws it");
+                        "a slow double-click (" + gap.ToString("0.00") + " s) on the front card in the hand redraws it");
+                    exchanged = c.PlayerInfo.CardsExchanged;
+                });
+                // A quick double-click on a card further away only brings it forward: never a redraw by accident
+                Click(3.5, FarHandCard);
+                Click(3.64, () => farCard != null ? ScreenPoint(farCard) : CardPosition());
+                At(4.1, () =>
+                {
+                    if (c.PlayerInfo.CanExchange && farCard != null)
+                        check(c.PlayerInfo.CardsExchanged == exchanged && Picker() != null && Picker().FocusedCardId.ToString() == farCard.name,
+                            "a quick double-click on a card further away brings it forward without redrawing it");
                 });
                 // Two redraws end the phase on their own (possible after a stall): then there is no Done to click
-                Click(3.6, () => c.PlayerInfo.CanExchange ? DonePosition() : CardPosition());
-                At(4.1, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
+                Click(4.4, () => c.PlayerInfo.CanExchange ? DonePosition() : CardPosition());
+                At(4.9, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
             }
             else if (scenario == InputScenario.RedrawTwice)
             {
                 // Clicks 3 and 4 land on the card that replaced the redrawn one: they must not redraw it too
-                Click(0.4, CardPosition);
-                Click(0.54, CardPosition);
-                Click(0.68, CardPosition);
-                Click(0.82, CardPosition);
+                Click(0.4, FrontHandCard);
+                Click(0.54, FrontHandCard);
+                Click(0.68, FrontHandCard);
+                Click(0.82, FrontHandCard);
                 At(1.5, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a burst of four clicks redraws one card only"));
                 At(1.5, () => check(Picker() != null && Picker().CardCount == 10 && c.PlayerInfo.HandList.Contains(Picker().FocusedCardId), "the redraw carousel follows the hand"));
                 Click(1.8, CarouselCard(-1));
@@ -1062,6 +1074,30 @@ public static class GwentAutoplay
             if (card == null && hand.childCount > 0)
                 card = hand.GetChild(hand.childCount / 2);
             return card != null ? ScreenPoint(card) : Vector2.zero;
+        }
+
+        // The hand card at the front of the redraw carousel (a double-click on it redraws it)
+        private Vector2 FrontHandCard()
+        {
+            RedrawPicker picker = Picker();
+            if (picker != null)
+                foreach (Transform t in c.PlayerField.transform.Find("Hand"))
+                    if (t.name == picker.FocusedCardId.ToString())
+                        return ScreenPoint(t);
+            return CardPosition();
+        }
+
+        // A hand card that is not at the front of the carousel (remembered for the second click)
+        private Transform farCard;
+
+        private Vector2 FarHandCard()
+        {
+            RedrawPicker picker = Picker();
+            farCard = null;
+            foreach (Transform t in c.PlayerField.transform.Find("Hand"))
+                if (picker != null && t.name != picker.FocusedCardId.ToString())
+                    farCard = t;
+            return farCard != null ? ScreenPoint(farCard) : CardPosition();
         }
 
         private static RedrawPicker Picker()

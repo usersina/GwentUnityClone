@@ -36,7 +36,7 @@ Sorry, no multiplayer :/ (yet)
 | Action | Desktop | Android |
 |---|---|---|
 | Start a battle | **Play**, then choose your opponent (one of 9 decks across the four factions) or **Random opponent**; the choice is remembered | Same, with taps |
-| Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. Double-clicking it in your hand works too. **Done** or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
+| Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. In your hand, a click brings a card forward and a double-click on the front card redraws it (a quick double-click on another card only brings it forward). **Done** or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
 | Select a card from your hand | Click it: it goes to the showcase on the right, with its description, while you choose its place (click its empty slot in the hand to put it back) | Tap it |
 | Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand. Enter plays it when only one place fits | Same, with taps (the warning sound, no cursor) |
 | Use your leader | Click the leader card or its button, or press X twice | Tap |

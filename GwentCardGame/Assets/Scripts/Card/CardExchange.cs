@@ -37,6 +37,15 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
             return;
         }
 
+        // With the redraw carousel open, a click brings the card to its front first; only a double-click on the front
+        // card redraws it, so a quick double-click on a card further away never swaps it by accident
+        int card_id = GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id;
+        if (RedrawPicker.IsOpen && !RedrawPicker.IsReadyToRedraw(card_id))
+        {
+            RedrawPicker.Bring(card_id);
+            doubleClick.Reset();
+            return;
+        }
         if (Time.unscaledTime - lastExchangeTime < ClickCooldown)
             return;
         if (doubleClick.Register())
