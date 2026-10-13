@@ -46,26 +46,6 @@ public class RowManager : MonoBehaviour
     }
 
     //
-    public void ResizeUnitObject(int numberOfCards)
-    {
-        GameObject unit_go = UnitRow;
-        // Initial Spacing
-        unit_go.GetComponent<GridLayoutGroup>().spacing = new Vector2(6, 0);
-
-        float maxWidth = unit_go.GetComponent<RectTransform>().rect.width;
-        float spacingX = unit_go.GetComponent<GridLayoutGroup>().spacing.x;
-        float cardWidth = 87;
-
-        float rowWidth = numberOfCards * cardWidth + (numberOfCards - 1) * spacingX;
-        float offset = 100;
-        if (numberOfCards > 1 && rowWidth > maxWidth - offset)
-        {
-            // n cards + (n - 1) gaps must fit in the row
-            spacingX = (maxWidth - offset - numberOfCards * cardWidth) / (numberOfCards - 1);
-            unit_go.GetComponent<GridLayoutGroup>().spacing = new Vector2(spacingX, 0);
-        }
-    }
-    // Updates the whole row's score
     public void UpdateRowScore(List<int> row_list)
     {
         int row_strength = 0;
@@ -77,7 +57,9 @@ public class RowManager : MonoBehaviour
 
     // Updates each individual unit's strength based on
     // E.G: CloseList && CloseStrengthList
-    public IEnumerator UIUpdateUnitsStrength(List<int> orig_strengths, List<int> mod_strengths)
+    // The strength labels of the row's cards. The row shows its cards sorted (The Witcher 3's order) while the
+    // game keeps them in play order, so each card takes the strength of a game entry with its id.
+    public IEnumerator UIUpdateUnitsStrength(List<int> card_ids, List<int> orig_strengths, List<int> mod_strengths)
     {
         GameObject unit_go = UnitRow;
 
@@ -95,26 +77,33 @@ public class RowManager : MonoBehaviour
                 cards.Add(display);
         }
 
-        if (cards.Count == orig_strengths.Count && orig_strengths.Count == mod_strengths.Count)
+        if (cards.Count != card_ids.Count || orig_strengths.Count != card_ids.Count || mod_strengths.Count != card_ids.Count)
         {
-            for (int i = 0; i < orig_strengths.Count; i++)
-            {
-                TextMeshProUGUI strength_text = cards[i].strengthImage.GetComponent<TextMeshProUGUI>();
-                // Red when weakened, green when boosted, else the card's own colour: card objects are reused
-                // between refreshes, so a card back to its base strength must lose the red / green
-                if (orig_strengths[i] > mod_strengths[i])
-                    strength_text.color = new Color32(188, 0, 0, 255);
-                else if (orig_strengths[i] < mod_strengths[i])
-                    strength_text.color = new Color32(0, 188, 0, 255);
-                else
-                    strength_text.color = cards[i].cardStats.GetComponent<CardStats>().unique ? Color.white : Color.black;
-                strength_text.text = mod_strengths[i].ToString();
-            }
-        }
-        else
-        {
-            Debug.LogError("UIUpdateUnitsStrength: params mismatch (cards " + cards.Count
+            Debug.LogError("UIUpdateUnitsStrength: params mismatch (cards " + cards.Count + ", ids " + card_ids.Count
                 + ", original " + orig_strengths.Count + ", modified " + mod_strengths.Count + ")");
+            yield break;
+        }
+
+        bool[] used = new bool[card_ids.Count];
+        foreach (CardDisplay card in cards)
+        {
+            int id = card.cardStats.GetComponent<CardStats>()._id;
+            int i = 0;
+            while (i < card_ids.Count && (used[i] || card_ids[i] != id))
+                i++;
+            if (i == card_ids.Count)
+                continue;
+            used[i] = true;
+            TextMeshProUGUI strength_text = card.strengthImage.GetComponent<TextMeshProUGUI>();
+            // Red when weakened, green when boosted, else the card's own colour: card objects are reused
+            // between refreshes, so a card back to its base strength must lose the red / green
+            if (orig_strengths[i] > mod_strengths[i])
+                strength_text.color = new Color32(188, 0, 0, 255);
+            else if (orig_strengths[i] < mod_strengths[i])
+                strength_text.color = new Color32(0, 188, 0, 255);
+            else
+                strength_text.color = card.cardStats.GetComponent<CardStats>().unique ? Color.white : Color.black;
+            strength_text.text = mod_strengths[i].ToString();
         }
     }
 }

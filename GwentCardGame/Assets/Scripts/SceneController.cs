@@ -610,14 +610,13 @@ public partial class SceneController : MonoBehaviour
         card_go.GetComponent<CardHover>().DestroyEffect();
         string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
 
-        // The card flies from the hand to its place
+        // The card flies from the hand to its place. Its object leaves the hand first: the refresh reuses hand
+        // objects, and with two copies in hand it could otherwise keep this very one for the copy that stays.
         board.ExpectFlight(card_stats._id, CardMotion.ScreenRect((RectTransform)card_go.transform));
+        card_go.transform.SetParent(null, false);
+        Destroy(card_go);
         PlayCard(card_stats._id, field_row, is_player_turn);
         board.ClearFlight();
-
-        // Hand objects are rebuilt by the refresh; picked/AI cards would otherwise pile up under Temp
-        if (card_go != null)
-            Destroy(card_go);
     }
 
     // Plays a card from the hand: resolves it, refreshes the board and passes the turn (unless a choice is pending)

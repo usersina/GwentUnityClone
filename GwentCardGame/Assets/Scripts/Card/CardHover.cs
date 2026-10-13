@@ -55,12 +55,16 @@ public class CardHover : MonoBehaviour
             TranslateDown();
     }
 
+    // A card lane raises its hovered card itself
+    private bool InLane { get { return transform.parent != null && transform.parent.GetComponent<CardLane>() != null; } }
+
     public void TranslateUp()
     {
         if (isCardUp)
             return;
 
-        transform.localPosition += new Vector3(0, Lift, 0);
+        if (!InLane)
+            transform.localPosition += new Vector3(0, Lift, 0);
         ExtendHitArea(Lift);
         isCardUp = true;
     }
@@ -70,7 +74,8 @@ public class CardHover : MonoBehaviour
         if (!isCardUp)
             return;
 
-        transform.localPosition -= new Vector3(0, Lift, 0);
+        if (!InLane)
+            transform.localPosition -= new Vector3(0, Lift, 0);
         ExtendHitArea(0);
         isCardUp = false;
     }

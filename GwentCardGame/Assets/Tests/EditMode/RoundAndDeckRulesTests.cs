@@ -239,6 +239,14 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void HandsAndRowsAreInTheWitcher3Order()
+        {
+            // Special cards first (by id), then units by printed strength, then by id
+            int[] cards = { 47, CardIds.Scorch, 1, 30, CardIds.Decoy, 7, 27 };
+            CollectionAssert.AreEqual(new[] { CardIds.Decoy, CardIds.Scorch, 1, 7, 30, 47, 27 }, CardOrder.Sorted(cards, TestBoard.Db));
+        }
+
+        [Test]
         public void DisplayNamesDropOnlyTheCopyNumber()
         {
             Assert.AreEqual("Nekker", Card.DisplayNameOf("Nekker 3"));

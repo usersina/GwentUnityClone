@@ -690,11 +690,12 @@ public static class GwentAutoplay
                 PlayerState info = player ? c.PlayerInfo : c.EnemyInfo;
                 Transform field = (player ? c.PlayerField : c.EnemyField).transform;
                 string side = player ? "player " : "opponent ";
-                Compare(field.Find("Hand"), info.HandList, side + "hand", problems);
+                // Hands and rows are shown in The Witcher 3's order
+                Compare(field.Find("Hand"), CardOrder.Sorted(info.HandList, c.Db), side + "hand", problems);
                 foreach (string row in Rows.Units)
                 {
                     Transform row_t = field.Find(char.ToUpper(row[0]) + row.Substring(1));
-                    Compare(row_t.Find("Unit"), info.UnitRow(row), side + row, problems);
+                    Compare(row_t.Find("Unit"), CardOrder.Sorted(info.UnitRow(row), c.Db), side + row, problems);
                     Compare(row_t.Find("Special"), info.SpecialRow(row), side + row + " horn", problems);
                 }
                 Compare(field.Find("Discard/Pile"), info.DiscardList, side + "discard pile", problems);

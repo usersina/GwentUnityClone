@@ -78,9 +78,20 @@ public class BoardView
         controller = battle;
         playerView = new FieldView(battle.PlayerField);
         enemyView = new FieldView(battle.EnemyField);
-        // A click on either discard pile shows it card by card
         foreach (bool is_player in new[] { true, false })
-            View(is_player).DiscardPile.transform.parent.gameObject.AddComponent<DiscardPileBrowser>().isPlayer = is_player;
+        {
+            FieldView view = View(is_player);
+            // A click on either discard pile shows it card by card
+            view.DiscardPile.transform.parent.gameObject.AddComponent<DiscardPileBrowser>().isPlayer = is_player;
+            // The Witcher 3's lines of cards: centred, gliding into place (the grids snapped)
+            CardLane.Install(view.Hand.gameObject, 50);
+            foreach (RowView row in view.Rows.Values)
+            {
+                CardLane.Install(row.Unit, 100);
+                CardLane.Install(row.Special, 0);
+            }
+        }
+        CardLane.Install(battle.WeatherField, 0);
         Weather = battle.WeatherField.GetComponent<WeatherManager>();
         weatherImage = battle.WeatherField.GetComponent<Image>();
     }
@@ -138,17 +149,13 @@ public class BoardView
         SceneController.MainInfo info = Info(is_player_field);
         FieldView view = View(is_player_field);
 
-        if (ShowsCards(view.Hand.transform, info.HandList))
-            view.Stats.UIUpdateHandCount(info.HandList.Count);
-        else
-            SetHand(info.HandList, is_player_field);
+        SetHand(info.HandList, is_player_field);
 
+        // Rows in The Witcher 3's order (special cards first, then units by strength)
         foreach (string row in Rows.Units)
         {
             RowView row_view = view.Rows[row];
-            List<int> units = info.UnitRow(row);
-            if (SyncCards(row_view.Unit, units, is_player_field))
-                row_view.Manager.ResizeUnitObject(units.Count);
+            SyncCards(row_view.Unit, CardOrder.Sorted(info.UnitRow(row), controller.Db), is_player_field);
             SyncCards(row_view.Special, info.SpecialRow(row), is_player_field);
         }
 
@@ -163,13 +170,11 @@ public class BoardView
         View(is_player_deck).Deck.UIUpdateDeckBase(info.DeckBSprite, info.DeckList.Count);
     }
 
-    // Rebuilds the hand's card objects and updates the card count
+    // Shows the hand in The Witcher 3's order, reusing its card objects (cards slide to make room), and the count
     public void SetHand(List<int> hand_list, bool is_player_hand)
     {
         FieldView view = View(is_player_hand);
-        view.Hand.ClearHandObject();
-        CreateCardObjects(view.Hand.gameObject, hand_list, true, is_player_hand);
-        view.Hand.ResizeHand();
+        SyncCards(view.Hand.gameObject, CardOrder.Sorted(hand_list, controller.Db), is_player_hand, true);
         view.Stats.UIUpdateHandCount(hand_list.Count);
     }
 
@@ -208,10 +213,10 @@ public class BoardView
     }
 
     // Makes a container show exactly these cards, in this order, reusing the card objects already there: a play
-    // only creates the cards that arrived and removes the ones that left. For containers without per-card state
-    // (rows, horn slots, the discard pile, the weather slot); other children (the weather overlay) stay after them.
+    // only creates the cards that arrived and removes the ones that left. Hand cards can be selected and hovered,
+    // board cards only show their preview; other children (the weather overlay) stay after the cards.
     // Returns false when nothing changed.
-    private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card)
+    private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card, bool hand = false)
     {
         Transform parent = container.transform;
         if (ShowsCards(parent, card_ids))
@@ -245,9 +250,9 @@ public class BoardView
             else
             {
                 card = CreateCardObject(controller.Db.Get(id), is_player_card);
-                card.GetComponent<CardSelect>().isSelectable = false;
-                card.GetComponent<CardHover>().isHoverable = false;
-                card.GetComponent<CardExchange>().isExchangeable = false;
+                card.GetComponent<CardSelect>().isSelectable = hand;
+                card.GetComponent<CardHover>().isHoverable = hand;
+                card.GetComponent<CardExchange>().isExchangeable = hand && controller.Db.Get(id).ability != Abilities.Leader;
                 card.transform.SetParent(parent, false);
                 if (id == flightCard)
                 {
@@ -360,7 +365,7 @@ public class BoardView
         foreach (string row in Rows.Units)
         {
             RowManager manager = view.Rows[row].Manager;
-            controller.StartCoroutine(manager.UIUpdateUnitsStrength(info.BaseStrengths(row), info.ModifiedStrengths(row)));
+            controller.StartCoroutine(manager.UIUpdateUnitsStrength(info.UnitRow(row), info.BaseStrengths(row), info.ModifiedStrengths(row)));
             manager.UpdateRowScore(info.ModifiedStrengths(row));
         }
 
