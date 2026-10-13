@@ -66,6 +66,7 @@ public class CardHover : MonoBehaviour
         if (!InLane)
             transform.localPosition += new Vector3(0, Lift, 0);
         ExtendHitArea(Lift);
+        SetFocusEdge(true);
         isCardUp = true;
     }
 
@@ -77,7 +78,36 @@ public class CardHover : MonoBehaviour
         if (!InLane)
             transform.localPosition -= new Vector3(0, Lift, 0);
         ExtendHitArea(0);
+        SetFocusEdge(false);
         isCardUp = false;
+    }
+
+    // A raised hand card has a thin gold edge and the light rising across it, as in The Witcher 3
+    private const string FocusEdge = "FocusEdge";
+    private const string FocusShine = "FocusShine";
+    private const string FocusGlow = "FocusGlow";
+
+    private void SetFocusEdge(bool on)
+    {
+        Transform edge = transform.Find(FocusEdge);
+        if (on && edge == null)
+        {
+            CardShine.Attach((RectTransform)transform, FocusShine, 1f, 3.2f);
+            UIKit.Frame(transform, FocusEdge, UITheme.Current.goldBright, 3, 2); // square, as the card is
+            // A faint glow around it: behind the art (after the card's shadow), so only its fringe shows
+            Image glow = UIKit.NewImage(transform, FocusGlow, UITheme.Current.softShadow, new Color(1f, 0.78f, 0.3f, 0.6f));
+            glow.rectTransform.Stretch(-12, -12, -12, -12);
+            glow.transform.SetSiblingIndex(Mathf.Min(1, transform.childCount - 1));
+        }
+        else if (!on && edge != null)
+        {
+            foreach (Transform part in new[] { edge, transform.Find(FocusShine), transform.Find(FocusGlow) })
+                if (part != null)
+                {
+                    part.SetParent(null, false);
+                    Destroy(part.gameObject);
+                }
+        }
     }
 
     // While raised, the card's old footprint stays clickable: otherwise a pointer near its lower edge leaves the
@@ -99,6 +129,19 @@ public class CardHover : MonoBehaviour
     {
         Destroy(bigImage);
         Destroy(bigEffect);
+        if (previewing == this)
+            previewing = null;
+    }
+
+    // There is one place for a card on the right: the card whose preview shows there, if any
+    private static CardHover previewing;
+
+    // Closes the preview on the right (the showcase takes the place: the opponent's card comes first)
+    public static void ClosePreview()
+    {
+        if (previewing != null)
+            previewing.DestroyEffect();
+        previewing = null;
     }
 
     // Replaces any preview this card already shows (a second enter event used to leave a ghost preview).
@@ -108,8 +151,10 @@ public class CardHover : MonoBehaviour
     {
         if (RedrawPicker.IsOpen || CardShowcase.IsShown)
             return;
+        ClosePreview();
         DestroyEffect();
         ShowBigInfo();
+        previewing = this;
     }
 
     //--------------------------------------------Big info on the right--------------------------------------------//

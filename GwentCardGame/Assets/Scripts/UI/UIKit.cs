@@ -45,6 +45,24 @@ public static class UIKit
         return rect;
     }
 
+    // A plain rectangular frame (square corners) around its parent: four bars, outset by the given margin
+    public static RectTransform Frame(Transform parent, string name, Color color, float thickness, float outset = 0)
+    {
+        RectTransform frame = Rect(name, parent).Stretch(-outset, -outset, -outset, -outset);
+        Vector2[] mins = { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(0, 0) };
+        Vector2[] maxs = { new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 1), new Vector2(1, 0) };
+        for (int i = 0; i < 4; i++)
+        {
+            RectTransform bar = NewImage(frame, "Side", null, color).rectTransform;
+            bar.anchorMin = mins[i];
+            bar.anchorMax = maxs[i];
+            bar.pivot = new Vector2(mins[i].x == maxs[i].x ? mins[i].x : 0.5f, mins[i].y == maxs[i].y ? mins[i].y : 0.5f);
+            bar.anchoredPosition = Vector2.zero;
+            bar.sizeDelta = i < 2 ? new Vector2(thickness, 0) : new Vector2(0, thickness);
+        }
+        return frame;
+    }
+
     public static Image NewImage(Transform parent, string name, Sprite sprite, Color color, bool raycast = false)
     {
         Image image = Rect(name, parent).gameObject.AddComponent<Image>();

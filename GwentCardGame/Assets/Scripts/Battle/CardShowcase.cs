@@ -88,18 +88,28 @@ public static class CardShowcase
 
     private static void Show(Card card, Rect from, bool glow)
     {
+        // One card on the right at a time: the showcase takes the place of any preview
+        CardHover.ClosePreview();
         GameObject go = new GameObject("CardShowcase", typeof(RectTransform));
         go.transform.SetParent(CardMotion.Layer, false);
         shown = (RectTransform)go.transform;
-        if (glow)
-        {
-            Image halo = UIKit.NewImage(shown, "Glow", UITheme.Current.softShadow, new Color(1f, 0.64f, 0.22f, 0.9f));
-            halo.rectTransform.Stretch(-28, -28, -28, -28);
-            halo.gameObject.AddComponent<ShowcaseGlow>();
-        }
         Image art = UIKit.NewImage(shown, "Art", SpriteCache.Load("Cards/List/591x380/" + card._id), Color.white);
         art.preserveAspect = true;
         art.rectTransform.Stretch();
+        if (glow)
+        {
+            // The selected card: a thin gold edge (no halo), the light rising across it, and as it pops out of the
+            // hand, a brief orange flash on its edges (The Witcher 3)
+            Image edge = UIKit.NewImage(shown, "Edge", UITheme.Current.panelOutline, UITheme.Current.goldBright);
+            edge.pixelsPerUnitMultiplier = 0.5f; // twice the outline's width: a hair line gets lost between pixels
+            edge.rectTransform.Stretch(-3, -3, -3, -3);
+            edge.gameObject.AddComponent<ShowcaseGlow>();
+            CardShine.Attach(shown, "Shine", GlideSeconds + 1.5f, 5f); // late, and now and then
+            Image flash = UIKit.NewImage(shown, "PopFlash", UITheme.Current.softShadow, new Color(1f, 0.55f, 0.12f, 0.9f));
+            flash.rectTransform.Stretch(-14, -14, -14, -14);
+            flash.transform.SetAsFirstSibling();
+            flash.gameObject.AddComponent<ShowcaseFlash>();
+        }
         CardMotion.Place(shown, from);
 
         RectTransform target = Layout(true);
@@ -126,6 +136,12 @@ public static class CardShowcase
         box = null;
     }
 
+    // Where a card's description shows on the right (screen rectangle)
+    public static Rect DescriptionScreenRect()
+    {
+        return LayoutToScreen(Layout(false));
+    }
+
     // Where hovering a card previews it (the card prefab's big image and description), on the overlay with the same
     // reference size as the battle's canvas
     private static RectTransform Layout(bool art)
@@ -144,24 +160,46 @@ public static class CardShowcase
     }
 }
 
-// The selected card's glow breathes (The Witcher 3)
+// The selected card's gold edge pulses gently
 public class ShowcaseGlow : MonoBehaviour
 {
     private const float Seconds = 1.2f;
-    private Image image;
-    private Color color;
+    private CanvasGroup group;
 
     private void Awake()
     {
-        image = GetComponent<Image>();
-        color = image.color;
+        group = gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
     }
 
     private void Update()
     {
         float breath = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2 / Seconds);
-        image.color = new Color(color.r, color.g, color.b, color.a * Mathf.Lerp(0.5f, 1f, breath));
-        transform.localScale = Vector3.one * Mathf.Lerp(0.99f, 1.05f, breath);
+        group.alpha = Mathf.Lerp(0.55f, 1f, breath);
+    }
+}
+
+// The brief orange flash on the edges of a card popping out of the hand
+public class ShowcaseFlash : MonoBehaviour
+{
+    private const float Seconds = 0.25f;
+    private Image image;
+    private float alpha, age;
+
+    private void Awake()
+    {
+        image = GetComponent<Image>();
+        alpha = image.color.a;
+    }
+
+    private void Update()
+    {
+        age += Time.unscaledDeltaTime;
+        Color color = image.color;
+        color.a = alpha * (1 - Mathf.Clamp01(age / Seconds));
+        image.color = color;
+        if (age >= Seconds)
+            Destroy(gameObject);
     }
 }
 
