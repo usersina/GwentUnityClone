@@ -15,8 +15,8 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 
 // End-to-end smoke test: plays whole battles in the real Game scene with a random "player" against the AI.
-// The first two battles start with the redraw played through real mouse input (a virtual mouse clicking at human speed),
-// and the player's first turn checks card selection the same way.
+// The first two battles start with the redraw played through real input (a virtual mouse and keyboard at human speed),
+// the player's first turn checks card selection and the pause menu the same way, and so does the main menu at the end.
 // Every leader of every faction gets a generated deck. Fails on exceptions/errors in the log, on a game that
 // stops progressing (softlock), and on cards appearing or disappearing (card conservation).
 // Then exercises the deck builder (add, duplicate names, rename, battle deck, corrupt files, delete) in the Deck scene;
@@ -131,6 +131,8 @@ public static class GwentAutoplay
         private InputCheck inputCheck;
         private int redrawChecks;
         private bool selectionChecked;
+        private bool pauseChecked;
+        private bool menuInputStarted;
 
         public Runner(int total_matches, int seed, bool batch, string report_path)
         {
@@ -217,7 +219,8 @@ public static class GwentAutoplay
             if (!EditorApplication.isPlaying)
                 return;
             // Real-time input runs at normal speed, like a person playing
-            Time.timeScale = inputCheck != null ? 1f : TimeScale;
+            if (!PauseMenu.IsOpen)
+                Time.timeScale = inputCheck != null ? 1f : TimeScale;
 
             if (menuPhase)
             {
@@ -375,6 +378,12 @@ public static class GwentAutoplay
                 inputCheck = new InputCheck(c, InputScenario.SelectCard, (ok, what) => Check(ok, what, "selection input"));
                 return;
             }
+            if (!pauseChecked)
+            {
+                pauseChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.PauseMenu, (ok, what) => Check(ok, what, "pause menu input"));
+                return;
+            }
 
             // A normal turn: maybe the leader, sometimes pass, otherwise play a random card through the real UI scripts
             if (c.CanUseLeader(true) && rnd.Next(6) == 0)
@@ -488,8 +497,21 @@ public static class GwentAutoplay
         {
             if (++menuPhaseFrames < 60)
                 return;
-            MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
-            Check(menu != null, "main menu scene loaded");
+            if (!menuInputStarted)
+            {
+                menuInputStarted = true;
+                MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
+                Check(menu != null && menu.Items.Count == 4, "the main menu loads with its 4 entries", "main menu");
+                inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
+                return;
+            }
+            if (inputCheck != null)
+            {
+                inputCheck.Tick();
+                if (inputCheck.Done)
+                    EndInputCheck();
+                return;
+            }
             Finish();
         }
 
@@ -683,10 +705,12 @@ public static class GwentAutoplay
         RedrawSlowClicksThenDone, // two slow clicks (no redraw), an ordinary double-click (redraw), then Done
         RedrawTwice,              // a quick double-click, then a slower one (the second redraw ends the redraw phase)
         SelectCard,               // left-click selects a hand card, a second click deselects it, right-click does nothing
+        PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
+        MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
     }
 
-    // Plays part of a battle like a person would: a virtual mouse clicks at human speed, and the clicks go through
-    // the Input System, the EventSystem and the cards' own click handlers.
+    // Plays part of the game like a person would: a virtual mouse and keyboard at human speed, going through the
+    // Input System, the EventSystem and the game's own handlers.
     private class InputCheck
     {
         private const double PressDuration = 0.1;
@@ -697,6 +721,8 @@ public static class GwentAutoplay
         private readonly double start;
         private int next;
         private Mouse mouse;
+        private Keyboard keyboard;
+        private float savedMasterVolume = -1;
         private bool settingsChanged;
         private InputSettings.EditorInputBehaviorInPlayMode savedEditorBehavior;
         private InputSettings.BackgroundBehavior savedBackgroundBehavior;
@@ -712,6 +738,8 @@ public static class GwentAutoplay
             start = EditorApplication.timeSinceStartup;
 
             At(0, Setup);
+            if (c != null && scenario != InputScenario.PauseMenu)
+                At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
             if (scenario == InputScenario.RedrawSlowClicksThenDone)
             {
                 Click(0.4, CardPosition);
@@ -731,6 +759,28 @@ public static class GwentAutoplay
                 Click(1.3, CardPosition);
                 Click(1.65, CardPosition);
                 At(2.2, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "a slower double-click (0.35 s) redraws a second card and ends the redraw"));
+            }
+            else if (scenario == InputScenario.PauseMenu)
+            {
+                Key(0.3, UnityEngine.InputSystem.Key.Escape);
+                At(0.8, () => check(PauseMenu.IsOpen && Time.timeScale == 0, "Escape pauses the battle (time stops)"));
+                Key(1.1, UnityEngine.InputSystem.Key.Escape);
+                At(1.6, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Escape again resumes it"));
+                Click(1.9, Named("PauseButton"));
+                At(2.4, () => check(PauseMenu.IsOpen, "the menu button opens the pause menu"));
+                Click(2.7, Named("Item Resume"));
+                At(3.2, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
+            }
+            else if (scenario == InputScenario.MainMenuSettings)
+            {
+                Move(0.3, Named("Item Deck builder"));
+                At(0.6, () => check(EventSystem.current.currentSelectedGameObject == GameObject.Find("Item Deck builder"), "hovering a menu entry highlights it"));
+                Click(0.9, Named("Item Settings"));
+                At(1.4, () => check(SettingsPanel.IsOpen, "clicking Settings opens the settings"));
+                Click(1.7, MasterVolumeAt(0.25f));
+                At(2.2, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
+                Key(2.5, UnityEngine.InputSystem.Key.Escape);
+                At(3.0, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
             }
             else
             {
@@ -758,6 +808,13 @@ public static class GwentAutoplay
                 InputSystem.RemoveDevice(mouse);
                 mouse = null;
             }
+            if (keyboard != null)
+            {
+                InputSystem.RemoveDevice(keyboard);
+                keyboard = null;
+            }
+            if (savedMasterVolume >= 0 && !Mathf.Approximately(GameSettings.MasterVolume, savedMasterVolume))
+                GameSettings.MasterVolume = savedMasterVolume;
             if (settingsChanged)
             {
                 InputSystem.settings.editorInputBehaviorInPlayMode = savedEditorBehavior;
@@ -780,6 +837,16 @@ public static class GwentAutoplay
             At(time + PressDuration, () => Send(at, button, false));
         }
 
+        private void Move(double time, Func<Vector2> position)
+        {
+            At(time, () => Send(position(), MouseButton.Left, false));
+        }
+
+        private void Key(double time, Key key)
+        {
+            At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
+            At(time + PressDuration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
+        }
         private void Setup()
         {
             // Input reaches the game without the Game view having focus (batch mode has none). The settings are changed
@@ -791,16 +858,16 @@ public static class GwentAutoplay
             settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
             settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
             mouse = InputSystem.AddDevice<Mouse>("AutoplayMouse");
+            keyboard = InputSystem.AddDevice<Keyboard>("AutoplayKeyboard");
+            savedMasterVolume = GameSettings.MasterVolume;
 
             InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
-            check(module != null, "the Game scene uses the Input System UI module");
+            check(module != null, "the scene uses the Input System UI module");
             if (module != null && module.actionsAsset != null)
             {
                 module.actionsAsset.Disable();
                 module.actionsAsset.Enable();
             }
-
-            check(CardPosition() != Vector2.zero, "the hand has cards to click");
         }
 
         private void Send(Vector2 position, MouseButton button, bool pressed)
@@ -823,6 +890,34 @@ public static class GwentAutoplay
             GameObject done = GameObject.Find("Button Done");
             check(done != null, "the redraw prompt shows a Done button");
             return done != null ? ScreenPoint(done.transform) : Vector2.zero;
+        }
+
+        // An active UI object by name (looked up when the click happens)
+        private Func<Vector2> Named(string name)
+        {
+            return () =>
+            {
+                GameObject target = GameObject.Find(name);
+                check(target != null, "\"" + name + "\" is on screen");
+                return target != null ? ScreenPoint(target.transform) : Vector2.zero;
+            };
+        }
+
+        // A point on the settings' master volume slider, at that fraction of its travel
+        private Func<Vector2> MasterVolumeAt(float fraction)
+        {
+            return () =>
+            {
+                SettingsPanel panel = UnityEngine.Object.FindAnyObjectByType<SettingsPanel>();
+                UnityEngine.UI.Slider slider = panel != null ? panel.GetComponentInChildren<UnityEngine.UI.Slider>() : null;
+                check(slider != null, "the settings show the master volume slider");
+                if (slider == null)
+                    return Vector2.zero;
+                RectTransform area = (RectTransform)slider.handleRect.parent;
+                Vector3[] corners = new Vector3[4];
+                area.GetWorldCorners(corners);
+                return RectTransformUtility.WorldToScreenPoint(null, Vector3.Lerp(corners[0], corners[3], fraction) + (corners[1] - corners[0]) / 2);
+            };
         }
 
         private static Vector2 ScreenPoint(Transform target)

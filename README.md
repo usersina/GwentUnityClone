@@ -35,14 +35,16 @@ Sorry, no multiplayer :/ (yet)
 
 | Action | Desktop | Android |
 |---|---|---|
-| Redraw a card at the start (up to 2) | Double-click it, then **Done** (or right-click / Esc to skip) | Double-tap it, then **Done** |
+| Redraw a card at the start (up to 2) | Double-click it, then **Done** (or right-click to keep your hand) | Double-tap it, then **Done** |
 | Select a card from your hand | Click it (click again to deselect) | Tap it |
 | Play the selected card | Click a highlighted row (weather/scorch: the weather board, decoy: one of your units) | Same, with taps |
 | Use your leader | Click the leader card or its button | Tap |
 | Pass | Hold the **Press to pass** button | Hold |
+| Pause (resume, settings, leave the battle) | Esc or the menu button at the top right | Back button or the menu button |
 | Preview a card | Hover it | Selecting it shows the preview |
 | Deck builder: add/remove a card | Double-click it | Tap it |
 | Deck builder: card details | Right-click | - |
+| Settings (audio, display) | Main menu or pause menu > **Settings** | Same |
 
 The deck you last selected in the deck builder is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
 heroes once, other cards up to 3 times). The line at the bottom of the deck builder shows which deck that is. Without a valid deck,
@@ -70,18 +72,20 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 | `Assets/Scripts/SceneController.cs` | The battle: turns, rounds and the board UI, built on top of the rules |
 | `Assets/Scripts/AI` | Executes the AI's decisions (always ends its turn, falls back to passing) |
 | `Assets/Scripts/DeckController.cs`, `DeckEdit/` | The deck builder |
-| `Assets/Scripts/Utility` | Audio, deck files, card database, runtime UI (toasts, dialogs), logging |
+| `Assets/Scripts/Utility` | Audio, settings, deck files, card database, runtime UI layer (toasts, dialogs, Escape handling), logging |
+| `Assets/Scripts/UI` | The menus' look: theme (`Resources/UITheme.asset`: fonts, colors, sprites), UI kit (buttons, menu entries, sliders, switches, steppers), settings screen, pause menu |
+| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`): **Gwent > UI > Regenerate Sprites and Theme** |
 | `Assets/Resources/Cards` | `cards_db.json` (every card's stats), `AI_Monsters.json` (the AI's deck) and the card images |
 | `Assets/Tests/EditMode` | Unit tests for the rules |
 | `Assets/Editor/GwentAutoplay.cs` | End-to-end smoke test that plays full battles |
 
-Saved decks live in `Application.persistentDataPath/Decks/<faction>/<name>.json`.
+Saved decks live in `Application.persistentDataPath/Decks/<faction>/<name>.json`; settings are saved in `PlayerPrefs`.
 Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or with the `GWENT_VERBOSE_LOGS` define).
 
 ## Tests
 
 - **Rules unit tests**: Window > General > Test Runner > EditMode > Run All.
-- **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI, and fails on errors in the log, on a game that stops progressing, or on cards appearing or disappearing. The report is written to `Logs/autoplay-report.txt`.
+- **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI, and fails on errors in the log, on a game that stops progressing, or on cards appearing or disappearing. Parts of it go through real input (a virtual mouse and keyboard at human speed): the redraw, card selection, the pause menu and the main menu's settings. The report is written to `Logs/autoplay-report.txt`.
 
 From the command line (close the project in the editor first), with the [Unity CLI](https://docs.unity.com) signed in (`unity auth`):
 
@@ -113,3 +117,4 @@ This is a non-commercial fan project.
 # License
 The source code is released under the [MIT License](LICENSE).
 The license does not cover the Gwent/Witcher card art, names and other CD PROJEKT RED material, which remain the property of their owners.
+The fonts keep their own licenses: Cinzel and Alegreya Sans (SIL Open Font License 1.1), Roboto (Apache 2.0); see `GwentCardGame/Assets/Fonts/FONTS-LICENSE.md`.

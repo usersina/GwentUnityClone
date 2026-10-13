@@ -5,8 +5,6 @@ public class GameAudio : MonoBehaviour
 {
     private const string MusicPath = "Audio/Music";
     private const string SfxPath = "Audio/Sfx";
-    private const string MusicVolumeKey = "musicVolume";
-    private const string SfxVolumeKey = "sfxVolume";
     private const float MusicBaseVolume = 0.45f;
     private const float SfxBaseVolume = 0.9f;
 
@@ -55,6 +53,7 @@ public class GameAudio : MonoBehaviour
     private AudioClip[] musicClips;
     private AudioSource musicSource;
     private AudioSource sfxSource;
+    private bool hasFocus = true;
 
     public static GameAudio Instance
     {
@@ -93,6 +92,18 @@ public class GameAudio : MonoBehaviour
         instance = this;
         DontDestroyOnLoad(gameObject);
         ConfigureSources();
+        GameSettings.Changed += ApplyVolumes;
+    }
+
+    private void OnDestroy()
+    {
+        GameSettings.Changed -= ApplyVolumes;
+    }
+
+    private void OnApplicationFocus(bool focus)
+    {
+        hasFocus = focus;
+        ApplyVolumes();
     }
 
     private void ConfigureSources()
@@ -113,36 +124,15 @@ public class GameAudio : MonoBehaviour
         ApplyVolumes();
     }
 
-    //----------------------------------------Settings (saved in PlayerPrefs)----------------------------------------//
-    // 0..1, multiplied with the base mix volume
-    public static float MusicVolume
-    {
-        get { return PlayerPrefs.GetFloat(MusicVolumeKey, 1f); }
-        set
-        {
-            PlayerPrefs.SetFloat(MusicVolumeKey, Mathf.Clamp01(value));
-            PlayerPrefs.Save();
-            Instance.ApplyVolumes();
-        }
-    }
-
-    public static float SfxVolume
-    {
-        get { return PlayerPrefs.GetFloat(SfxVolumeKey, 1f); }
-        set
-        {
-            PlayerPrefs.SetFloat(SfxVolumeKey, Mathf.Clamp01(value));
-            PlayerPrefs.Save();
-            Instance.ApplyVolumes();
-        }
-    }
-
+    //----------------------------------------Volumes (GameSettings)----------------------------------------//
     private void ApplyVolumes()
     {
         if (musicSource != null)
-            musicSource.volume = MusicBaseVolume * MusicVolume;
+            musicSource.volume = MusicBaseVolume * GameSettings.MusicVolume;
         if (sfxSource != null)
-            sfxSource.volume = SfxBaseVolume * SfxVolume;
+            sfxSource.volume = SfxBaseVolume * GameSettings.SfxVolume;
+        bool muted = !hasFocus && GameSettings.MuteInBackground && !Application.isMobilePlatform;
+        AudioListener.volume = muted ? 0f : GameSettings.MasterVolume;
     }
 
     public static void PlayMenuMusic()
@@ -192,7 +182,7 @@ public class GameAudio : MonoBehaviour
     {
         ConfigureSources();
 
-        if (SfxVolume <= 0f)
+        if (GameSettings.SfxVolume <= 0f || GameSettings.MasterVolume <= 0f)
             return;
 
         AudioClip clip = LoadSfxClip(clipName);

@@ -3,13 +3,24 @@ using UnityEngine.InputSystem;
 // The few direct input checks of the game, on the Input System package (UI clicks go through the EventSystem)
 public static class GameInput
 {
-    // Right click or Escape (the Android back button arrives as Escape): close popups, skip the redraw phase
+    // Right click or Escape: close popups
     public static bool CancelPressed()
     {
-        Mouse mouse = Mouse.current;
+        return EscapePressed() || SecondaryPressed();
+    }
+
+    // Escape (the Android back button arrives as Escape): close the top dialog, otherwise open the pause menu
+    public static bool EscapePressed()
+    {
         Keyboard keyboard = Keyboard.current;
-        return (mouse != null && mouse.rightButton.wasPressedThisFrame)
-            || (keyboard != null && keyboard.escapeKey.wasPressedThisFrame);
+        return keyboard != null && keyboard.escapeKey.wasPressedThisFrame;
+    }
+
+    // Right click: close popups, skip the redraw phase
+    public static bool SecondaryPressed()
+    {
+        Mouse mouse = Mouse.current;
+        return mouse != null && mouse.rightButton.wasPressedThisFrame;
     }
 
     // A second finger touching the screen (mobile equivalent of the right click)

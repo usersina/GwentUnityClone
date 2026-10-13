@@ -1,136 +1,280 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
-// Small runtime-built UI on top of the current scene: toasts, confirmation dialogs and extra buttons.
-// Built in code so it works without editing the scenes; uses the same 1920x1080 reference as the scene canvases.
+// Runtime-built UI on top of the current scene: menus, dialogs, toasts and extra buttons, in the UI theme.
+// Two canvases with the 1920x1080 reference of the scene canvases: Root (menus and dialogs, scaled by the
+// "menu size" setting) and FixedRoot (labels that must keep their place in the scene's layout).
+// Also routes Escape / right click: the top dialog closes first, otherwise the scene's escape action runs.
 public static class UIOverlay
 {
-    public static readonly Color Gold = new Color32(255, 188, 0, 255);
-    private static readonly Color PanelColor = new Color32(24, 20, 16, 235);
-    private static readonly Color ButtonColor = new Color32(70, 52, 30, 255);
+    private static readonly Vector2 ReferenceResolution = new Vector2(1920, 1080);
 
-    private static Canvas canvas;
+    private static OverlayRunner runner;
+    private static Canvas fixedCanvas;
     private static GameObject currentToast;
+
+    public static Color Gold { get { return UITheme.Current.gold; } }
 
     public static Transform Root
     {
         get
         {
-            if (canvas == null)
-                CreateCanvas();
-            return canvas.transform;
+            if (runner == null)
+                runner = CreateCanvas("UIOverlay", 500, true).gameObject.AddComponent<OverlayRunner>();
+            return runner.transform;
         }
     }
 
-    private static void CreateCanvas()
+    public static Transform FixedRoot
     {
-        GameObject canvas_go = new GameObject("UIOverlay", typeof(RectTransform));
-        canvas = canvas_go.AddComponent<Canvas>();
+        get
+        {
+            if (fixedCanvas == null)
+                fixedCanvas = CreateCanvas("UIOverlayFixed", 490, false);
+            return fixedCanvas.transform;
+        }
+    }
+
+    private static Canvas CreateCanvas(string name, int sorting_order, bool scaled_by_settings)
+    {
+        GameObject canvas_go = new GameObject(name, typeof(RectTransform));
+        Canvas canvas = canvas_go.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 500;
+        canvas.sortingOrder = sorting_order;
         CanvasScaler scaler = canvas_go.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.referenceResolution = scaled_by_settings ? ReferenceResolution / GameSettings.MenuScale : ReferenceResolution;
         scaler.matchWidthOrHeight = 1;
         canvas_go.AddComponent<GraphicRaycaster>();
 
         if (EventSystem.current == null && UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        return canvas;
     }
 
-    //----------------------------------------Building blocks----------------------------------------//
+    //----------------------------------------Building blocks (kept for the scene scripts)----------------------------------------//
     public static RectTransform CreateRect(string name, Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
     {
-        GameObject go = new GameObject(name, typeof(RectTransform));
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.SetParent(parent, false);
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = position;
-        rect.sizeDelta = size;
-        return rect;
+        return UIKit.Rect(name, parent).Place(anchor, position, size);
     }
 
     public static TextMeshProUGUI CreateText(Transform parent, string text, float font_size, Vector2 anchor, Vector2 position, Vector2 size)
     {
-        RectTransform rect = CreateRect("Text", parent, anchor, position, size);
-        TextMeshProUGUI label = rect.gameObject.AddComponent<TextMeshProUGUI>();
-        label.text = text;
+        TextMeshProUGUI label = UIKit.Text(parent, text, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
         label.fontSize = font_size;
-        label.color = Gold;
-        label.alignment = TextAlignmentOptions.Center;
-        label.raycastTarget = false;
+        label.rectTransform.Place(anchor, position, size);
         return label;
     }
 
     public static Button CreateButton(Transform parent, string text, Vector2 anchor, Vector2 position, Vector2 size, Action on_click)
     {
-        RectTransform rect = CreateRect("Button " + text, parent, anchor, position, size);
-        Image background = rect.gameObject.AddComponent<Image>();
-        background.color = ButtonColor;
-        Button button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = background;
-        if (on_click != null)
-            button.onClick.AddListener(() => on_click());
-
-        TextMeshProUGUI label = CreateText(rect, text, 30, new Vector2(0.5f, 0.5f), Vector2.zero, size);
-        label.textWrappingMode = TextWrappingModes.NoWrap;
+        Button button = UIKit.Button(parent, text, UIKit.ButtonStyle.Secondary, on_click, size);
+        ((RectTransform)button.transform).Place(anchor, position, size);
         return button;
     }
 
     //----------------------------------------Toast----------------------------------------//
-    // Short message at the top of the screen, replaced by the next one
+    // Short message at the top of the screen, replaced by the next one; never blocks clicks
     public static void Toast(string message, float seconds = 2.5f)
     {
         GameLog.Info("Toast: " + message);
         if (currentToast != null)
             UnityEngine.Object.Destroy(currentToast);
 
-        RectTransform rect = CreateRect("Toast", Root, new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(1100, 80));
-        Image background = rect.gameObject.AddComponent<Image>();
-        background.color = PanelColor;
-        background.raycastTarget = false; // never blocks clicks on the board
-        CreateText(rect, message, 32, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1060, 76));
-        currentToast = rect.gameObject;
-        UnityEngine.Object.Destroy(currentToast, seconds);
+        RectTransform panel = UIKit.Panel(Root, "Toast", true).Place(new Vector2(0.5f, 1f), new Vector2(0, -140), new Vector2(1100, 84));
+        foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>())
+            graphic.raycastTarget = false;
+        TextMeshProUGUI label = UIKit.Text(panel, message, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
+        label.rectTransform.Stretch(30, 30, 0, 2);
+        label.textWrappingMode = TextWrappingModes.Normal;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 20;
+        label.fontSizeMax = 32;
+        panel.gameObject.AddComponent<UIFade>().Init(seconds);
+        currentToast = panel.gameObject;
     }
 
     //----------------------------------------Confirmation dialog----------------------------------------//
     public static void Confirm(string message, string yes_text, string no_text, Action on_yes)
     {
-        // Full-screen dimmer blocks clicks on the scene behind the dialog
-        RectTransform dimmer = CreateRect("ConfirmDialog", Root, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-        dimmer.anchorMin = Vector2.zero;
-        dimmer.anchorMax = Vector2.one;
-        dimmer.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0.6f);
-        GameObject dialog_go = dimmer.gameObject;
-        dialog_go.AddComponent<CloseOnEscape>();
-
-        RectTransform panel = CreateRect("Panel", dimmer, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900, 320));
-        panel.gameObject.AddComponent<Image>().color = PanelColor;
-        TextMeshProUGUI label = CreateText(panel, message, 36, new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(840, 160));
+        RectTransform dimmer = UIKit.Dimmer(Root, "ConfirmDialog");
+        RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(920, 330));
+        UIKit.Ornament(panel, new Vector2(0.5f, 1f), new Vector2(0, -40), 360);
+        TextMeshProUGUI label = UIKit.Text(panel, message, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
+        label.rectTransform.Stretch(60, 60, 56, 124);
         label.textWrappingMode = TextWrappingModes.Normal;
 
-        CreateButton(panel, yes_text, new Vector2(0.5f, 0.5f), new Vector2(-170, -90), new Vector2(280, 80), () =>
+        GameObject dialog = dimmer.gameObject;
+        Button yes = UIKit.Button(panel, yes_text, UIKit.ButtonStyle.Primary, () =>
         {
-            UnityEngine.Object.Destroy(dialog_go);
+            CloseModal(dialog);
             on_yes();
         });
-        CreateButton(panel, no_text, new Vector2(0.5f, 0.5f), new Vector2(170, -90), new Vector2(280, 80), () => UnityEngine.Object.Destroy(dialog_go));
+        ((RectTransform)yes.transform).Place(new Vector2(0.5f, 0f), new Vector2(-160, 70), new Vector2(280, 68));
+        Button no = UIKit.Button(panel, no_text, UIKit.ButtonStyle.Secondary, () => CloseModal(dialog));
+        ((RectTransform)no.transform).Place(new Vector2(0.5f, 0f), new Vector2(160, 70), new Vector2(280, 68));
+        PushModal(dialog);
+        UIKit.Focus(no); // Enter on a keyboard picks the safe choice
     }
 
-    // Right click / Escape dismisses a dialog, like the other popups of the game
-    private class CloseOnEscape : MonoBehaviour
+    //----------------------------------------Modal dialogs and Escape----------------------------------------//
+    private class Modal
     {
+        public GameObject root;
+        public Action onClose;
+        public bool closeOnRightClick;
+        public List<KeyValuePair<Selectable, Navigation>> blockedNavigation;
+        public GameObject previousSelection;
+    }
+
+    private static readonly List<Modal> modals = new List<Modal>();
+    private static int lastCancelFrame = -1;
+
+    // A dialog is open (or one was just closed this frame): scene scripts must not also react to Escape / right click
+    public static bool BlocksCancel
+    {
+        get
+        {
+            Prune();
+            return modals.Count > 0 || lastCancelFrame == Time.frameCount;
+        }
+    }
+
+    public static bool HasModal
+    {
+        get
+        {
+            Prune();
+            return modals.Count > 0;
+        }
+    }
+
+    // What Escape (and the Android back button) does in this scene when no dialog is open
+    public static void SetEscapeAction(Action action)
+    {
+        Root.GetComponent<OverlayRunner>().escapeAction = action;
+    }
+
+    // Registers a dialog: Escape (and right click, unless disabled) closes it, keyboard navigation stays inside it
+    public static void PushModal(GameObject root, Action on_close = null, bool close_on_right_click = true)
+    {
+        Modal modal = new Modal
+        {
+            root = root,
+            onClose = on_close,
+            closeOnRightClick = close_on_right_click,
+            blockedNavigation = new List<KeyValuePair<Selectable, Navigation>>(),
+            previousSelection = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null,
+        };
+        foreach (Selectable selectable in Selectable.allSelectablesArray)
+        {
+            if (selectable.transform.IsChildOf(root.transform))
+                continue;
+            modal.blockedNavigation.Add(new KeyValuePair<Selectable, Navigation>(selectable, selectable.navigation));
+            selectable.navigation = new Navigation { mode = Navigation.Mode.None };
+        }
+        modals.Add(modal);
+    }
+
+    public static void CloseModal(GameObject root)
+    {
+        int index = modals.FindIndex(m => m.root == root);
+        if (index < 0)
+        {
+            if (root != null)
+                UnityEngine.Object.Destroy(root);
+            return;
+        }
+        Modal modal = modals[index];
+        modals.RemoveAt(index);
+        foreach (KeyValuePair<Selectable, Navigation> entry in modal.blockedNavigation)
+            if (entry.Key != null)
+                entry.Key.navigation = entry.Value;
+        if (modal.root != null)
+            UnityEngine.Object.Destroy(modal.root);
+        if (EventSystem.current != null && modal.previousSelection != null)
+            EventSystem.current.SetSelectedGameObject(modal.previousSelection);
+        if (modal.onClose != null)
+            modal.onClose();
+    }
+
+    private static void Prune()
+    {
+        modals.RemoveAll(m => m.root == null);
+    }
+
+    private class OverlayRunner : MonoBehaviour
+    {
+        public Action escapeAction;
+        private CanvasScaler scaler;
+
+        private void Awake()
+        {
+            scaler = GetComponent<CanvasScaler>();
+        }
+
         private void Update()
         {
-            if (GameInput.CancelPressed())
-                Destroy(gameObject);
+            Vector2 reference = ReferenceResolution / GameSettings.MenuScale;
+            if (scaler != null && scaler.referenceResolution != reference)
+                scaler.referenceResolution = reference;
+
+            bool escape = GameInput.EscapePressed();
+            bool right_click = GameInput.SecondaryPressed();
+            if (!escape && !right_click)
+                return;
+
+            Prune();
+            if (modals.Count > 0)
+            {
+                Modal top = modals[modals.Count - 1];
+                if (escape || top.closeOnRightClick)
+                {
+                    lastCancelFrame = Time.frameCount;
+                    CloseModal(top.root);
+                }
+            }
+            else if (escape && escapeAction != null && lastCancelFrame != Time.frameCount)
+            {
+                lastCancelFrame = Time.frameCount;
+                escapeAction();
+            }
         }
+
+        private void OnDestroy()
+        {
+            // Scene change: the dialogs went with the canvas
+            modals.Clear();
+        }
+    }
+}
+
+// Fades a toast in and out (unscaled time, so it also works while the game is paused), then destroys it
+public class UIFade : MonoBehaviour
+{
+    private const float FadeSeconds = 0.25f;
+    private CanvasGroup group;
+    private float lifetime;
+    private float age;
+
+    public void Init(float seconds)
+    {
+        lifetime = Mathf.Max(seconds, FadeSeconds * 2);
+        group = gameObject.AddComponent<CanvasGroup>();
+        group.blocksRaycasts = false;
+        group.alpha = 0;
+    }
+
+    private void Update()
+    {
+        age += Time.unscaledDeltaTime;
+        group.alpha = Mathf.Min(Mathf.Clamp01(age / FadeSeconds), Mathf.Clamp01((lifetime - age) / FadeSeconds));
+        if (age >= lifetime)
+            Destroy(gameObject);
     }
 }

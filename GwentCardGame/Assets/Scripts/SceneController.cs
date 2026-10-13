@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Gwent.Rules;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -58,6 +59,9 @@ public class SceneController : MonoBehaviour
     private WeatherManager weatherManager;
     private Image weatherImage;
     private GameObject mulliganPrompt;
+    private TextMeshProUGUI mulliganCount;
+    private string mulliganHint;
+    private int mulliganShown = -1;
     private Coroutine turnRoutine;
     private int turnGeneration;
 
@@ -148,6 +152,7 @@ public class SceneController : MonoBehaviour
 
         GameLog.Info("Starting battle...");
         GameAudio.PlaySfx("game_start");
+        UIOverlay.SetEscapeAction(PauseMenu.Open);
         battleState = BattleState.START;
         SetupBattle();
         ShowMulliganPrompt();
@@ -157,6 +162,7 @@ public class SceneController : MonoBehaviour
 
     private void Update()
     {
+        UpdateMulliganCount();
         if (battleState == BattleState.START && PlayerInfo.CanExchange && ShouldSkipCardExchange())
         {
             GameLog.Info("Player has skipped cards exchanging !");
@@ -178,9 +184,10 @@ public class SceneController : MonoBehaviour
             go.SetActive(active);
     }
 
+    // Right click (or a second finger) keeps the hand; Escape opens the pause menu instead
     private bool ShouldSkipCardExchange()
     {
-        return GameInput.CancelPressed() || GameInput.SecondFingerTapped();
+        return !UIOverlay.BlocksCancel && (GameInput.SecondaryPressed() || GameInput.SecondFingerTapped());
     }
 
     //----------------------------------------------Info helpers---------------------------------------------------//
@@ -268,17 +275,37 @@ public class SceneController : MonoBehaviour
     {
         if (!PlayerInfo.CanExchange)
             return;
-        RectTransform prompt = UIOverlay.CreateRect("MulliganPrompt", UIOverlay.Root, new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(900, 190));
-        prompt.gameObject.AddComponent<Image>().color = new Color32(24, 20, 16, 220);
+        RectTransform prompt = UIKit.Panel(UIOverlay.Root, "MulliganPrompt", true).Place(new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(920, 250));
+        TextMeshProUGUI title = UIKit.Text(prompt, "Redraw cards", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
+        title.fontSize = 36;
+        title.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -44), new Vector2(860, 50));
         string how = Application.isMobilePlatform ? "Double-tap" : "Double-click";
-        UIOverlay.CreateText(prompt, how + " up to 2 cards in your hand to redraw them", 34, new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(860, 80));
-        UIOverlay.CreateButton(prompt, "Done", new Vector2(0.5f, 0.5f), new Vector2(0, -45), new Vector2(260, 70), FinishCardExchange);
+        mulliganCount = UIKit.Text(prompt, "", UIKit.TextStyle.Body, TextAlignmentOptions.Center);
+        mulliganCount.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -102), new Vector2(860, 44));
+        mulliganHint = how + " up to 2 cards in your hand to redraw them";
+        Button done = UIKit.Button(prompt, "Done", UIKit.ButtonStyle.Primary, FinishCardExchange, new Vector2(240, 64));
+        ((RectTransform)done.transform).Place(new Vector2(0.5f, 0f), new Vector2(0, 58), new Vector2(240, 64));
         mulliganPrompt = prompt.gameObject;
+        UpdateMulliganCount();
+    }
+
+    private void UpdateMulliganCount()
+    {
+        if (mulliganCount == null || mulliganShown == PlayerInfo.CardsExchanged)
+            return;
+        mulliganShown = PlayerInfo.CardsExchanged;
+        mulliganCount.text = mulliganHint + "  (" + mulliganShown + "/2)";
     }
 
     public void FinishCardExchange()
     {
         PlayerInfo.CanExchange = false;
+    }
+
+    // The menu button at the top right
+    public void OpenPauseMenu()
+    {
+        PauseMenu.Open();
     }
 
     // Exchange a card with another from deck (shuffle card back into the deck then draw)

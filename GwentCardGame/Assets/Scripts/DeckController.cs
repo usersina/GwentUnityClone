@@ -367,7 +367,7 @@ public class DeckController : MonoBehaviour
         if (battleDeckStatus == null)
         {
             // Fits between the two "Show neutrals" toggles; long messages shrink instead of overlapping them
-            battleDeckStatus = UIOverlay.CreateText(UIOverlay.Root, "", 26, new Vector2(0.5f, 0f), new Vector2(0, 42), new Vector2(560, 72));
+            battleDeckStatus = UIOverlay.CreateText(UIOverlay.FixedRoot, "", 26, new Vector2(0.5f, 0f), new Vector2(0, 42), new Vector2(560, 72));
             battleDeckStatus.textWrappingMode = TextWrappingModes.Normal;
             battleDeckStatus.enableAutoSizing = true;
             battleDeckStatus.fontSizeMin = 14;

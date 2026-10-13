@@ -7,7 +7,7 @@ public class CloseDetails : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (GameInput.CancelPressed())
+        if (GameInput.CancelPressed() && !UIOverlay.BlocksCancel)
             gameObject.SetActive(false);
     }
 }

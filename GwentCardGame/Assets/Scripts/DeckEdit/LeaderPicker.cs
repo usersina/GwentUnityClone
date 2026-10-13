@@ -13,7 +13,7 @@ public class LeaderPicker : MonoBehaviour
     private void Update()
     {
         // Close window on right click
-        if (GameInput.CancelPressed())
+        if (GameInput.CancelPressed() && !UIOverlay.BlocksCancel)
             gameObject.SetActive(false);
     }
 
