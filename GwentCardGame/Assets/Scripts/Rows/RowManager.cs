@@ -8,10 +8,26 @@ public class RowManager : MonoBehaviour
 {
     public GameObject CardPrefab;
 
+    private GameObject unitRow;
+    private GameObject specialRow;
+    private TextMeshProUGUI scoreText;
+
+    private GameObject UnitRow { get { CacheReferences(); return unitRow; } }
+    private GameObject SpecialRow { get { CacheReferences(); return specialRow; } }
+
+    private void CacheReferences()
+    {
+        if (unitRow != null)
+            return;
+        unitRow = transform.Find("Unit").gameObject;
+        specialRow = transform.Find("Special").gameObject;
+        scoreText = transform.Find("ScoreCount").Find("Number").GetComponent<TextMeshProUGUI>();
+    }
+
     // This is the main field_go, either Close / Range / Siege (which has a unit and a special child)
     public void ClearUnitObject()
     {
-        GameObject unit_go = gameObject.transform.Find("Unit").gameObject;
+        GameObject unit_go = UnitRow;
         for (int i = 0; i < unit_go.transform.childCount; i++)
         {
             Destroy(unit_go.transform.GetChild(i).gameObject);
@@ -21,7 +37,7 @@ public class RowManager : MonoBehaviour
     }
     public void ClearSpecialObject()
     {
-        GameObject special_go = gameObject.transform.Find("Special").gameObject;
+        GameObject special_go = SpecialRow;
         for (int i = 0; i < special_go.transform.childCount; i++)
         {
             Destroy(special_go.transform.GetChild(i).gameObject);
@@ -32,7 +48,7 @@ public class RowManager : MonoBehaviour
     //
     public void ResizeUnitObject(int numberOfCards)
     {
-        GameObject unit_go = gameObject.transform.Find("Unit").gameObject;
+        GameObject unit_go = UnitRow;
         // Initial Spacing
         unit_go.GetComponent<GridLayoutGroup>().spacing = new Vector2(6, 0);
 
@@ -55,14 +71,15 @@ public class RowManager : MonoBehaviour
         int row_strength = 0;
         foreach (int number in row_list)
             row_strength += number;
-        transform.Find("ScoreCount").Find("Number").GetComponent<TextMeshProUGUI>().text = row_strength.ToString();
+        CacheReferences();
+        scoreText.text = row_strength.ToString();
     }
 
     // Updates each individual unit's strength based on
     // E.G: CloseList && CloseStrengthList
     public IEnumerator UIUpdateUnitsStrength(List<int> orig_strengths, List<int> mod_strengths)
     {
-        GameObject unit_go = gameObject.transform.Find("Unit").gameObject;
+        GameObject unit_go = UnitRow;
 
         // This line is a must else it'll get the previous frame's child (which was destroyed)
         // Hence null
@@ -83,10 +100,14 @@ public class RowManager : MonoBehaviour
             for (int i = 0; i < orig_strengths.Count; i++)
             {
                 TextMeshProUGUI strength_text = cards[i].strengthImage.GetComponent<TextMeshProUGUI>();
+                // Red when weakened, green when boosted, else the card's own colour: card objects are reused
+                // between refreshes, so a card back to its base strength must lose the red / green
                 if (orig_strengths[i] > mod_strengths[i])
                     strength_text.color = new Color32(188, 0, 0, 255);
                 else if (orig_strengths[i] < mod_strengths[i])
                     strength_text.color = new Color32(0, 188, 0, 255);
+                else
+                    strength_text.color = cards[i].cardStats.GetComponent<CardStats>().unique ? Color.white : Color.black;
                 strength_text.text = mod_strengths[i].ToString();
             }
         }

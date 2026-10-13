@@ -4,9 +4,13 @@ using UnityEngine;
 
 public class PileManager : MonoBehaviour
 {
+    private GameObject pile;
+
     public void ClearDiscardPile()
     {
-        GameObject pile_go = gameObject.transform.Find("Pile").gameObject;
+        if (pile == null)
+            pile = transform.Find("Pile").gameObject;
+        GameObject pile_go = pile;
         for (int i = 0; i < pile_go.transform.childCount; i++)
         {
             Destroy(pile_go.transform.GetChild(i).gameObject);

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using Gwent.Rules;
 
 public class CardHover : MonoBehaviour
 {
@@ -133,22 +134,22 @@ public class CardHover : MonoBehaviour
         return EffectBoxPath(cardStats.faction, cardStats._idstr, cardStats.ability, cardStats._id, cardStats.unique, cardStats.row);
     }
 
-    public static string EffectBoxPath(Gwent.Rules.Card card)
+    public static string EffectBoxPath(Card card)
     {
         return EffectBoxPath(card.faction, card._idstr, card.ability, card._id, card.unique, card.row);
     }
 
     private static string EffectBoxPath(string faction, string idstr, string ability, int id, bool unique, string row)
     {
-        if (faction == "Special")
+        if (faction == Factions.Special)
             return "Cards/EffectBox/" + idstr;
-        if (ability == "leader")
+        if (ability == Abilities.Leader)
             return "Cards/EffectBox/Leader/" + id;
         if (!string.IsNullOrEmpty(ability))
             return "Cards/EffectBox/" + ability;
         if (unique)
             return "Cards/EffectBox/hero";
-        if (row == "close_range")
+        if (row == Rows.Agile)
             return "Cards/EffectBox/agile";
         return "Cards/EffectBox/normal_unit";
     }

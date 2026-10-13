@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Gwent.Rules;
 
 public class CCardManager : MonoBehaviour, IPointerClickHandler
 {
@@ -115,32 +116,20 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
     //------------------------------------------------------Functions---------------------------------------------------//
     private void UpdateCardGUI()
     {
-        string myText = Regex.Replace(GetComponent<CardStats>().name, @"[\d-]", string.Empty).Trim();
-        transform.Find("Name").GetComponent<TextMeshProUGUI>().text = myText;
-        if (GetComponent<CardStats>().faction == "N" || GetComponent<CardStats>().faction == "Special")
+        CardStats stats = GetComponent<CardStats>();
+        TextMeshProUGUI name_text = transform.Find("Name").GetComponent<TextMeshProUGUI>();
+        Image patch = transform.Find("Patch").GetComponent<Image>();
+        name_text.text = Regex.Replace(stats.name, @"[\d-]", string.Empty).Trim();
+
+        // Neutral and special cards have no faction banner: their name is centered on a wider patch
+        bool bannerless = stats.faction == Factions.Neutral || stats.faction == Factions.Special;
+        if (bannerless)
         {
-            float y = transform.Find("Name").GetComponent<RectTransform>().localPosition.y;
-            transform.Find("Name").GetComponent<RectTransform>().localPosition = new Vector2(0, y);
-            if (GetComponent<CardStats>().unique)
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = uniquePatch[1];
-            }
-            else
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = normalPatch[1];
-            }
+            RectTransform name_rect = name_text.rectTransform;
+            name_rect.localPosition = new Vector2(0, name_rect.localPosition.y);
         }
-        else
-        {
-            if (GetComponent<CardStats>().unique)
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = uniquePatch[0];
-            }
-            else
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = normalPatch[0];
-            }
-        }
+        int variant = bannerless ? 1 : 0;
+        patch.sprite = stats.unique ? uniquePatch[variant] : normalPatch[variant];
     }
 
     private void ShowBigCard()

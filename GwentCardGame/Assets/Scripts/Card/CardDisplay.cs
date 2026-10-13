@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Gwent.Rules;
 
 // This is instansiated on every card creation ! 
 public class CardDisplay : MonoBehaviour
@@ -30,7 +31,7 @@ public class CardDisplay : MonoBehaviour
         // Change the artwork based on ID
         artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);
 
-        if (card.faction == "Special")
+        if (card.faction == Factions.Special)
         {// Special Card:
             // Change to the corresponding special Icon
             natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Special/" + card._idstr);
@@ -39,7 +40,7 @@ public class CardDisplay : MonoBehaviour
         }
         else
         {// Unit Card or Leader:
-            if (card.ability == "leader")
+            if (card.ability == Abilities.Leader)
             {
                 natureImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
                 rowImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);

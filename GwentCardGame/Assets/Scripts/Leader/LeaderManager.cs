@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using Gwent.Rules;
 
 public class LeaderManager : MonoBehaviour
 {
@@ -16,20 +17,32 @@ public class LeaderManager : MonoBehaviour
         controller = SceneController.Instance;
     }
 
+    private Button activateButton;
+
+    private Button ActivateButton
+    {
+        get
+        {
+            if (activateButton == null)
+                activateButton = transform.Find("Activate").GetComponent<Button>();
+            return activateButton;
+        }
+    }
+
     public void UISetPassive()
     {
         // Disable the button if passive ability
-        if (type == "passive")
-            transform.Find("Activate").GetComponent<Button>().interactable = false;
+        if (type == Rows.LeaderPassive)
+            ActivateButton.interactable = false;
     }
 
-    // RC: Red Color
+    // Disabled in red: the opponent's leader cancels this one
     public void DisableButtonRC()
     {
-        ColorBlock newColorBlock = transform.Find("Activate").GetComponent<Button>().colors;
-        newColorBlock.disabledColor = new Color32(255, 134, 134, 160);
-        transform.Find("Activate").GetComponent<Button>().colors = newColorBlock;
-        transform.Find("Activate").GetComponent<Button>().interactable = false;
+        ColorBlock colors = ActivateButton.colors;
+        colors.disabledColor = new Color32(255, 134, 134, 160);
+        ActivateButton.colors = colors;
+        ActivateButton.interactable = false;
     }
 
     // Reference: Activate button. The controller disables the button once the ability is really used.

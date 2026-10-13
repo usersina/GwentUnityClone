@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using Gwent.Rules;
 
 // Click on a card: select a hand card, or (on the board) use the selected weather/scorch/decoy, or the leader
 public class CardSelect : MonoBehaviour, IPointerClickHandler
@@ -64,7 +65,7 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
             return false;
 
         CardStats cardStats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        if (cardStats.ability != "leader")
+        if (cardStats.ability != Abilities.Leader)
             return false;
 
         LeaderManager leaderManager = GetComponentInParent<LeaderManager>();

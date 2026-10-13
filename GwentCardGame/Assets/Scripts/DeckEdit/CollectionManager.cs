@@ -18,7 +18,7 @@ public class CollectionManager : MonoBehaviour
     public GameObject cardDetails;
 
     public int selectedTab;
-    public string faction = "NR";
+    public string faction = Factions.NorthernRealms;
     public TextMeshProUGUI factionPerk;
 
     public List<Image> currentSprites;
@@ -75,15 +75,15 @@ public class CollectionManager : MonoBehaviour
                 break;
             case 1:
                 subtitle.text = "Close Units";
-                selected_row = "close";
+                selected_row = Rows.Close;
                 break;
             case 2:
                 subtitle.text = "Ranged Units";
-                selected_row = "range";
+                selected_row = Rows.Range;
                 break;
             case 3:
                 subtitle.text = "Siege Units";
-                selected_row = "siege";
+                selected_row = Rows.Siege;
                 break;
             case 4:
                 subtitle.text = "Heroes";
@@ -174,14 +174,10 @@ public class CollectionManager : MonoBehaviour
                     case "all":
                         SetCardsArea(UnitMergerHelper(faction, "all"));
                         break;
-                    case "close":
-                        SetCardsArea(UnitMergerHelper(faction, "close"));
-                        break;
-                    case "range":
-                        SetCardsArea(UnitMergerHelper(faction, "range"));
-                        break;
-                    case "siege":
-                        SetCardsArea(UnitMergerHelper(faction, "siege"));
+                    case Rows.Close:
+                    case Rows.Range:
+                    case Rows.Siege:
+                        SetCardsArea(UnitMergerHelper(faction, selected_row));
                         break;
                     default:
                         Debug.LogError("ManageCardsArea: Unexpected value: " + selected_row);

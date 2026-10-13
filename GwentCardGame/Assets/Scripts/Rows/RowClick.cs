@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using Gwent.Rules;
 
 public class RowClick : MonoBehaviour, IPointerClickHandler
 {
@@ -52,16 +53,16 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
     private GameObject GetPlayableTargetField(List<GameObject> highLightedFields)
     {
         CardStats selectedStats = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        if (selectedStats.faction == "Special")
+        if (selectedStats.faction == Factions.Special)
         {
-            if (selectedStats.row == "weather" || selectedStats._idstr == "scorch")
+            if (selectedStats.row == Rows.Weather || selectedStats._id == CardIds.Scorch)
             {
                 WeatherManager weatherManager = controller.WeatherField.GetComponent<WeatherManager>();
                 if (weatherManager.isWeatherCard)
                     return controller.WeatherField;
             }
 
-            if (selectedStats.row == "special")
+            if (selectedStats.row == Rows.Special)
             {
                 if (highLightedFields.Contains(gameObject))
                     return gameObject;
