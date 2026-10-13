@@ -78,6 +78,9 @@ public class BoardView
         controller = battle;
         playerView = new FieldView(battle.PlayerField);
         enemyView = new FieldView(battle.EnemyField);
+        // A click on either discard pile shows it card by card
+        foreach (bool is_player in new[] { true, false })
+            View(is_player).DiscardPile.transform.parent.gameObject.AddComponent<DiscardPileBrowser>().isPlayer = is_player;
         Weather = battle.WeatherField.GetComponent<WeatherManager>();
         weatherImage = battle.WeatherField.GetComponent<Image>();
     }
@@ -430,7 +433,7 @@ public class BoardView
     }
 
     // A gold frame around each unit of this side a decoy can take back (non-hero units on the rows)
-    private const string DecoyFrame = "DecoyTarget";
+    public const string DecoyFrame = "DecoyTarget";
 
     private void MarkDecoyTargets(FieldView view, bool on)
     {

@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using Gwent.Rules;
 
-// Click on a card: select a hand card, or (on the board) use the selected weather/scorch/decoy, or the leader
+// Click on a card: select a hand card; on the board, the target of a selected decoy, the leader, a discard pile to
+// browse, or the row / weather board under it for a selected card
 public class CardSelect : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
@@ -57,10 +58,15 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        if (controller.TryPlaySelectedDecoyOnCard(gameObject))
+        // A card in a discard pile: browse the pile
+        DiscardPileBrowser pile = GetComponentInParent<DiscardPileBrowser>();
+        if (pile != null)
+        {
+            pile.Browse();
             return;
+        }
 
-        if (controller.TryPlaySelectedCardOnBoard())
+        if (controller.TryPlaySelectedDecoyOnCard(gameObject))
             return;
 
         if (TryActivateLeaderCard())

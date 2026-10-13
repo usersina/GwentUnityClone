@@ -32,6 +32,8 @@ public class LeaderManager : MonoBehaviour
     }
 
     // The opponent's crown only shows the state of their ability: it is not a button for the player
+    public Button Button { get { return ActivateButton; } }
+
     private bool IsPlayers
     {
         get

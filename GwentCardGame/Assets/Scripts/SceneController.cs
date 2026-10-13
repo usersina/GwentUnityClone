@@ -85,8 +85,12 @@ public partial class SceneController : MonoBehaviour
             Instance = null;
     }
 
+    public LeaderManager PlayerLeader { get { return View(true).Leader; } }
+
     private void Start()
     {
+        if (!Application.isMobilePlatform)
+            gameObject.AddComponent<BattleKeys>();
         GameAudio.PlayGameMusic();
         PlayerInfo.Name = "Player";
         EnemyInfo.Name = "Opponent";

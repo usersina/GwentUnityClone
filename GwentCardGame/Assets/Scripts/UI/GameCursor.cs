@@ -65,6 +65,11 @@ public class GameCursor : MonoBehaviour
         if (selectable != null)
             return selectable.IsInteractable() && selectable.enabled ? State.Interact : State.Default;
 
+        // A discard pile with cards opens for browsing
+        DiscardPileBrowser pile = hovered.GetComponentInParent<DiscardPileBrowser>();
+        if (pile != null)
+            return pile.HasCards ? State.Interact : State.Default;
+
         // The battle board decides for its own cards, rows and weather board (rows only take a selected card)
         SceneController battle = SceneController.Instance;
         if (battle != null && !UIOverlay.HasModal)

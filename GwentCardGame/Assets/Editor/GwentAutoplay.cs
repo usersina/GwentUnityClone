@@ -931,7 +931,7 @@ public static class GwentAutoplay
                 Click(1.4, CardPosition, MouseButton.Right);
                 At(1.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
                 Click(2.2, CardPosition);
-                At(2.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it"));
+                At(2.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it (clicked " + Hovered() + ", " + c.battleState + ")"));
                 // The opponent's side of the unit's row: a wrong place, the card must stay selected in the hand
                 int hand_before = -1;
                 Move(2.9, WrongRow);
