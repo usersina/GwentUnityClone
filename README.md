@@ -75,7 +75,7 @@ Open `GwentCardGame/` with **Unity 6.6 (6000.6.5f1)**. The project was upgraded 
 | `Assets/Editor/GwentAutoplay.cs` | End-to-end smoke test that plays full battles |
 
 Saved decks live in `Application.persistentDataPath/Decks/<faction>/<name>.json`.
-Gameplay logging (`GameLog.Info`) only runs in the editor and development builds.
+Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or with the `GWENT_VERBOSE_LOGS` define).
 
 ## Tests
 
