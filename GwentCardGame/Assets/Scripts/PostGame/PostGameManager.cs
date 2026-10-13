@@ -105,7 +105,7 @@ public class PostGameManager : MonoBehaviour
         who.fontSize = 32;
         who.color = theme.text;
         who.rectTransform.Place(new Vector2(0, 1), new Vector2(30 + 120, y + 4), new Vector2(270, 44), new Vector2(0, 0));
-        TextMeshProUGUI faction = UIKit.Text(board, FactionName(info.Faction), UIKit.TextStyle.Caption, TextAlignmentOptions.TopLeft);
+        TextMeshProUGUI faction = UIKit.Text(board, Factions.DisplayName(info.Faction), UIKit.TextStyle.Caption, TextAlignmentOptions.TopLeft);
         faction.rectTransform.Place(new Vector2(0, 1), new Vector2(30 + 120, y - 2), new Vector2(270, 34), new Vector2(0, 1));
 
         for (int round = 0; round < 3; round++)
@@ -124,18 +124,6 @@ public class PostGameManager : MonoBehaviour
             score.fontSize = 44;
             score.color = !played ? theme.textMuted : won ? theme.goldBright : lost ? theme.textMuted : theme.text;
             score.rectTransform.Place(new Vector2(0, 1), cell, new Vector2(RoundColumn, 60));
-        }
-    }
-
-    private static string FactionName(string faction)
-    {
-        switch (faction)
-        {
-            case Factions.Monsters: return "Monsters";
-            case Factions.Nilfgaard: return "Nilfgaardian Empire";
-            case Factions.NorthernRealms: return "Northern Realms";
-            case Factions.Scoiatael: return "Scoia'tael";
-            default: return faction;
         }
     }
 

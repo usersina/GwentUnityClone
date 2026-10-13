@@ -35,6 +35,7 @@ Sorry, no multiplayer :/ (yet)
 
 | Action | Desktop | Android |
 |---|---|---|
+| Start a battle | **Play**, then choose your opponent (one of 9 decks across the four factions) or **Random opponent**; the choice is remembered | Same, with taps |
 | Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. Double-clicking it in your hand works too. **Done** or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
 | Select a card from your hand | Click it (click again to deselect) | Tap it |
 | Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand | Same, with taps (the warning sound, no cursor) |
@@ -42,7 +43,7 @@ Sorry, no multiplayer :/ (yet)
 | Pass (for the rest of the round) | Hold Space, or hold the **Hold to pass** button | Hold the button |
 | Scoia'tael: choose who starts | **Go first** or **Go second** in the dialog at the start of the battle | Tap |
 | After the battle | The end screen shows every round's score; **Play again** or **Main menu** | Tap |
-| Pause (resume, settings, leave the battle) | Esc or the menu button at the top right | Back button or the menu button |
+| Pause (resume, settings, give up) | Esc or the menu button at the top right. **Give up** counts as a loss | Back button or the menu button |
 | Preview a card | Hover it | Selecting it shows the preview |
 | Deck builder: add/remove a card | Double-click it | Tap it |
 | Deck builder: card details | Right-click | - |
@@ -137,4 +138,5 @@ This is a non-commercial fan project.
 The source code is released under the [MIT License](LICENSE).
 The license does not cover the Gwent/Witcher card art, names and other CD PROJEKT RED material, which remain the property of their owners.
 The fonts keep their own licenses: Cinzel and Alegreya Sans (SIL Open Font License 1.1), Roboto (Apache 2.0); see `GwentCardGame/Assets/Fonts/FONTS-LICENSE.md`.
+The opponent decks (`Resources/Decks/AI`) are adapted from the default decks of [gwent-classic](https://github.com/asundr/gwent-classic) by Arun Sundaram (MIT with the Commons Clause), as kept in [gwent-classic-v3.1](https://github.com/RandomPianist/gwent-classic-v3.1).
 The table under the board is "Dark Wood" from [Poly Haven](https://polyhaven.com/a/dark_wood) (CC0); see `GwentCardGame/Assets/UI/Board/Sources/CREDITS.md`.

@@ -139,7 +139,10 @@ public partial class SceneController : MonoBehaviour
     private void SetupBattle()
     {
         Deck myDeck = LoadPlayerDeck();
-        Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(EnemyDeck.text, EnemyDeck.name), Db);
+        // The opponent the player chose before the battle, or a random one
+        TextAsset enemy_deck = OpponentDecks.ForBattle() ?? EnemyDeck;
+        GameLog.Info("Opponent deck: " + enemy_deck.name);
+        Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(enemy_deck.text, enemy_deck.name), Db);
 
         // Emhyr, The White Flame cancels the other leader's ability, passive ones included (Daisy's extra card,
         // Invader's random medics, Treacherous' doubled spies), unless both sides play him

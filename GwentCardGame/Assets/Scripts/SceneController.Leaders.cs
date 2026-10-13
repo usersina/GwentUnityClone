@@ -224,16 +224,15 @@ public partial class SceneController
     private LeaderOutcome RestoreToHand(string field, List<int> discard, bool is_player_turn, out string reason)
     {
         List<int> units_list = AbilityRules.MedicCandidates(discard, Db);
-        reason = units_list.Count == 0 ? "No unit to restore" : "The AI does not use this ability";
+        reason = "No unit to restore";
         if (units_list.Count == 0)
             return LeaderOutcome.Unavailable;
-        if (randomMedic)
+        if (randomMedic || !is_player_turn)
         {
-            TakeToHand(field, units_list[Rng.Shared.Next(units_list.Count)], is_player_turn);
+            int card_id = randomMedic ? units_list[Rng.Shared.Next(units_list.Count)] : AiBrain.ChooseRestoreTarget(units_list, Info(false), Db);
+            TakeToHand(field, card_id, is_player_turn);
             return LeaderOutcome.Instant;
         }
-        if (!is_player_turn)
-            return LeaderOutcome.Unavailable;
         OpenPanel().ShowToDraw(field, units_list, true);
         return LeaderOutcome.Pending;
     }

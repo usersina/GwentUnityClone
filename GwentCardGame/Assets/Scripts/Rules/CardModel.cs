@@ -64,6 +64,18 @@ namespace Gwent.Rules
         public const string Special = "Special";
 
         public static readonly string[] Playable = { NorthernRealms, Nilfgaard, Scoiatael, Monsters };
+
+        public static string DisplayName(string faction)
+        {
+            switch (faction)
+            {
+                case Monsters: return "Monsters";
+                case Nilfgaard: return "Nilfgaardian Empire";
+                case NorthernRealms: return "Northern Realms";
+                case Scoiatael: return "Scoia'tael";
+                default: return faction;
+            }
+        }
     }
 
     public static class Rows

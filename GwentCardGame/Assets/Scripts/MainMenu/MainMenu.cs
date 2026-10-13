@@ -51,9 +51,10 @@ public class MainMenu : MonoBehaviour
         items.Add(item);
     }
 
+    // Play: choose the opponent first
     public void PlayGame()
     {
-        SceneManager.LoadScene(SceneNames.Game);
+        OpponentPicker.Open(() => UIKit.Focus(items[0]));
     }
 
     public void EditDeck()

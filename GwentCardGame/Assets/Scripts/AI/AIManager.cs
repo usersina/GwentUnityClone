@@ -21,8 +21,9 @@ public class AIManager : MonoBehaviour
     }
 
     //----------------------------------------------AI Phases------------------------------------------------------------//
-    // Initial redraw of up to 2 cards: weather it cannot use well, duplicates, then muster relatives
-    // (muster brings those in from the deck anyway)
+    // Initial redraw of up to 2 cards (a redrawn card goes to the bottom of the deck):
+    // - the extra members of a muster family: the one kept calls them from the deck anyway
+    // - then plain units weaker than an average unit of the deck
     public void AIExchangeCards()
     {
         PlayerState ai = controller.EnemyInfo;
@@ -30,14 +31,24 @@ public class AIManager : MonoBehaviour
         ai.CardsExchanged = 0;
 
         List<int> to_exchange = new List<int>();
-        to_exchange.AddRange(ai.HandList.Where(id => id == CardIds.ImpenetrableFog));
-        to_exchange.AddRange(ai.HandList.GroupBy(id => id).SelectMany(g => g.Skip(1)));
-        foreach (int card_id in ai.HandList)
+        List<int> kept = new List<int>();
+        IEnumerable<int> musters = ai.HandList.Where(id => db.Get(id).ability == Abilities.Muster)
+            .OrderByDescending(id => ai.HandList.Count(other => AbilityRules.IsMusterRelative(db.Get(id), db.Get(other))));
+        foreach (int card_id in musters)
         {
-            Card card = db.Get(card_id);
-            if (card.ability == Abilities.Muster && ai.HandList.Any(other => other != card_id && AbilityRules.IsMusterRelative(card, db.Get(other))))
+            if (kept.Any(caller => AbilityRules.IsMusterRelative(db.Get(caller), db.Get(card_id))))
                 to_exchange.Add(card_id);
+            else
+                kept.Add(card_id);
         }
+
+        List<Card> deck_units = ai.DeckList.Select(db.Get).Where(card => card.IsUnit).ToList();
+        double average = deck_units.Count > 0 ? deck_units.Average(card => card.strength) : 0;
+        to_exchange.AddRange(ai.HandList.Where(id =>
+        {
+            Card card = db.Get(id);
+            return card.IsUnit && !card.unique && string.IsNullOrEmpty(card.ability) && card.strength < average - 1;
+        }).OrderBy(id => db.Get(id).strength));
 
         foreach (int card_id in to_exchange.ToList())
         {

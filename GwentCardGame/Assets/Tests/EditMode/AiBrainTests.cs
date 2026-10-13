@@ -17,6 +17,8 @@ namespace Gwent.Rules.Tests
         private const int Ballista = 4;         // NR siege 6
         private const int MysteriousElf = 92;   // hero spy
         private const int PrinceStennis = 99;   // NR spy 5
+        private const int DunBannerMedic = 28;  // NR siege 5, medic
+        private const int Villentretenmerth = 135; // close 7, scorches the enemy close row
 
         private static readonly int[] AiDeck = { 67, 14, 77, 83, 85, 27, 125, 126, 127, 128, 129, 1, 1, 1, 2, 18, 19, 20, 47, 30, 22, 135, 92, 94, 94, 94, 201, 202, 204 };
 
@@ -196,6 +198,40 @@ namespace Gwent.Rules.Tests
             me.DeckList.Add(Nekker);
             me.DiscardList.AddRange(new[] { Fiend, PrinceStennis, Leshen });
             Assert.AreEqual(PrinceStennis, AiBrain.ChooseMedicTarget(me, TestBoard.Db));
+        }
+
+        [Test]
+        public void MedicChainsThroughAnotherMedicBeforeTheStrongestUnit()
+        {
+            PlayerState me = Ai();
+            me.DiscardList.AddRange(new[] { Fiend, DunBannerMedic, Villentretenmerth });
+            Assert.AreEqual(DunBannerMedic, AiBrain.ChooseMedicTarget(me, TestBoard.Db));
+            me.DiscardList.Remove(DunBannerMedic);
+            Assert.AreEqual(Villentretenmerth, AiBrain.ChooseMedicTarget(me, TestBoard.Db), "a row scorch comes before raw strength");
+        }
+
+        [Test]
+        public void DecoyTakesBackARowScorchUnit()
+        {
+            PlayerState me = Ai();
+            me.CloseList.AddRange(new[] { Fiend, Villentretenmerth });
+            string row;
+            Assert.AreEqual(Villentretenmerth, AiBrain.ChooseDecoyTarget(me, TestBoard.Db, out row));
+            Assert.AreEqual(Rows.Close, row);
+        }
+
+        [Test]
+        public void NilfgaardHoldsATiedRoundOnceTheOpponentHasPassed()
+        {
+            PlayerState me = TestBoard.Player(Factions.Nilfgaard, LeaderIds.EmhyrTheWhiteFlame);
+            me.HandList.AddRange(new[] { Fiend, EarthElemental });
+            me.CloseList.Add(Fiend);
+            PlayerState opp = Opponent(Fiend);
+            opp.hasPassed = true;
+            Assert.AreEqual(AiActionType.Pass, AiBrain.Decide(Context(me, opp)).Type, "Nilfgaard wins the tie");
+
+            me.Faction = Factions.Monsters;
+            Assert.AreNotEqual(AiActionType.Pass, AiBrain.Decide(Context(me, opp)).Type, "anyone else must break it");
         }
     }
 }

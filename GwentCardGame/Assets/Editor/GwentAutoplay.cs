@@ -173,7 +173,7 @@ public static class GwentAutoplay
 
         private string Label()
         {
-            return "match " + (match + 1) + " (" + currentDeck + ")";
+            return "match " + (match + 1) + " (" + currentDeck + " vs " + OpponentDecks.Override + ")";
         }
 
         private void Count(string key)
@@ -187,6 +187,9 @@ public static class GwentAutoplay
         {
             match++;
             turnsChecked.Clear();
+            // Every opponent deck in turn, so the AI plays every faction
+            List<TextAsset> opponents = OpponentDecks.All();
+            OpponentDecks.Override = opponents.Count > 0 ? opponents[match % opponents.Count].name : null;
             if (match >= totalMatches)
             {
                 // Battles done: on to the deck builder
@@ -723,6 +726,7 @@ public static class GwentAutoplay
         private void Finish()
         {
             EndInputCheck();
+            OpponentDecks.Override = null;
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
             Time.timeScale = 1f;
