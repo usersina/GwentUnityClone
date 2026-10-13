@@ -37,7 +37,7 @@ Sorry, no multiplayer :/ (yet)
 |---|---|---|
 | Start a battle | **Play**, then choose your opponent (one of 9 decks across the four factions) or **Random opponent**; the choice is remembered | Same, with taps |
 | Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. Double-clicking it in your hand works too. **Done** or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
-| Select a card from your hand | Click it (click again to deselect) | Tap it |
+| Select a card from your hand | Click it: it goes to the showcase on the right, with its description, while you choose its place (click its empty slot in the hand to put it back) | Tap it |
 | Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand. Enter plays it when only one place fits | Same, with taps (the warning sound, no cursor) |
 | Use your leader | Click the leader card or its button, or press X twice | Tap |
 | Browse a discard pile (either side) | Click it (Esc closes) | Tap it |
@@ -92,6 +92,7 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 |---|---|
 | `Assets/Scripts/Rules` | The game rules as plain C# with no Unity dependency (`Gwent.Rules` assembly): card data, strength calculation (weather, tight bond, morale, horns), scorch, muster, medic, agile, rounds, deck validation and the AI's decisions |
 | `Assets/Scripts/SceneController.cs` | The battle: turns, rounds and the board UI, built on top of the rules |
+| `Assets/Scripts/Battle` | The board: `BoardView` draws it from the model, `CardLane` lays out the hand and the rows in The Witcher 3's order, and `BoardPresenter` plays each play as The Witcher 3 does (the showcase, the card gliding in from the board's edge, ability flares, scorch flames, the medic's flare over the discard pile, cards flying from the deck) before the turn passes |
 | `Assets/Scripts/AI` | Executes the AI's decisions (always ends its turn, falls back to passing) |
 | `Assets/Scripts/DeckController.cs`, `DeckEdit/` | The deck builder |
 | `Assets/Scripts/Utility` | Audio, settings, deck files, card database, runtime UI layer (toasts, dialogs, Escape handling), logging |

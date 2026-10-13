@@ -139,9 +139,12 @@ public partial class SceneController
         }
 
         string reason;
+        CardShowcase.Clear();
+        board.BeginChange();
         LeaderOutcome outcome = ApplyLeader(leader_id, is_player_turn, out reason);
         if (outcome == LeaderOutcome.Unavailable)
         {
+            board.EndChange().Flush();
             GameAudio.PlaySfx("invalid");
             if (is_player_turn)
                 UIOverlay.Toast(reason);
@@ -154,10 +157,13 @@ public partial class SceneController
 
         RecalculateStrengths();
         RefreshBoard();
+        BoardChange change = board.EndChange();
 
         // Pending abilities end the turn once their choice is made
         if (outcome == LeaderOutcome.Instant)
-            TurnCallBack(is_player_turn);
+            Present(change, -1, is_player_turn, false, () => TurnCallBack(is_player_turn));
+        else
+            change.Flush();
     }
 
     private LeaderOutcome ApplyLeader(int leader_id, bool is_player_turn, out string reason)

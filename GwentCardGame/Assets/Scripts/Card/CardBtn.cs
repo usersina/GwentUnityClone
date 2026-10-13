@@ -46,6 +46,7 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
                 instantiatedCard.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
                 controller.selectedCard = instantiatedCard;
                 controller.HighlightField(instantiatedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), isPlayerCard);
+                controller.ShowcasePicked(cardId, field, isPlayerCard);
                 controller.SetHider(true);
                 PanelParent.SetActive(false);
                 UIOverlay.Toast("Now choose where to play " + controller.GetCardStats(cardId).name);

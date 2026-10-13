@@ -47,12 +47,15 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
                 if (!CheckSameCard())
                 {
                     CardHover hover = gameObject.GetComponent<CardHover>();
+                    CardStats stats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
                     hover.isHoverable = false;
                     hover.TranslateUp();
-                    hover.ShowPreview();
+                    hover.DestroyEffect();
                     controller.selectedCard = gameObject;
+                    // The card goes to the showcase while its place is chosen (The Witcher 3)
+                    CardShowcase.Select(gameObject, controller.GetCardStats(stats._id));
                     // Hightlights the appropriate field based on: Card Faction AND Card Row
-                    controller.HighlightField(gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), true);
+                    controller.HighlightField(stats, true);
                 }
             }
             return;
@@ -115,6 +118,7 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
         hover.isHoverable = true;
         hover.TranslateDown();
         hover.DestroyEffect();
+        CardShowcase.Deselect();
         controller.selectedCard = null;
         return same_card;
     }

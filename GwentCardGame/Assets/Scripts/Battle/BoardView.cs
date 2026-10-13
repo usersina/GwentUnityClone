@@ -98,21 +98,6 @@ public class BoardView
 
     public FieldView View(bool is_player) { return is_player ? playerView : enemyView; }
 
-    // The card being played flies from where it was (screen rectangle) to where it appears; every other card that
-    // appears settles in
-    private int flightCard = -1;
-    private Rect flightFrom;
-
-    public void ExpectFlight(int card_id, Rect from)
-    {
-        flightCard = card_id;
-        flightFrom = from;
-    }
-
-    public void ClearFlight()
-    {
-        flightCard = -1;
-    }
     private SceneController.MainInfo Info(bool is_player) { return is_player ? controller.PlayerInfo : controller.EnemyInfo; }
 
     //----------------------------------------Whole board----------------------------------------//
@@ -121,7 +106,7 @@ public class BoardView
     {
         RefreshField(true);
         RefreshField(false);
-        SyncCards(controller.WeatherField, controller.weatherList, true);
+        SyncCards(controller.WeatherField, controller.weatherList, true, BoardChange.Place.Weather);
         Lightoff(true);
         Lightoff(false);
         UpdateScores(true);
@@ -155,8 +140,8 @@ public class BoardView
         foreach (string row in Rows.Units)
         {
             RowView row_view = view.Rows[row];
-            SyncCards(row_view.Unit, CardOrder.Sorted(info.UnitRow(row), controller.Db), is_player_field);
-            SyncCards(row_view.Special, info.SpecialRow(row), is_player_field);
+            SyncCards(row_view.Unit, CardOrder.Sorted(info.UnitRow(row), controller.Db), is_player_field, BoardChange.Place.Row);
+            SyncCards(row_view.Special, info.SpecialRow(row), is_player_field, BoardChange.Place.Horn);
         }
 
         SetDiscard(info.DiscardList, is_player_field);
@@ -174,14 +159,14 @@ public class BoardView
     public void SetHand(List<int> hand_list, bool is_player_hand)
     {
         FieldView view = View(is_player_hand);
-        SyncCards(view.Hand.gameObject, CardOrder.Sorted(hand_list, controller.Db), is_player_hand, true);
+        SyncCards(view.Hand.gameObject, CardOrder.Sorted(hand_list, controller.Db), is_player_hand, BoardChange.Place.Hand);
         view.Stats.UIUpdateHandCount(hand_list.Count);
     }
 
     public void SetDiscard(List<int> discard_list, bool is_player_hand)
     {
         FieldView view = View(is_player_hand);
-        if (!SyncCards(view.DiscardPile, discard_list, is_player_hand))
+        if (!SyncCards(view.DiscardPile, discard_list, is_player_hand, BoardChange.Place.Discard))
             return;
 
         // A visible stack, as in The Witcher 3: older cards peek out to the bottom right of the top one
@@ -215,19 +200,24 @@ public class BoardView
     // Makes a container show exactly these cards, in this order, reusing the card objects already there: a play
     // only creates the cards that arrived and removes the ones that left. Hand cards can be selected and hovered,
     // board cards only show their preview; other children (the weather overlay) stay after the cards.
-    // Returns false when nothing changed.
-    private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card, bool hand = false)
+    // While a change is recorded, the board keeps looking as it was (see BeginChange). Returns false when nothing
+    // changed.
+    private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card, BoardChange.Place place)
     {
         Transform parent = container.transform;
         if (ShowsCards(parent, card_ids))
             return false;
+        bool hand = place == BoardChange.Place.Hand;
+        CardLane lane = container.GetComponent<CardLane>();
 
+        List<GameObject> before = new List<GameObject>();
         Dictionary<int, Queue<GameObject>> existing = new Dictionary<int, Queue<GameObject>>();
         List<GameObject> unused = new List<GameObject>();
         foreach (Transform child in parent)
         {
             if (child.GetComponent<CardDisplay>() == null)
                 continue;
+            before.Add(child.gameObject);
             int id;
             if (!int.TryParse(child.name, out id))
             {
@@ -241,12 +231,16 @@ public class BoardView
         }
 
         List<GameObject> ordered = new List<GameObject>(card_ids.Count);
+        HashSet<GameObject> kept = new HashSet<GameObject>();
         foreach (int id in card_ids)
         {
             Queue<GameObject> queue;
             GameObject card;
             if (existing.TryGetValue(id, out queue) && queue.Count > 0)
+            {
                 card = queue.Dequeue();
+                kept.Add(card);
+            }
             else
             {
                 card = CreateCardObject(controller.Db.Get(id), is_player_card);
@@ -254,10 +248,12 @@ public class BoardView
                 card.GetComponent<CardHover>().isHoverable = hand;
                 card.GetComponent<CardExchange>().isExchangeable = hand && controller.Db.Get(id).ability != Abilities.Leader;
                 card.transform.SetParent(parent, false);
-                if (id == flightCard)
+                if (arrivals != null)
                 {
-                    CardMotion.Fly(id, flightFrom, card);
-                    flightCard = -1;
+                    CardMotion.Hide(card, true);
+                    if (lane != null)
+                        LaneHold.Hold(card);
+                    arrivals.Add(new BoardChange.Arrival { CardId = id, IsPlayer = is_player_card, To = place, Card = card });
                 }
                 else
                     CardMotion.SettleIn(card);
@@ -266,14 +262,87 @@ public class BoardView
         }
         foreach (Queue<GameObject> queue in existing.Values)
             unused.AddRange(queue);
-        foreach (GameObject card in unused)
+
+        List<GameObject> siblings = new List<GameObject>(ordered);
+        foreach (GameObject card in unused.OrderBy(before.IndexOf))
         {
-            card.transform.SetParent(null, false); // out of the container now: counts and layouts must not see it
-            Object.Destroy(card);
+            int id;
+            BoardChange.Arrival came = arrivals != null ? arrivals.Find(a => a.Card == card) : null;
+            if (arrivals == null || came != null || !int.TryParse(card.name, out id))
+            {
+                if (came != null)
+                    arrivals.Remove(came); // came and went within the change
+                card.transform.SetParent(null, false); // out of the container now: counts and layouts must not see it
+                Object.Destroy(card);
+                continue;
+            }
+            // Recorded: the card stays where it stood, and its line keeps its room, until it is taken away
+            BoardChange.Departure departure = new BoardChange.Departure { CardId = id, IsPlayer = is_player_card, From = place };
+            if (lane != null)
+            {
+                departure.Spacer = LaneHold.Spacer(parent);
+                siblings.Insert(SpacerIndex(siblings, kept, before.Take(before.IndexOf(card)).Count(kept.Contains)), departure.Spacer);
+            }
+            departure.Ghost = CardMotion.Lift(card);
+            departures.Add(departure);
         }
-        for (int i = 0; i < ordered.Count; i++)
-            ordered[i].transform.SetSiblingIndex(i);
+        for (int i = 0; i < siblings.Count; i++)
+            siblings[i].transform.SetSiblingIndex(i);
         return true;
+    }
+
+    // Where a spacer goes in a line: after the cards still there that stood before the card that left, and after the
+    // spacers already there (held cards are out of the line, they do not count)
+    private static int SpacerIndex(List<GameObject> siblings, HashSet<GameObject> kept, int kept_before)
+    {
+        int index = 0;
+        for (int seen = 0; index < siblings.Count && seen < kept_before; index++)
+            if (kept.Contains(siblings[index]))
+                seen++;
+        while (index < siblings.Count && siblings[index].GetComponent<CardDisplay>() == null)
+            index++;
+        return index;
+    }
+
+    //----------------------------------------Recording a play (the choreography)----------------------------------------//
+    private List<BoardChange.Arrival> arrivals;     // while recording
+    private List<BoardChange.Departure> departures;
+
+    // Until EndChange, refreshes leave the board looking as it was: a card that leaves stays where it stood (on the
+    // overlay, its room kept in its line) and a card that arrives stays hidden, out of its line. BoardPresenter
+    // then moves them as The Witcher 3 does.
+    public void BeginChange()
+    {
+        arrivals = new List<BoardChange.Arrival>();
+        departures = new List<BoardChange.Departure>();
+    }
+
+    public BoardChange EndChange()
+    {
+        BoardChange change = new BoardChange(arrivals ?? new List<BoardChange.Arrival>(), departures ?? new List<BoardChange.Departure>());
+        arrivals = null;
+        departures = null;
+        return change;
+    }
+
+    // Screen rectangles the choreography moves cards from
+    public Rect DeckRect(bool is_player) { return CardMotion.ScreenRect((RectTransform)View(is_player).Deck.transform.Find("DeckHolder")); }
+    public Rect PileRect(bool is_player) { return CardMotion.ScreenRect((RectTransform)View(is_player).DiscardPile.transform.parent); }
+
+    // Where a played card starts its last glide (The Witcher 3): at the right end of the rows, halfway up the board
+    public Rect LaunchRect(Vector2 size)
+    {
+        Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Rows.Close].Unit.transform);
+        Rect theirs = CardMotion.ScreenRect((RectTransform)enemyView.Rows[Rows.Close].Unit.transform);
+        Vector2 center = new Vector2(mine.xMax, (mine.yMax + theirs.yMin) / 2);
+        return new Rect(center - size / 2, size);
+    }
+
+    // Where the opponent's card comes in from: above the board, over the middle of the rows
+    public Rect EntryRect(Vector2 size)
+    {
+        Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Rows.Close].Unit.transform);
+        return new Rect(new Vector2(mine.center.x - size.x / 2, Screen.height + 10), size);
     }
 
     // Generate Cards GameObject from cards prefab and set their parent to the passed gameobject

@@ -54,6 +54,9 @@ public partial class SceneController : MonoBehaviour
 
     private AIManager AIManager;
     private BoardView board;
+    private BoardPresenter presenter;
+    private int presenting;           // plays being shown (the rules resolved them already)
+    private readonly List<BoardChange> presented = new List<BoardChange>();
     private GameObject mulliganPrompt;
     private Coroutine turnRoutine;
     private int turnGeneration;
@@ -77,6 +80,7 @@ public partial class SceneController : MonoBehaviour
         Db = CardLibrary.Get(CardsDatabase);
         TempObject = GameObject.Find("Temp");
         board = new BoardView(this);
+        presenter = new BoardPresenter(this, board, Db);
         AIManager = GetComponent<AIManager>();
     }
 
@@ -157,7 +161,7 @@ public partial class SceneController : MonoBehaviour
         }
 
         // The pass button only exists during the player's turn, and not in the middle of a multi-step action
-        bool can_pass = battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None;
+        bool can_pass = battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None && presenting == 0;
         if (PassBtn.activeSelf != can_pass)
             PassBtn.SetActive(can_pass);
 
@@ -177,8 +181,11 @@ public partial class SceneController : MonoBehaviour
 
     public bool IsPlayerActionAllowed
     {
-        get { return battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None; }
+        get { return battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None && presenting == 0; }
     }
+
+    // A play is being shown: nothing else can be done until it ends
+    public bool IsPresenting { get { return presenting > 0; } }
 
     //----------------------------------------------BATTLE SETUP---------------------------------------------------//
     // On Battle Start: Draw 10 cards then change two cards or not at all
@@ -382,20 +389,20 @@ public partial class SceneController : MonoBehaviour
         if (generation != turnGeneration)
             yield break;
 
-        // The card the opponent plays (or its leader) is shown large for a moment, then flies to its place
+        // The card the opponent plays (or its leader) comes in from above the board to the showcase and stays a
+        // moment there, then glides to its place
         AiAction action = AIManager.AIDecide();
         int shown = action.Type == AiActionType.PlayCard ? action.CardId : action.Type == AiActionType.UseLeader ? EnemyInfo.Leader : -1;
         if (shown != -1)
         {
-            Rect showcase = CardMotion.Showcase(shown);
-            yield return new WaitForSeconds(CardMotion.ShowcaseSeconds);
+            yield return CardShowcase.Opponent(Db.Get(shown), board.EntryRect(CardShowcase.ScreenSize()));
             if (generation != turnGeneration)
+            {
+                CardShowcase.Clear();
                 yield break;
-            if (action.CardId != -1)
-                board.ExpectFlight(action.CardId, showcase);
+            }
         }
         AIManager.AIExecute(action);
-        board.ClearFlight();
     }
 
     // The Witcher 3's turn notices: each change of side. Not while the other side has passed: its pass was
@@ -425,6 +432,7 @@ public partial class SceneController : MonoBehaviour
     // Ends whatever the given side was doing and hands the turn to the other side
     public void TurnCallBack(bool is_player_turn)
     {
+        CardShowcase.Clear();
         pendingAction = PendingAction.None;
         PlayerInfo.CanDiscard = false;
         SetHider(false);
@@ -567,6 +575,7 @@ public partial class SceneController : MonoBehaviour
         GameLog.Info("Player gave up");
         StopTurn();
         StopAllCoroutines();
+        EndPresentations();
         BattleBanner.Clear();
         if (mulliganPrompt != null)
             Destroy(mulliganPrompt);
@@ -582,6 +591,7 @@ public partial class SceneController : MonoBehaviour
     {
         GameLog.Info("Battle ended: " + outcome);
         battleState = outcome;
+        CardShowcase.Clear();
         PostGame.SetActive(true);
         PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
         if (outcome == BattleState.WON)
@@ -610,40 +620,92 @@ public partial class SceneController : MonoBehaviour
         card_go.GetComponent<CardHover>().DestroyEffect();
         string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
 
-        // The card flies from the hand to its place. Its object leaves the hand first: the refresh reuses hand
-        // objects, and with two copies in hand it could otherwise keep this very one for the copy that stays.
-        board.ExpectFlight(card_stats._id, CardMotion.ScreenRect((RectTransform)card_go.transform));
+        // Its object leaves the hand first (the showcase shows it): the refresh reuses hand objects, and with two
+        // copies in hand it could otherwise keep this very one for the copy that stays
         card_go.transform.SetParent(null, false);
         Destroy(card_go);
         PlayCard(card_stats._id, field_row, is_player_turn);
-        board.ClearFlight();
     }
 
-    // Plays a card from the hand: resolves it, refreshes the board and passes the turn (unless a choice is pending)
+    // Plays a card from the hand: resolves it, shows it on the board, then passes the turn (unless a choice is
+    // pending)
     public void PlayCard(int card_id, string field_row, bool is_player_turn)
     {
         MainInfo me = Info(is_player_turn);
         me.HandList.Remove(card_id);
         selectedCard = null;
         pendingAction = PendingAction.None;
+        CardShowcase.Clear();
 
         Card card = Db.Get(card_id);
         PlayCardAudio(card);
         int hand_before = me.HandList.Count;
+        board.BeginChange();
         PlayOutcome outcome = PlayRules.Resolve(CurrentBoard(), card, field_row, is_player_turn, is_player_turn);
         if (me.HandList.Count > hand_before)
             GameAudio.PlaySfx("card_draw");
-
         RefreshBoard();
         SetHider(false);
 
-        // Medic: the player picks a unit to restore from the discard panel
-        if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
+        bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
+        Present(board.EndChange(), card_id, is_player_turn, medic_choice, () =>
         {
-            SetHider(true);
-            return;
-        }
-        TurnCallBack(is_player_turn);
+            // Medic: the player picks a unit to restore from the discard panel
+            if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
+            {
+                SetHider(true);
+                return;
+            }
+            TurnCallBack(is_player_turn);
+        });
+    }
+
+    // Shows a play on the board (BoardPresenter), then goes on; meanwhile the player cannot act
+    private void Present(BoardChange change, int played_id, bool by_player, bool medic_choice, Action then)
+    {
+        StartCoroutine(Presenting(change, played_id, by_player, medic_choice, then));
+    }
+
+    private IEnumerator Presenting(BoardChange change, int played_id, bool by_player, bool medic_choice, Action then)
+    {
+        presenting++;
+        presented.Add(change);
+        // Never left waiting: a presentation that fails or runs too long is cut short (game time, the pause stops it)
+        bool finished = false;
+        StartCoroutine(Then(presenter.Play(change, played_id, by_player, medic_choice), () => finished = true));
+        float limit = Time.time + PresentationLimit;
+        while (!finished && Time.time < limit)
+            yield return null;
+        if (!finished)
+            Debug.LogError("A play's presentation did not end, the board shows the result at once");
+        change.Flush();
+        presented.Remove(change);
+        presenting--;
+        then();
+    }
+
+    private const float PresentationLimit = 12f;
+
+    private static IEnumerator Then(IEnumerator routine, Action done)
+    {
+        yield return routine;
+        done();
+    }
+
+    // Plays cut short (giving up): every card shows in its place at once
+    private void EndPresentations()
+    {
+        foreach (BoardChange change in presented)
+            change.Flush();
+        presented.Clear();
+        presenting = 0;
+        CardShowcase.Clear();
+    }
+
+    // A card chosen from a pile (medic, weather from the deck) comes from that pile to the showcase
+    public void ShowcasePicked(int card_id, string field, bool is_player)
+    {
+        CardShowcase.Pick(Db.Get(card_id), field == "deck_list" ? board.DeckRect(is_player) : board.PileRect(is_player));
     }
 
     // The rules operate directly on the battle's lists
@@ -708,10 +770,11 @@ public partial class SceneController : MonoBehaviour
 
         PlayCardAudio(Db.Get(selectedStats._id));
         selectedCard.GetComponent<CardHover>().DestroyEffect();
-        board.ExpectFlight(selectedStats._id, CardMotion.ScreenRect((RectTransform)selectedCard.transform));
+        // Out of the hand first, as in DirectlyPlaceCard (a second decoy in hand keeps its own object)
+        selectedCard.transform.SetParent(null, false);
+        Destroy(selectedCard);
         selectedCard = null;
         PlayDecoy(targetStats._id, row, true, selectedStats._id);
-        board.ClearFlight();
         return true;
     }
 
@@ -719,10 +782,12 @@ public partial class SceneController : MonoBehaviour
     public void PlayDecoy(int target_id, string row, bool is_player_card, int decoy_id)
     {
         Info(is_player_card).HandList.Remove(decoy_id);
+        CardShowcase.Clear();
         GameLog.Info("Decoying: " + target_id);
+        board.BeginChange();
         PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
         RefreshBoard();
-        TurnCallBack(is_player_card);
+        Present(board.EndChange(), decoy_id, is_player_card, false, () => TurnCallBack(is_player_card));
     }
 
     private bool IsSelectedCardPlayable()
@@ -745,6 +810,7 @@ public partial class SceneController : MonoBehaviour
             hover.TranslateDown();
             hover.DestroyEffect();
         }
+        CardShowcase.Deselect();
         selectedCard = null;
         LightoffField(true);
         LightoffField(false);

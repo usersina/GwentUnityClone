@@ -1,15 +1,12 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Card animations of the battle (game time, so the pause menu and the autoplay's speed apply):
-// - a played card flies from where it was (the hand, or the opponent's showcase) to its place on the board
-// - any other card that appears on the board settles in (fades in from slightly larger)
-// - the opponent's card is shown large for a moment before it is played
+// Moving cards over the board (game time, so the pause menu and the autoplay's speed apply). A flight is a "ghost"
+// on the overlay (an image of the card, or the object of a card that left its place) gliding to the card's object
+// in its new place, following it while its line makes room; the object shows once the ghost lands.
 public static class CardMotion
 {
-    public const float FlightSeconds = 0.3f;
-    public const float ShowcaseSeconds = 0.9f;
-
     // Screen rectangle of a UI element, whatever canvas it is on
     public static Rect ScreenRect(RectTransform rect)
     {
@@ -22,96 +19,107 @@ public static class CardMotion
         return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
     }
 
-    public static void Fly(int card_id, Rect from, GameObject target)
+    // The overlay's layout (centre and size) of a screen rectangle
+    public static void ToLayout(Rect screen_rect, out Vector2 center, out Vector2 size)
     {
-        GameObject ghost = Ghost("CardFlight", card_id, from);
-        ghost.AddComponent<CardFlight>().Init(from, target);
+        RectTransform root = (RectTransform)UIOverlay.FixedRoot;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen_rect.center, null, out center);
+        size = screen_rect.size / root.GetComponent<Canvas>().scaleFactor;
     }
 
+    // Puts an element of the overlay over a screen rectangle
+    public static void Place(RectTransform rect, Rect screen_rect)
+    {
+        Vector2 center, size;
+        ToLayout(screen_rect, out center, out size);
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = center; // the overlay's root is centred
+        rect.sizeDelta = size;
+    }
+
+    // An image of the card on the overlay, over a screen rectangle (never catches clicks)
+    public static RectTransform Ghost(int card_id, Rect screen_rect)
+    {
+        Image art = UIKit.NewImage(UIOverlay.FixedRoot, "CardGhost", SpriteCache.Load("Cards/List/591x380/" + card_id), Color.white);
+        art.preserveAspect = true;
+        Place(art.rectTransform, screen_rect);
+        return art.rectTransform;
+    }
+
+    // A card object taken out of its place onto the overlay, where it stood (it no longer catches clicks)
+    public static RectTransform Lift(GameObject card)
+    {
+        RectTransform rect = (RectTransform)card.transform;
+        Rect screen_rect = ScreenRect(rect);
+        rect.SetParent(UIOverlay.FixedRoot, false);
+        Place(rect, screen_rect);
+        Group(card).blocksRaycasts = false;
+        return rect;
+    }
+
+    public static void Hide(GameObject card, bool hidden)
+    {
+        if (card != null)
+            Group(card).alpha = hidden ? 0 : 1;
+    }
+
+    private static CanvasGroup Group(GameObject card)
+    {
+        CanvasGroup group = card.GetComponent<CanvasGroup>();
+        return group != null ? group : card.AddComponent<CanvasGroup>();
+    }
+
+    // Glides a ghost to the card object (followed as it moves) along a slight arc, shows the object and removes the
+    // ghost. Eases out, as The Witcher 3's cards do.
+    public static IEnumerator Fly(RectTransform ghost, GameObject target, float seconds, float arc = 0)
+    {
+        if (ghost != null && target != null)
+        {
+            Vector2 from_pos = ghost.anchoredPosition, from_size = ghost.sizeDelta;
+            float age = 0;
+            while (age < seconds && target != null && ghost != null)
+            {
+                age += Time.deltaTime;
+                float t = Mathf.Clamp01(age / seconds);
+                float eased = 1 - (1 - t) * (1 - t) * (1 - t);
+                Vector2 to_pos, to_size;
+                ToLayout(ScreenRect((RectTransform)target.transform), out to_pos, out to_size);
+                Vector2 path = to_pos - from_pos;
+                Vector2 bend = path.sqrMagnitude > 1 ? new Vector2(path.y, -path.x).normalized * arc * Mathf.Sin(Mathf.PI * eased) : Vector2.zero;
+                ghost.anchoredPosition = Vector2.LerpUnclamped(from_pos, to_pos, eased) + bend;
+                ghost.sizeDelta = Vector2.LerpUnclamped(from_size, to_size, eased);
+                yield return null;
+            }
+        }
+        Hide(target, false);
+        if (ghost != null)
+            Object.Destroy(ghost.gameObject);
+    }
+
+    // Fades a ghost out where it stands (a card leaving the board for good)
+    public static IEnumerator FadeOut(RectTransform ghost, float seconds)
+    {
+        if (ghost == null)
+            yield break;
+        CanvasGroup group = Group(ghost.gameObject);
+        float age = 0;
+        while (ghost != null && age < seconds)
+        {
+            age += Time.deltaTime;
+            group.alpha = 1 - Mathf.Clamp01(age / seconds);
+            yield return null;
+        }
+        if (ghost != null)
+            Object.Destroy(ghost.gameObject);
+    }
+
+    // A card that appears without coming from anywhere: fades in from slightly larger
     public static void SettleIn(GameObject card)
     {
         CardSettle settle = card.GetComponent<CardSettle>();
         if (settle == null)
             settle = card.AddComponent<CardSettle>();
         settle.Restart();
-    }
-
-    // The opponent's card, large in the middle of the board; returns where it is, for the flight that follows
-    public static Rect Showcase(int card_id)
-    {
-        float height = Screen.height * 0.42f;
-        float width = height * 380f / 591f;
-        Rect rect = new Rect(Screen.width * 0.53f - width / 2, Screen.height * 0.53f - height / 2, width, height);
-        GameObject ghost = Ghost("CardShowcase", card_id, rect);
-        ghost.AddComponent<CardShowcaseLife>();
-        return rect;
-    }
-
-    private static GameObject Ghost(string name, int card_id, Rect screen_rect)
-    {
-        RectTransform root = (RectTransform)UIOverlay.FixedRoot;
-        Image art = UIKit.NewImage(root, name, SpriteCache.Load("Cards/List/591x380/" + card_id), Color.white);
-        art.raycastTarget = false;
-        art.preserveAspect = true;
-        Place(art.rectTransform, screen_rect);
-        return art.gameObject;
-    }
-
-    // Puts a rect of the overlay over a screen rectangle
-    public static void Place(RectTransform rect, Rect screen_rect)
-    {
-        RectTransform root = (RectTransform)rect.parent;
-        Vector2 center;
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen_rect.center, null, out center);
-        float scale = root.GetComponentInParent<Canvas>().rootCanvas.scaleFactor;
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = center; // the overlay's root is centered (pivot in the middle)
-        rect.sizeDelta = screen_rect.size / scale;
-    }
-}
-
-// A played card on its way: follows the target as the row lays it out, the target shows once it lands
-public class CardFlight : MonoBehaviour
-{
-    private Rect from;
-    private GameObject target;
-    private CanvasGroup targetGroup;
-    private float age;
-
-    public void Init(Rect from_rect, GameObject target_card)
-    {
-        from = from_rect;
-        target = target_card;
-        targetGroup = target.GetComponent<CanvasGroup>();
-        if (targetGroup == null)
-            targetGroup = target.AddComponent<CanvasGroup>();
-        targetGroup.alpha = 0;
-    }
-
-    private void Update()
-    {
-        age += Time.deltaTime;
-        float t = Mathf.Clamp01(age / CardMotion.FlightSeconds);
-        if (target == null)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        float eased = 1 - (1 - t) * (1 - t) * (1 - t);
-        Rect to = CardMotion.ScreenRect((RectTransform)target.transform);
-        Rect now = new Rect(Vector2.Lerp(from.position, to.position, eased), Vector2.Lerp(from.size, to.size, eased));
-        CardMotion.Place((RectTransform)transform, now);
-        if (t >= 1)
-        {
-            targetGroup.alpha = 1;
-            Destroy(gameObject);
-        }
-    }
-
-    private void OnDestroy()
-    {
-        if (targetGroup != null)
-            targetGroup.alpha = 1;
     }
 }
 
@@ -152,20 +160,5 @@ public class CardSettle : MonoBehaviour
         if (group != null)
             group.alpha = 1;
         transform.localScale = Vector3.one;
-    }
-}
-
-// The opponent's showcased card: pops in, waits, and is gone by the time its flight starts
-public class CardShowcaseLife : MonoBehaviour
-{
-    private float age;
-
-    private void Update()
-    {
-        age += Time.deltaTime;
-        float pop = Mathf.Clamp01(age / 0.15f);
-        transform.localScale = Vector3.one * Mathf.Lerp(0.85f, 1f, 1 - (1 - pop) * (1 - pop));
-        if (age >= CardMotion.ShowcaseSeconds)
-            Destroy(gameObject);
     }
 }

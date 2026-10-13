@@ -366,6 +366,10 @@ public static class GwentAutoplay
                 return;
             }
 
+            // A play is being shown: wait for it to end
+            if (c.IsPresenting)
+                return;
+
             if (c.Panel.activeInHierarchy)
             {
                 CardBtn[] buttons = c.Panel.GetComponentsInChildren<CardBtn>();

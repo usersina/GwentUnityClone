@@ -102,10 +102,11 @@ public class CardHover : MonoBehaviour
     }
 
     // Replaces any preview this card already shows (a second enter event used to leave a ghost preview).
-    // Not during the redraw: the carousel shows the cards big, with their description
+    // Not during the redraw (the carousel shows the cards big, with their description), nor while a card is in the
+    // showcase (it stands there)
     public void ShowPreview()
     {
-        if (RedrawPicker.IsOpen)
+        if (RedrawPicker.IsOpen || CardShowcase.IsShown)
             return;
         DestroyEffect();
         ShowBigInfo();
