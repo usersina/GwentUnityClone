@@ -113,9 +113,12 @@ public class BoardView
         UpdateScores(false);
     }
 
-    // The laurel on the side that is ahead, "Passed" on a side that has passed (every frame)
+    // The laurel on the side that is ahead, "Passed" on a side that has passed, the glow around the portrait of the
+    // side whose turn it is (every frame)
     public void UpdateMarkers()
     {
+        playerView.Stats.UISetTurnState(controller.battleState == BattleState.PLAYERTURN, controller.PlayerInfo.hasPassed);
+        enemyView.Stats.UISetTurnState(controller.battleState == BattleState.ENEMYTURN, controller.EnemyInfo.hasPassed);
         int player_total = controller.PlayerInfo.TotalScore(), enemy_total = controller.EnemyInfo.TotalScore();
         SetActiveIfChanged(playerView.LeadMarker, player_total > enemy_total);
         SetActiveIfChanged(enemyView.LeadMarker, enemy_total > player_total);

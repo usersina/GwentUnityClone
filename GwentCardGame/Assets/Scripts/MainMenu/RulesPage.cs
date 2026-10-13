@@ -50,7 +50,7 @@ public class RulesPage : MonoBehaviour
             Intro = "Each side has three rows; your rows are the lower half of the table.",
             Entries = new[]
             {
-                new Entry("Cards/Row/close", "Close combat, ranged, siege", "A unit goes to the row shown on its card. Its strength is the number in the corner; each row's total is on its left, each side's total next to its portrait."),
+                new Entry("Cards/Row/close", "Close combat, ranged, siege", "A unit goes to the row shown on its card. Its strength is the number in the corner; each row's total is on its left, each side's total next to its portrait. The portrait of the side whose turn it is glows gold; a side that has passed is greyed out."),
                 new Entry("Cards/Row/close_range", "Agile", "Can go to the close combat or the ranged row."),
                 new Entry("Cards/Special/commander_horn", "Horn slot", "The slot at the left of each row takes a Commander's Horn, one per row."),
                 new Entry("Cards/Special/biting_frost", "Weather board", "Weather cards and Scorch are played on the weather board, at the left of the table. Weather affects both sides."),
