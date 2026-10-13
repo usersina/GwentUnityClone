@@ -33,6 +33,16 @@ public class BattleBanner : MonoBehaviour
     // True while a notice shows or waits for its turn
     public static bool Busy { get { return instance != null && (instance.age >= 0 || instance.queue.Count > 0); } }
 
+    // Drops every notice (the battle is over)
+    public static void Clear()
+    {
+        if (instance == null)
+            return;
+        instance.queue.Clear();
+        instance.age = -1;
+        instance.group.alpha = 0;
+    }
+
     public static void Show(string title, string subtitle = null, Color? color = null, float duration = Short)
     {
         if (instance == null)

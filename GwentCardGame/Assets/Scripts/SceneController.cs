@@ -60,6 +60,7 @@ public partial class SceneController : MonoBehaviour
     private bool roundOpening;      // the next turn opens a round (announced as "Round N")
     private bool? lastTurnWasPlayer; // whose turn was announced last in this round
     private bool lastPasserWasPlayer; // after a drawn round, whoever passed last starts the next one
+    private string whiteFlameNotice;  // shown once the redraw is over
 
     [Serializable]
     public class MainInfo : PlayerState
@@ -152,6 +153,7 @@ public partial class SceneController : MonoBehaviour
             {
                 Info(is_player).leaderDisabled = true;
                 View(is_player).Leader.MarkCancelled();
+                whiteFlameNotice = is_player ? "Your opponent's leader cancels your leader ability" : "Your leader cancels your opponent's leader ability";
             }
 
         // Passive leaders that affect both players
@@ -231,17 +233,14 @@ public partial class SceneController : MonoBehaviour
         PauseMenu.Open();
     }
 
-    // Exchange a card with another from deck (shuffle card back into the deck then draw)
+    // Redraw: the deck's top card takes the card's place in the hand, the card goes to the bottom of the deck
     public void ExchangeCard(int card_id, bool is_player_card)
     {
         MainInfo info = Info(is_player_card);
-        if (!info.HandList.Remove(card_id))
+        if (RoundRules.Redraw(info, card_id) == -1)
             return;
 
         GameAudio.PlaySfx("card_exchange");
-        info.DeckList.Add(card_id);
-        info.DeckList = Rng.Shuffle(info.DeckList);
-        RoundRules.Draw(info, 1);
 
         SetDeckObject(info, is_player_card);
         SetHandObject(info.HandList, is_player_card);
@@ -265,6 +264,15 @@ public partial class SceneController : MonoBehaviour
 
         if (mulliganPrompt != null)
             Destroy(mulliganPrompt);
+
+        // The White Flame's notice, once the redraw is over (The Witcher 3 announces it at the start)
+        if (whiteFlameNotice != null)
+        {
+            BattleBanner.Show("Emhyr: The White Flame", whiteFlameNotice, null, BattleBanner.Long);
+            whiteFlameNotice = null;
+            while (BattleBanner.Busy)
+                yield return null;
+        }
         roundOpening = true;
         lastTurnWasPlayer = null;
 
@@ -494,12 +502,36 @@ public partial class SceneController : MonoBehaviour
         StartCoroutine(FirstTurnPicker(winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer)));
     }
 
-    private void ConcludeBattle(BattleState outcome)
+    public bool IsBattleOver
+    {
+        get { return battleState == BattleState.WON || battleState == BattleState.LOST || battleState == BattleState.DRAW; }
+    }
+
+    // Giving up (pause menu): everything in progress stops and the battle is lost
+    public void GiveUp()
+    {
+        if (IsBattleOver)
+            return;
+        GameLog.Info("Player gave up");
+        StopTurn();
+        StopAllCoroutines();
+        BattleBanner.Clear();
+        if (mulliganPrompt != null)
+            Destroy(mulliganPrompt);
+        TurnPicker.SetActive(false);
+        Panel.SetActive(false);
+        pendingAction = PendingAction.None;
+        DeselectCard();
+        SetHider(false);
+        ConcludeBattle(BattleState.LOST, true);
+    }
+
+    private void ConcludeBattle(BattleState outcome, bool gave_up = false)
     {
         GameLog.Info("Battle ended: " + outcome);
         battleState = outcome;
         PostGame.SetActive(true);
-        PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo);
+        PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
         if (outcome == BattleState.WON)
             GameAudio.PlaySfx("victory");
         else if (outcome == BattleState.LOST)

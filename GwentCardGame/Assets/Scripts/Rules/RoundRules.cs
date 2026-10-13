@@ -29,6 +29,8 @@ namespace Gwent.Rules
         {
             player.RoundsScore.Add(player.TotalScore());
             enemy.RoundsScore.Add(enemy.TotalScore());
+            player.RoundsWon.Add(winner == RoundWinner.Player);
+            enemy.RoundsWon.Add(winner == RoundWinner.Enemy);
             if (winner != RoundWinner.Player)
                 player.Lives = Math.Max(0, player.Lives - 1);
             if (winner != RoundWinner.Enemy)
@@ -88,6 +90,21 @@ namespace Gwent.Rules
             info.CloseList.AddRange(info.PendingSummons);
             info.PendingSummons.Clear();
             return kept_card;
+        }
+
+        // Redraw at the start of the battle, as in The Witcher 3: the top card of the deck takes the card's place in the
+        // hand, and the card goes to the bottom of the deck (so it can't come straight back). Returns the new card, or
+        // -1 (nothing changes) when the deck is empty or the card is not in the hand.
+        public static int Redraw(PlayerState info, int card_id)
+        {
+            int index = info.HandList.IndexOf(card_id);
+            if (index < 0 || info.DeckList.Count == 0)
+                return -1;
+            int drawn = info.DeckList[0];
+            info.DeckList.RemoveAt(0);
+            info.HandList[index] = drawn;
+            info.DeckList.Add(card_id);
+            return drawn;
         }
 
         // Draws up to num cards from the top of the deck, returns how many were drawn

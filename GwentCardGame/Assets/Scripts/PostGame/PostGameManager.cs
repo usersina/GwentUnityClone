@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Gwent.Rules;
 using TMPro;
 using UnityEngine;
@@ -14,7 +15,7 @@ public class PostGameManager : MonoBehaviour
     private const float RoundColumn = 170;
     private const float RowHeight = 116;
 
-    public void Show(BattleState outcome, SceneController.MainInfo player, SceneController.MainInfo opponent)
+    public void Show(BattleState outcome, SceneController.MainInfo player, SceneController.MainInfo opponent, bool gave_up = false)
     {
         UITheme theme = UITheme.Current;
         foreach (Transform child in transform)
@@ -25,10 +26,15 @@ public class PostGameManager : MonoBehaviour
 
         Color color = outcome == BattleState.WON ? theme.goldBright : outcome == BattleState.LOST ? theme.danger : theme.textSecondary;
         string title = outcome == BattleState.WON ? "Victory" : outcome == BattleState.LOST ? "Defeat" : "Draw";
-        int player_rounds = 2 - opponent.Lives, opponent_rounds = 2 - player.Lives;
-        string tally = outcome == BattleState.WON ? "You won the battle, " + player_rounds + " rounds to " + opponent_rounds
-            : outcome == BattleState.LOST ? "The opponent won the battle, " + opponent_rounds + " rounds to " + player_rounds
-            : "Neither side came out ahead";
+        // Rounds as they were won (a drawn round counts for nobody, a Nilfgaard tie for Nilfgaard)
+        int player_rounds = player.RoundsWon.Count(won => won), opponent_rounds = opponent.RoundsWon.Count(won => won);
+        int drawn = player.RoundsScore.Count - player_rounds - opponent_rounds;
+        string drawn_text = drawn == 1 ? ", one round drawn" : drawn > 1 ? ", " + drawn + " rounds drawn" : "";
+        string tally = outcome == BattleState.WON ? "You won the battle, " + Rounds(player_rounds) + " to " + opponent_rounds + drawn_text
+            : outcome == BattleState.LOST ? "The opponent won the battle, " + Rounds(opponent_rounds) + " to " + player_rounds + drawn_text
+            : "Neither side came out ahead" + drawn_text;
+        if (gave_up)
+            tally = "You gave up the battle";
 
         Image glow = UIKit.NewImage(content, "Glow", theme.radial, UITheme.WithAlpha(color, 0.22f));
         glow.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 250), new Vector2(1500, 700));
@@ -66,13 +72,19 @@ public class PostGameManager : MonoBehaviour
         }
         UIKit.Divider(board, -70, 30);
 
-        AddRow(board, 0, player, "Player", player.RoundsScore, opponent.RoundsScore);
+        AddRow(board, 0, player, "Player", opponent);
         UIKit.Divider(board, -70 - RowHeight, 30);
-        AddRow(board, 1, opponent, "Opponent", opponent.RoundsScore, player.RoundsScore);
+        AddRow(board, 1, opponent, "Opponent", player);
     }
 
-    private void AddRow(RectTransform board, int index, SceneController.MainInfo info, string name, List<int> scores, List<int> other_scores)
+    private static string Rounds(int count)
     {
+        return count + (count == 1 ? " round" : " rounds");
+    }
+
+    private void AddRow(RectTransform board, int index, SceneController.MainInfo info, string name, SceneController.MainInfo other)
+    {
+        List<int> scores = info.RoundsScore;
         UITheme theme = UITheme.Current;
         float y = -70 - index * RowHeight - RowHeight / 2;
 
@@ -99,9 +111,9 @@ public class PostGameManager : MonoBehaviour
         for (int round = 0; round < 3; round++)
         {
             Vector2 cell = new Vector2(30 + SideColumn + (round + 0.5f) * RoundColumn, y);
-            bool played = round < scores.Count && round < other_scores.Count;
-            bool won = played && scores[round] > other_scores[round];
-            bool lost = played && scores[round] < other_scores[round];
+            bool played = round < scores.Count;
+            bool won = round < info.RoundsWon.Count && info.RoundsWon[round];
+            bool lost = round < other.RoundsWon.Count && other.RoundsWon[round];
             if (won)
             {
                 Image laurel = UIKit.NewImage(board, "Laurel", SpriteCache.Load("Various/pass"), UITheme.WithAlpha(theme.gold, 0.85f));

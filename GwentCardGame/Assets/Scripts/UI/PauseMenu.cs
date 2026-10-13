@@ -45,7 +45,12 @@ public class PauseMenu : MonoBehaviour
         float y = -180;
         Button resume = Item(panel, "Resume", Close, ref y);
         settingsItem = Item(panel, "Settings", () => SettingsPanel.Open(() => UIKit.Focus(settingsItem)), ref y);
-        Item(panel, "Leave battle", () => UIOverlay.Confirm("Leave the battle and go back to the main menu?", "Leave", "Stay", LeaveBattle), ref y);
+        // Give up (The Witcher 3's forfeit): the battle counts as lost and the end screen follows
+        SceneController battle = SceneController.Instance;
+        if (battle != null && !battle.IsBattleOver)
+            Item(panel, "Give up", () => UIOverlay.Confirm("Give up this battle? It counts as a loss.", "Give up", "Keep playing", GiveUp), ref y);
+        else
+            Item(panel, "Main menu", () => UIOverlay.Confirm("Leave and go back to the main menu?", "Leave", "Stay", LeaveBattle), ref y);
         if (can_quit)
             Item(panel, "Quit game", () => UIOverlay.Confirm("Quit the game?", "Quit", "Cancel", Application.Quit), ref y);
         UIKit.Focus(resume);
@@ -64,6 +69,13 @@ public class PauseMenu : MonoBehaviour
         Time.timeScale = previousTimeScale > 0 ? previousTimeScale : 1f;
         if (current == this)
             current = null;
+    }
+
+    private static void GiveUp()
+    {
+        Close();
+        if (SceneController.Instance != null)
+            SceneController.Instance.GiveUp();
     }
 
     private static void LeaveBattle()

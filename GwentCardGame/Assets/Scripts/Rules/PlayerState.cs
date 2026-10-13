@@ -48,6 +48,7 @@ namespace Gwent.Rules
         public bool hasPassed = false;
         public int Lives = 2;
         public List<int> RoundsScore = new List<int>(3);
+        public List<bool> RoundsWon = new List<bool>(3);      // per round: did this side win it (a draw is nobody's)
 
         //----------------------------------------Row helpers----------------------------------------//
         public List<int> UnitRow(string row)
@@ -159,6 +160,7 @@ namespace Gwent.Rules
             copy.LeaderHornRows = new List<string>(LeaderHornRows);
             copy.PendingSummons = new List<int>(PendingSummons);
             copy.RoundsScore = new List<int>(RoundsScore);
+            copy.RoundsWon = new List<bool>(RoundsWon);
             return copy;
         }
     }

@@ -128,6 +128,32 @@ namespace Gwent.Rules.Tests
             Assert.IsEmpty(p.DeckList);
             Assert.AreEqual(0, RoundRules.Draw(p, 2));
         }
+
+        [Test]
+        public void ARedrawTakesTheTopCardAndSendsTheCardToTheBottom()
+        {
+            PlayerState p = TestBoard.Player();
+            p.HandList.AddRange(new[] { 1, 2, 3 });
+            p.DeckList.AddRange(new[] { 7, 8 });
+            Assert.AreEqual(7, RoundRules.Redraw(p, 2));
+            CollectionAssert.AreEqual(new[] { 1, 7, 3 }, p.HandList, "the new card takes the old one's place");
+            CollectionAssert.AreEqual(new[] { 8, 2 }, p.DeckList, "the old card goes to the bottom");
+
+            p.DeckList.Clear();
+            Assert.AreEqual(-1, RoundRules.Redraw(p, 1), "an empty deck keeps the hand");
+            CollectionAssert.AreEqual(new[] { 1, 7, 3 }, p.HandList);
+        }
+
+        [Test]
+        public void EachRoundsWinnerIsRecorded()
+        {
+            PlayerState p = TestBoard.Player(Factions.Nilfgaard);
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            RoundRules.ApplyRoundResult(p, e, RoundWinner.Player);
+            RoundRules.ApplyRoundResult(p, e, RoundWinner.Draw);
+            CollectionAssert.AreEqual(new[] { true, false }, p.RoundsWon);
+            CollectionAssert.AreEqual(new[] { false, false }, e.RoundsWon);
+        }
     }
 
     public class DeckRulesTests
