@@ -14,7 +14,7 @@ using UnityEngine.SceneManagement;
 // Every leader of every faction gets a generated deck. Fails on exceptions/errors in the log, on a game that
 // stops progressing (softlock), and on cards appearing or disappearing (card conservation).
 // Then exercises the deck builder (add, duplicate names, rename, battle deck, corrupt files, delete) in the Deck scene;
-// it only touches its own "Autoplay ..." decks and restores the saved battle deck afterwards.
+// it only touches its own "Autoplay ..." decks and restores the saved battle deck afterwards. Finally loads the main menu.
 //
 //  Editor:  menu Gwent > Run Autoplay Smoke Test (Ctrl+Shift+Alt+G)
 //  Batch:   Unity -batchmode -projectPath <path> -executeMethod GwentAutoplay.RunBatch
@@ -114,6 +114,8 @@ public static class GwentAutoplay
         private int match = -1;
         private bool deckPhase;
         private int deckPhaseFrames;
+        private bool menuPhase;
+        private int menuPhaseFrames;
         private SceneController controller;
         private int expectedCards = -1;
         private string lastSignature;
@@ -207,6 +209,11 @@ public static class GwentAutoplay
                 return;
             Time.timeScale = TimeScale;
 
+            if (menuPhase)
+            {
+                MenuStep();
+                return;
+            }
             if (deckPhase)
             {
                 DeckBuilderStep();
@@ -428,6 +435,20 @@ public static class GwentAutoplay
                     PlayerPrefs.SetString("playerDeckPath", saved_battle_deck);
                 PlayerPrefs.Save();
             }
+
+            // Last: the main menu (its scene and audio buttons) must load and run without errors
+            deckPhase = false;
+            menuPhase = true;
+            currentDeck = "main menu";
+            SceneManager.LoadScene(SceneNames.Menu);
+        }
+
+        private void MenuStep()
+        {
+            if (++menuPhaseFrames < 60)
+                return;
+            MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
+            Check(menu != null, "main menu scene loaded");
             Finish();
         }
 
