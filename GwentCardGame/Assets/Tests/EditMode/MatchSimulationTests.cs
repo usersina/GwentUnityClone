@@ -161,7 +161,7 @@ namespace Gwent.Rules.Tests
                     foreach (Card card in Db.All.Where(c => c.IsUnit && c._id != CardIds.BovineDefenseForce
                         && (c.faction == faction || c.faction == Factions.Neutral)).OrderBy(x => rnd.Next()))
                     {
-                        int copies = card.unique ? 1 : 1 + rnd.Next(3);
+                        int copies = 1 + rnd.Next(DeckRules.MaxCopies(card));
                         for (int i = 0; i < copies && cards.Count < 26; i++)
                             cards.Add(card._id);
                     }

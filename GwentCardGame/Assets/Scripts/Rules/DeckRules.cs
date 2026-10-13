@@ -9,7 +9,6 @@ namespace Gwent.Rules
     {
         public const int MinUnits = 22;
         public const int MaxSpecials = 10;
-        public const int MaxCopies = 3;
         public const int MaxNameLength = 30;
         public const string EmptyDeckName = "__emptyname__";
 
@@ -44,10 +43,8 @@ namespace Gwent.Rules
                     units += copies;
                 if (!card.IsSpecial && card.faction != Factions.Neutral && card.faction != deck.Faction)
                     errors.Add(card.name + " does not belong to this faction");
-                if (card.unique && copies > 1)
-                    errors.Add("Hero " + card.name + " can only be added once");
-                else if (copies > MaxCopies)
-                    errors.Add("At most " + MaxCopies + " copies of " + card.name);
+                if (copies > MaxCopies(card))
+                    errors.Add(TooManyCopies(card));
             }
             if (units < MinUnits)
                 errors.Add("Needs at least " + MinUnits + " unit cards (has " + units + ")");
@@ -61,12 +58,44 @@ namespace Gwent.Rules
             return Validate(deck, db).Count == 0;
         }
 
-        // Drops unknown card ids and fixes an invalid leader so a hand-edited deck can still be loaded
+        // As in The Witcher 3, a deck holds at most the copies of a card that exist in the game: one of a hero or of a
+        // single card such as Dandelion, up to five Mahakaman Defenders. The Bovine Defense Force (summoned by the Cow)
+        // has none.
+        public static int MaxCopies(Card card)
+        {
+            return card.unique ? 1 : card.copies;
+        }
+
+        public static string TooManyCopies(Card card)
+        {
+            string name = card.DisplayName;
+            int max = MaxCopies(card);
+            if (max == 0)
+                return name + " can't be put in a deck";
+            if (card.unique)
+                return name + " is a hero: only one copy per deck";
+            return max == 1 ? "There is only one " + name : "There are only " + max + " copies of " + name;
+        }
+
+        // Drops unknown card ids and copies beyond what exists, and fixes an invalid leader, so a hand-edited deck
+        // (or one saved before the copy limits) can still be loaded
         public static Deck Sanitize(Deck deck, CardDatabase db)
         {
             if (deck == null)
                 return null;
-            deck.Cards = (deck.Cards ?? new List<int>()).Where(id => db.Contains(id) && !db.Get(id).IsLeader).ToList();
+            Dictionary<int, int> kept = new Dictionary<int, int>();
+            deck.Cards = (deck.Cards ?? new List<int>()).Where(id =>
+            {
+                Card card;
+                if (!db.TryGet(id, out card) || card.IsLeader)
+                    return false;
+                int count;
+                kept.TryGetValue(id, out count);
+                if (count >= MaxCopies(card))
+                    return false;
+                kept[id] = count + 1;
+                return true;
+            }).ToList();
             if (Array.IndexOf(Factions.Playable, deck.Faction) >= 0 && !LeaderIds.BelongsTo(deck.Leader, deck.Faction))
                 deck.Leader = LeaderIds.DefaultFor(deck.Faction);
             return deck;

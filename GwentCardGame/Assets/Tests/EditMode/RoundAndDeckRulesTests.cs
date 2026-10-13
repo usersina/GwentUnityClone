@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Gwent.Rules;
 
@@ -225,6 +226,46 @@ namespace Gwent.Rules.Tests
             Deck unknown = DefaultDeck();
             unknown.Cards.Add(9999);
             Assert.IsFalse(DeckRules.IsValid(unknown, TestBoard.Db), "unknown card");
+        }
+
+        [Test]
+        public void DecksHoldOnlyTheCopiesTheWitcher3Has()
+        {
+            Card dandelion = TestBoard.Db.Get(CardIds.Dandelion);
+            Card infantry = TestBoard.Db.Get(98);  // Poor Fucking Infantry: 4 in The Witcher 3
+            Card defender = TestBoard.Db.Get(87);  // Mahakaman Defender: 5
+            Assert.AreEqual(1, DeckRules.MaxCopies(dandelion));
+            Assert.AreEqual(4, DeckRules.MaxCopies(infantry));
+            Assert.AreEqual(5, DeckRules.MaxCopies(defender));
+            Assert.AreEqual(1, DeckRules.MaxCopies(TestBoard.Db.Get(143)), "a hero");
+            Assert.AreEqual(0, DeckRules.MaxCopies(TestBoard.Db.Get(CardIds.BovineDefenseForce)), "summoned by the Cow only");
+
+            Deck four_infantry = DefaultDeck();
+            four_infantry.Cards.AddRange(new[] { 98, 98, 98, 98 });
+            CollectionAssert.IsEmpty(DeckRules.Validate(four_infantry, TestBoard.Db));
+            four_infantry.Cards.Add(98);
+            Assert.That(DeckRules.Validate(four_infantry, TestBoard.Db), Has.Member("There are only 4 copies of Poor Fucking Infantry"));
+
+            Deck two_dandelions = DefaultDeck();
+            two_dandelions.Cards.AddRange(new[] { CardIds.Dandelion, CardIds.Dandelion });
+            Assert.That(DeckRules.Validate(two_dandelions, TestBoard.Db), Has.Member("There is only one Dandelion"));
+
+            Deck cow_force = DefaultDeck();
+            cow_force.Cards.Add(CardIds.BovineDefenseForce);
+            Assert.IsFalse(DeckRules.IsValid(cow_force, TestBoard.Db), "the Bovine Defense Force");
+        }
+
+        [Test]
+        public void SanitizeKeepsOnlyTheCopiesThatExist()
+        {
+            // A deck saved before the copy limits still loads, without the extra copies
+            Deck deck = DefaultDeck();
+            deck.Cards.AddRange(new[] { CardIds.Dandelion, CardIds.Dandelion, CardIds.Dandelion, CardIds.BovineDefenseForce, 135 });
+            DeckRules.Sanitize(deck, TestBoard.Db);
+            Assert.AreEqual(1, deck.Cards.Count(id => id == CardIds.Dandelion));
+            Assert.AreEqual(1, deck.Cards.Count(id => id == 135), "Villentretenmerth");
+            Assert.That(deck.Cards, Has.No.Member(CardIds.BovineDefenseForce));
+            CollectionAssert.IsEmpty(DeckRules.Validate(deck, TestBoard.Db));
         }
 
         [Test]

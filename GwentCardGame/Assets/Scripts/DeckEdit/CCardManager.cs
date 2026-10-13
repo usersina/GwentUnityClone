@@ -78,19 +78,12 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
         int occurences = deckController.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
 
-        // Hero Card
-        if (cardStats.unique && occurences > 0)
+        // The copies of the card that exist in The Witcher 3 (one of a hero)
+        Gwent.Rules.Card card = deckController.Db.Get(cardStats._id);
+        if (occurences >= Gwent.Rules.DeckRules.MaxCopies(card))
         {
             GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast(cardStats.name + " is a hero: only one copy per deck");
-            return;
-        }
-
-        // Normal Unit or Special Card
-        if (!cardStats.unique && occurences >= Gwent.Rules.DeckRules.MaxCopies)
-        {
-            GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast("At most " + Gwent.Rules.DeckRules.MaxCopies + " copies of a card");
+            UIOverlay.Toast(Gwent.Rules.DeckRules.TooManyCopies(card));
             return;
         }
 

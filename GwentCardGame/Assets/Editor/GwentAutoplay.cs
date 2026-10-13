@@ -611,7 +611,7 @@ public static class GwentAutoplay
             dc.middleManager.SelectDeckPath(path);
             CardDatabase db = dc.Db;
             dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Factions.Neutral) && !c.unique && c._id != CardIds.BovineDefenseForce)
-                .SelectMany(c => Enumerable.Repeat(c._id, 2)).Take(24).ToList();
+                .SelectMany(c => Enumerable.Repeat(c._id, Math.Min(2, c.copies))).Take(24).ToList();
             dc.deckCollection.OnDeckEdit();
             Check(DeckRules.IsValid(DeckStorage.Load(path), db), "edited deck saved and valid");
             Check(ApplicationModel.playerDeckPath == path && PlayerPrefs.GetString("playerDeckPath", "") == path, "a valid edited deck becomes the battle deck");
@@ -782,7 +782,7 @@ public static class GwentAutoplay
                     List<int> cards = new List<int>();
                     foreach (Card card in pool.OrderBy(x => rnd.Next()))
                     {
-                        int copies = card.unique ? 1 : 1 + rnd.Next(3);
+                        int copies = 1 + rnd.Next(DeckRules.MaxCopies(card));
                         for (int i = 0; i < copies && cards.Count < 26; i++)
                             cards.Add(card._id);
                     }

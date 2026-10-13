@@ -52,8 +52,9 @@ Sorry, no multiplayer :/ (yet)
 | Rules of the game | Main menu > **How to play** (the battle, the board, cards, abilities, special cards, factions, controls) | Same |
 
 The deck you last selected in the deck builder is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
-heroes once, other cards up to 3 times). The line at the bottom of the deck builder shows which deck that is. Without a valid deck,
-the battle uses the built-in Northern Realms deck.
+and each card at most as many times as The Witcher 3 has copies of it: heroes and most cards once, up to 5 Mahakaman Defenders). The line
+at the bottom of the deck builder shows which deck that is. Without a valid deck, the battle uses the built-in Northern Realms deck. A deck
+saved with more copies than that loses the extra ones when it is loaded.
 
 ## Rules, as in The Witcher 3
 
@@ -70,9 +71,8 @@ the battle uses the built-in Northern Realms deck.
 - Muster also pulls the matching cards from your hand, not only from your deck (The Witcher 3 does this too, although the card only
   says "deck"). The Arachas Behemoth calls the Arachas and Gaunter O'Dimm calls the Darkness, but not the other way round.
 
-Differences that remain: decks may hold up to 3 copies of any non-hero card (The Witcher 3 allows only the copies that exist), the
-Ice Giant is 6 strength as on its card (5 in The Witcher 3), the Eredin leader cards carry swapped names on their art (their
-abilities are right), and the Skellige faction (Blood and Wine) is not in the game.
+Differences that remain: the Ice Giant is 6 strength as on its card (5 in The Witcher 3), the Eredin leader cards carry swapped names
+on their art (their abilities are right), and the Skellige faction (Blood and Wine) is not in the game.
 
 # Download:
 If you don't have Unity Game Engine or simply want to test this game for fun.

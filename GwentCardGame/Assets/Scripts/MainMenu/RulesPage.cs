@@ -60,7 +60,7 @@ public class RulesPage : MonoBehaviour
         new Topic
         {
             Name = "Cards",
-            Intro = "A deck has one leader, at least 22 unit cards and at most 10 special cards.",
+            Intro = "A deck has one leader, at least 22 unit cards and at most 10 special cards. It holds each card at most as many times as it exists: most cards once, a few up to three times or more.",
             Entries = new[]
             {
                 new Entry("Cards/Nature/unique", "Heroes", "The gold-framed units. Nothing changes them: no weather, horn, morale boost, scorch, decoy or medic. A hero can be in a deck only once."),

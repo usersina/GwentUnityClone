@@ -16,7 +16,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "arachas_1",
@@ -26,7 +27,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "arachas_behemoth",
@@ -36,7 +38,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "assire_var_anahid",
@@ -46,7 +49,8 @@
       "unique": false,
       "strength": 6,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "ballista_1",
@@ -56,7 +60,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 2
     },
     {
       "_idstr": "barclay_els",
@@ -66,7 +71,8 @@
       "unique": false,
       "strength": 6,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "black_infantry_archer_2",
@@ -76,7 +82,8 @@
       "unique": false,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 2
     },
     {
       "_idstr": "blue_stripes_commando_3",
@@ -86,7 +93,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 3
     },
     {
       "_idstr": "botchling",
@@ -96,7 +104,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "bovine_defense_force",
@@ -106,7 +115,8 @@
       "unique": false,
       "strength": 8,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 0
     },
     {
       "_idstr": "cahir_mawr_dyffryn_aep_ceallach",
@@ -116,7 +126,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "catapult_1",
@@ -126,7 +137,8 @@
       "unique": false,
       "strength": 8,
       "row": "siege",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 2
     },
     {
       "_idstr": "celaeno_harpy",
@@ -136,7 +148,8 @@
       "unique": false,
       "strength": 2,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "ciaran_aep_easnillien",
@@ -146,7 +159,8 @@
       "unique": false,
       "strength": 3,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "cirilla_fiona_elen_rianno_1",
@@ -156,7 +170,8 @@
       "unique": true,
       "strength": 15,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "cockatrice",
@@ -166,7 +181,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "cow",
@@ -176,7 +192,8 @@
       "unique": false,
       "strength": 0,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "crinfrid_reavers_dragon_hunter_3",
@@ -186,7 +203,8 @@
       "unique": false,
       "strength": 5,
       "row": "range",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 3
     },
     {
       "_idstr": "crone_brewess",
@@ -196,7 +214,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "crone_weavess",
@@ -206,7 +225,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "crone_whispess",
@@ -216,7 +236,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "cynthia",
@@ -226,7 +247,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "dandelion_1",
@@ -236,7 +258,8 @@
       "unique": false,
       "strength": 2,
       "row": "close",
-      "ability": "commander_horn"
+      "ability": "commander_horn",
+      "copies": 1
     },
     {
       "_idstr": "dennis_cranmer",
@@ -246,7 +269,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "dethmold",
@@ -256,7 +280,8 @@
       "unique": false,
       "strength": 6,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "dol_blathanna_archer",
@@ -266,7 +291,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "dol_blathanna_scout_1",
@@ -276,7 +302,8 @@
       "unique": false,
       "strength": 6,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 3
     },
     {
       "_idstr": "draug",
@@ -286,7 +313,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "dun_banner_medic",
@@ -296,7 +324,8 @@
       "unique": false,
       "strength": 5,
       "row": "siege",
-      "ability": "medic"
+      "ability": "medic",
+      "copies": 1
     },
     {
       "_idstr": "dwarven_skirmisher_2",
@@ -306,7 +335,8 @@
       "unique": false,
       "strength": 3,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "earth_elemental",
@@ -316,7 +346,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "eithne",
@@ -326,7 +357,8 @@
       "unique": true,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "elven_skirmisher_1",
@@ -336,7 +368,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "emhyr_var_emreis_emperor_of_nilfgaard",
@@ -346,7 +379,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "emhyr_var_emreis_his_imperial_majesty",
@@ -356,7 +390,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "emhyr_var_emreis_invader_of_the_north",
@@ -366,7 +401,8 @@
       "unique": null,
       "strength": null,
       "row": "passive",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "emhyr_var_emreis_the_relentless",
@@ -376,7 +412,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "emhyr_var_emreis_the_white_flame",
@@ -386,7 +423,8 @@
       "unique": null,
       "strength": null,
       "row": "passive",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "emiel_regis_rohellec_terzieff_1",
@@ -396,7 +434,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "endrega",
@@ -406,7 +445,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "eredin_breacc_glas_the_treacherous",
@@ -416,7 +456,8 @@
       "unique": null,
       "strength": null,
       "row": "passive",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "eredin_bringer_of_death",
@@ -426,7 +467,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "eredin_commander_of_the_red_riders",
@@ -436,7 +478,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "eredin_destroyer_of_worlds",
@@ -446,7 +489,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "eredin_king_of_the_wild_hunt",
@@ -456,7 +500,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "esterad_thyssen",
@@ -466,7 +511,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "etolian_auxiliary_archers_1",
@@ -476,7 +522,8 @@
       "unique": false,
       "strength": 1,
       "row": "range",
-      "ability": "medic"
+      "ability": "medic",
+      "copies": 2
     },
     {
       "_idstr": "fiend",
@@ -486,7 +533,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "filavandrel_aen_fidhail",
@@ -496,7 +544,8 @@
       "unique": false,
       "strength": 6,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "fire_elemental",
@@ -506,7 +555,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "foglet",
@@ -516,7 +566,8 @@
       "unique": false,
       "strength": 2,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "foltest_king_of_temeria",
@@ -526,7 +577,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "foltest_lord_commander_of_the_north",
@@ -536,7 +588,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "foltest_son_of_medell",
@@ -546,7 +599,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "foltest_the_siegemaster",
@@ -556,7 +610,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "foltest_the_steel_forged",
@@ -566,7 +621,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "forktail",
@@ -576,7 +632,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "francesca_findabair_daisy_of_the_valle",
@@ -586,7 +643,8 @@
       "unique": null,
       "strength": null,
       "row": "passive",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "francesca_findabair_hope_of_the_aen_seidhe",
@@ -596,7 +654,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "francesca_findabair_pureblood_elf",
@@ -606,7 +665,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "francesca_findabair_queen_of_dol_blathanna",
@@ -616,7 +676,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "francesca_findabair_the_beautiful",
@@ -626,7 +687,8 @@
       "unique": null,
       "strength": null,
       "row": "active",
-      "ability": "leader"
+      "ability": "leader",
+      "copies": 1
     },
     {
       "_idstr": "frightener",
@@ -636,7 +698,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "fringilla_vigo",
@@ -646,7 +709,8 @@
       "unique": false,
       "strength": 6,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "gargoyle",
@@ -656,7 +720,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "gaunter_odimm",
@@ -666,7 +731,8 @@
       "unique": false,
       "strength": 2,
       "row": "siege",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "gaunter_odimm_darkness_1",
@@ -676,7 +742,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "geralt_of_rivia_1",
@@ -686,7 +753,8 @@
       "unique": true,
       "strength": 15,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "ghoul_3",
@@ -696,7 +764,8 @@
       "unique": false,
       "strength": 1,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "grave_hag",
@@ -706,7 +775,8 @@
       "unique": false,
       "strength": 5,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "griffin",
@@ -716,7 +786,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "harpy",
@@ -726,7 +797,8 @@
       "unique": false,
       "strength": 2,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "havekar_healer_3",
@@ -736,7 +808,8 @@
       "unique": false,
       "strength": 0,
       "row": "range",
-      "ability": "medic"
+      "ability": "medic",
+      "copies": 3
     },
     {
       "_idstr": "havekar_smuggler_1",
@@ -746,7 +819,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "heavy_zerrikanian_fire_scorpion",
@@ -756,7 +830,8 @@
       "unique": false,
       "strength": 10,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "ice_giant",
@@ -766,7 +841,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "ida_emean_aep_sivney",
@@ -776,7 +852,8 @@
       "unique": false,
       "strength": 6,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "imlerith",
@@ -786,7 +863,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "impera_brigade_guard_3",
@@ -796,7 +874,8 @@
       "unique": false,
       "strength": 3,
       "row": "close",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 4
     },
     {
       "_idstr": "iorveth",
@@ -806,7 +885,8 @@
       "unique": true,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "isengrim_faolitarna",
@@ -816,7 +896,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": "morale_boost"
+      "ability": "morale_boost",
+      "copies": 1
     },
     {
       "_idstr": "john_natalis",
@@ -826,7 +907,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "kaedweni_siege_expert_3",
@@ -836,7 +918,8 @@
       "unique": false,
       "strength": 1,
       "row": "siege",
-      "ability": "morale_boost"
+      "ability": "morale_boost",
+      "copies": 3
     },
     {
       "_idstr": "kayran",
@@ -846,7 +929,8 @@
       "unique": true,
       "strength": 8,
       "row": "close_range",
-      "ability": "morale_boost"
+      "ability": "morale_boost",
+      "copies": 1
     },
     {
       "_idstr": "keira_metz",
@@ -856,7 +940,8 @@
       "unique": false,
       "strength": 5,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "leshen",
@@ -866,7 +951,8 @@
       "unique": true,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "letho_of_gulet",
@@ -876,7 +962,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "mahakaman_defender_1",
@@ -886,7 +973,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 5
     },
     {
       "_idstr": "menno_coehoorn",
@@ -896,7 +984,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": "medic"
+      "ability": "medic",
+      "copies": 1
     },
     {
       "_idstr": "milva",
@@ -906,7 +995,8 @@
       "unique": false,
       "strength": 10,
       "row": "range",
-      "ability": "morale_boost"
+      "ability": "morale_boost",
+      "copies": 1
     },
     {
       "_idstr": "morteisen",
@@ -916,7 +1006,8 @@
       "unique": false,
       "strength": 3,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "morvran_voorhis",
@@ -926,7 +1017,8 @@
       "unique": true,
       "strength": 10,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "mysterious_elf_1",
@@ -936,7 +1028,8 @@
       "unique": true,
       "strength": 0,
       "row": "close",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "nausicaa_cavalry_rider_2",
@@ -946,7 +1039,8 @@
       "unique": false,
       "strength": 2,
       "row": "close",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 3
     },
     {
       "_idstr": "nekker_3",
@@ -956,7 +1050,8 @@
       "unique": false,
       "strength": 2,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 3
     },
     {
       "_idstr": "olgierd_von_everec",
@@ -966,7 +1061,8 @@
       "unique": false,
       "strength": 6,
       "row": "close_range",
-      "ability": "morale_boost"
+      "ability": "morale_boost",
+      "copies": 1
     },
     {
       "_idstr": "philippa_eilhart",
@@ -976,7 +1072,8 @@
       "unique": true,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "plague_maiden",
@@ -986,7 +1083,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "poor_fucking_infantry_1",
@@ -996,7 +1094,8 @@
       "unique": false,
       "strength": 1,
       "row": "close",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 4
     },
     {
       "_idstr": "prince_stennis",
@@ -1006,7 +1105,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "puttkammer",
@@ -1016,7 +1116,8 @@
       "unique": false,
       "strength": 3,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "rainfarn",
@@ -1026,7 +1127,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "redanian_foot_soldier_1",
@@ -1036,7 +1138,8 @@
       "unique": false,
       "strength": 1,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 2
     },
     {
       "_idstr": "renuald_aep_matsen",
@@ -1046,7 +1149,8 @@
       "unique": false,
       "strength": 5,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "riordain",
@@ -1056,7 +1160,8 @@
       "unique": false,
       "strength": 1,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "rotten_mangonel",
@@ -1066,7 +1171,8 @@
       "unique": false,
       "strength": 3,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "sabrina_glevissig",
@@ -1076,7 +1182,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "saesenthessis",
@@ -1086,7 +1193,8 @@
       "unique": true,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "schirru",
@@ -1096,7 +1204,8 @@
       "unique": false,
       "strength": 8,
       "row": "siege",
-      "ability": "scorch_siege"
+      "ability": "scorch_siege",
+      "copies": 1
     },
     {
       "_idstr": "shelden_skaggs",
@@ -1106,7 +1215,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "shilard_fitz_oesterlen",
@@ -1116,7 +1226,8 @@
       "unique": false,
       "strength": 7,
       "row": "close",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "siege_engineer",
@@ -1126,7 +1237,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "siege_technician",
@@ -1136,7 +1248,8 @@
       "unique": false,
       "strength": 0,
       "row": "siege",
-      "ability": "medic"
+      "ability": "medic",
+      "copies": 1
     },
     {
       "_idstr": "siege_tower_2",
@@ -1146,7 +1259,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "siegfried_of_denesle",
@@ -1156,7 +1270,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "sigismund_dijkstra",
@@ -1166,7 +1281,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "sile_de_tansarville",
@@ -1176,7 +1292,8 @@
       "unique": false,
       "strength": 5,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "stefan_skellen",
@@ -1186,7 +1303,8 @@
       "unique": false,
       "strength": 9,
       "row": "close",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "sweers",
@@ -1196,7 +1314,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "thaler",
@@ -1206,7 +1325,8 @@
       "unique": false,
       "strength": 1,
       "row": "siege",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "tibor_eggebracht",
@@ -1216,7 +1336,8 @@
       "unique": true,
       "strength": 10,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "toad",
@@ -1226,7 +1347,8 @@
       "unique": false,
       "strength": 7,
       "row": "range",
-      "ability": "scorch_range"
+      "ability": "scorch_range",
+      "copies": 1
     },
     {
       "_idstr": "toruviel",
@@ -1236,7 +1358,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "trebuchet_1",
@@ -1246,7 +1369,8 @@
       "unique": false,
       "strength": 6,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 2
     },
     {
       "_idstr": "triss_merigold_1",
@@ -1256,7 +1380,8 @@
       "unique": true,
       "strength": 7,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "vampire_bruxa",
@@ -1266,7 +1391,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "vampire_ekimmara",
@@ -1276,7 +1402,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "vampire_fleder",
@@ -1286,7 +1413,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "vampire_garkain",
@@ -1296,7 +1424,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "vampire_katakan",
@@ -1306,7 +1435,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": "muster"
+      "ability": "muster",
+      "copies": 1
     },
     {
       "_idstr": "vanhemar",
@@ -1316,7 +1446,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "vattier_de_rideaux",
@@ -1326,7 +1457,8 @@
       "unique": false,
       "strength": 4,
       "row": "close",
-      "ability": "spy"
+      "ability": "spy",
+      "copies": 1
     },
     {
       "_idstr": "vernon_roche",
@@ -1336,7 +1468,8 @@
       "unique": true,
       "strength": 10,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "ves",
@@ -1346,7 +1479,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "vesemir_1",
@@ -1356,7 +1490,8 @@
       "unique": false,
       "strength": 6,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "villentretenmerth_1",
@@ -1366,7 +1501,8 @@
       "unique": false,
       "strength": 7,
       "row": "close",
-      "ability": "scorch_close"
+      "ability": "scorch_close",
+      "copies": 1
     },
     {
       "_idstr": "vreemde",
@@ -1376,7 +1512,8 @@
       "unique": false,
       "strength": 2,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "vrihedd_brigade_recruit",
@@ -1386,7 +1523,8 @@
       "unique": false,
       "strength": 4,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "vrihedd_brigade_veteran_1",
@@ -1396,7 +1534,8 @@
       "unique": false,
       "strength": 5,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 2
     },
     {
       "_idstr": "werewolf",
@@ -1406,7 +1545,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "wyvern",
@@ -1416,7 +1556,8 @@
       "unique": false,
       "strength": 2,
       "row": "range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "yaevinn",
@@ -1426,7 +1567,8 @@
       "unique": false,
       "strength": 6,
       "row": "close_range",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "yarpen_zigrin",
@@ -1436,7 +1578,8 @@
       "unique": false,
       "strength": 2,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "yennefer_of_vengerberg_1",
@@ -1446,7 +1589,8 @@
       "unique": true,
       "strength": 7,
       "row": "range",
-      "ability": "medic"
+      "ability": "medic",
+      "copies": 1
     },
     {
       "_idstr": "young_emissary_1",
@@ -1456,7 +1600,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": "tight_bond"
+      "ability": "tight_bond",
+      "copies": 2
     },
     {
       "_idstr": "zerrikanian_fire_scorpion",
@@ -1466,7 +1611,8 @@
       "unique": false,
       "strength": 5,
       "row": "siege",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "zoltan_chivay_1",
@@ -1476,7 +1622,8 @@
       "unique": false,
       "strength": 5,
       "row": "close",
-      "ability": null
+      "ability": null,
+      "copies": 1
     },
     {
       "_idstr": "biting_frost",
@@ -1486,7 +1633,8 @@
       "unique": false,
       "strength": 0,
       "row": "weather",
-      "ability": "reduce_close"
+      "ability": "reduce_close",
+      "copies": 3
     },
     {
       "_idstr": "clear_weather",
@@ -1496,7 +1644,8 @@
       "unique": false,
       "strength": 0,
       "row": "weather",
-      "ability": "clear_weather"
+      "ability": "clear_weather",
+      "copies": 3
     },
     {
       "_idstr": "commander_horn",
@@ -1506,7 +1655,8 @@
       "unique": false,
       "strength": 0,
       "row": "special",
-      "ability": "double_strength"
+      "ability": "double_strength",
+      "copies": 3
     },
     {
       "_idstr": "decoy",
@@ -1516,7 +1666,8 @@
       "unique": false,
       "strength": 0,
       "row": "one_time",
-      "ability": "swap_card"
+      "ability": "swap_card",
+      "copies": 3
     },
     {
       "_idstr": "impenetrable_fog",
@@ -1526,7 +1677,8 @@
       "unique": false,
       "strength": 0,
       "row": "weather",
-      "ability": "reduce_range"
+      "ability": "reduce_range",
+      "copies": 3
     },
     {
       "_idstr": "scorch",
@@ -1536,7 +1688,8 @@
       "unique": false,
       "strength": 0,
       "row": "one_time",
-      "ability": "kill_strongest"
+      "ability": "kill_strongest",
+      "copies": 3
     },
     {
       "_idstr": "torrential_rain",
@@ -1546,7 +1699,8 @@
       "unique": false,
       "strength": 0,
       "row": "weather",
-      "ability": "reduce_siege"
+      "ability": "reduce_siege",
+      "copies": 3
     }
   ]
 }

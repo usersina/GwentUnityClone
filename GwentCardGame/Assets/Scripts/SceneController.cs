@@ -224,7 +224,7 @@ public partial class SceneController : MonoBehaviour
         string path = ApplicationModel.playerDeckPath;
         if (!string.IsNullOrEmpty(path) && File.Exists(path))
         {
-            Deck deck = DeckStorage.Load(path);
+            Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
             List<string> errors = DeckRules.Validate(deck, Db);
             if (errors.Count == 0)
             {

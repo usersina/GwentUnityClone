@@ -16,6 +16,7 @@ namespace Gwent.Rules
         public int strength = 0;
         public string row = null;
         public string ability = null;
+        public int copies = 1;      // how many copies The Witcher 3 has: the most a deck can hold (0: never in a deck)
 
         public bool IsSpecial { get { return faction == Factions.Special; } }
         public bool IsLeader { get { return ability == Abilities.Leader; } }
