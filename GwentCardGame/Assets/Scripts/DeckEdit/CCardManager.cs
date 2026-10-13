@@ -1,7 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -119,7 +118,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         CardStats stats = GetComponent<CardStats>();
         TextMeshProUGUI name_text = transform.Find("Name").GetComponent<TextMeshProUGUI>();
         Image patch = transform.Find("Patch").GetComponent<Image>();
-        name_text.text = Regex.Replace(stats.name, @"[\d-]", string.Empty).Trim();
+        name_text.text = Card.DisplayNameOf(stats.name);
 
         // Neutral and special cards have no faction banner: their name is centered on a wider patch
         bool bannerless = stats.faction == Factions.Neutral || stats.faction == Factions.Special;

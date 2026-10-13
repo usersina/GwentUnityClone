@@ -57,6 +57,9 @@ public partial class SceneController : MonoBehaviour
     private GameObject mulliganPrompt;
     private Coroutine turnRoutine;
     private int turnGeneration;
+    private bool roundOpening;      // the next turn opens a round (announced as "Round N")
+    private bool? lastTurnWasPlayer; // whose turn was announced last in this round
+    private bool lastPasserWasPlayer; // after a drawn round, whoever passed last starts the next one
 
     [Serializable]
     public class MainInfo : PlayerState
@@ -137,16 +140,24 @@ public partial class SceneController : MonoBehaviour
         Deck myDeck = LoadPlayerDeck();
         Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(EnemyDeck.text, EnemyDeck.name), Db);
 
-        PrepareField(myDeck, PlayerInfo, true);
-        PrepareField(oppDeck, EnemyInfo, false);
+        // Emhyr, The White Flame cancels the other leader's ability, passive ones included (Daisy's extra card,
+        // Invader's random medics, Treacherous' doubled spies), unless both sides play him
+        bool white_flame = myDeck.Leader != oppDeck.Leader
+            && (myDeck.Leader == LeaderIds.EmhyrTheWhiteFlame || oppDeck.Leader == LeaderIds.EmhyrTheWhiteFlame);
+        PrepareField(myDeck, PlayerInfo, true, white_flame);
+        PrepareField(oppDeck, EnemyInfo, false, white_flame);
 
-        // Emhyr, The White Flame: cancels the opponent's leader ability
         foreach (bool is_player in new[] { true, false })
-            if (Info(is_player).Leader == LeaderIds.EmhyrTheWhiteFlame)
+            if (white_flame && Info(is_player).Leader != LeaderIds.EmhyrTheWhiteFlame)
             {
-                Opponent(is_player).leaderDisabled = true;
-                View(!is_player).Leader.MarkCancelled();
+                Info(is_player).leaderDisabled = true;
+                View(is_player).Leader.MarkCancelled();
             }
+
+        // Passive leaders that affect both players
+        bool either(int leader) { return !white_flame && (myDeck.Leader == leader || oppDeck.Leader == leader); }
+        doubleSpies = either(LeaderIds.EredinTheTreacherous);
+        randomMedic = either(LeaderIds.EmhyrInvaderOfTheNorth);
     }
 
     // The selected deck if it exists and is valid, else the built-in default deck
@@ -171,7 +182,7 @@ public partial class SceneController : MonoBehaviour
     }
 
     // Prepares the field for the first time
-    private void PrepareField(Deck deck, MainInfo info, bool is_player_deck)
+    private void PrepareField(Deck deck, MainInfo info, bool is_player_deck, bool white_flame)
     {
         info.Faction = deck.Faction;
         info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + deck.Faction);
@@ -183,7 +194,7 @@ public partial class SceneController : MonoBehaviour
         SetLeaderCard(deck.Leader, is_player_deck);
 
         // Francesca, Daisy of the Valley: one extra card at the beginning of the battle
-        int cards_to_draw = deck.Leader == LeaderIds.FrancescaDaisyOfTheValley ? 11 : 10;
+        int cards_to_draw = deck.Leader == LeaderIds.FrancescaDaisyOfTheValley && !white_flame ? 11 : 10;
         DrawCards(cards_to_draw, info, is_player_deck);
     }
 
@@ -195,10 +206,6 @@ public partial class SceneController : MonoBehaviour
         view.Leader.type = Db.Get(leader_id).row;
         CreateCardObjects(view.LeaderHolder, new List<int> { leader_id }, false, is_player_deck);
         view.Leader.UISetPassive();
-
-        // Emhyr, Invader of the North affects both players
-        if (leader_id == LeaderIds.EmhyrInvaderOfTheNorth)
-            randomMedic = true;
     }
 
     //----------------------------------------------Redraw---------------------------------------------------//
@@ -241,8 +248,9 @@ public partial class SceneController : MonoBehaviour
     }
 
     //----------------------------------------------TURNS---------------------------------------------------//
-    // Picks the first turn
-    private IEnumerator FirstTurnPicker()
+    // Picks who takes the first turn of a round: the given side, or for the battle's first round the Scoia'tael perk
+    // or a coin toss
+    private IEnumerator FirstTurnPicker(bool? player_starts = null)
     {
         if (EnemyInfo.CanExchange)
         {
@@ -251,18 +259,22 @@ public partial class SceneController : MonoBehaviour
             AIManager.AIExchangeCards();
         }
 
-        // Wait for all players to either redraw or skip
-        while (EnemyInfo.CanExchange || PlayerInfo.CanExchange)
+        // Wait for all players to either redraw or skip, and for the end of the last round's notices
+        while (EnemyInfo.CanExchange || PlayerInfo.CanExchange || BattleBanner.Busy)
             yield return null;
 
         if (mulliganPrompt != null)
             Destroy(mulliganPrompt);
+        roundOpening = true;
+        lastTurnWasPlayer = null;
 
-        //------------Scoia'tel: Player with this deck chooses who begins each round-------------//
-        if (PlayerInfo.Faction == Factions.Scoiatael && EnemyInfo.Faction != Factions.Scoiatael)
+        if (player_starts.HasValue)
+            StartTurn(player_starts.Value);
+        //------------Scoia'tael: decides who takes the first turn of the battle-------------//
+        else if (PlayerInfo.Faction == Factions.Scoiatael && EnemyInfo.Faction != Factions.Scoiatael)
             TurnPicker.SetActive(true);
         else if (PlayerInfo.Faction != Factions.Scoiatael && EnemyInfo.Faction == Factions.Scoiatael)
-            StartTurn(true); // The AI always lets the player begin
+            StartTurn(false); // The AI's Scoia'tael goes first, as in The Witcher 3
         else
             StartTurn(Rng.Shared.Next(0, 2) != 0);
     }
@@ -289,11 +301,14 @@ public partial class SceneController : MonoBehaviour
 
     private IEnumerator PlayerTurn(int generation)
     {
+        if (!PlayerInfo.hasPassed && OutOfPlays(true))
+            MarkPassed(true, "No cards left to play");
         if (PlayerInfo.hasPassed)
         {
             CheckRoundEnd();
             yield break;
         }
+        AnnounceTurn(true);
         yield return new WaitForSeconds(1f);
         if (generation != turnGeneration)
             yield break;
@@ -304,18 +319,35 @@ public partial class SceneController : MonoBehaviour
 
     private IEnumerator EnemyTurn(int generation)
     {
+        if (!EnemyInfo.hasPassed && OutOfPlays(false))
+            MarkPassed(false, "No cards left to play");
         if (EnemyInfo.hasPassed)
         {
             CheckRoundEnd();
             yield break;
         }
         battleState = BattleState.ENEMYTURN;
+        AnnounceTurn(false);
         GameLog.Info("Enemy Turn !");
         GameAudio.PlaySfx("turn_enemy");
         yield return new WaitForSeconds(2f);
         if (generation != turnGeneration)
             yield break;
         AIManager.AIStartTurn();
+    }
+
+    // The Witcher 3's turn notices: who opens the round, then each change of side. Not while the other side has
+    // passed: its pass was announced already and the turns no longer alternate.
+    private void AnnounceTurn(bool is_player)
+    {
+        if (roundOpening)
+        {
+            roundOpening = false;
+            BattleBanner.Show("Round " + (PlayerInfo.RoundsScore.Count + 1), is_player ? "You will go first" : "Your opponent will go first");
+        }
+        else if (lastTurnWasPlayer != is_player && !Opponent(is_player).hasPassed)
+            BattleBanner.Show(is_player ? "Your turn!" : "Opponent's turn");
+        lastTurnWasPlayer = is_player;
     }
 
     public void CheckRoundEnd()
@@ -350,11 +382,28 @@ public partial class SceneController : MonoBehaviour
             return;
         }
 
-        GameAudio.PlaySfx("pass");
-        Info(is_player_turn).hasPassed = true;
-        if (is_player_turn)
-            DeselectCard();
+        MarkPassed(is_player_turn, null);
         TurnCallBack(is_player_turn);
+    }
+
+    // The Witcher 3: a side with no card in hand and no leader ability left passes automatically
+    private bool OutOfPlays(bool is_player)
+    {
+        MainInfo info = Info(is_player);
+        return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Rows.LeaderActive);
+    }
+
+    private void MarkPassed(bool is_player, string why)
+    {
+        GameAudio.PlaySfx("pass");
+        // A pass that ends the round is followed by the round's result instead; at the opening of a round the
+        // other side's "Round N" notice says it all
+        if (!Opponent(is_player).hasPassed && !roundOpening)
+            BattleBanner.Show(is_player ? "You passed" : "Your opponent has passed", why);
+        Info(is_player).hasPassed = true;
+        lastPasserWasPlayer = is_player;
+        if (is_player)
+            DeselectCard();
     }
 
     //----------------------------------------------ROUNDS---------------------------------------------------//
@@ -363,7 +412,8 @@ public partial class SceneController : MonoBehaviour
         StopTurn();
         battleState = BattleState.ROUNDOVER;
         RecalculateStrengths();
-        RoundWinner winner = RoundRules.DecideRound(PlayerInfo.TotalScore(), EnemyInfo.TotalScore(), PlayerInfo.Faction, EnemyInfo.Faction);
+        int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
+        RoundWinner winner = RoundRules.DecideRound(player_total, enemy_total, PlayerInfo.Faction, EnemyInfo.Faction);
         RoundRules.ApplyRoundResult(PlayerInfo, EnemyInfo, winner);
         PlayerInfo.hasPassed = false;
         EnemyInfo.hasPassed = false;
@@ -372,6 +422,22 @@ public partial class SceneController : MonoBehaviour
         View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
         View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
+        // The result over the board as it ended, then the board clears
+        UITheme theme = UITheme.Current;
+        string result = winner == RoundWinner.Player ? "You won the round!" : winner == RoundWinner.Enemy ? "Your opponent won the round" : "The round ended in a draw";
+        string score = player_total + "  –  " + enemy_total;
+        if (player_total == enemy_total && winner != RoundWinner.Draw)
+            score += "   ·   Nilfgaard wins ties";
+        BattleBanner.Show(result, score, winner == RoundWinner.Player ? theme.goldBright : winner == RoundWinner.Enemy ? theme.danger : theme.textSecondary, BattleBanner.Long);
+        PlayRoundOutcomeAudio(winner);
+        StartCoroutine(FinishRound(winner));
+    }
+
+    private IEnumerator FinishRound(RoundWinner winner)
+    {
+        while (BattleBanner.Busy)
+            yield return null;
+
         if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
             ConcludeBattle(BattleState.DRAW);
         else if (EnemyInfo.Lives == 0)
@@ -379,10 +445,7 @@ public partial class SceneController : MonoBehaviour
         else if (PlayerInfo.Lives == 0)
             ConcludeBattle(BattleState.LOST);
         else
-        {
-            PlayRoundOutcomeAudio(winner);
             PrepareNextRound(winner);
-        }
     }
 
     private void PlayRoundOutcomeAudio(RoundWinner winner)
@@ -409,18 +472,26 @@ public partial class SceneController : MonoBehaviour
         PlayerInfo.CanDiscard = false;
 
         // Monsters keep a random unit; leader horns vanish; weather goes back to whoever played it
-        RoundRules.CleanupBoard(PlayerInfo, Rng.Shared, Db);
-        RoundRules.CleanupBoard(EnemyInfo, Rng.Shared, Db);
+        foreach (bool is_player in new[] { true, false })
+        {
+            int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
+            if (kept != -1)
+                BattleBanner.Show("Monsters perk", (is_player ? "Your " : "Your opponent's ") + Db.Get(kept).DisplayName + " stays on the battlefield");
+        }
         weatherList.Clear();
 
         //------Northern Realms: Get one additional card from your deck every time you win a round-------------//
-        if (winner == RoundWinner.Player && PlayerInfo.Faction == Factions.NorthernRealms)
-            DrawCards(1, PlayerInfo, true);
-        else if (winner == RoundWinner.Enemy && EnemyInfo.Faction == Factions.NorthernRealms)
-            DrawCards(1, EnemyInfo, false);
+        if (winner != RoundWinner.Draw && Info(winner == RoundWinner.Player).Faction == Factions.NorthernRealms)
+        {
+            bool is_player = winner == RoundWinner.Player;
+            if (DrawCards(1, Info(is_player), is_player) > 0)
+                BattleBanner.Show("Northern Realms perk", is_player ? "You draw a card for winning the round" : "Your opponent draws a card for winning the round");
+        }
 
         RefreshBoard();
-        StartCoroutine(FirstTurnPicker());
+
+        // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
+        StartCoroutine(FirstTurnPicker(winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer)));
     }
 
     private void ConcludeBattle(BattleState outcome)
@@ -435,14 +506,16 @@ public partial class SceneController : MonoBehaviour
             GameAudio.PlaySfx("defeat");
     }
 
-    // Draws up to num cards (fewer if the deck runs out)
-    private void DrawCards(int num, MainInfo info, bool is_player_deck)
+    // Draws up to num cards (fewer if the deck runs out), returns how many were drawn
+    private int DrawCards(int num, MainInfo info, bool is_player_deck)
     {
-        if (RoundRules.Draw(info, num) == 0)
-            return;
+        int drawn = RoundRules.Draw(info, num);
+        if (drawn == 0)
+            return 0;
         SetDeckObject(info, is_player_deck);
         SetHandObject(info.HandList, is_player_deck);
         GameAudio.PlaySfx("card_draw");
+        return drawn;
     }
 
     //----------------------------------------------PLAYING CARDS---------------------------------------------------//

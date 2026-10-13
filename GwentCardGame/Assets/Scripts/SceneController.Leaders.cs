@@ -42,6 +42,15 @@ public partial class SceneController
         MainInfo info = Info(is_player_turn);
         MainInfo opp_info = Opponent(is_player_turn);
 
+        TakeToHand(field, card_id, is_player_turn);
+        TurnCallBack(is_player_turn);
+    }
+
+    private void TakeToHand(string field, int card_id, bool is_player_turn)
+    {
+        MainInfo info = Info(is_player_turn);
+        MainInfo opp_info = Opponent(is_player_turn);
+
         GameLog.Info("Picking from: " + field);
         switch (field)
         {
@@ -62,7 +71,6 @@ public partial class SceneController
         info.HandList.Add(card_id);
         info.CanDiscard = false;
         SetHandObject(info.HandList, is_player_turn);
-        TurnCallBack(is_player_turn);
     }
 
     // Panel "Skip" button: give up the choice and end the turn (nothing is ever left half done)
@@ -155,7 +163,11 @@ public partial class SceneController
     private LeaderOutcome ApplyLeader(int leader_id, bool is_player_turn, out string reason)
     {
         MainInfo info = Info(is_player_turn);
-        reason = null;
+
+        // An ability that would do nothing is not used (The Witcher 3): the leader stays available
+        reason = LeaderRules.Unavailable(CurrentBoard(), leader_id, is_player_turn);
+        if (reason != null)
+            return LeaderOutcome.Unavailable;
 
         string weather_row = LeaderIds.WeatherPickRow(leader_id);
         if (weather_row != null)
@@ -164,21 +176,16 @@ public partial class SceneController
             return PickWeatherCard(weather_row, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
         }
 
-        // Horns, scorches, clear weather, double spies, agile: resolved by the rules right away
+        // Horns, scorches, clear weather, agile: resolved by the rules right away
         if (LeaderRules.IsInstant(leader_id))
-        {
-            Board board = CurrentBoard();
-            bool applied = LeaderRules.ApplyInstant(board, leader_id, is_player_turn, out reason);
-            doubleSpies = board.DoubleSpies;
-            return applied ? LeaderOutcome.Instant : LeaderOutcome.Unavailable;
-        }
+            return LeaderRules.ApplyInstant(CurrentBoard(), leader_id, is_player_turn, out reason) ? LeaderOutcome.Instant : LeaderOutcome.Unavailable;
 
         switch (leader_id)
         {
             case LeaderIds.EredinBringerOfDeath:
-                if (!is_player_turn || info.HandList.Count < 2)
+                if (!is_player_turn)
                 {
-                    reason = "You need at least 2 cards in hand";
+                    reason = "The AI does not use this ability";
                     return LeaderOutcome.Unavailable;
                 }
                 info.CanDiscard = true;
@@ -187,11 +194,9 @@ public partial class SceneController
                 UIOverlay.Toast((Application.isMobilePlatform ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
                 return LeaderOutcome.Pending;
             case LeaderIds.EredinDestroyerOfWorlds:
-                reason = "No unit in your discard pile to restore";
-                return PickDiscardCard(is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
+                return RestoreToHand("discard_list", info.DiscardList, is_player_turn, out reason);
             case LeaderIds.EmhyrTheRelentless:
-                reason = "No unit in your opponent's discard pile";
-                return PickOppDiscard(is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
+                return RestoreToHand("opp_discard_list", Opponent(is_player_turn).DiscardList, is_player_turn, out reason);
             case LeaderIds.EmhyrEmperorOfNilfgaard:
                 reason = "Your opponent has no cards in hand";
                 return LookHandRandom(3, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
@@ -200,44 +205,35 @@ public partial class SceneController
         return LeaderOutcome.Unavailable;
     }
 
-    // Plays a weather card from deck (except clear weather); false when there is none
+    // Plays a weather card from deck ("all": any weather, Clear Weather too); false when there is none
     public bool PickWeatherCard(string row, bool is_player_turn)
     {
         if (!is_player_turn)
             return false;
-        List<int> weather_cards = new List<int>();
-        foreach (int card_id in PlayerInfo.DeckList)
-        {
-            Card card = Db.Get(card_id);
-            if (card.row != Rows.Weather || card.ability == Abilities.ClearWeather)
-                continue;
-            if (row == "all" || card_id == CardIds.WeatherFor(row))
-                weather_cards.Add(card_id);
-        }
+        List<int> weather_cards = LeaderRules.WeatherCardsFor(PlayerInfo, row, Db);
         if (weather_cards.Count == 0)
             return false;
         OpenPanel().ShowToPlay("deck_list", weather_cards, true);
         return true;
     }
 
-    // Draw a unit from your own discard pile (no heroes or special cards); false when there is none
-    public bool PickDiscardCard(bool is_player_card)
+    // A unit from a discard pile (no heroes or special cards) to the hand: chosen in a panel, or at random under
+    // Emhyr, Invader of the North (both players)
+    private LeaderOutcome RestoreToHand(string field, List<int> discard, bool is_player_turn, out string reason)
     {
-        List<int> units_list = AbilityRules.MedicCandidates(Info(is_player_card).DiscardList, Db);
-        if (!is_player_card || units_list.Count == 0)
-            return false;
-        OpenPanel().ShowToDraw("discard_list", units_list, true);
-        return true;
-    }
-
-    // Draw a unit from the opponent's discard pile (no heroes or special cards); false when there is none
-    public bool PickOppDiscard(bool is_player_turn)
-    {
-        List<int> units_list = AbilityRules.MedicCandidates(Opponent(is_player_turn).DiscardList, Db);
-        if (!is_player_turn || units_list.Count == 0)
-            return false;
-        OpenPanel().ShowToDraw("opp_discard_list", units_list, true);
-        return true;
+        List<int> units_list = AbilityRules.MedicCandidates(discard, Db);
+        reason = units_list.Count == 0 ? "No unit to restore" : "The AI does not use this ability";
+        if (units_list.Count == 0)
+            return LeaderOutcome.Unavailable;
+        if (randomMedic)
+        {
+            TakeToHand(field, units_list[Rng.Shared.Next(units_list.Count)], is_player_turn);
+            return LeaderOutcome.Instant;
+        }
+        if (!is_player_turn)
+            return LeaderOutcome.Unavailable;
+        OpenPanel().ShowToDraw(field, units_list, true);
+        return LeaderOutcome.Pending;
     }
 
     // View random cards from the opponent's hand; false when the hand is empty
