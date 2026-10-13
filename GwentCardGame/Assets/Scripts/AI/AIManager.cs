@@ -64,22 +64,26 @@ public class AIManager : MonoBehaviour
         GameLog.Info("AI: Finished exchanging " + ai.CardsExchanged + " cards.");
     }
 
-    // The AI's turn: exactly one action, then the turn passes to the player
-    public void AIStartTurn()
+    // The AI's turn: exactly one action, decided (the battle shows it), then carried out; the turn then passes
+    public AiAction AIDecide()
     {
         if (controller == null)
             AIInitialize();
-
-        AiAction action;
         try
         {
-            action = AiBrain.Decide(BuildContext());
+            return AiBrain.Decide(BuildContext());
         }
         catch (Exception e)
         {
             Debug.LogError("AI decision failed, passing: " + e);
-            action = AiAction.Pass();
+            return AiAction.Pass();
         }
+    }
+
+    public void AIExecute(AiAction action)
+    {
+        if (controller == null)
+            AIInitialize();
         GameLog.Info("AI: " + action);
 
         bool done;

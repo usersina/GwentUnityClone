@@ -345,10 +345,24 @@ public partial class SceneController : MonoBehaviour
         AnnounceTurn(false);
         GameLog.Info("Enemy Turn !");
         GameAudio.PlaySfx("turn_enemy");
-        yield return new WaitForSeconds(2f);
+        yield return new WaitForSeconds(1.2f);
         if (generation != turnGeneration)
             yield break;
-        AIManager.AIStartTurn();
+
+        // The card the opponent plays (or its leader) is shown large for a moment, then flies to its place
+        AiAction action = AIManager.AIDecide();
+        int shown = action.Type == AiActionType.PlayCard ? action.CardId : action.Type == AiActionType.UseLeader ? EnemyInfo.Leader : -1;
+        if (shown != -1)
+        {
+            Rect showcase = CardMotion.Showcase(shown);
+            yield return new WaitForSeconds(CardMotion.ShowcaseSeconds);
+            if (generation != turnGeneration)
+                yield break;
+            if (action.CardId != -1)
+                board.ExpectFlight(action.CardId, showcase);
+        }
+        AIManager.AIExecute(action);
+        board.ClearFlight();
     }
 
     // The Witcher 3's turn notices: who opens the round, then each change of side. Not while the other side has
@@ -565,7 +579,10 @@ public partial class SceneController : MonoBehaviour
         card_go.GetComponent<CardHover>().DestroyEffect();
         string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
 
+        // The card flies from the hand to its place
+        board.ExpectFlight(card_stats._id, CardMotion.ScreenRect((RectTransform)card_go.transform));
         PlayCard(card_stats._id, field_row, is_player_turn);
+        board.ClearFlight();
 
         // Hand objects are rebuilt by the refresh; picked/AI cards would otherwise pile up under Temp
         if (card_go != null)
@@ -661,8 +678,10 @@ public partial class SceneController : MonoBehaviour
 
         PlayCardAudio(Db.Get(selectedStats._id));
         selectedCard.GetComponent<CardHover>().DestroyEffect();
+        board.ExpectFlight(selectedStats._id, CardMotion.ScreenRect((RectTransform)selectedCard.transform));
         selectedCard = null;
         PlayDecoy(targetStats._id, row, true, selectedStats._id);
+        board.ClearFlight();
         return true;
     }
 

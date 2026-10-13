@@ -86,6 +86,22 @@ public class BoardView
     }
 
     public FieldView View(bool is_player) { return is_player ? playerView : enemyView; }
+
+    // The card being played flies from where it was (screen rectangle) to where it appears; every other card that
+    // appears settles in
+    private int flightCard = -1;
+    private Rect flightFrom;
+
+    public void ExpectFlight(int card_id, Rect from)
+    {
+        flightCard = card_id;
+        flightFrom = from;
+    }
+
+    public void ClearFlight()
+    {
+        flightCard = -1;
+    }
     private SceneController.MainInfo Info(bool is_player) { return is_player ? controller.PlayerInfo : controller.EnemyInfo; }
 
     //----------------------------------------Whole board----------------------------------------//
@@ -233,6 +249,13 @@ public class BoardView
                 card.GetComponent<CardHover>().isHoverable = false;
                 card.GetComponent<CardExchange>().isExchangeable = false;
                 card.transform.SetParent(parent, false);
+                if (id == flightCard)
+                {
+                    CardMotion.Fly(id, flightFrom, card);
+                    flightCard = -1;
+                }
+                else
+                    CardMotion.SettleIn(card);
             }
             ordered.Add(card);
         }
