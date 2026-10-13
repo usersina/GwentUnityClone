@@ -61,7 +61,7 @@ Builds are not committed to the repository (the `Builds/` folder is git-ignored)
 
 # Development
 
-Open `GwentCardGame/` with **Unity 2019.4.41f2**.
+Open `GwentCardGame/` with **Unity 6.6 (6000.6.5f1)**. The project was upgraded from 2019.4; the last 2019.4 commit is `a228947`.
 
 | Folder | What's inside |
 |---|---|
@@ -82,12 +82,28 @@ Gameplay logging (`GameLog.Info`) only runs in the editor and development builds
 - **Rules unit tests**: Window > General > Test Runner > EditMode > Run All.
 - **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI, and fails on errors in the log, on a game that stops progressing, or on cards appearing or disappearing. The report is written to `Logs/autoplay-report.txt`.
 
-From the command line (close the project in the editor first, or run on a copy):
+From the command line (close the project in the editor first), with the [Unity CLI](https://docs.unity.com) signed in (`unity auth`):
 
 ```bash
-Unity -batchmode -nographics -projectPath GwentCardGame -runTests -testPlatform EditMode -testResults editmode-results.xml
-Unity -batchmode -nographics -projectPath GwentCardGame -executeMethod GwentAutoplay.RunBatch -autoplayReport autoplay-report.txt
+unity test GwentCardGame --mode EditMode --output editmode-results.xml
 ```
+
+The autoplay test needs the editor to stay open after the method returns, so it runs the editor directly (the CLI's `run` always adds `-quit`):
+
+```bash
+<path-to>/6000.6.5f1/Editor/Unity -batchmode -nographics -projectPath GwentCardGame -executeMethod GwentAutoplay.RunBatch -autoplayReport autoplay-report.txt -logFile autoplay.log
+```
+
+## AI agents (MCP)
+
+The project includes the experimental `com.unity.pipeline` package, which lets the Unity CLI talk to a running editor.
+To use it from an MCP client such as Claude Code, register the CLI's MCP server and open the project in the editor:
+
+```bash
+claude mcp add --scope user unity-editor-mcp -- /absolute/path/to/unity mcp
+```
+
+`unity status` lists the editors the server can reach.
 
 # Credits:
 It naturally goes without saying, but I don't claim ownership of the game idea, the card assets or any other materials related to The Witcher 3 Wild Hunt, all credits goes to the owners CD PROJEKT RED.
