@@ -7,6 +7,13 @@ namespace Gwent.Rules
 
     public static class RoundRules
     {
+        // The Witcher 3: a side with no card in hand and no leader ability left to use passes automatically (it is done
+        // for the round, as if it had passed)
+        public static bool OutOfPlays(PlayerState info, CardDatabase db)
+        {
+            return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || db.Get(info.Leader).row != Rows.LeaderActive);
+        }
+
         // Higher total wins. Nilfgaard automatically wins a round that ends in a draw (unless both are Nilfgaard).
         public static RoundWinner DecideRound(int player_total, int enemy_total, string player_faction, string enemy_faction)
         {

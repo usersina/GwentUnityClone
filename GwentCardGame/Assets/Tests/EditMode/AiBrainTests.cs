@@ -46,6 +46,47 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void KeepsPlayingWhileTheOpponentStillHasItsLeader()
+        {
+            // Final round, the AI leads 12-10; the opponent has no card left but an unused range horn
+            PlayerState me = Ai(Nekker);
+            me.CloseList.AddRange(new[] { Fiend, EarthElemental });
+            me.Lives = 1;
+            PlayerState opp = TestBoard.Player(Factions.Scoiatael, LeaderIds.FrancescaTheBeautiful);
+            opp.RangeList.Add(85); // 10
+            opp.Lives = 1;
+            Assert.AreNotEqual(AiActionType.Pass, AiBrain.Decide(Context(me, opp)).Type, "the horn would win the battle for the opponent");
+        }
+
+        [Test]
+        public void OnItsLastLifeItPlaysASpecialRatherThanPassBarelyAhead()
+        {
+            // The AI leads 12-11 with two Fiends and only a Commander's Horn in hand; the opponent still has cards
+            PlayerState me = Ai(CardIds.CommanderHorn);
+            me.CloseList.AddRange(new[] { Fiend, Fiend });
+            me.Lives = 1;
+            PlayerState opp = Opponent(PrinceStennis, Ballista); // 5 + 6
+            AiAction action = AiBrain.Decide(Context(me, opp));
+            Assert.AreEqual(AiActionType.PlayCard, action.Type);
+            Assert.AreEqual(CardIds.CommanderHorn, action.CardId);
+        }
+
+        [Test]
+        public void ASpyDoesNotCountAsTheMoveThatWinsTheRound()
+        {
+            // The opponent has passed 4 ahead, final round: Ballista (6) wins it, the spy only gives the opponent 5
+            PlayerState me = Ai(PrinceStennis, Ballista);
+            me.DeckList.Add(CardIds.ClearWeather);
+            me.Lives = 1;
+            PlayerState opp = TestBoard.Player();
+            opp.CloseList.Add(7); // 4
+            opp.hasPassed = true;
+            AiAction action = AiBrain.Decide(Context(me, opp));
+            Assert.AreEqual(AiActionType.PlayCard, action.Type);
+            Assert.AreEqual(Ballista, action.CardId);
+        }
+
+        [Test]
         public void AlwaysReturnsALegalAction()
         {
             Random rnd = new Random(1234);

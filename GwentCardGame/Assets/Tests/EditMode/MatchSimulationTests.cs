@@ -132,6 +132,15 @@ namespace Gwent.Rules.Tests
                         Assert.IsTrue(me.DeckList.Remove(action.CardId), "weather leader card not in deck: " + context);
                         PlayRules.Resolve(board, Db.Get(action.CardId), Rows.Weather, is_player, false);
                     }
+                    else if (me.Leader == LeaderIds.EredinDestroyerOfWorlds || me.Leader == LeaderIds.EmhyrTheRelentless)
+                    {
+                        // A unit from a discard pile to the hand (SceneController.RestoreToHand, the AI's choice)
+                        List<int> pile = me.Leader == LeaderIds.EmhyrTheRelentless ? board.Side(!is_player).DiscardList : me.DiscardList;
+                        int restored = AiBrain.ChooseRestoreTarget(AbilityRules.MedicCandidates(pile, board.Db), me, board.Db);
+                        Assert.AreNotEqual(-1, restored, "AI used a restore leader with nothing to restore: " + context);
+                        pile.Remove(restored);
+                        me.HandList.Add(restored);
+                    }
                     else
                     {
                         string reason;

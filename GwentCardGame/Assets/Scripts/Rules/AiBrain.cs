@@ -58,6 +58,7 @@ namespace Gwent.Rules
         {
             public AiAction Action;
             public int Gain;        // Change of (AI total - opponent total), plus card-advantage bonuses
+            public int Board;       // The change of (AI total - opponent total) alone: what can win a round now
             public int Cost;        // How much we'd rather keep this card for later
             public bool IsUnit;
             public bool IsSpy;
@@ -74,7 +75,8 @@ namespace Gwent.Rules
                 return AiAction.Pass();
 
             int advantage = ctx.Me.TotalScore() - ctx.Opponent.TotalScore();
-            bool opponent_done = ctx.Opponent.hasPassed || ctx.Opponent.HandList.Count == 0;
+            // Done: passed, or nothing left to play (an empty hand with a leader to use is not done)
+            bool opponent_done = ctx.Opponent.hasPassed || RoundRules.OutOfPlays(ctx.Opponent, ctx.Db);
             // Nilfgaard wins a tied round (unless both sides are Nilfgaard)
             int needed = ctx.Me.Faction == Factions.Nilfgaard && ctx.Opponent.Faction != Factions.Nilfgaard ? 0 : 1;
 
@@ -83,12 +85,12 @@ namespace Gwent.Rules
                 if (advantage >= needed)
                     return AiAction.Pass(); // Already winning the round
 
-                Candidate winning = candidates.Where(c => !c.OffBoard && advantage + c.Gain >= needed)
-                    .OrderBy(c => c.Cost).ThenByDescending(c => c.Gain).FirstOrDefault();
+                Candidate winning = candidates.Where(c => !c.OffBoard && advantage + c.Board >= needed)
+                    .OrderBy(c => c.Cost).ThenByDescending(c => c.Board).FirstOrDefault();
                 if (winning != null)
                     return winning.Action;
 
-                int potential = candidates.Where(c => c.Gain > 0 && !c.OffBoard).Sum(c => c.Gain);
+                int potential = candidates.Where(c => c.Board > 0 && !c.OffBoard).Sum(c => c.Board);
                 if (ctx.Me.Lives > 1 && advantage + potential < needed)
                     return AiAction.Pass(); // Cannot catch up: keep the cards for the next round
                 return BestOrPass(candidates.Where(c => !c.OffBoard).ToList());
@@ -100,8 +102,8 @@ namespace Gwent.Rules
                 return spy.Action;
 
             bool has_units = candidates.Any(c => c.IsUnit);
-            if (!has_units && advantage > 0)
-                return AiAction.Pass(); // Do not waste specials when already ahead
+            if (!has_units && advantage > 0 && ctx.Me.Lives > 1)
+                return AiAction.Pass(); // Do not waste specials when already ahead (on the last life, they may still be needed)
 
             if (ctx.Me.Lives <= 1)
             {
@@ -125,8 +127,8 @@ namespace Gwent.Rules
         private static AiAction CheapestWinningOrBest(List<Candidate> candidates, int advantage, int needed)
         {
             List<Candidate> on_board = candidates.Where(c => !c.OffBoard).ToList();
-            Candidate winning = on_board.Where(c => advantage + c.Gain >= needed)
-                .OrderBy(c => c.Cost).ThenByDescending(c => c.Gain).FirstOrDefault();
+            Candidate winning = on_board.Where(c => advantage + c.Board >= needed)
+                .OrderBy(c => c.Cost).ThenByDescending(c => c.Board).FirstOrDefault();
             return winning != null ? winning.Action : BestOrPass(on_board);
         }
 
@@ -167,9 +169,9 @@ namespace Gwent.Rules
             if (card.ability == Abilities.Spy)
             {
                 string spy_row = Rows.IsUnitRow(card.row) ? card.row : Rows.Close;
-                int gain = Simulate(ctx, (me, opp, weather) => opp.UnitRow(spy_row).Add(card._id));
-                gain += DrawValue * Math.Min(2, ctx.Me.DeckList.Count);
-                return new Candidate { Action = AiAction.Play(card._id, spy_row), Gain = gain, Cost = 0, IsUnit = true, IsSpy = true };
+                int board = Simulate(ctx, (me, opp, weather) => opp.UnitRow(spy_row).Add(card._id));
+                int gain = board + DrawValue * Math.Min(2, ctx.Me.DeckList.Count);
+                return new Candidate { Action = AiAction.Play(card._id, spy_row), Gain = gain, Board = board, Cost = 0, IsUnit = true, IsSpy = true };
             }
 
             Candidate best = null;
@@ -180,10 +182,10 @@ namespace Gwent.Rules
                     continue;
                 string chosen_row = row;
                 int drawn = 0;
-                int gain = Simulate(ctx, (me, opp, weather) => drawn = PlayUnit(ctx, me, opp, weather, card, chosen_row));
-                gain += DrawValue * drawn; // spies a medic brought back
+                int board = Simulate(ctx, (me, opp, weather) => drawn = PlayUnit(ctx, me, opp, weather, card, chosen_row));
+                int gain = board + DrawValue * drawn; // spies a medic brought back
                 if (best == null || gain > best.Gain)
-                    best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Cost = card.strength + (card.unique ? 5 : 0), IsUnit = true };
+                    best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Board = board, Cost = card.strength + (card.unique ? 5 : 0), IsUnit = true };
             }
             return best;
         }
@@ -204,14 +206,16 @@ namespace Gwent.Rules
             else
                 me.UnitRow(row).Add(card._id);
 
-            if (card.ability == Abilities.Medic && depth < 5)
+            // A medic brings back the best unit (not counted under Invader of the North: then the unit is random)
+            if (card.ability == Abilities.Medic && depth < 5 && !ctx.RandomMedic)
             {
                 int revived = ChooseMedicTarget(me, ctx.Db);
                 if (revived != -1)
                 {
                     Card revived_card = ctx.Db.Get(revived);
                     me.DiscardList.Remove(revived);
-                    string revived_row = Rows.IsUnitRow(revived_card.row) ? revived_card.row : Rows.Close;
+                    string revived_row = Rows.IsUnitRow(revived_card.row) ? revived_card.row
+                        : AbilityRules.BestAgileRow(me, revived, weather, ctx.DoubleSpies, ctx.Db);
                     drawn += PlayUnit(ctx, me, opp, weather, revived_card, revived_row, depth + 1);
                 }
             }
@@ -237,7 +241,7 @@ namespace Gwent.Rules
                     string chosen_row = row;
                     int gain = Simulate(ctx, (me, opp, weather) => me.SpecialRow(chosen_row).Add(CardIds.CommanderHorn));
                     if (best == null || gain > best.Gain)
-                        best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Cost = SpecialCost };
+                        best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Board = gain, Cost = SpecialCost };
                 }
                 return best;
             }
@@ -245,13 +249,13 @@ namespace Gwent.Rules
             if (card.row == Rows.Weather)
             {
                 int gain = Simulate(ctx, (me, opp, weather) => AbilityRules.PlayWeather(me, opp, weather, card));
-                return new Candidate { Action = AiAction.Play(card._id, Rows.Weather), Gain = gain, Cost = SpecialCost };
+                return new Candidate { Action = AiAction.Play(card._id, Rows.Weather), Gain = gain, Board = gain, Cost = SpecialCost };
             }
 
             if (card.ability == Abilities.Scorch)
             {
                 int gain = Simulate(ctx, (me, opp, weather) => AbilityRules.Scorch(me, opp, ctx.Db));
-                return new Candidate { Action = AiAction.Play(card._id, Rows.Weather), Gain = gain, Cost = SpecialCost };
+                return new Candidate { Action = AiAction.Play(card._id, Rows.Weather), Gain = gain, Board = gain, Cost = SpecialCost };
             }
 
             if (card.ability == Abilities.Decoy)
@@ -262,12 +266,12 @@ namespace Gwent.Rules
                     return null;
                 Card target_card = ctx.Db.Get(target);
                 int bonus = target_card.ability == Abilities.Spy ? DrawValue : 4;
-                int gain = bonus + Simulate(ctx, (me, opp, weather) =>
+                int board = Simulate(ctx, (me, opp, weather) =>
                 {
                     me.UnitRow(target_row).Remove(target);
                     me.UnitRow(target_row).Add(CardIds.Decoy);
                 });
-                return new Candidate { Action = AiAction.Play(card._id, target_row, target), Gain = gain, Cost = SpecialCost };
+                return new Candidate { Action = AiAction.Play(card._id, target_row, target), Gain = bonus + board, Board = board, Cost = SpecialCost };
             }
             return null;
         }
@@ -326,7 +330,7 @@ namespace Gwent.Rules
 
             if (gain < MinLeaderGain)
                 return null;
-            return new Candidate { Action = AiAction.Leader(weather_card), Gain = gain, Cost = LeaderCost };
+            return new Candidate { Action = AiAction.Leader(weather_card), Gain = gain, Board = gain, Cost = LeaderCost };
         }
 
         // Applies a move to copies of the board and returns the change of (AI total - opponent total)

@@ -21,7 +21,6 @@ namespace Gwent.Rules
         public bool IsSpecial { get { return faction == Factions.Special; } }
         public bool IsLeader { get { return ability == Abilities.Leader; } }
         public bool IsUnit { get { return !IsSpecial && !IsLeader; } }
-        public bool HasAbility(string ability_name) { return ability == ability_name; }
 
         // The name as players know it: without the copy number some entries carry ("Nekker 3" is a Nekker)
         public string DisplayName { get { return DisplayNameOf(name); } }
@@ -200,31 +199,6 @@ namespace Gwent.Rules
         {
             int[] leaders;
             return ByFaction.TryGetValue(faction ?? "", out leaders) && Array.IndexOf(leaders, leader_id) >= 0;
-        }
-
-        // What a leader's ability does, told to the other player
-        public static string DescribeForOpponent(int leader_id)
-        {
-            switch (leader_id)
-            {
-                case EmhyrEmperorOfNilfgaard: return "They look at 3 random cards from your hand";
-                case EmhyrHisImperialMajesty: return "They play a Torrential Rain from their deck";
-                case EmhyrTheRelentless: return "They take a card from your discard pile";
-                case EredinBringerOfDeath: return "They discard 2 cards and draw 1 of their choice";
-                case EredinCommanderOfTheRedRiders: return "They play a weather card from their deck";
-                case EredinDestroyerOfWorlds: return "They restore a card from their discard pile to their hand";
-                case EredinKingOfTheWildHunt: return "Their close combat units are doubled";
-                case FoltestKingOfTemeria: return "They play an Impenetrable Fog from their deck";
-                case FoltestLordCommander: return "All weather is cleared";
-                case FoltestSonOfMedell: return "Your strongest ranged units are destroyed";
-                case FoltestTheSiegemaster: return "Their siege units are doubled";
-                case FoltestTheSteelForged: return "Your strongest siege units are destroyed";
-                case FrancescaHopeOfTheAenSeidhe: return "Their agile units move to their best rows";
-                case FrancescaPurebloodElf: return "They play a Biting Frost from their deck";
-                case FrancescaQueenOfDolBlathanna: return "Your strongest close combat units are destroyed";
-                case FrancescaTheBeautiful: return "Their ranged units are doubled";
-                default: return null;
-            }
         }
 
         // Leaders whose ability plays a weather card from the deck, and which weather row they look for
