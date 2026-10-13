@@ -702,9 +702,10 @@ public static class GwentAutoplay
     //----------------------------------------Real mouse input----------------------------------------//
     private enum InputScenario
     {
-        RedrawSlowClicksThenDone, // two slow clicks (no redraw), an ordinary double-click (redraw), then Done
-        RedrawTwice,              // a quick double-click, then a slower one (the second redraw ends the redraw phase)
-        SelectCard,               // left-click selects a hand card, a second click deselects it, right-click does nothing
+        RedrawSlowClicksThenDone, // two slow clicks (no redraw), a burst of four clicks (one redraw only), then Done
+        RedrawTwice,              // a quick double-click, then a slow one (the second redraw ends the redraw phase)
+        SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
+                                  // click deselects it, right-click does nothing
         PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
         MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
     }
@@ -744,12 +745,15 @@ public static class GwentAutoplay
             {
                 Click(0.4, CardPosition);
                 Click(1.2, CardPosition);
-                At(1.7, () => check(c.PlayerInfo.CardsExchanged == 0, "two clicks 0.8 s apart on a hand card do not redraw it"));
-                Click(2.0, CardPosition);
-                Click(2.25, CardPosition);
-                At(2.8, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a double-click (0.25 s) on a hand card redraws it"));
-                Click(3.1, DonePosition);
-                At(3.6, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
+                At(1.8, () => check(c.PlayerInfo.CardsExchanged == 0, "two clicks 0.8 s apart on a hand card do not redraw it"));
+                // Clicks 3 and 4 land on the card that replaced the redrawn one: they must not redraw it too
+                Click(2.2, CardPosition);
+                Click(2.34, CardPosition);
+                Click(2.48, CardPosition);
+                Click(2.62, CardPosition);
+                At(3.3, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a burst of four clicks redraws one card only"));
+                Click(3.6, DonePosition);
+                At(4.1, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
             }
             else if (scenario == InputScenario.RedrawTwice)
             {
@@ -757,8 +761,8 @@ public static class GwentAutoplay
                 Click(0.52, CardPosition);
                 At(1.0, () => check(c.PlayerInfo.CardsExchanged == 1, "a quick double-click (0.12 s) on a hand card redraws it"));
                 Click(1.3, CardPosition);
-                Click(1.65, CardPosition);
-                At(2.2, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "a slower double-click (0.35 s) redraws a second card and ends the redraw"));
+                Click(1.75, CardPosition);
+                At(2.3, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "a slow double-click (0.45 s) redraws a second card and ends the redraw"));
             }
             else if (scenario == InputScenario.PauseMenu)
             {
@@ -784,12 +788,18 @@ public static class GwentAutoplay
             }
             else
             {
-                Click(0.4, CardPosition, MouseButton.Right);
-                At(0.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
-                Click(1.2, CardPosition);
-                At(1.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it"));
-                Click(2.4, CardPosition);
-                At(2.9, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
+                // The pointer just above the card's lower edge: the card rises and must stay up, not bob
+                Move(0.3, CardLowerEdge);
+                bool stayed_up = true;
+                foreach (double t in new[] { 0.6, 0.7, 0.8, 0.9 })
+                    At(t, () => stayed_up &= card != null && card.GetComponent<CardHover>().isCardUp);
+                At(0.95, () => check(stayed_up, "a card hovered at its lower edge stays raised"));
+                Click(1.4, CardPosition, MouseButton.Right);
+                At(1.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
+                Click(2.2, CardPosition);
+                At(2.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it"));
+                Click(3.4, CardPosition);
+                At(3.9, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
             }
         }
 
@@ -883,6 +893,19 @@ public static class GwentAutoplay
             if (card == null && hand.childCount > 0)
                 card = hand.GetChild(hand.childCount / 2);
             return card != null ? ScreenPoint(card) : Vector2.zero;
+        }
+
+        // 3 pixels above the bottom edge of the (not yet raised) card
+        private Vector2 CardLowerEdge()
+        {
+            CardPosition();
+            if (card == null)
+                return Vector2.zero;
+            RectTransform rect = (RectTransform)card;
+            Vector3[] corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            Vector2 bottom = RectTransformUtility.WorldToScreenPoint(null, (corners[0] + corners[3]) / 2);
+            return bottom + new Vector2(0, 3);
         }
 
         private Vector2 DonePosition()

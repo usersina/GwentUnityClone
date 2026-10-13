@@ -8,6 +8,11 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
     public SceneController controller;
     public bool isExchangeable;
 
+    // A redraw rebuilds the hand under the pointer: the clicks right after it (the end of a triple or quadruple
+    // click) must not start a double-click on the card that took its place and spend the second redraw
+    private const float ClickCooldown = 0.35f;
+    private static float lastExchangeTime = float.NegativeInfinity;
+
     private readonly DoubleClick doubleClick = new DoubleClick();
 
     void Start()
@@ -32,12 +37,15 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
             return;
         }
 
+        if (Time.unscaledTime - lastExchangeTime < ClickCooldown)
+            return;
         if (doubleClick.Register())
             Exchange();
     }
 
     private void Exchange()
     {
+        lastExchangeTime = Time.unscaledTime;
         controller.ExchangeCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
         controller.PlayerInfo.CardsExchanged++;
         if (controller.PlayerInfo.CardsExchanged >= 2)

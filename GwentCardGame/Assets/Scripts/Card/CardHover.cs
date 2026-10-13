@@ -16,6 +16,9 @@ public class CardHover : MonoBehaviour
     public bool isHoverable = true;
     public bool isCardUp = false;
 
+    // How far a hovered or selected card rises (canvas units, so the same at every resolution)
+    private const float Lift = 14f;
+
     private void Start()
     {
         // One lookup per scene instead of one per card
@@ -56,7 +59,8 @@ public class CardHover : MonoBehaviour
         if (isCardUp)
             return;
 
-        transform.Translate(0, 10, 0);
+        transform.localPosition += new Vector3(0, Lift, 0);
+        ExtendHitArea(Lift);
         isCardUp = true;
     }
 
@@ -65,8 +69,24 @@ public class CardHover : MonoBehaviour
         if (!isCardUp)
             return;
 
-        transform.Translate(0, -10, 0);
+        transform.localPosition -= new Vector3(0, Lift, 0);
+        ExtendHitArea(0);
         isCardUp = false;
+    }
+
+    // While raised, the card's old footprint stays clickable: otherwise a pointer near its lower edge leaves the
+    // raised card, which drops back under the pointer and rises again every frame (and clicks hit the tray behind)
+    private void ExtendHitArea(float below)
+    {
+        float world = below * (transform.parent != null ? transform.parent.lossyScale.y : 1f);
+        foreach (Graphic graphic in GetComponentsInChildren<Graphic>(true))
+        {
+            if (!graphic.raycastTarget)
+                continue;
+            Vector4 padding = graphic.raycastPadding;
+            padding.y = -world / Mathf.Max(graphic.transform.lossyScale.y, 0.0001f); // negative padding grows the area
+            graphic.raycastPadding = padding;
+        }
     }
 
     public void DestroyEffect()
@@ -97,6 +117,11 @@ public class CardHover : MonoBehaviour
 
         bigImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
         bigEffect.GetComponent<Image>().sprite = SpriteCache.Load(EffectBoxPath(cardStats));
+        // Only a preview: it must never catch clicks meant for what is under it
+        foreach (Graphic graphic in bigImage.GetComponentsInChildren<Graphic>())
+            graphic.raycastTarget = false;
+        foreach (Graphic graphic in bigEffect.GetComponentsInChildren<Graphic>())
+            graphic.raycastTarget = false;
     }
 
     // Description box shown next to the big card (also used by the deck builder)

@@ -3,8 +3,8 @@ using UnityEngine;
 // Double-click (double-tap) detection shared by the clickable cards: two clicks on the same object within Interval
 public class DoubleClick
 {
-    // Desktop systems default to 0.4-0.5 s between the two clicks
-    public const float Interval = 0.4f;
+    // Windows' default; each object counts its own clicks, so two quick clicks on different cards never combine
+    public const float Interval = 0.5f;
 
     private float lastClick = float.NegativeInfinity;
 
