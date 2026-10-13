@@ -58,8 +58,9 @@ public static class DeckStorage
             string temp = path + ".tmp";
             File.WriteAllText(temp, JsonUtility.ToJson(deck));
             if (File.Exists(path))
-                File.Delete(path);
-            File.Move(temp, path);
+                File.Replace(temp, path, null); // one step: the deck is never missing, even if the game dies here
+            else
+                File.Move(temp, path);
             return true;
         }
         catch (System.Exception e) when (e is IOException || e is System.UnauthorizedAccessException || e is System.ArgumentException)

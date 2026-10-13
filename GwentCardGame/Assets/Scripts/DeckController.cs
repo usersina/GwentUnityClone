@@ -22,7 +22,6 @@ public class DeckController : MonoBehaviour
     public string currentDeckPath;
 
     // The deck folders path in the local disk
-    public List<string> DecksPath = new List<string>();// 0:NR | 1:NF | 2:SC | 3:M
 
     // A list of deck paths for each faction
     public List<string> NRDecks;
@@ -47,7 +46,6 @@ public class DeckController : MonoBehaviour
         allCards = Db.All;
 
         DeckStorage.EnsureDirectories();
-        DecksPath = Factions.Playable.Select(DeckStorage.FactionFolder).ToList();
 
         // Get Player Deck
         currentDeckPath = EmptyDeckResourcePath;
@@ -62,7 +60,16 @@ public class DeckController : MonoBehaviour
             my_deck = LoadDeckFromPath(EmptyDeckResourcePath);
         }
         PopulateDeckAssets();
+        OpenOnDeckFaction();
         IsReady = true;
+    }
+
+    // The builder opens on the faction of the deck it shows: its header panel and both card lists (they start set up
+    // for the first faction, the header only places itself in its Start)
+    private void OpenOnDeckFaction()
+    {
+        foreach (CollectionManager collection in FindObjectsByType<CollectionManager>())
+            collection.OpenOn(my_deck.Faction);
     }
 
     private void OnDestroy()
@@ -262,6 +269,8 @@ public class DeckController : MonoBehaviour
             RejectName("Another deck is already called \"" + name + "\"");
             return;
         }
+        if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
+            return; // a hand-edited faction must not choose the folder the deck moves to
 
         string oldPath = currentDeckPath;
         string newPath = DeckStorage.PathFor(my_deck.Faction, file_name);

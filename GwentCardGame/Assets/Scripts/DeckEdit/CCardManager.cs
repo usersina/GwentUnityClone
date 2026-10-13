@@ -78,8 +78,16 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
         int occurences = deckController.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
 
-        // The copies of the card that exist in The Witcher 3 (one of a hero)
+        // Only the deck's faction, neutral and special cards
         Gwent.Rules.Card card = deckController.Db.Get(cardStats._id);
+        if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckController.my_deck.Faction)
+        {
+            GameAudio.PlaySfx("invalid");
+            UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
+            return;
+        }
+
+        // The copies of the card that exist in The Witcher 3 (one of a hero)
         if (occurences >= Gwent.Rules.DeckRules.MaxCopies(card))
         {
             GameAudio.PlaySfx("invalid");

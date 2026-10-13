@@ -5,7 +5,6 @@ using UnityEngine;
 public class ApplicationModel : MonoBehaviour
 {
     static public string playerDeckPath;
-    static public string playerImagePath;
 
     private void Start()
     {

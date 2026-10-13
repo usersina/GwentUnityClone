@@ -8,6 +8,16 @@ using UnityEngine.UI;
 
 public class CollectionManager : MonoBehaviour
 {
+    // The factions of the header's panels, in order, and their perks
+    public static readonly string[] HeaderFactions = { Factions.NorthernRealms, Factions.Nilfgaard, Factions.Scoiatael, Factions.Monsters };
+    private static readonly string[] Perks =
+    {
+        "Draw a card from your deck whenever you win a round",
+        "Automatically win the round that ends in a draw",
+        "Choose who goes first at the start of the battle",
+        "Keep one random unit on the board after each round",
+    };
+
     public DeckController deckController;
     public SimpleScrollSnap headerSnap;
     public Toggle toggleBtn;
@@ -149,8 +159,9 @@ public class CollectionManager : MonoBehaviour
 
     private void ResetScrolling()
     {
-        cardsArea.transform.parent.GetComponent<ScrollRect>().StopMovement();
-        cardsArea.transform.position = new Vector2(cardsArea.transform.position.x, 320f);
+        ScrollRect scroll = cardsArea.transform.parent.GetComponent<ScrollRect>();
+        scroll.StopMovement();
+        scroll.verticalNormalizedPosition = 1; // back to the top, at any resolution
     }
 
     private void ManageCardsArea(string selected_row, bool resetScroll = true)
@@ -224,31 +235,28 @@ public class CollectionManager : MonoBehaviour
     }
 
     //----------------------------------------------------Event Handlers---------------------------------------------------//
+    // Opens on a faction (the deck's, before the header places itself): its cards and its perk
+    public void OpenOn(string deck_faction)
+    {
+        int panel = System.Array.IndexOf(HeaderFactions, deck_faction);
+        if (panel < 0)
+            return;
+        faction = deck_faction;
+        if (factionPerk != null)
+            factionPerk.text = Perks[panel];
+        if (headerSnap != null)
+            headerSnap.startingPanel = panel;
+    }
+
     // Reference: ScrollSnap Header On Panel Changed
     public void UpdateSelectedFaction()
     {
-        switch (headerSnap.CurrentPanel)
+        int panel = headerSnap.CurrentPanel;
+        if (panel >= 0 && panel < HeaderFactions.Length)
         {
-            case 0:
-                faction = "NR";
-                factionPerk.text = "Draw a card from your deck whenever you win a round";
-                Select(selectedTab);
-                break;
-            case 1:
-                faction = "NF";
-                factionPerk.text = "Automatically win the round that ends in a draw";
-                Select(selectedTab);
-                break;
-            case 2:
-                faction = "SC";
-                factionPerk.text = "Choose who begins each round";
-                Select(selectedTab);
-                break;
-            case 3:
-                faction = "M";
-                factionPerk.text = "Keep one random unit on the board after each round";
-                Select(selectedTab);
-                break;
+            faction = HeaderFactions[panel];
+            factionPerk.text = Perks[panel];
+            Select(selectedTab);
         }
 
         // Related to Deck Cards
