@@ -887,7 +887,8 @@ public static class GwentAutoplay
                 // The opponent's side of the unit's row: a wrong place, the card must stay selected in the hand
                 int hand_before = -1;
                 Move(2.9, WrongRow);
-                At(3.2, () => { if (plainUnit) check(GameCursor.Current == GameCursor.State.Invalid, "the cursor shows \"no\" over a row the card cannot go to"); });
+                Move(3.1, WrongRow); // again, in case a real mouse moved in between (the cursor follows the last mouse used)
+                At(3.2, () => { if (plainUnit) check(GameCursor.Current == GameCursor.State.Invalid, "the cursor shows \"no\" over a row the card cannot go to (" + GameCursor.Current + " over " + Hovered() + ", " + c.battleState + ")"); });
                 At(3.25, () => hand_before = c.PlayerInfo.HandList.Count);
                 Click(3.4, WrongRow);
                 At(3.9, () => { if (plainUnit) check(c.selectedCard == card.gameObject && c.PlayerInfo.HandList.Count == hand_before, "clicking a wrong row does not play the card"); });
@@ -1026,6 +1027,19 @@ public static class GwentAutoplay
                     return;
                 }
             }
+        }
+
+        // What the UI raycast hit under the mouse, as a path (for failure messages)
+        private string Hovered()
+        {
+            InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
+            if (module == null || mouse == null)
+                return "nothing";
+            GameObject hovered = module.GetLastRaycastResult(mouse.deviceId).gameObject;
+            string path = "";
+            for (Transform t = hovered != null ? hovered.transform : null; t != null; t = t.parent)
+                path = "/" + t.name + path;
+            return path == "" ? "nothing" : path;
         }
 
         // The opponent's row of the same kind as the selected unit
