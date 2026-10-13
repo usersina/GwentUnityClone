@@ -37,7 +37,7 @@ public static class UIOverlay
         scaler.matchWidthOrHeight = 1;
         canvas_go.AddComponent<GraphicRaycaster>();
 
-        if (EventSystem.current == null && UnityEngine.Object.FindObjectOfType<EventSystem>() == null)
+        if (EventSystem.current == null && UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
     }
 
@@ -78,7 +78,7 @@ public static class UIOverlay
             button.onClick.AddListener(() => on_click());
 
         TextMeshProUGUI label = CreateText(rect, text, 30, new Vector2(0.5f, 0.5f), Vector2.zero, size);
-        label.enableWordWrapping = false;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
         return button;
     }
 
@@ -113,7 +113,7 @@ public static class UIOverlay
         RectTransform panel = CreateRect("Panel", dimmer, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900, 320));
         panel.gameObject.AddComponent<Image>().color = PanelColor;
         TextMeshProUGUI label = CreateText(panel, message, 36, new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(840, 160));
-        label.enableWordWrapping = true;
+        label.textWrappingMode = TextWrappingModes.Normal;
 
         CreateButton(panel, yes_text, new Vector2(0.5f, 0.5f), new Vector2(-170, -90), new Vector2(280, 80), () =>
         {

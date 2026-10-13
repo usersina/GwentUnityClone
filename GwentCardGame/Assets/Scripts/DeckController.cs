@@ -88,7 +88,7 @@ public class DeckController : MonoBehaviour
         if (EventSystem.current != null)
             EventSystem.current.pixelDragThreshold = Mathf.Max(EventSystem.current.pixelDragThreshold, 20);
 
-        foreach (TMP_InputField input in FindObjectsOfType<TMP_InputField>())
+        foreach (TMP_InputField input in FindObjectsByType<TMP_InputField>())
         {
             input.shouldHideMobileInput = false;
             input.shouldHideSoftKeyboard = false;
@@ -369,7 +369,7 @@ public class DeckController : MonoBehaviour
         if (battleDeckStatus == null)
         {
             battleDeckStatus = UIOverlay.CreateText(UIOverlay.Root, "", 28, new Vector2(0.5f, 0f), new Vector2(0, 40), new Vector2(1000, 50));
-            battleDeckStatus.enableWordWrapping = false;
+            battleDeckStatus.textWrappingMode = TextWrappingModes.NoWrap;
         }
 
         string battle_path = ApplicationModel.playerDeckPath;

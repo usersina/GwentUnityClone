@@ -432,7 +432,7 @@ public static class GwentAutoplay
 
         private void RunDeckBuilderChecks(DeckController dc, List<string> created)
         {
-            TMP_InputField input = UnityEngine.Object.FindObjectOfType<TMP_InputField>();
+            TMP_InputField input = UnityEngine.Object.FindAnyObjectByType<TMP_InputField>();
             Check(input != null, "deck name input field found");
             string faction = dc.my_deck.Faction;
             string tag = "Autoplay " + seed;

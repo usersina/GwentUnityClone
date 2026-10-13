@@ -355,7 +355,7 @@ namespace DanielLochner.Assets.SimpleScrollSnap
         private static void CreateSimpleScrollSnap()
         {
             // Canvas
-            Canvas canvas = FindObjectOfType<Canvas>();
+            Canvas canvas = FindAnyObjectByType<Canvas>();
             if (canvas == null)
             {
                 GameObject canvasObject = new GameObject("Canvas");
@@ -430,7 +430,7 @@ namespace DanielLochner.Assets.SimpleScrollSnap
             }
 
             // Event System
-            if (!FindObjectOfType<EventSystem>())
+            if (!FindAnyObjectByType<EventSystem>())
             {
                 GameObject eventObject = new GameObject("EventSystem", typeof(EventSystem));
                 eventObject.AddComponent<StandaloneInputModule>();
@@ -445,7 +445,7 @@ namespace DanielLochner.Assets.SimpleScrollSnap
         private static void CreatePagination()
         {
             // Canvas
-            Canvas canvas = FindObjectOfType<Canvas>();
+            Canvas canvas = FindAnyObjectByType<Canvas>();
             if (canvas == null)
             {
                 GameObject canvasObject = new GameObject("Canvas");
@@ -505,7 +505,7 @@ namespace DanielLochner.Assets.SimpleScrollSnap
 
 
             // Event System
-            if (!FindObjectOfType<EventSystem>())
+            if (!FindAnyObjectByType<EventSystem>())
             {
                 GameObject eventObject = new GameObject("EventSystem", typeof(EventSystem));
                 eventObject.AddComponent<StandaloneInputModule>();
