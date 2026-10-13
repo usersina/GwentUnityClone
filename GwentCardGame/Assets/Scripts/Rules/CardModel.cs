@@ -21,6 +21,19 @@ namespace Gwent.Rules
         public bool IsLeader { get { return ability == Abilities.Leader; } }
         public bool IsUnit { get { return !IsSpecial && !IsLeader; } }
         public bool HasAbility(string ability_name) { return ability == ability_name; }
+
+        // The name as players know it: without the copy number some entries carry ("Nekker 3" is a Nekker)
+        public string DisplayName { get { return DisplayNameOf(name); } }
+
+        public static string DisplayNameOf(string name)
+        {
+            if (string.IsNullOrEmpty(name))
+                return name;
+            int end = name.Length;
+            while (end > 0 && char.IsDigit(name[end - 1]))
+                end--;
+            return end < name.Length && end > 0 && name[end - 1] == ' ' ? name.Substring(0, end - 1) : name;
+        }
     }
 
     // List of above Card (root object of cards_db.json)
@@ -106,8 +119,10 @@ namespace Gwent.Rules
 
     public static class CardIds
     {
+        public const int ArachasBehemoth = 2;
         public const int BovineDefenseForce = 9;
         public const int Cow = 16;
+        public const int GaunterODimm = 65;
         public const int Dandelion = 22;
         public const int BitingFrost = 200;
         public const int ClearWeather = 201;
@@ -138,9 +153,9 @@ namespace Gwent.Rules
         public const int EmhyrInvaderOfTheNorth = 35;       // Passive: medics restore a random unit (both players)
         public const int EmhyrTheRelentless = 36;           // Draw a card from the opponent's discard pile
         public const int EmhyrTheWhiteFlame = 37;           // Passive: cancel the opponent's leader ability
-        public const int EredinTheTreacherous = 40;         // Double the strength of all spies (both players)
+        public const int EredinTheTreacherous = 40;         // Passive: spies are doubled (both players)
         public const int EredinBringerOfDeath = 41;         // Discard 2 cards, draw 1 of your choice from your deck
-        public const int EredinCommanderOfTheRedRiders = 42; // Play any weather card from your deck
+        public const int EredinCommanderOfTheRedRiders = 42; // Play any weather card from your deck (Clear Weather too)
         public const int EredinDestroyerOfWorlds = 43;      // Restore a card from your discard pile to your hand
         public const int EredinKingOfTheWildHunt = 44;      // Commander's Horn on your close row
         public const int FoltestKingOfTemeria = 51;         // Play an Impenetrable Fog from your deck

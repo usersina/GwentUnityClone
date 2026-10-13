@@ -9,6 +9,7 @@ namespace Gwent.Rules.Tests
     {
         private const int Fiend = 47;           // M close 6
         private const int EarthElemental = 30;  // M siege 6
+        private const int Draug = 27;           // M hero close 10
 
         [Test]
         public void NilfgaardWinsTies_UnlessBothAreNilfgaard()
@@ -93,6 +94,18 @@ namespace Gwent.Rules.Tests
             RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
             Assert.IsEmpty(p.CloseList);
             CollectionAssert.AreEqual(new[] { Fiend }, p.DiscardList);
+        }
+
+        [Test]
+        public void MonstersNeverKeepAHeroOrADecoy()
+        {
+            for (int seed = 0; seed < 20; seed++)
+            {
+                PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+                p.CloseList.AddRange(new[] { Draug, CardIds.Decoy, Fiend });
+                RoundRules.CleanupBoard(p, new Random(seed), TestBoard.Db);
+                CollectionAssert.AreEqual(new[] { Fiend }, p.CloseList);
+            }
         }
 
         [Test]
@@ -197,6 +210,15 @@ namespace Gwent.Rules.Tests
             DeckRules.Sanitize(deck, TestBoard.Db);
             Assert.That(deck.Cards, Has.No.Member(9999));
             Assert.AreEqual(LeaderIds.FoltestKingOfTemeria, deck.Leader);
+        }
+
+        [Test]
+        public void DisplayNamesDropOnlyTheCopyNumber()
+        {
+            Assert.AreEqual("Nekker", Card.DisplayNameOf("Nekker 3"));
+            Assert.AreEqual("Foltest the Steel-Forged", Card.DisplayNameOf("Foltest the Steel-Forged"));
+            Assert.AreEqual("Geralt of Rivia", Card.DisplayNameOf("Geralt of Rivia"));
+            Assert.AreEqual("Catapult", Card.DisplayNameOf("Catapult 1"));
         }
     }
 }

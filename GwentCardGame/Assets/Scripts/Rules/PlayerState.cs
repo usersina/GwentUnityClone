@@ -37,6 +37,7 @@ namespace Gwent.Rules
 
         public List<int> WeatherPlayed = new List<int>();     // Weather cards this side put on the board
         public List<string> LeaderHornRows = new List<string>(); // Rows whose horn comes from the leader (no physical card)
+        public List<int> PendingSummons = new List<int>();    // Cards summoned when the board clears (a destroyed Cow's defenders)
 
         public bool CanExchange = true;
         public int CardsExchanged = 0;
@@ -156,6 +157,7 @@ namespace Gwent.Rules
             copy.MSiegeStrength = new List<int>(MSiegeStrength);
             copy.WeatherPlayed = new List<int>(WeatherPlayed);
             copy.LeaderHornRows = new List<string>(LeaderHornRows);
+            copy.PendingSummons = new List<int>(PendingSummons);
             copy.RoundsScore = new List<int>(RoundsScore);
             return copy;
         }

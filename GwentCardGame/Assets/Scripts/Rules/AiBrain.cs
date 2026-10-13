@@ -267,6 +267,9 @@ namespace Gwent.Rules
                 return null;
 
             int leader = me.Leader;
+            Board board = new Board { Player = me, Enemy = ctx.Opponent, Weather = ctx.Weather, DoubleSpies = ctx.DoubleSpies, RandomMedic = ctx.RandomMedic, Db = ctx.Db };
+            if (LeaderRules.Unavailable(board, leader, true) != null)
+                return null;
             int gain = int.MinValue;
             int weather_card = -1;
 
@@ -275,13 +278,9 @@ namespace Gwent.Rules
             string scorch_row = LeaderIds.ScorchRow(leader);
             if (weather_row != null)
             {
-                foreach (int card_id in me.DeckList.Distinct())
+                foreach (int card_id in LeaderRules.WeatherCardsFor(me, weather_row, ctx.Db))
                 {
                     Card card = ctx.Db.Get(card_id);
-                    if (card.row != Rows.Weather || card.ability == Abilities.ClearWeather)
-                        continue;
-                    if (weather_row != "all" && CardIds.WeatherFor(weather_row) != card_id)
-                        continue;
                     int card_gain = Simulate(ctx, (m, o, w) => AbilityRules.PlayWeather(m, o, w, card));
                     if (card_gain > gain)
                     {
@@ -299,8 +298,6 @@ namespace Gwent.Rules
                 gain = Simulate(ctx, (m, o, w) => AbilityRules.ScorchRow(o, scorch_row, ctx.Db));
             else if (leader == LeaderIds.FoltestLordCommander)
                 gain = Simulate(ctx, (m, o, w) => AbilityRules.ClearWeather(m, o, w));
-            else if (leader == LeaderIds.EredinTheTreacherous && !ctx.DoubleSpies)
-                gain = Simulate(ctx, (m, o, w) => { }, true);
             else if (leader == LeaderIds.FrancescaHopeOfTheAenSeidhe)
                 gain = Simulate(ctx, (m, o, w) => AbilityRules.OptimizeAgile(m, w, ctx.DoubleSpies, ctx.Db));
 
@@ -310,13 +307,13 @@ namespace Gwent.Rules
         }
 
         // Applies a move to copies of the board and returns the change of (AI total - opponent total)
-        private static int Simulate(AiContext ctx, Action<PlayerState, PlayerState, List<int>> apply, bool double_spies_after = false)
+        private static int Simulate(AiContext ctx, Action<PlayerState, PlayerState, List<int>> apply)
         {
             int before = ctx.Me.TotalScore() - ctx.Opponent.TotalScore();
             PlayerState me = ctx.Me.Clone();
             PlayerState opp = ctx.Opponent.Clone();
             List<int> weather = new List<int>(ctx.Weather);
-            bool double_spies = ctx.DoubleSpies || double_spies_after;
+            bool double_spies = ctx.DoubleSpies;
 
             StrengthCalculator.Recalculate(me, weather, double_spies, ctx.Db);
             StrengthCalculator.Recalculate(opp, weather, double_spies, ctx.Db);

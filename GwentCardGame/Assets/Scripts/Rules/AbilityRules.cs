@@ -42,9 +42,21 @@ namespace Gwent.Rules
             List<int> units = info.UnitRow(row);
             List<int> strengths = info.ModifiedStrengths(row);
             for (int i = 0; i < units.Count && i < strengths.Count; i++)
-                if (!db.Get(units[i]).unique && strengths[i] > top_strength)
+                if (CanBeScorched(db.Get(units[i])) && strengths[i] > top_strength)
                     top_strength = strengths[i];
             return top_strength;
+        }
+
+        // Whether a row has a unit a scorch could destroy
+        public static bool HasScorchTarget(PlayerState info, string row, CardDatabase db)
+        {
+            return StrongestNonHero(info, row, db) >= 0;
+        }
+
+        // Heroes are immune, and a decoy lying on a row is not a unit
+        private static bool CanBeScorched(Card card)
+        {
+            return !card.unique && !card.IsSpecial;
         }
 
         private static int DestroyWithStrength(PlayerState info, string row, int strength, CardDatabase db)
@@ -52,11 +64,10 @@ namespace Gwent.Rules
             List<int> units = info.UnitRow(row);
             List<int> base_strengths = info.BaseStrengths(row);
             List<int> strengths = info.ModifiedStrengths(row);
-            List<int> summoned = new List<int>();
             int destroyed = 0;
             for (int i = units.Count - 1; i >= 0; i--)
             {
-                if (i >= strengths.Count || strengths[i] != strength || db.Get(units[i]).unique)
+                if (i >= strengths.Count || strengths[i] != strength || !CanBeScorched(db.Get(units[i])))
                     continue;
                 int card_id = units[i];
                 units.RemoveAt(i);
@@ -64,17 +75,15 @@ namespace Gwent.Rules
                     base_strengths.RemoveAt(i);
                 strengths.RemoveAt(i);
                 Discard(info, card_id);
-                if (AvengerOf(card_id) != -1)
-                    summoned.Add(AvengerOf(card_id));
                 destroyed++;
             }
-            // Avenger: the summoned card takes the field at once
-            info.CloseList.AddRange(summoned);
             return destroyed;
         }
 
         //----------------------------------------Avenger----------------------------------------//
-        // The card a unit summons when it leaves the battlefield (-1 if none): the Cow calls the Bovine Defense Force
+        // The card a unit summons when it goes to the discard pile (-1 if none): the Cow calls the Bovine Defense Force.
+        // As in The Witcher 3, the summoned card arrives when the board is cleared for the next round (a decoy taking
+        // the Cow back to the hand summons nothing).
         public static int AvengerOf(int card_id)
         {
             return card_id == CardIds.Cow ? CardIds.BovineDefenseForce : -1;
@@ -86,6 +95,8 @@ namespace Gwent.Rules
         {
             if (card_id != CardIds.BovineDefenseForce)
                 info.DiscardList.Add(card_id);
+            if (AvengerOf(card_id) != -1)
+                info.PendingSummons.Add(AvengerOf(card_id));
         }
 
         //----------------------------------------Muster----------------------------------------//
@@ -102,6 +113,9 @@ namespace Gwent.Rules
         {
             if (other._id == played._id)
                 return true;
+            // The Arachas Behemoth and Gaunter O'Dimm call their family, but the family does not call them
+            if (other._id == CardIds.ArachasBehemoth || other._id == CardIds.GaunterODimm)
+                return false;
             // Only other muster cards of the same family (Havekar Healer is not a Havekar Smuggler)
             return other.ability == Abilities.Muster && MusterGroup(other._idstr) == MusterGroup(played._idstr);
         }

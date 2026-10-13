@@ -21,6 +21,7 @@ namespace Gwent.Rules.Tests
         private const int Bruxa = 125, Ekimmara = 126, Fleder = 127, Garkain = 128;
         private const int Nekker = 94;
         private const int Arachas = 1, ArachasBehemoth = 2;
+        private const int Darkness = 66;           // Gaunter O'Dimm: Darkness, range 4 muster
 
         private CardDatabase Db { get { return TestBoard.Db; } }
 
@@ -118,15 +119,34 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
-        public void ArachasMustersTheBehemothOnItsOwnRow()
+        public void TheBehemothMustersTheArachasButNotTheOtherWayRound()
         {
             PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
             p.DeckList.AddRange(new[] { Arachas, ArachasBehemoth });
-
             AbilityRules.Muster(p, Db.Get(Arachas), Rows.Close, Db);
-
             CollectionAssert.AreEqual(new[] { Arachas }, p.CloseList);
-            CollectionAssert.AreEqual(new[] { ArachasBehemoth }, p.SiegeList);
+            Assert.IsEmpty(p.SiegeList);
+            CollectionAssert.AreEqual(new[] { ArachasBehemoth }, p.DeckList);
+
+            PlayerState q = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+            q.DeckList.AddRange(new[] { Arachas, Arachas });
+            AbilityRules.Muster(q, Db.Get(ArachasBehemoth), Rows.Siege, Db);
+            CollectionAssert.AreEqual(new[] { Arachas, Arachas }, q.CloseList);
+        }
+
+        [Test]
+        public void GaunterMustersTheDarknessButNotTheOtherWayRound()
+        {
+            PlayerState p = TestBoard.Player();
+            p.DeckList.AddRange(new[] { Darkness, CardIds.GaunterODimm, Darkness });
+            AbilityRules.Muster(p, Db.Get(Darkness), Rows.Range, Db);
+            CollectionAssert.AreEqual(new[] { Darkness, Darkness }, p.RangeList);
+            CollectionAssert.AreEqual(new[] { CardIds.GaunterODimm }, p.DeckList);
+
+            PlayerState q = TestBoard.Player();
+            q.DeckList.AddRange(new[] { Darkness, Darkness });
+            AbilityRules.Muster(q, Db.Get(CardIds.GaunterODimm), Rows.Siege, Db);
+            CollectionAssert.AreEqual(new[] { Darkness, Darkness }, q.RangeList);
         }
 
         //----------------------------------------Scorch----------------------------------------//
@@ -149,7 +169,7 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
-        public void AScorchedCowSummonsTheDefenseForceAtOnce()
+        public void AScorchedCowSummonsTheDefenseForceForTheNextRound()
         {
             PlayerState p = TestBoard.Player();
             PlayerState e = TestBoard.Player(Factions.Monsters);
@@ -158,10 +178,25 @@ namespace Gwent.Rules.Tests
             TestBoard.Recalc(null, p, e);
 
             Assert.AreEqual(1, AbilityRules.Scorch(p, e, Db));
-
             Assert.IsEmpty(p.RangeList);
-            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+            Assert.IsEmpty(p.CloseList);
             CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.DiscardList);
+
+            RoundRules.CleanupBoard(p, new Random(0), Db);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+        }
+
+        [Test]
+        public void ScorchNeverTakesADecoy()
+        {
+            PlayerState p = TestBoard.Player();
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            p.CloseList.Add(CardIds.Decoy);
+            e.CloseList.Add(Draug);
+            TestBoard.Recalc(null, p, e);
+
+            Assert.AreEqual(0, AbilityRules.Scorch(p, e, Db));
+            CollectionAssert.AreEqual(new[] { CardIds.Decoy }, p.CloseList);
         }
 
         [Test]
@@ -224,6 +259,71 @@ namespace Gwent.Rules.Tests
 
             Assert.IsEmpty(p.SpSiegeList);
             Assert.That(p.DiscardList, Has.No.Member(CardIds.CommanderHorn));
+        }
+
+        //----------------------------------------Leaders----------------------------------------//
+        private Board NewBoard(PlayerState player, PlayerState enemy)
+        {
+            return new Board { Player = player, Enemy = enemy, Weather = new List<int>(), Db = Db, Rnd = new Random(0) };
+        }
+
+        [Test]
+        public void ARowScorchLeaderNeedsTenOnTheEnemyRow()
+        {
+            PlayerState p = TestBoard.Player(Factions.Scoiatael, LeaderIds.FrancescaQueenOfDolBlathanna);
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            Board board = NewBoard(p, e);
+            e.CloseList.Add(Fiend);
+            Assert.IsNotNull(LeaderRules.Unavailable(board, p.Leader, true), "6 on the row");
+            e.CloseList.Add(Fiend);
+            Assert.IsNull(LeaderRules.Unavailable(board, p.Leader, true), "12 on the row");
+        }
+
+        [Test]
+        public void LeadersThatWouldDoNothingCannotBeUsed()
+        {
+            PlayerState p = TestBoard.Player(Factions.NorthernRealms, LeaderIds.FoltestLordCommander);
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            Board board = NewBoard(p, e);
+            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.FoltestLordCommander, true), "no weather to clear");
+            board.Weather.Add(CardIds.BitingFrost);
+            Assert.IsNull(LeaderRules.Unavailable(board, LeaderIds.FoltestLordCommander, true));
+
+            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.EmhyrEmperorOfNilfgaard, true), "empty opponent hand");
+            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.EredinBringerOfDeath, true), "nothing to discard");
+            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.FrancescaHopeOfTheAenSeidhe, true), "no agile unit");
+        }
+
+        [Test]
+        public void PassiveLeadersCannotBeUsed()
+        {
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+            Board board = NewBoard(p, TestBoard.Player());
+            foreach (int leader in new[] { LeaderIds.EredinTheTreacherous, LeaderIds.EmhyrInvaderOfTheNorth, LeaderIds.EmhyrTheWhiteFlame, LeaderIds.FrancescaDaisyOfTheValley })
+                Assert.IsNotNull(LeaderRules.Unavailable(board, leader, true), "leader " + leader);
+        }
+
+        [Test]
+        public void PickAnyWeatherIncludesClearWeather()
+        {
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
+            p.DeckList.AddRange(new[] { CardIds.ClearWeather, Fiend, CardIds.TorrentialRain, CardIds.TorrentialRain });
+            CollectionAssert.AreEquivalent(new[] { CardIds.ClearWeather, CardIds.TorrentialRain }, LeaderRules.WeatherCardsFor(p, "all", Db));
+            CollectionAssert.AreEqual(new[] { CardIds.TorrentialRain }, LeaderRules.WeatherCardsFor(p, Rows.Siege, Db));
+        }
+
+        [Test]
+        public void InvaderOfTheNorthLeavesHeroMedicsTheirChoice()
+        {
+            PlayerState p = TestBoard.Player();
+            p.DiscardList.Add(BlueStripes);
+            Board board = NewBoard(p, TestBoard.Player(Factions.Monsters));
+            board.RandomMedic = true;
+            Assert.AreEqual(PlayOutcome.WaitingForMedicChoice, PlayRules.Resolve(board, Db.Get(Yennefer), Rows.Range, true, true));
+            Assert.That(p.DiscardList, Has.Member(BlueStripes));
+
+            Assert.AreEqual(PlayOutcome.Done, PlayRules.Resolve(board, Db.Get(DunBannerMedic), Rows.Siege, true, true));
+            Assert.That(p.DiscardList, Has.No.Member(BlueStripes), "a regular medic restores at random");
         }
     }
 }

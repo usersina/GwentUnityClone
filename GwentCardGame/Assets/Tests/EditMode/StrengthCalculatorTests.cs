@@ -12,6 +12,7 @@ namespace Gwent.Rules.Tests
         private const int SiegeExpert = 82;     // siege 1, morale boost
         private const int EarthElemental = 30;  // siege 6
         private const int PrinceStennis = 99;   // close 5, spy
+        private const int Olgierd = 95;         // agile 6, morale boost
 
         private static List<int> Close(PlayerState p) { return p.MCloseStrength; }
 
@@ -79,6 +80,27 @@ namespace Gwent.Rules.Tests
             p.CloseList.Add(PrinceStennis);
             StrengthCalculator.Recalculate(p, new List<int>(), true, TestBoard.Db);
             CollectionAssert.AreEqual(new[] { 10 }, Close(p));
+        }
+
+        [Test]
+        public void SpiesAreDoubledBeforeMoraleAndHorn()
+        {
+            // The Witcher 3: (5 x 2 + 1 morale) x 2 horn = 22, not (5 + 1) x 2 x 2 = 24
+            PlayerState p = TestBoard.Player();
+            p.CloseList.AddRange(new[] { PrinceStennis, Olgierd });
+            p.SpCloseList.Add(CardIds.CommanderHorn);
+            StrengthCalculator.Recalculate(p, new List<int>(), true, TestBoard.Db);
+            Assert.AreEqual(22, Close(p)[0]);
+        }
+
+        [Test]
+        public void ADecoyOnARowTakesNoModifier()
+        {
+            PlayerState p = TestBoard.Player();
+            p.CloseList.AddRange(new[] { CardIds.Decoy, Olgierd, Fiend });
+            p.SpCloseList.Add(CardIds.CommanderHorn);
+            TestBoard.Recalc(null, p);
+            CollectionAssert.AreEqual(new[] { 0, 12, 14 }, Close(p));
         }
     }
 }

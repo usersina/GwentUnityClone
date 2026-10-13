@@ -150,7 +150,7 @@
     },
     {
       "_idstr": "cirilla_fiona_elen_rianno_1",
-      "name": "Cirilla Fiona Elen Rianno 1",
+      "name": "Cirilla Fiona Elen Riannon 1",
       "_id": 14,
       "faction": "N",
       "unique": true,
@@ -415,7 +415,7 @@
       "faction": "M",
       "unique": null,
       "strength": null,
-      "row": "active",
+      "row": "passive",
       "ability": "leader"
     },
     {
@@ -515,7 +515,7 @@
       "faction": "M",
       "unique": false,
       "strength": 2,
-      "row": "siege",
+      "row": "close",
       "ability": null
     },
     {
@@ -580,7 +580,7 @@
     },
     {
       "_idstr": "francesca_findabair_daisy_of_the_valle",
-      "name": "Francesca Findabair Daisy of The Valle",
+      "name": "Francesca Findabair Daisy of the Valley",
       "_id": 57,
       "faction": "SC",
       "unique": null,
@@ -660,22 +660,22 @@
     },
     {
       "_idstr": "gaunter_odimm",
-      "name": "Gaunter ODimm",
+      "name": "Gaunter O'Dimm",
       "_id": 65,
-      "faction": "N",
-      "unique": false,
-      "strength": 4,
-      "row": "range",
-      "ability": "muster"
-    },
-    {
-      "_idstr": "gaunter_odimm_darkness_1",
-      "name": "Gaunter ODimm Darkness 1",
-      "_id": 66,
       "faction": "N",
       "unique": false,
       "strength": 2,
       "row": "siege",
+      "ability": "muster"
+    },
+    {
+      "_idstr": "gaunter_odimm_darkness_1",
+      "name": "Gaunter O'Dimm: Darkness 1",
+      "_id": 66,
+      "faction": "N",
+      "unique": false,
+      "strength": 4,
+      "row": "range",
       "ability": "muster"
     },
     {
@@ -810,7 +810,7 @@
     },
     {
       "_idstr": "isengrim_faolitarna",
-      "name": "Isengrim Faolitarna",
+      "name": "Isengrim Faoiltiarna",
       "_id": 80,
       "faction": "SC",
       "unique": true,
@@ -1100,7 +1100,7 @@
     },
     {
       "_idstr": "shelden_skaggs",
-      "name": "Shelden Skaggs",
+      "name": "Sheldon Skaggs",
       "_id": 109,
       "faction": "NR",
       "unique": false,

@@ -37,39 +37,36 @@ namespace Gwent.Rules
 
         // Sends one side's board to its discard pile at the end of a round.
         // Monsters keep one random unit on the board; each Cow that leaves summons a Bovine Defense Force for the
-        // next round.
-        public static void CleanupBoard(PlayerState info, Random rnd, CardDatabase db)
+        // next round. Returns the unit Monsters kept (-1 if none).
+        public static int CleanupBoard(PlayerState info, Random rnd, CardDatabase db)
         {
-            // The unit Monsters keep is taken off its row while the rest goes
+            // The unit Monsters keep (never a hero or a decoy) is taken off its row while the rest goes
             int kept_card = -1;
             string kept_row = null;
-            if (info.Faction == Factions.Monsters && info.UnitsOnBoard() > 0)
+            if (info.Faction == Factions.Monsters)
             {
-                int pick = rnd.Next(info.UnitsOnBoard());
+                List<KeyValuePair<string, int>> eligible = new List<KeyValuePair<string, int>>();
                 foreach (string row in Rows.Units)
-                {
-                    List<int> units = info.UnitRow(row);
-                    if (pick < units.Count)
+                    for (int i = 0; i < info.UnitRow(row).Count; i++)
                     {
-                        kept_card = units[pick];
-                        kept_row = row;
-                        units.RemoveAt(pick);
-                        break;
+                        Card card = db.Get(info.UnitRow(row)[i]);
+                        if (!card.unique && !card.IsSpecial)
+                            eligible.Add(new KeyValuePair<string, int>(row, i));
                     }
-                    pick -= units.Count;
+                if (eligible.Count > 0)
+                {
+                    KeyValuePair<string, int> pick = eligible[rnd.Next(eligible.Count)];
+                    kept_row = pick.Key;
+                    kept_card = info.UnitRow(kept_row)[pick.Value];
+                    info.UnitRow(kept_row).RemoveAt(pick.Value);
                 }
             }
 
-            List<int> summoned = new List<int>();
             foreach (string row in Rows.Units)
             {
                 List<int> units = info.UnitRow(row);
                 foreach (int card_id in units)
-                {
                     AbilityRules.Discard(info, card_id);
-                    if (AbilityRules.AvengerOf(card_id) != -1)
-                        summoned.Add(AbilityRules.AvengerOf(card_id));
-                }
                 units.Clear();
 
                 // A leader horn is not a real card: it simply disappears
@@ -86,7 +83,11 @@ namespace Gwent.Rules
 
             if (kept_card != -1)
                 info.UnitRow(kept_row).Add(kept_card);
-            info.CloseList.AddRange(summoned);
+
+            // Cards summoned during the round (a scorched Cow) or by this cleanup arrive now
+            info.CloseList.AddRange(info.PendingSummons);
+            info.PendingSummons.Clear();
+            return kept_card;
         }
 
         // Draws up to num cards from the top of the deck, returns how many were drawn

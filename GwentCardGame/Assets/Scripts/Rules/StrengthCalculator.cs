@@ -2,8 +2,9 @@ using System.Collections.Generic;
 
 namespace Gwent.Rules
 {
-    // Computes the modified strength of every unit on the board.
-    // Order: weather -> tight bond -> morale boost -> Dandelion -> Commander's Horn -> Eredin double spies
+    // Computes the modified strength of every unit on the board, in The Witcher 3's order:
+    // weather -> Eredin's doubled spies -> tight bond -> morale boost -> Dandelion / Commander's Horn.
+    // Heroes take no modifier, and neither does a decoy lying on a row.
     public static class StrengthCalculator
     {
         public static void Recalculate(PlayerState info, IList<int> weather, bool double_spies, CardDatabase db)
@@ -38,6 +39,12 @@ namespace Gwent.Rules
                     if (!cards[i].unique && strengths[i] > 1)
                         strengths[i] = 1;
 
+            // Eredin, The Treacherous: spies are doubled (both players)
+            if (double_spies)
+                for (int i = 0; i < count; i++)
+                    if (cards[i].ability == Abilities.Spy && !cards[i].unique)
+                        strengths[i] *= 2;
+
             // Tight bond: multiplied by the number of identical bonded cards in the row
             for (int i = 0; i < count; i++)
             {
@@ -56,7 +63,7 @@ namespace Gwent.Rules
                 if (cards[b].ability != Abilities.MoraleBoost)
                     continue;
                 for (int i = 0; i < count; i++)
-                    if (i != b && !cards[i].unique)
+                    if (i != b && Modifiable(cards[i]))
                         strengths[i] += 1;
             }
 
@@ -77,7 +84,7 @@ namespace Gwent.Rules
                             if (doublers > 1)
                                 strengths[i] *= 2;
                         }
-                        else if (!cards[i].unique)
+                        else if (Modifiable(cards[i]))
                             strengths[i] *= 2;
                     }
             }
@@ -85,16 +92,15 @@ namespace Gwent.Rules
             // Commander's Horn: doubles every non-hero unit of the row
             if (has_horn)
                 for (int i = 0; i < count; i++)
-                    if (!cards[i].unique)
-                        strengths[i] *= 2;
-
-            // Eredin, The Treacherous: spies are doubled (both players)
-            if (double_spies)
-                for (int i = 0; i < count; i++)
-                    if (cards[i].ability == Abilities.Spy && !cards[i].unique)
+                    if (Modifiable(cards[i]))
                         strengths[i] *= 2;
 
             return strengths;
+        }
+
+        private static bool Modifiable(Card card)
+        {
+            return !card.unique && !card.IsSpecial;
         }
     }
 }
