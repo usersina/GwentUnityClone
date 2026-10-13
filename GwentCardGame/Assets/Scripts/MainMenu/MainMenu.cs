@@ -32,9 +32,10 @@ public class MainMenu : MonoBehaviour
         scrim_rect.sizeDelta = new Vector2(840, 0);
         scrim.transform.SetAsFirstSibling();
 
-        RectTransform list = UIKit.Rect("Menu", root).Place(new Vector2(0, 0.5f), new Vector2(120, -40), new Vector2(600, 4 * 88), new Vector2(0, 0.5f));
+        RectTransform list = UIKit.Rect("Menu", root).Place(new Vector2(0, 0.5f), new Vector2(120, -40), new Vector2(600, 5 * 88), new Vector2(0, 0.5f));
         AddItem(list, "Play", PlayGame);
         AddItem(list, "Deck builder", EditDeck);
+        AddItem(list, "How to play", OpenRules);
         AddItem(list, "Settings", OpenSettings);
         AddItem(list, "Quit", QuitGame);
 
@@ -62,9 +63,14 @@ public class MainMenu : MonoBehaviour
         SceneManager.LoadScene(SceneNames.Deck);
     }
 
+    public void OpenRules()
+    {
+        RulesPage.Open(() => UIKit.Focus(items[2]));
+    }
+
     public void OpenSettings()
     {
-        SettingsPanel.Open(() => UIKit.Focus(items[2]));
+        SettingsPanel.Open(() => UIKit.Focus(items[3]));
     }
 
     public void QuitGame()

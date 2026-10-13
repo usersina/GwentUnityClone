@@ -553,7 +553,7 @@ public static class GwentAutoplay
             {
                 menuInputStarted = true;
                 MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
-                Check(menu != null && menu.Items.Count == 4, "the main menu loads with its 4 entries", "main menu");
+                Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
                 inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
                 return;
             }
@@ -916,6 +916,12 @@ public static class GwentAutoplay
                 At(2.2, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
                 Key(2.5, UnityEngine.InputSystem.Key.Escape);
                 At(3.0, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
+                Click(3.3, Named("Item How to play"));
+                At(3.8, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
+                Click(4.1, Named("Item Abilities"));
+                At(4.6, () => check(GameObject.Find("Entry Spy") != null && GameObject.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
+                Key(4.9, UnityEngine.InputSystem.Key.Escape);
+                At(5.4, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
             }
             else
             {

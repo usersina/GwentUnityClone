@@ -49,6 +49,7 @@ Sorry, no multiplayer :/ (yet)
 | Deck builder: add/remove a card | Double-click it | Tap it |
 | Deck builder: card details | Right-click | - |
 | Settings (audio, display) | Main menu or pause menu > **Settings** | Same |
+| Rules of the game | Main menu > **How to play** (the battle, the board, cards, abilities, special cards, factions, controls) | Same |
 
 The deck you last selected in the deck builder is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
 heroes once, other cards up to 3 times). The line at the bottom of the deck builder shows which deck that is. Without a valid deck,
