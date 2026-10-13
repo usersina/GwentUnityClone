@@ -427,23 +427,12 @@ public partial class SceneController : MonoBehaviour
     {
         GameLog.Info("Battle ended: " + outcome);
         battleState = outcome;
-        PostGameManager postGame = PostGame.GetComponent<PostGameManager>();
-        postGame.ShowScores(PlayerInfo.RoundsScore, EnemyInfo.RoundsScore);
         PostGame.SetActive(true);
-        switch (outcome)
-        {
-            case BattleState.DRAW:
-                postGame.ShowDraw();
-                break;
-            case BattleState.WON:
-                GameAudio.PlaySfx("victory");
-                postGame.ShowWin();
-                break;
-            case BattleState.LOST:
-                GameAudio.PlaySfx("defeat");
-                postGame.ShowLose();
-                break;
-        }
+        PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo);
+        if (outcome == BattleState.WON)
+            GameAudio.PlaySfx("victory");
+        else if (outcome == BattleState.LOST)
+            GameAudio.PlaySfx("defeat");
     }
 
     // Draws up to num cards (fewer if the deck runs out)

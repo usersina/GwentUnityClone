@@ -133,6 +133,7 @@ public static class GwentAutoplay
         private bool selectionChecked;
         private bool pauseChecked;
         private bool passKeyChecked;
+        private bool endScreenChecked;
         private int boardMismatchMatch = -1;
         private bool menuInputStarted;
 
@@ -278,6 +279,14 @@ public static class GwentAutoplay
 
             if (c.battleState == BattleState.WON || c.battleState == BattleState.LOST || c.battleState == BattleState.DRAW)
             {
+                if (!endScreenChecked)
+                {
+                    endScreenChecked = true;
+                    string expected = c.battleState == BattleState.WON ? "Victory" : c.battleState == BattleState.LOST ? "Defeat" : "Draw";
+                    TMPro.TextMeshProUGUI[] texts = c.PostGame.GetComponentsInChildren<TMPro.TextMeshProUGUI>();
+                    Check(c.PostGame.activeInHierarchy && texts.Any(t => t.text == expected), "the end screen shows \"" + expected + "\"", "end screen");
+                    Check(GameObject.Find("Button Play again") != null && GameObject.Find("Button Main menu") != null, "the end screen offers Play again and Main menu", "end screen");
+                }
                 results.Add(Label() + ": " + c.battleState + " " + string.Join("-", c.PlayerInfo.RoundsScore) + " vs " + string.Join("-", c.EnemyInfo.RoundsScore));
                 Count("result " + c.battleState);
                 NextMatch();
@@ -332,6 +341,7 @@ public static class GwentAutoplay
 
             if (c.TurnPicker.activeInHierarchy)
             {
+                Check(GameObject.Find("Button Go first") != null && GameObject.Find("Button Go second") != null, "the Scoia'tael turn dialog shows its two choices", "turn dialog");
                 TurnManager picker = c.TurnPicker.GetComponentInChildren<TurnManager>();
                 if (rnd.Next(2) == 0) picker.GoFirst(); else picker.GoSecond();
                 Count("scoiatael turn pick");
@@ -861,18 +871,28 @@ public static class GwentAutoplay
             }
             else
             {
+                // A plain unit (when the hand has one), so its right and wrong rows are known
+                At(0.1, PickPlainUnit);
                 // The pointer just above the card's lower edge: the card rises and must stay up, not bob
                 Move(0.3, CardLowerEdge);
                 bool stayed_up = true;
                 foreach (double t in new[] { 0.6, 0.7, 0.8, 0.9 })
                     At(t, () => stayed_up &= card != null && card.GetComponent<CardHover>().isCardUp);
                 At(0.95, () => check(stayed_up, "a card hovered at its lower edge stays raised"));
+                At(0.95, () => check(GameCursor.Current == GameCursor.State.Interact, "the cursor turns gold over a playable hand card"));
                 Click(1.4, CardPosition, MouseButton.Right);
                 At(1.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
                 Click(2.2, CardPosition);
                 At(2.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it"));
-                Click(3.4, CardPosition);
-                At(3.9, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
+                // The opponent's side of the unit's row: a wrong place, the card must stay selected in the hand
+                int hand_before = -1;
+                Move(2.9, WrongRow);
+                At(3.2, () => { if (plainUnit) check(GameCursor.Current == GameCursor.State.Invalid, "the cursor shows \"no\" over a row the card cannot go to"); });
+                At(3.25, () => hand_before = c.PlayerInfo.HandList.Count);
+                Click(3.4, WrongRow);
+                At(3.9, () => { if (plainUnit) check(c.selectedCard == card.gameObject && c.PlayerInfo.HandList.Count == hand_before, "clicking a wrong row does not play the card"); });
+                Click(4.2, CardPosition);
+                At(4.7, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
             }
         }
 
@@ -989,6 +1009,33 @@ public static class GwentAutoplay
                 check(card != null, "the redraw carousel shows card " + index);
                 return card != null ? ScreenPoint(card) : Vector2.zero;
             };
+        }
+
+        private bool plainUnit;
+
+        // Prefers a unit that is not a spy or agile: its own row is the only right place
+        private void PickPlainUnit()
+        {
+            foreach (Transform child in c.PlayerField.transform.Find("Hand"))
+            {
+                CardStats stats = child.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+                if (stats.faction != Factions.Special && Rows.IsUnitRow(stats.row) && stats.ability != Abilities.Spy)
+                {
+                    card = child;
+                    plainUnit = true;
+                    return;
+                }
+            }
+        }
+
+        // The opponent's row of the same kind as the selected unit
+        private Vector2 WrongRow()
+        {
+            if (!plainUnit || card == null)
+                return CardPosition();
+            string row = card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>().row;
+            Transform target = c.EnemyField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit");
+            return ScreenPoint(target);
         }
 
         // 3 pixels above the bottom edge of the (not yet raised) card
