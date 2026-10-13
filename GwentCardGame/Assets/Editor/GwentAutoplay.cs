@@ -133,6 +133,7 @@ public static class GwentAutoplay
         private bool selectionChecked;
         private bool pauseChecked;
         private bool passKeyChecked;
+        private int boardMismatchMatch = -1;
         private bool menuInputStarted;
 
         public Runner(int total_matches, int seed, bool batch, string report_path)
@@ -355,6 +356,8 @@ public static class GwentAutoplay
 
             if (c.battleState != BattleState.PLAYERTURN)
                 return;
+            if (c.pendingAction == PendingAction.None)
+                CheckBoardShowsModel(c);
 
             switch (c.pendingAction)
             {
@@ -628,6 +631,46 @@ public static class GwentAutoplay
                 failures.Add("[" + Label() + "] CARD COUNT changed: " + expectedCards + " -> " + now + " (" + Signature(c) + ")");
                 expectedCards = now; // report each change once
             }
+        }
+
+        // The board must show exactly the model's cards (the refresh reuses card objects instead of rebuilding)
+        private void CheckBoardShowsModel(SceneController c)
+        {
+            if (boardMismatchMatch == match)
+                return;
+            List<string> problems = new List<string>();
+            foreach (bool player in new[] { true, false })
+            {
+                PlayerState info = player ? c.PlayerInfo : c.EnemyInfo;
+                Transform field = (player ? c.PlayerField : c.EnemyField).transform;
+                string side = player ? "player " : "opponent ";
+                Compare(field.Find("Hand"), info.HandList, side + "hand", problems);
+                foreach (string row in Rows.Units)
+                {
+                    Transform row_t = field.Find(char.ToUpper(row[0]) + row.Substring(1));
+                    Compare(row_t.Find("Unit"), info.UnitRow(row), side + row, problems);
+                    Compare(row_t.Find("Special"), info.SpecialRow(row), side + row + " horn", problems);
+                }
+                Compare(field.Find("Discard/Pile"), info.DiscardList, side + "discard pile", problems);
+            }
+            Compare(c.WeatherField.transform, c.weatherList, "weather", problems);
+            Count(problems.Count == 0 ? "board shows the model" : "board mismatch");
+            if (problems.Count > 0)
+            {
+                failures.Add("[" + Label() + "] BOARD shows other cards than the game: " + string.Join("; ", problems));
+                boardMismatchMatch = match; // report once per match
+            }
+        }
+
+        private static void Compare(Transform container, List<int> ids, string what, List<string> problems)
+        {
+            List<string> shown = new List<string>();
+            foreach (Transform child in container)
+                if (child.GetComponent<CardDisplay>() != null)
+                    shown.Add(child.name);
+            string expected = string.Join(",", ids), actual = string.Join(",", shown);
+            if (expected != actual)
+                problems.Add(what + " shows [" + actual + "] instead of [" + expected + "]");
         }
 
         private static string Signature(SceneController c)

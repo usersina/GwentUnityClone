@@ -1146,11 +1146,85 @@ public class SceneController : MonoBehaviour
         view.Stats.UIUpdateHandCount(hand_list.Count);
     }
 
+    // True when a container already shows exactly these cards, in this order (card objects are named after their
+    // id; other children such as the weather overlay are ignored). Refreshes skip such containers: rebuilding the
+    // whole board on every play cost ~30 ms in the editor on a busy board, several times that on a phone.
+    private static bool ShowsCards(Transform container, List<int> card_ids)
+    {
+        int shown = 0;
+        foreach (Transform child in container)
+        {
+            if (child.GetComponent<CardDisplay>() == null)
+                continue;
+            if (shown >= card_ids.Count || child.name != card_ids[shown].ToString())
+                return false;
+            shown++;
+        }
+        return shown == card_ids.Count;
+    }
+
+    // Makes a container show exactly these cards, in this order, reusing the card objects already there: a play
+    // only creates the cards that arrived and removes the ones that left. For containers without per-card state
+    // (rows, horn slots, the discard pile, the weather slot); other children (the weather overlay) stay after them.
+    // Returns false when nothing changed.
+    private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card)
+    {
+        Transform parent = container.transform;
+        if (ShowsCards(parent, card_ids))
+            return false;
+
+        Dictionary<int, Queue<GameObject>> existing = new Dictionary<int, Queue<GameObject>>();
+        List<GameObject> unused = new List<GameObject>();
+        foreach (Transform child in parent)
+        {
+            if (child.GetComponent<CardDisplay>() == null)
+                continue;
+            int id;
+            if (!int.TryParse(child.name, out id))
+            {
+                unused.Add(child.gameObject);
+                continue;
+            }
+            Queue<GameObject> queue;
+            if (!existing.TryGetValue(id, out queue))
+                existing[id] = queue = new Queue<GameObject>();
+            queue.Enqueue(child.gameObject);
+        }
+
+        List<GameObject> ordered = new List<GameObject>(card_ids.Count);
+        foreach (int id in card_ids)
+        {
+            Queue<GameObject> queue;
+            GameObject card;
+            if (existing.TryGetValue(id, out queue) && queue.Count > 0)
+                card = queue.Dequeue();
+            else
+            {
+                card = CreateCardObject(Db.Get(id), is_player_card);
+                card.GetComponent<CardSelect>().isSelectable = false;
+                card.GetComponent<CardHover>().isHoverable = false;
+                card.GetComponent<CardExchange>().isExchangeable = false;
+                card.transform.SetParent(parent, false);
+            }
+            ordered.Add(card);
+        }
+        foreach (Queue<GameObject> queue in existing.Values)
+            unused.AddRange(queue);
+        foreach (GameObject card in unused)
+        {
+            card.transform.SetParent(null, false); // out of the container now: counts and layouts must not see it
+            Destroy(card);
+        }
+        for (int i = 0; i < ordered.Count; i++)
+            ordered[i].transform.SetSiblingIndex(i);
+        return true;
+    }
+
     private void SetDiscardObject(List<int> discard_list, bool is_player_hand)
     {
         FieldView view = View(is_player_hand);
-        view.Discard.ClearDiscardPile();
-        CreateCardObjects(view.DiscardPile, discard_list, false, is_player_hand);
+        if (!SyncCards(view.DiscardPile, discard_list, is_player_hand))
+            return;
 
         // A visible stack, as in The Witcher 3: older cards peek out to the bottom right of the top one
         Transform pile = view.DiscardPile.transform;
@@ -1158,7 +1232,7 @@ public class SceneController : MonoBehaviour
         for (int i = 0; i < pile.childCount; i++)
         {
             float depth = Mathf.Min(top - i, 12) * 0.7f;
-            pile.GetChild(i).localPosition += new Vector3(depth, -depth, 0);
+            pile.GetChild(i).localPosition = new Vector3(depth, -depth, 0);
         }
     }
 
@@ -1167,18 +1241,18 @@ public class SceneController : MonoBehaviour
         MainInfo info = Info(is_player_field);
         FieldView view = View(is_player_field);
 
-        SetHandObject(info.HandList, is_player_field);
+        if (ShowsCards(view.Hand.transform, info.HandList))
+            view.Stats.UIUpdateHandCount(info.HandList.Count);
+        else
+            SetHandObject(info.HandList, is_player_field);
 
         foreach (string row in Rows.Units)
         {
             RowView row_view = view.Rows[row];
             List<int> units = info.UnitRow(row);
-            row_view.Manager.ClearUnitObject();
-            CreateCardObjects(row_view.Unit, units, false, is_player_field);
-            row_view.Manager.ResizeUnitObject(units.Count);
-
-            row_view.Manager.ClearSpecialObject();
-            CreateCardObjects(row_view.Special, info.SpecialRow(row), false, is_player_field);
+            if (SyncCards(row_view.Unit, units, is_player_field))
+                row_view.Manager.ResizeUnitObject(units.Count);
+            SyncCards(row_view.Special, info.SpecialRow(row), is_player_field);
         }
 
         SetDiscardObject(info.DiscardList, is_player_field);
@@ -1187,8 +1261,7 @@ public class SceneController : MonoBehaviour
 
     private void RefreshWeather()
     {
-        weatherManager.ClearWeatherObject();
-        CreateCardObjects(WeatherField, weatherList, false, true);
+        SyncCards(WeatherField, weatherList, true);
     }
 
     private void RefreshWeatherOverlays(FieldView view)
