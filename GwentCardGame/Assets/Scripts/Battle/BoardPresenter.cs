@@ -60,7 +60,7 @@ public class BoardPresenter
         // A medic's flare over its discard pile, then the card it brings back
         List<BoardChange.Move> revived = change.Moves.Where(m => m.From.From == Place.Discard && m.To.To != Place.Hand).ToList();
         if (card != null && card.ability == Abilities.Medic && (revived.Count > 0 || medic_choice))
-            yield return CardEffects.PileFlare((RectTransform)board.View(by_player).DiscardPile.transform.parent);
+            yield return CardEffects.MedicPile(revived.Count > 0 && revived[0].From.Ghost != null ? revived[0].From.Ghost : board.PileTop(by_player));
         if (revived.Count > 0)
         {
             shown.UnionWith(revived.Cast<object>());

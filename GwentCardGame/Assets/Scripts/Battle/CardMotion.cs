@@ -86,8 +86,13 @@ public static class CardMotion
 
     public static void Hide(GameObject card, bool hidden)
     {
+        SetAlpha(card, hidden ? 0 : 1);
+    }
+
+    public static void SetAlpha(GameObject card, float alpha)
+    {
         if (card != null)
-            Group(card).alpha = hidden ? 0 : 1;
+            Group(card).alpha = alpha;
     }
 
     private static CanvasGroup Group(GameObject card)
@@ -100,27 +105,36 @@ public static class CardMotion
     // ghost. Eases out, as The Witcher 3's cards do.
     public static IEnumerator Fly(RectTransform ghost, GameObject target, float seconds, float arc = 0)
     {
-        if (ghost != null && target != null)
+        if (target != null)
         {
-            Vector2 from_pos = ghost.anchoredPosition, from_size = ghost.sizeDelta;
-            float age = 0;
-            while (age < seconds && target != null && ghost != null)
-            {
-                age += Time.deltaTime;
-                float t = Mathf.Clamp01(age / seconds);
-                float eased = 1 - (1 - t) * (1 - t) * (1 - t);
-                Vector2 to_pos, to_size;
-                ToLayout(ScreenRect((RectTransform)target.transform), out to_pos, out to_size);
-                Vector2 path = to_pos - from_pos;
-                Vector2 bend = path.sqrMagnitude > 1 ? new Vector2(path.y, -path.x).normalized * arc * Mathf.Sin(Mathf.PI * eased) : Vector2.zero;
-                ghost.anchoredPosition = Vector2.LerpUnclamped(from_pos, to_pos, eased) + bend;
-                ghost.sizeDelta = Vector2.LerpUnclamped(from_size, to_size, eased);
-                yield return null;
-            }
+            Rect last = ScreenRect((RectTransform)target.transform);
+            yield return Glide(ghost, () => target != null ? last = ScreenRect((RectTransform)target.transform) : last, seconds, arc);
         }
         Hide(target, false);
         if (ghost != null)
             Object.Destroy(ghost.gameObject);
+    }
+
+    // Glides a ghost to a screen rectangle (asked again every frame, as it may move), easing out along a slight arc
+    public static IEnumerator Glide(RectTransform ghost, System.Func<Rect> to, float seconds, float arc = 0)
+    {
+        if (ghost == null)
+            yield break;
+        Vector2 from_pos = ghost.anchoredPosition, from_size = ghost.sizeDelta;
+        float age = 0;
+        while (age < seconds && ghost != null)
+        {
+            age += Time.deltaTime;
+            float t = Mathf.Clamp01(age / seconds);
+            float eased = 1 - (1 - t) * (1 - t) * (1 - t);
+            Vector2 to_pos, to_size;
+            ToLayout(to(), out to_pos, out to_size);
+            Vector2 path = to_pos - from_pos;
+            Vector2 bend = path.sqrMagnitude > 1 ? new Vector2(path.y, -path.x).normalized * arc * Mathf.Sin(Mathf.PI * eased) : Vector2.zero;
+            ghost.anchoredPosition = Vector2.LerpUnclamped(from_pos, to_pos, eased) + bend;
+            ghost.sizeDelta = Vector2.LerpUnclamped(from_size, to_size, eased);
+            yield return null;
+        }
     }
 
     // Fades a ghost out where it stands (a card leaving the board for good)

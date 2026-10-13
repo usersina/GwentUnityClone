@@ -330,6 +330,16 @@ public class BoardView
 
     // Screen rectangles the choreography moves cards from
     public Rect DeckRect(bool is_player) { return CardMotion.ScreenRect((RectTransform)View(is_player).Deck.transform.Find("DeckHolder")); }
+    // The top card of a discard pile (the pile itself when it is empty)
+    public RectTransform PileTop(bool is_player)
+    {
+        Transform pile = View(is_player).DiscardPile.transform;
+        for (int i = pile.childCount - 1; i >= 0; i--)
+            if (pile.GetChild(i).GetComponent<CardDisplay>() != null)
+                return (RectTransform)pile.GetChild(i);
+        return (RectTransform)pile;
+    }
+
     public Rect PileRect(bool is_player) { return CardMotion.ScreenRect((RectTransform)View(is_player).DiscardPile.transform.parent); }
 
     // Where a played card starts its last glide (The Witcher 3): at the right end of the rows, halfway up the board
