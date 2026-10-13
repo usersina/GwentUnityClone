@@ -25,6 +25,12 @@ public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         Reset();
     }
 
+    // The button is hidden when the turn changes: a press in progress must not carry over to the next turn
+    private void OnDisable()
+    {
+        Reset();
+    }
+
     private void Update()
     {
         if (pointerDown)

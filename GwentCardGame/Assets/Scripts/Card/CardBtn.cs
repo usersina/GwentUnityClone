@@ -1,9 +1,7 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using static SceneController;
 
+// A card shown in the picker panel (medic, leader abilities). Double-click (tap on mobile) chooses it.
 public class CardBtn : MonoBehaviour, IPointerClickHandler
 {
     public GameObject CardPrefab;
@@ -16,102 +14,57 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
     float interval = 0.4f;
 
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
-    [HideInInspector]
-    public GameObject tempObject;
-    [HideInInspector]
-    public GameObject hiderObject;
 
     private void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
-
-        tempObject = GameObject.Find("Temp");
-        hiderObject = GameObject.Find("Hider");
+        controller = SceneController.Instance;
     }
 
-    // On Double Click
     public void OnPointerClick(PointerEventData eventData)
     {
+        if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
+            Choose();
+        else
+            lastClick = Time.time;
+    }
+
+    public void Choose()
+    {
+        if (controller == null)
+            controller = SceneController.Instance;
+        GameObject PanelParent = GetComponentInParent<PanelManager>().gameObject;
+
         switch (type)
         {
-            // Showed by a medic ability, pick one to summon
+            // Showed by a medic ability or a weather leader: pick one, then place it on the board
             case "play":
-                if ((lastClick + interval) > Time.time)
-                {
-                    GameAudio.PlaySfx("ability_medic");
-                    Debug.Log("Reviving card: " + cardId);
+                GameAudio.PlaySfx("ability_medic");
+                GameLog.Info("Choosing card to play: " + cardId);
 
-                    // Panel GameObject
-                    GameObject PanelParent = transform.parent.parent.parent.gameObject;
-
-                    Card card = controller.GetCardStats(cardId);
-                    GameObject instantiatedCard = Instantiate(CardPrefab);
-                    instantiatedCard.name = card._id.ToString();
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().name = card.name;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>()._id = card._id;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>()._idstr = card._idstr;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().faction = card.faction;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().unique = card.unique;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().strength = card.strength;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().row = card.row;
-                    instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().ability = card.ability;
-                    if (isPlayerCard)
-                        instantiatedCard.tag = "Player";
-                    else
-                        instantiatedCard.tag = "Enemy";
-
-                    controller.PlayBtnCleanUp(field, cardId, isPlayerCard);
-
-                    instantiatedCard.transform.SetParent(tempObject.transform, false);
-                    controller.selectedCard = instantiatedCard;
-                    controller.HighlightField(instantiatedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), isPlayerCard);
-                    controller.SetHider(true);
-                    PanelParent.SetActive(false);
-                }
-                else
-                {
-                    //Debug.Log("Single Click! ");
-                    lastClick = Time.time;
-                }
+                controller.PlayBtnCleanUp(field, cardId, isPlayerCard);
+                GameObject instantiatedCard = controller.CreateCardObject(controller.GetCardStats(cardId), isPlayerCard);
+                instantiatedCard.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
+                controller.selectedCard = instantiatedCard;
+                controller.HighlightField(instantiatedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), isPlayerCard);
+                controller.SetHider(true);
+                PanelParent.SetActive(false);
+                UIOverlay.Toast("Now choose where to play " + controller.GetCardStats(cardId).name);
                 break;
 
-            // Showed by a leader ability, pick one to add to hand
+            // Showed by a leader ability: pick one to add to hand
             case "draw":
-                if ((lastClick + interval) > Time.time)
-                {
-                    GameAudio.PlaySfx("card_draw");
-                    Debug.Log("Choosing on: " + cardId);
-
-                    // Panel GameObject
-                    GameObject PanelParent = transform.parent.parent.parent.gameObject;
-                    controller.ActuallyPickCard(field, cardId, isPlayerCard);
-                    PanelParent.SetActive(false);
-                }
-                else
-                {
-                    //Debug.Log("Single Click! ");
-                    lastClick = Time.time;
-                }
+                GameAudio.PlaySfx("card_draw");
+                GameLog.Info("Choosing on: " + cardId);
+                PanelParent.SetActive(false);
+                controller.ActuallyPickCard(field, cardId, isPlayerCard);
                 break;
 
             // Emhyr random look
             case "view":
-                if ((lastClick + interval) > Time.time)
-                {
-                    GameAudio.PlaySfx("card_select");
-                    GameObject PanelParent = transform.parent.parent.parent.gameObject;
-                    controller.TurnCallBack(isPlayerCard);
-                    PanelParent.SetActive(false);
-                }
-                else
-                {
-                    //Debug.Log("Single Click! ");
-                    lastClick = Time.time;
-                }
+                GameAudio.PlaySfx("card_select");
+                PanelParent.SetActive(false);
+                controller.TurnCallBack(isPlayerCard);
                 break;
         }
     }

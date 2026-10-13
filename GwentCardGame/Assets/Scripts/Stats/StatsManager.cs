@@ -31,11 +31,6 @@ public class StatsManager : MonoBehaviour
                 deck_name = "Scoia'tel";
                 transform.Find("Avatar").Find("faction").GetComponent<Image>().sprite = factionShields[3];
                 break;
-            //case "SK":
-            //    deck_name = "Skellige";
-            //    shield_faction = factionShields[4];
-            //    break;
-
         }
         transform.Find("TextInfo").Find("Deck").GetComponent<TextMeshProUGUI>().text = deck_name;
     }
@@ -50,7 +45,6 @@ public class StatsManager : MonoBehaviour
         foreach (int number in siege_list)
             TotalScore += number;
 
-        //Debug.Log("Updating total score");
         transform.Find("Total").Find("Number").GetComponent<TextMeshProUGUI>().text = TotalScore.ToString();
     }
 
@@ -62,7 +56,7 @@ public class StatsManager : MonoBehaviour
     // Updates the gem lives
     public void UIUpdateGemLives(int lives)
     {
-        Debug.Log("Updating the gem lives");
+        GameLog.Info("Updating the gem lives");
         switch (lives)
         {
             case 0:

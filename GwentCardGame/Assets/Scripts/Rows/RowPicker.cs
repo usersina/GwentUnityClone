@@ -19,7 +19,6 @@ public class RowPicker : MonoBehaviour
     public Sprite blueCircle;
 
     public List<GameObject> highLightedRows;
-    List<GameObject> rowFields;
 
     //--------------------------------Highlights related-----------------------------------//
 
@@ -30,8 +29,6 @@ public class RowPicker : MonoBehaviour
 
     public void StoreField(GameObject unit_field)
     {
-        //highLightedRows.Add(unit_field);
-        rowFields = highLightedRows;
-        rowFields.Add(unit_field);
+        highLightedRows.Add(unit_field);
     }
 }

@@ -18,7 +18,6 @@ public class RowManager : MonoBehaviour
         }
         // Do not remove this, otherwise count will still get the previous frame's count (NOT 0);
         unit_go.transform.DetachChildren();
-        //Debug.Log("THE CHILD COUNT AFTER CLEAR: " + transform.childCount); // SHOULD BE 0
     }
     public void ClearSpecialObject()
     {
@@ -33,7 +32,6 @@ public class RowManager : MonoBehaviour
     //
     public void ResizeUnitObject(int numberOfCards)
     {
-        //Debug.Log("Resizing Unit Object...");
         GameObject unit_go = gameObject.transform.Find("Unit").gameObject;
         // Initial Spacing
         unit_go.GetComponent<GridLayoutGroup>().spacing = new Vector2(6, 0);
@@ -44,17 +42,13 @@ public class RowManager : MonoBehaviour
 
         float rowWidth = numberOfCards * cardWidth + (numberOfCards - 1) * spacingX;
         float offset = 100;
-        if (rowWidth > maxWidth - offset)
+        if (numberOfCards > 1 && rowWidth > maxWidth - offset)
         {
-            spacingX = (maxWidth - offset - numberOfCards * cardWidth) / numberOfCards - 1;
+            // n cards + (n - 1) gaps must fit in the row
+            spacingX = (maxWidth - offset - numberOfCards * cardWidth) / (numberOfCards - 1);
             unit_go.GetComponent<GridLayoutGroup>().spacing = new Vector2(spacingX, 0);
         }
     }
-    public void ResizeSpecialObject()
-    {
-        GameObject special_go = gameObject.transform.Find("Special").gameObject;
-    }
-
     // Updates the whole row's score
     public void UpdateRowScore(List<int> row_list)
     {
@@ -75,25 +69,31 @@ public class RowManager : MonoBehaviour
         //yield return new WaitForEndOfFrame(); // This gives a slight perception of the new frame
         yield return null; // This updates the new frame without eye perception (directly)
 
-        if (unit_go.transform.childCount == orig_strengths.Count && orig_strengths.Count == mod_strengths.Count)
+        // Only card children: the row also holds the weather overlay
+        List<CardDisplay> cards = new List<CardDisplay>();
+        foreach (Transform child in unit_go.transform)
+        {
+            CardDisplay display = child.GetComponent<CardDisplay>();
+            if (display != null)
+                cards.Add(display);
+        }
+
+        if (cards.Count == orig_strengths.Count && orig_strengths.Count == mod_strengths.Count)
         {
             for (int i = 0; i < orig_strengths.Count; i++)
             {
-                GameObject strength_go = unit_go.transform.GetChild(i).GetComponent<CardDisplay>().strengthImage;
+                TextMeshProUGUI strength_text = cards[i].strengthImage.GetComponent<TextMeshProUGUI>();
                 if (orig_strengths[i] > mod_strengths[i])
-                    strength_go.GetComponent<TextMeshProUGUI>().color = new Color32(188, 0, 0, 255);
+                    strength_text.color = new Color32(188, 0, 0, 255);
                 else if (orig_strengths[i] < mod_strengths[i])
-                    strength_go.GetComponent<TextMeshProUGUI>().color = new Color32(0, 188, 0, 255);
-                //Debug.LogWarning("Child strength is: " + strength_go.GetComponent<TextMeshProUGUI>().text);
-                strength_go.GetComponent<TextMeshProUGUI>().text = mod_strengths[i].ToString();
+                    strength_text.color = new Color32(0, 188, 0, 255);
+                strength_text.text = mod_strengths[i].ToString();
             }
         }
         else
         {
-            Debug.LogError("Child Count: " + unit_go.transform.childCount);
-            Debug.LogError("Orig Str Count: " + orig_strengths.Count);
-            Debug.LogError("Modif Str Count: " + mod_strengths.Count);
-            Debug.LogError("Fatal Error: UIUpdateUnitsStrength, params mismatch !");
+            Debug.LogError("UIUpdateUnitsStrength: params mismatch (cards " + cards.Count
+                + ", original " + orig_strengths.Count + ", modified " + mod_strengths.Count + ")");
         }
     }
 }

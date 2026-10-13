@@ -5,29 +5,30 @@ using UnityEngine;
 public class TurnManager : MonoBehaviour
 {
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
 
     private void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
     public void GoFirst()
     {
+        if (controller == null)
+            controller = SceneController.Instance;
         GameAudio.PlaySfx("ui_click");
-        Debug.Log("Going First");
+        GameLog.Info("Going First");
         controller.TurnCallBack(false);
         gameObject.SetActive(false);
     }
 
     public void GoSecond()
     {
+        if (controller == null)
+            controller = SceneController.Instance;
         // Start Enemy Turn
         GameAudio.PlaySfx("ui_click");
-        Debug.Log("Going Second");
+        GameLog.Info("Going Second");
         controller.TurnCallBack(true);
         gameObject.SetActive(false);
     }

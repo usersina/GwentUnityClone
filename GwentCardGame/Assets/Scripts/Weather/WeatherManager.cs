@@ -6,8 +6,6 @@ using UnityEngine.EventSystems;
 public class WeatherManager : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
 
     public Sprite weather;
@@ -17,8 +15,7 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
 
     private void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -31,11 +28,13 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
 
     public void OnWeatherClick()
     {
+        if (controller == null)
+            controller = SceneController.Instance;
         if (controller.battleState == BattleState.PLAYERTURN)
         {
             if (controller.selectedCard != null && isWeatherCard && controller.TryPlaySelectedCardOnBoard())
             {
-                Debug.Log("Player placing weather card !");
+                GameLog.Info("Player placing weather card !");
             }
         }
     }

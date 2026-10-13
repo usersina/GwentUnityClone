@@ -1,10 +1,10 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class CardHover : MonoBehaviour
 {
+    private static GameObject mainCanvas;
+
     [HideInInspector]
     public GameObject Canvas;
     public GameObject BigImage;
@@ -18,7 +18,10 @@ public class CardHover : MonoBehaviour
 
     private void Start()
     {
-        Canvas = GameObject.Find("Main Canvas");
+        // One lookup per scene instead of one per card
+        if (mainCanvas == null)
+            mainCanvas = GameObject.Find("Main Canvas");
+        Canvas = mainCanvas;
     }
 
     private void OnDestroy()
@@ -31,12 +34,10 @@ public class CardHover : MonoBehaviour
         if (Application.isMobilePlatform)
             return;
 
-        ShowBigInfo();
+        ShowPreview();
 
         if (isHoverable && !isCardUp)
-        {
             TranslateUp();
-        }
     }
 
     public void OnHoverExit()
@@ -47,9 +48,7 @@ public class CardHover : MonoBehaviour
         DestroyEffect();
 
         if (isHoverable && isCardUp)
-        {
             TranslateDown();
-        }
     }
 
     public void TranslateUp()
@@ -60,6 +59,7 @@ public class CardHover : MonoBehaviour
         transform.Translate(0, 10, 0);
         isCardUp = true;
     }
+
     public void TranslateDown()
     {
         if (!isCardUp)
@@ -75,16 +75,19 @@ public class CardHover : MonoBehaviour
         Destroy(bigEffect);
     }
 
+    // Replaces any preview this card already shows (a second enter event used to leave a ghost preview)
     public void ShowPreview()
     {
         DestroyEffect();
         ShowBigInfo();
     }
 
-
     //--------------------------------------------Big info on the right--------------------------------------------//
     private void ShowBigInfo()
     {
+        if (Canvas == null)
+            return;
+
         CardStats cardStats = GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
         bigImage = Instantiate(BigImage);
         bigEffect = Instantiate(BigEffect);
@@ -92,33 +95,23 @@ public class CardHover : MonoBehaviour
         bigImage.transform.SetParent(Canvas.transform, false);
         bigEffect.transform.SetParent(Canvas.transform, false);
 
-        bigImage.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + cardStats._id);
+        bigImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
+        bigEffect.GetComponent<Image>().sprite = SpriteCache.Load(EffectBoxPath(cardStats));
+    }
 
+    // Description box shown next to the big card (also used by the deck builder)
+    public static string EffectBoxPath(CardStats cardStats)
+    {
         if (cardStats.faction == "Special")
-        {// Special Card
-            bigEffect.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/EffectBox/" + cardStats._idstr);
-        }
-        else
-        {// Unit Card or Leader
-            if (cardStats.ability == "leader") // Leader Card
-                bigEffect.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/EffectBox/Leader/" + cardStats._id);
-            else // Unit Card
-            {
-                if (cardStats.unique)
-                {
-                    bigEffect.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/EffectBox/hero");
-                }
-
-                if (cardStats.ability != "")
-                    bigEffect.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/EffectBox/" + cardStats.ability);
-                else if (!cardStats.unique)
-                    // No ability (normal unit)
-                    if (cardStats.row == "close_range")
-                        bigEffect.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/EffectBox/agile");
-                    else
-                        bigEffect.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/EffectBox/normal_unit");
-            }
-        }
-
+            return "Cards/EffectBox/" + cardStats._idstr;
+        if (cardStats.ability == "leader")
+            return "Cards/EffectBox/Leader/" + cardStats._id;
+        if (!string.IsNullOrEmpty(cardStats.ability))
+            return "Cards/EffectBox/" + cardStats.ability;
+        if (cardStats.unique)
+            return "Cards/EffectBox/hero";
+        if (cardStats.row == "close_range")
+            return "Cards/EffectBox/agile";
+        return "Cards/EffectBox/normal_unit";
     }
 }

@@ -6,16 +6,13 @@ using UnityEngine.EventSystems;
 public class RowClick : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
 
     //public bool isHighlighted;
 
     void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -31,6 +28,8 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
         // Checking for the turn is un-needed, already checked when highlighting the field
         // This is the parent of the parent of the gameobject of this script
         // Basically the field gameObject (either PlayerField or EnemyField)
+        if (controller == null)
+            controller = SceneController.Instance;
         GameObject parent_go = transform.parent.parent.gameObject;
         List<GameObject> highLighted_fields = parent_go.GetComponent<RowPicker>().highLightedRows;
 
@@ -41,13 +40,12 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
                 GameObject targetField = GetPlayableTargetField(highLighted_fields);
                 if (targetField != null)
                 {
-                    // Debug.Log("Yeap, it's me, place the card directly without checking any single other thing !!!!");
                     // Just be sure to update the lists
                     controller.DirectlyPlaceCard(controller.selectedCard, targetField, true);
                 }
             }
             else
-                Debug.Log("Player has no card selected to play !");
+                GameLog.Info("Player has no card selected to play !");
         }
     }
 

@@ -50,6 +50,6 @@ public class PostGameManager : MonoBehaviour
     public void ToMainMenu()
     {
         GameAudio.PlaySfx("ui_click");
-        SceneManager.LoadScene(0);
+        SceneManager.LoadScene(SceneNames.Menu);
     }
 }

@@ -6,8 +6,6 @@ using UnityEngine.UI;
 public class LeaderManager : MonoBehaviour
 {
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
 
     public int leaderId;
@@ -15,14 +13,12 @@ public class LeaderManager : MonoBehaviour
 
     private void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
     public void UISetPassive()
     {
         // Disable the button if passive ability
-        Debug.Log(type);
         if (type == "passive")
             transform.Find("Activate").GetComponent<Button>().interactable = false;
     }
@@ -36,22 +32,10 @@ public class LeaderManager : MonoBehaviour
         transform.Find("Activate").GetComponent<Button>().interactable = false;
     }
 
+    // Reference: Activate button. The controller disables the button once the ability is really used.
     public void ActivateLeader()
     {
         if (controller.battleState == BattleState.PLAYERTURN)
-        {
-            // Activate the leader's ability
-            if (!controller.disableLeader && controller.PlayerInfo.canLeader)
-            {
-                // Disable the button
-                DisableButtonRC();
-                controller.ActivateLeader(leaderId, true);
-            }
-            else
-            {
-                GameAudio.PlaySfx("invalid");
-                Debug.Log("Leader ability disabled !");
-            }
-        }
+            controller.ActivateLeader(leaderId, true);
     }
 }
