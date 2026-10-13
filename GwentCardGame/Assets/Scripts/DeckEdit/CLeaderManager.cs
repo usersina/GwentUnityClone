@@ -8,17 +8,15 @@ public class CLeaderManager : MonoBehaviour, IPointerClickHandler
     public DeckController deckController;
     public GameObject LeaderPicker;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     public void OnPointerClick(PointerEventData eventData)
     {
         // Double-click (tap on mobile) opens the leader picker
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
+            if (Application.isMobilePlatform || doubleClick.Register())
                 OpenLeaderPicker();
-            lastClick = Time.time;
         }
     }
 

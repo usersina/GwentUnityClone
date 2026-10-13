@@ -1,25 +1,27 @@
-using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 // Initial redraw: double-click (double-tap on mobile) a hand card to exchange it, up to 2 cards
-public class CardExchange : MonoBehaviour
+public class CardExchange : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
     public SceneController controller;
     public bool isExchangeable;
 
-    private float firstClickTime = 0f;
-    private float timeBetweenClick = 0.2f;
-    private bool couroutineAllowed = true;
-    private int clickCounter = 0;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     void Start()
     {
         controller = SceneController.Instance;
     }
 
-    public void OnCardClick()
+    public void OnPointerClick(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left)
+            return;
+        if (controller == null)
+            controller = SceneController.Instance;
+
         // Check if the player can exchange cards (redraw two initially drawn cards)
         if (!controller.PlayerInfo.CanExchange || !gameObject.CompareTag("Player") || !isExchangeable)
             return;
@@ -30,13 +32,8 @@ public class CardExchange : MonoBehaviour
             return;
         }
 
-        if (GameInput.PrimaryReleased())
-            clickCounter += 1;
-        if (clickCounter == 1 && couroutineAllowed)
-        {
-            firstClickTime = Time.time;
-            StartCoroutine(ExchangeDetection());
-        }
+        if (doubleClick.Register())
+            Exchange();
     }
 
     private void Exchange()
@@ -45,23 +42,5 @@ public class CardExchange : MonoBehaviour
         controller.PlayerInfo.CardsExchanged++;
         if (controller.PlayerInfo.CardsExchanged >= 2)
             controller.FinishCardExchange();
-    }
-
-    // Couroutine Double Click Exchange Detection
-    private IEnumerator ExchangeDetection()
-    {
-        couroutineAllowed = false;
-        while (Time.time < firstClickTime + timeBetweenClick)
-        {
-            if (clickCounter == 2)
-            {
-                Exchange();
-                break;
-            }
-            yield return new WaitForEndOfFrame();
-        }
-        clickCounter = 0;
-        firstClickTime = 0f;
-        couroutineAllowed = true;
     }
 }

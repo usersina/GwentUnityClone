@@ -10,8 +10,7 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
     public string field;
     public bool isPlayerCard;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     [HideInInspector]
     public SceneController controller;
@@ -23,10 +22,10 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
+        if (eventData.button != PointerEventData.InputButton.Left)
+            return;
+        if (Application.isMobilePlatform || doubleClick.Register())
             Choose();
-        else
-            lastClick = Time.time;
     }
 
     public void Choose()

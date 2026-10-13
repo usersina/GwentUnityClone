@@ -1,7 +1,8 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 // Click on a card: select a hand card, or (on the board) use the selected weather/scorch/decoy, or the leader
-public class CardSelect : MonoBehaviour
+public class CardSelect : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
     public SceneController controller;
@@ -12,6 +13,12 @@ public class CardSelect : MonoBehaviour
     void Start()
     {
         controller = SceneController.Instance;
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Left)
+            OnCardSelect();
     }
 
     public void OnCardSelect()

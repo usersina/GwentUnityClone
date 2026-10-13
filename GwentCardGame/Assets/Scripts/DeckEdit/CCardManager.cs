@@ -12,8 +12,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
     public List<Sprite> normalPatch;
     public List<Sprite> uniquePatch;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     [HideInInspector]
     public DeckController deckController;
@@ -41,9 +40,8 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (UseSingleTapActions() || (lastClick + interval) > Time.time)
+            if (UseSingleTapActions() || doubleClick.Register())
                 EditDeckWithThisCard();
-            lastClick = Time.time;
         }
     }
 

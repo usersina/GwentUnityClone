@@ -18,11 +18,4 @@ public static class GameInput
         Touchscreen touchscreen = Touchscreen.current;
         return touchscreen != null && touchscreen.touches.Count > 1 && touchscreen.touches[1].press.wasPressedThisFrame;
     }
-
-    // The primary button / finger was released this frame
-    public static bool PrimaryReleased()
-    {
-        Pointer pointer = Pointer.current;
-        return pointer != null && pointer.press.wasReleasedThisFrame;
-    }
 }

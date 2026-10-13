@@ -7,8 +7,7 @@ public class CardDiscard : MonoBehaviour, IPointerClickHandler
     [HideInInspector]
     public SceneController controller;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     void Start()
     {
@@ -17,11 +16,8 @@ public class CardDiscard : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if ((lastClick + interval) <= Time.time)
-        {
-            lastClick = Time.time;
+        if (eventData.button != PointerEventData.InputButton.Left || !doubleClick.Register())
             return;
-        }
 
         if (controller.battleState == BattleState.PLAYERTURN && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
         {

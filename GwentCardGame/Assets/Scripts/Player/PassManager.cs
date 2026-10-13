@@ -15,14 +15,17 @@ public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public UnityEvent onLongClick;
     public Image fillImage;
 
+    // Held with the left button (or a finger), like every other button
     public void OnPointerDown(PointerEventData eventData)
     {
-        pointerDown = true;
+        if (eventData.button == PointerEventData.InputButton.Left)
+            pointerDown = true;
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        Reset();
+        if (eventData.button == PointerEventData.InputButton.Left)
+            Reset();
     }
 
     // The button is hidden when the turn changes: a press in progress must not carry over to the next turn
