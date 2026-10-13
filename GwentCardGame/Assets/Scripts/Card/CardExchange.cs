@@ -30,7 +30,7 @@ public class CardExchange : MonoBehaviour
             return;
         }
 
-        if (Input.GetMouseButtonUp(0))
+        if (GameInput.PrimaryReleased())
             clickCounter += 1;
         if (clickCounter == 1 && couroutineAllowed)
         {

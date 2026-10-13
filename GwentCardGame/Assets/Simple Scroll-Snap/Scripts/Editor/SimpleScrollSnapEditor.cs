@@ -433,7 +433,7 @@ namespace DanielLochner.Assets.SimpleScrollSnap
             if (!FindAnyObjectByType<EventSystem>())
             {
                 GameObject eventObject = new GameObject("EventSystem", typeof(EventSystem));
-                eventObject.AddComponent<StandaloneInputModule>();
+                eventObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
                 Undo.RegisterCreatedObjectUndo(eventObject, "Create " + eventObject.name);
             }
 
@@ -508,7 +508,7 @@ namespace DanielLochner.Assets.SimpleScrollSnap
             if (!FindAnyObjectByType<EventSystem>())
             {
                 GameObject eventObject = new GameObject("EventSystem", typeof(EventSystem));
-                eventObject.AddComponent<StandaloneInputModule>();
+                eventObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
                 Undo.RegisterCreatedObjectUndo(eventObject, "Create " + eventObject.name);
             }
 

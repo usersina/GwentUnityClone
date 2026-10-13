@@ -7,7 +7,7 @@ public class CloseDetails : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
+        if (GameInput.CancelPressed())
             gameObject.SetActive(false);
     }
 }

@@ -2,6 +2,7 @@ using System;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
 // Small runtime-built UI on top of the current scene: toasts, confirmation dialogs and extra buttons.
@@ -38,7 +39,7 @@ public static class UIOverlay
         canvas_go.AddComponent<GraphicRaycaster>();
 
         if (EventSystem.current == null && UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)
-            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
     }
 
     //----------------------------------------Building blocks----------------------------------------//
@@ -128,7 +129,7 @@ public static class UIOverlay
     {
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+            if (GameInput.CancelPressed())
                 Destroy(gameObject);
         }
     }

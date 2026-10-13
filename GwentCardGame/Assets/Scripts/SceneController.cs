@@ -180,13 +180,7 @@ public class SceneController : MonoBehaviour
 
     private bool ShouldSkipCardExchange()
     {
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
-            return true;
-
-        if (Input.touchCount >= 2 && Input.GetTouch(1).phase == TouchPhase.Began)
-            return true;
-
-        return false;
+        return GameInput.CancelPressed() || GameInput.SecondFingerTapped();
     }
 
     //----------------------------------------------Info helpers---------------------------------------------------//

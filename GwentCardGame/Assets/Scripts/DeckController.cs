@@ -83,8 +83,6 @@ public class DeckController : MonoBehaviour
         if (!Application.isMobilePlatform)
             return;
 
-        Input.simulateMouseWithTouches = true;
-
         if (EventSystem.current != null)
             EventSystem.current.pixelDragThreshold = Mathf.Max(EventSystem.current.pixelDragThreshold, 20);
 
