@@ -50,6 +50,11 @@ public class UITheme : ScriptableObject
     public Sprite iconEdit;
     public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
 
+    [Header("Cursors (tip at 5, 4)")]
+    public Texture2D cursorDefault;
+    public Texture2D cursorInteract;
+    public Texture2D cursorInvalid;
+
     private static UITheme current;
 
     public static UITheme Current

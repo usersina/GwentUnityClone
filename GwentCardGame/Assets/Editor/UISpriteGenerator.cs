@@ -11,6 +11,7 @@ public static class UISpriteGenerator
 {
     public const string SpriteFolder = "Assets/UI/Sprites";
     public const string BoardFolder = "Assets/UI/Board";
+    public const string CursorFolder = "Assets/UI/Cursors";
     public const string ThemePath = "Assets/Resources/UITheme.asset";
     private const int PixelsPerUnit = 200;
 
@@ -70,8 +71,11 @@ public static class UISpriteGenerator
         }, Vector4.zero);
 
         GenerateBoard();
+        GenerateCursors();
 
         AssetDatabase.Refresh();
+        foreach (string file in Directory.GetFiles(CursorFolder, "*.png"))
+            ConfigureCursorImporter(file.Replace('\\', '/'));
         foreach (string folder in new[] { SpriteFolder, BoardFolder })
             foreach (string file in Directory.GetFiles(folder))
                 if (file.EndsWith(".png") || file.EndsWith(".jpg"))
@@ -404,6 +408,68 @@ public static class UISpriteGenerator
         Save(name, new Texture2D(width, height, TextureFormat.RGBA32, false), pixels, border, BoardFolder);
     }
 
+    //----------------------------------------Cursors----------------------------------------//
+    // Witcher-style pointers, 64 px: a silver arrow, a gold one over things that react to a click, and the silver
+    // one with a red "no" badge where a selected card cannot go. The tip is at (CursorTip) for the hotspot.
+    public static readonly Vector2 CursorTip = new Vector2(5, 4);
+    private static readonly Vector2[] Arrow =
+    {
+        new Vector2(5, 4), new Vector2(5, 36), new Vector2(12.5f, 29), new Vector2(18, 41),
+        new Vector2(23.5f, 38.5f), new Vector2(18, 27), new Vector2(28, 27),
+    };
+    private static readonly Color SilverLight = new Color32(0xEE, 0xF0, 0xF2, 0xFF);
+    private static readonly Color SilverDark = new Color32(0x7A, 0x82, 0x8A, 0xFF);
+    private static readonly Color GoldLight = new Color32(0xF6, 0xE0, 0xA6, 0xFF);
+    private static readonly Color GoldDark = new Color32(0xA8, 0x7C, 0x36, 0xFF);
+
+    private static void GenerateCursors()
+    {
+        Directory.CreateDirectory(CursorFolder);
+        WriteCursor("CursorDefault", (x, y) => CursorArrow(x, y, SilverLight, SilverDark, false));
+        WriteCursor("CursorInteract", (x, y) => CursorArrow(x, y, GoldLight, GoldDark, false));
+        WriteCursor("CursorInvalid", (x, y) => CursorArrow(x, y, SilverLight, SilverDark, true));
+    }
+
+    private static Color CursorArrow(float x, float y, Color light, Color dark, bool invalid)
+    {
+        float d = Polygon(x, y, Arrow);
+        // Metal: lighter towards the top left, a bright bevel along the edges that face the light
+        float t = Mathf.Clamp01((x - 5) / 30f * 0.4f + (y - 4) / 38f * 0.6f);
+        Color color = Color.Lerp(light, dark, t);
+        if (d > -2.5f && d < -0.8f)
+            color = Color.Lerp(color, Color.white, 0.35f);
+        if (d > -1.2f)
+            color = new Color(0.08f, 0.06f, 0.05f, 1); // dark outline
+        float coverage = Mathf.Clamp01(0.5f - d);
+
+        if (invalid)
+        {
+            // Red "no" badge at the bottom right of the arrow
+            float ring = Mathf.Abs(Circle(x, y, 38, 40, 8.5f)) - 2.2f;
+            Vector2 a = new Vector2(32.5f, 46), b = new Vector2(43.5f, 34);
+            float slash = Segment(x, y, a.x, a.y, b.x, b.y) - 2.2f;
+            float disc = Circle(x, y, 38, 40, 11);
+            float badge = Mathf.Min(ring, slash);
+            if (disc < 0.5f)
+            {
+                Color under = Color.Lerp(color, new Color(0.08f, 0.06f, 0.05f, 1), Mathf.Clamp01(0.5f - disc));
+                color = Color.Lerp(under, new Color32(0xD8, 0x3A, 0x30, 0xFF), Mathf.Clamp01(0.5f - badge));
+                coverage = Mathf.Max(coverage, Mathf.Clamp01(0.5f - disc));
+            }
+        }
+        return OverShadow(color, coverage, (Polygon(x - 2, y - 3, Arrow) + 1) / 3f);
+    }
+
+    private static void WriteCursor(string name, ColorAt color_at)
+    {
+        const int size = 64;
+        Color32[] pixels = new Color32[size * size];
+        for (int py = 0; py < size; py++)
+            for (int px = 0; px < size; px++)
+                pixels[py * size + px] = color_at(px + 0.5f, size - py - 0.5f);
+        Save(name, new Texture2D(size, size, TextureFormat.RGBA32, false), pixels, Vector4.zero, CursorFolder);
+    }
+
     private delegate Color ColorAt(float x, float y); // y measured from the top
 
     private static void WriteColor(string name, int width, int height, ColorAt color_at)
@@ -463,6 +529,22 @@ public static class UISpriteGenerator
 
     private static readonly System.Collections.Generic.Dictionary<string, Vector4> Borders = new System.Collections.Generic.Dictionary<string, Vector4>();
 
+    // Hardware cursors: the Cursor texture type (readable, uncompressed, no mipmaps)
+    private static void ConfigureCursorImporter(string path)
+    {
+        TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer == null)
+            return;
+        importer.textureType = TextureImporterType.Cursor;
+        importer.mipmapEnabled = false;
+        importer.alphaIsTransparency = true;
+        importer.isReadable = true;
+        importer.wrapMode = TextureWrapMode.Clamp;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.SaveAndReimport();
+    }
+
     private static void ConfigureImporter(string path, int pixels_per_unit)
     {
         TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
@@ -521,6 +603,9 @@ public static class UISpriteGenerator
         theme.iconTrash = sprite("IconTrash");
         theme.iconEdit = sprite("IconEdit");
         theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
+        theme.cursorDefault = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorDefault.png");
+        theme.cursorInteract = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInteract.png");
+        theme.cursorInvalid = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInvalid.png");
         EditorUtility.SetDirty(theme);
         AssetDatabase.SaveAssets();
     }
