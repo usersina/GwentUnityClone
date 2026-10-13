@@ -95,7 +95,8 @@ public class SceneController : MonoBehaviour
         public StatsManager Stats;
         public LeaderManager Leader;
         public GameObject LeaderHolder;
-        public GameObject PassMarker;
+        public GameObject LeadMarker;   // the laurel around the total of the side that is ahead (as in The Witcher 3)
+        public GameObject PassedLabel;  // "Passed" under the panel of a side that has passed
         public readonly Dictionary<string, RowView> Rows = new Dictionary<string, RowView>();
 
         public FieldView(GameObject root)
@@ -110,7 +111,8 @@ public class SceneController : MonoBehaviour
             Stats = t.Find("Stats").GetComponent<StatsManager>();
             Leader = t.Find("Leader").GetComponent<LeaderManager>();
             LeaderHolder = t.Find("Leader").Find("Holder").gameObject;
-            PassMarker = t.Find("Stats").Find("Total").Find("Pass").gameObject;
+            LeadMarker = t.Find("Stats").Find("Total").Find("Laurel").gameObject;
+            PassedLabel = t.Find("Stats").Find("Passed").gameObject;
             foreach (string row in Gwent.Rules.Rows.Units)
             {
                 Transform row_t = t.Find(char.ToUpper(row[0]) + row.Substring(1));
@@ -174,8 +176,11 @@ public class SceneController : MonoBehaviour
         if (PassBtn.activeSelf != can_pass)
             PassBtn.SetActive(can_pass);
 
-        SetActiveIfChanged(playerView.PassMarker, PlayerInfo.hasPassed);
-        SetActiveIfChanged(enemyView.PassMarker, EnemyInfo.hasPassed);
+        int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
+        SetActiveIfChanged(playerView.LeadMarker, player_total > enemy_total);
+        SetActiveIfChanged(enemyView.LeadMarker, enemy_total > player_total);
+        SetActiveIfChanged(playerView.PassedLabel, PlayerInfo.hasPassed);
+        SetActiveIfChanged(enemyView.PassedLabel, EnemyInfo.hasPassed);
     }
 
     private static void SetActiveIfChanged(GameObject go, bool active)
@@ -276,17 +281,35 @@ public class SceneController : MonoBehaviour
     {
         if (!PlayerInfo.CanExchange)
             return;
-        RectTransform prompt = UIKit.Panel(UIOverlay.Root, "MulliganPrompt", true).Place(new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(920, 250));
-        TextMeshProUGUI title = UIKit.Text(prompt, "Redraw cards", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
-        title.fontSize = 36;
-        title.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -44), new Vector2(860, 50));
-        string how = Application.isMobilePlatform ? "Double-tap" : "Double-click";
-        mulliganCount = UIKit.Text(prompt, "", UIKit.TextStyle.Body, TextAlignmentOptions.Center);
-        mulliganCount.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -102), new Vector2(860, 44));
-        mulliganHint = how + " up to 2 cards in your hand to redraw them";
-        Button done = UIKit.Button(prompt, "Done", UIKit.ButtonStyle.Primary, FinishCardExchange, new Vector2(240, 64));
-        ((RectTransform)done.transform).Place(new Vector2(0.5f, 0f), new Vector2(0, 58), new Vector2(240, 64));
-        mulliganPrompt = prompt.gameObject;
+        // A dark band across the board, like The Witcher 3's "Choose a card to redraw. 0/2"
+        UITheme theme = UITheme.Current;
+        RectTransform band = UIKit.NewImage(UIOverlay.Root, "MulliganPrompt", null, new Color(0, 0, 0, 0.78f)).rectTransform;
+        // Across the middle of the board: the rows there are still empty, and both panels stay visible
+        band.anchorMin = new Vector2(0, 0.5f);
+        band.anchorMax = new Vector2(1, 0.5f);
+        band.pivot = new Vector2(0.5f, 0.5f);
+        band.anchoredPosition = new Vector2(0, 40);
+        band.sizeDelta = new Vector2(0, 132);
+        foreach (float edge in new[] { 0f, 1f })
+        {
+            Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
+            line.rectTransform.anchorMin = new Vector2(0, edge);
+            line.rectTransform.anchorMax = new Vector2(1, edge);
+            line.rectTransform.sizeDelta = new Vector2(0, 2);
+        }
+
+        mulliganCount = UIKit.Text(band, "", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
+        mulliganCount.fontSize = 36;
+        mulliganCount.color = theme.text;
+        mulliganCount.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -44), new Vector2(1100, 50));
+        string how = Application.isMobilePlatform ? "Double-tap a card in your hand to redraw it" : "Double-click a card in your hand to redraw it, right-click to keep your hand";
+        TextMeshProUGUI hint = UIKit.Text(band, how, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+        hint.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -92), new Vector2(1100, 34));
+        mulliganHint = "Choose a card to redraw.";
+
+        Button done = UIKit.Button(band, "Done", UIKit.ButtonStyle.Primary, FinishCardExchange, new Vector2(200, 60));
+        ((RectTransform)done.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
+        mulliganPrompt = band.gameObject;
         UpdateMulliganCount();
     }
 
@@ -295,7 +318,7 @@ public class SceneController : MonoBehaviour
         if (mulliganCount == null || mulliganShown == PlayerInfo.CardsExchanged)
             return;
         mulliganShown = PlayerInfo.CardsExchanged;
-        mulliganCount.text = mulliganHint + "  (" + mulliganShown + "/2)";
+        mulliganCount.text = mulliganHint + " " + mulliganShown + "/2";
     }
 
     public void FinishCardExchange()

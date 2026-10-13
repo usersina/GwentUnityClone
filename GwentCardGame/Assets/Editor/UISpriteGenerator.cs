@@ -112,15 +112,18 @@ public static class UISpriteGenerator
     }
 
     //----------------------------------------Battle board----------------------------------------//
-    // The board keeps its layout and wood; these replace the flat score discs, gems and portrait placeholder,
-    // and give the rows a recessed frame (gold when highlighted) instead of the bright orange border.
-    private static readonly Color Amber = new Color32(0xF0, 0xB2, 0x45, 0xFF);
-    private static readonly Color AmberDeep = new Color32(0xB8, 0x72, 0x14, 0xFF);
-    private static readonly Color Brass = new Color32(0xC2, 0x93, 0x48, 0xFF);
-    private static readonly Color Ice = new Color32(0xA8, 0xDA, 0xEE, 0xFF);
-    private static readonly Color IceDeep = new Color32(0x4E, 0x96, 0xB8, 0xFF);
-    private static readonly Color Steel = new Color32(0x9A, 0xA8, 0xB4, 0xFF);
+    // The board keeps the original Witcher 3 layout; these match its look: pale score discs with a thin silver rim
+    // (cream for the player, frost blue for the opponent, white totals), a silver portrait frame with a point at
+    // the bottom, rows recessed into the table, a warm golden hand tray and soft card shadows.
+    private static readonly Color Cream = new Color32(0xF4, 0xEA, 0xD5, 0xFF);
+    private static readonly Color CreamDeep = new Color32(0xD3, 0xBD, 0x96, 0xFF);
+    private static readonly Color Frost = new Color32(0xE8, 0xF1, 0xF6, 0xFF);
+    private static readonly Color FrostDeep = new Color32(0xA9, 0xC5, 0xD5, 0xFF);
+    private static readonly Color Chalk = new Color32(0xF7, 0xF5, 0xF0, 0xFF);
+    private static readonly Color ChalkDeep = new Color32(0xCE, 0xCA, 0xC1, 0xFF);
+    private static readonly Color Silver = new Color32(0xB6, 0xBA, 0xBE, 0xFF);
     private static readonly Color Bronze = new Color32(0x8A, 0x6A, 0x3E, 0xFF);
+    private static readonly Color TrayGold = new Color32(0xC0, 0x8E, 0x4C, 0xFF);
     private static readonly Color Gold = new Color32(0xE3, 0xC2, 0x7E, 0xFF);
     private static readonly Color DarkLine = new Color32(0x14, 0x0C, 0x07, 0xFF);
     private static readonly Vector2 Light = new Vector2(-0.6f, -0.8f); // from the top left (y down)
@@ -128,20 +131,22 @@ public static class UISpriteGenerator
     private static void GenerateBoard()
     {
         Directory.CreateDirectory(BoardFolder);
-        WriteColor("MedallionAmber", 192, (x, y) => Medallion(x, y, 192, Amber, AmberDeep, Brass));
-        WriteColor("MedallionSteel", 192, (x, y) => Medallion(x, y, 192, Ice, IceDeep, Steel));
-        WriteColor("GemRed", 96, (x, y) => Gem(x, y, 96, new Color(0.82f, 0.16f, 0.14f)));
-        WriteColor("GemGrey", 96, (x, y) => Gem(x, y, 96, new Color(0.40f, 0.38f, 0.36f)));
-        WriteColor("PortraitRing", 192, (x, y) => Ring(x, y, 192, 80, 94, Brass));
+        WriteColor("ScorePlayer", 192, 192, (x, y) => Medallion(x, y, 192, Cream, CreamDeep, Silver));
+        WriteColor("ScoreOpponent", 192, 192, (x, y) => Medallion(x, y, 192, Frost, FrostDeep, Silver));
+        WriteColor("ScoreTotal", 192, 192, (x, y) => Medallion(x, y, 192, Chalk, ChalkDeep, Silver));
+        WriteColor("GemRed", 96, 96, (x, y) => Gem(x, y, 96, new Color(0.82f, 0.16f, 0.14f)));
+        WriteColor("GemGrey", 96, 96, (x, y) => Gem(x, y, 96, new Color(0.40f, 0.38f, 0.36f)));
+        WriteColor("PortraitFrame", 192, 212, (x, y) => PortraitFrame(x, y, Silver));
+        WriteAlpha("SoftShadow", 64, 64, (u, v) => 1 - Smooth((RoundedBox(u * 64, v * 64, 64, 64, 14, 16) + 10) / 22), new Vector4(32, 32, 32, 32), BoardFolder);
 
         foreach (string row in new[] { "close_combat", "range_combat", "siege_combat" })
         {
-            Reframe("Assets/Resources/UnitsRows/" + row + ".png", "Row_" + row, false);
-            Reframe("Assets/Resources/UnitsRows/" + row + "_selected.png", "Row_" + row + "_selected", true);
+            Reframe("Assets/Resources/UnitsRows/" + row + ".png", "Row_" + row, RowStyle.Recessed);
+            Reframe("Assets/Resources/UnitsRows/" + row + "_selected.png", "Row_" + row + "_selected", RowStyle.Highlighted);
         }
-        Reframe("Assets/Resources/UnitsRows/hand_row.png", "Row_hand", false);
-        Reframe("Assets/Resources/PowerRows/special.png", "Row_special", false);
-        Reframe("Assets/Resources/PowerRows/special_selected.png", "Row_special_selected", true);
+        Reframe("Assets/Resources/UnitsRows/hand_row.png", "Row_hand", RowStyle.Tray);
+        Reframe("Assets/Resources/PowerRows/special.png", "Row_special", RowStyle.Recessed);
+        Reframe("Assets/Resources/PowerRows/special_selected.png", "Row_special_selected", RowStyle.Highlighted);
 
         string sources = BoardFolder + "/Sources";
         if (Directory.Exists(sources))
@@ -177,10 +182,10 @@ public static class UISpriteGenerator
         UnityEngine.Object.DestroyImmediate(output);
     }
 
-    // Score medallion: beveled metal rim around a colored disc (dark numbers go on top)
+    // Score disc: thin beveled metal rim around a pale disc (dark numbers go on top), with a soft shadow below it
     private static Color Medallion(float x, float y, int size, Color top, Color bottom, Color rim)
     {
-        float c = size / 2f, outer = c - 2, rim_in = outer * 0.8f;
+        float c = size / 2f, outer = c - 12, rim_in = outer * 0.86f;
         Vector2 p = new Vector2(x - c, y - c);
         float r = p.magnitude;
         float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
@@ -200,8 +205,19 @@ public static class UISpriteGenerator
         }
         if (Mathf.Abs(r - rim_in) < 1.5f || r > outer - 2)
             color = Shade(color, 0.45f); // groove and outer edge
-        color.a = Mathf.Clamp01(outer + 0.5f - r);
-        return color;
+        return OverShadow(color, Mathf.Clamp01(outer + 0.5f - r), (new Vector2(x - c - 3, y - c - 5).magnitude - outer) / 8f);
+    }
+
+    // The shape over a soft dark shadow; shadow_distance is in shadow widths from the shadow's edge
+    private static Color OverShadow(Color color, float coverage, float shadow_distance)
+    {
+        float shadow = 0.55f * (1 - Smooth((shadow_distance + 1) / 2));
+        float alpha = coverage + shadow * (1 - coverage);
+        if (alpha <= 0)
+            return new Color(0, 0, 0, 0);
+        Color result = color * (coverage / alpha);
+        result.a = alpha;
+        return result;
     }
 
     // Faceted octagonal gem lit from the top left
@@ -238,25 +254,37 @@ public static class UISpriteGenerator
         return color;
     }
 
-    // Beveled metal ring (portrait frame), transparent inside
-    private static Color Ring(float x, float y, int size, float inner, float outer, Color metal)
+    // Beveled metal portrait ring with a small point at the bottom (the Witcher 3 frame), transparent inside.
+    // 192x212 texture: the ring is centered at (96, 96)
+    private static Color PortraitFrame(float x, float y, Color metal)
     {
-        float c = size / 2f;
+        const float c = 96, inner = 80, outer = 92;
         Vector2 p = new Vector2(x - c, y - c);
         float r = p.magnitude;
+        float ring = Mathf.Max(inner - r, r - outer); // < 0 inside the band
+        // The point: a downward wedge from the ring's lower edge to its tip at y = 207
+        float wedge = Mathf.Max(Mathf.Abs(p.x) - (207 - y) * 0.7f, Mathf.Max(y - 207, c + inner + 4 - y)) * 0.8f;
+        float shape = Mathf.Min(ring, wedge);
         float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
         float t = (r - inner) / (outer - inner);
-        Color color = Shade(metal, 0.78f + 0.32f * (t < 0.5f ? -light : light));
-        if (r < inner + 1.5f || r > outer - 1.5f)
-            color = Shade(color, 0.45f);
-        color.a = Mathf.Clamp01(Mathf.Min(r - inner + 0.5f, outer + 0.5f - r));
+        Color color = wedge < ring ? Shade(metal, 0.8f - 0.25f * Mathf.Sign(p.x) * 0.5f)
+                                   : Shade(metal, 0.8f + 0.3f * (t < 0.5f ? -light : light));
+        if (shape > -1.5f)
+            color = Shade(color, 0.5f); // dark edge
+        color.a = Mathf.Clamp01(0.5f - shape);
         return color;
     }
 
-    // Row art: the wood is extended over the old border, then a recessed dark frame with a bronze line
-    // (or a gold edge and a soft glow for the highlighted version) is drawn
-    private static void Reframe(string source, string name, bool highlighted)
+    private enum RowStyle { Recessed, Highlighted, Tray }
+
+    // Row art: the wood is extended over the old border and darkened so the row sits recessed in the table, then
+    // a dark frame with a bronze line is drawn (a gold edge and a soft glow when highlighted; a warm golden frame
+    // for the hand tray)
+    private static void Reframe(string source, string name, RowStyle style)
     {
+        bool highlighted = style == RowStyle.Highlighted;
+        float tone = style == RowStyle.Recessed ? 0.66f : style == RowStyle.Tray ? 0.74f : 0.9f;
+        Color line = style == RowStyle.Tray ? TrayGold : Bronze;
         Texture2D input = new Texture2D(2, 2);
         input.LoadImage(File.ReadAllBytes(source));
         int w = input.width, h = input.height;
@@ -269,13 +297,14 @@ public static class UISpriteGenerator
             {
                 int edge = Mathf.Min(Mathf.Min(x, y), Mathf.Min(w - 1 - x, h - 1 - y));
                 int sx = Mathf.Clamp(x, band, w - 1 - band), sy = Mathf.Clamp(y, band, h - 1 - band);
-                Color color = src[sy * w + sx];
+                Color color = Shade(src[sy * w + sx], tone);
+                color = new Color(color.r, color.g * 0.95f, color.b * 0.9f); // toward the table's warm red-brown
                 float near = 1 - Smooth((edge - 2) / (highlighted ? 14f : 12f));
                 color = highlighted ? Color.Lerp(color, Gold, near * 0.22f) : Shade(color, 1 - 0.38f * near);
                 if (edge < 2)
                     color = highlighted ? Shade(Gold, 0.8f) : DarkLine;
-                else if (edge < 4)
-                    color = Color.Lerp(color, highlighted ? Gold : Bronze, highlighted ? 0.9f : 0.6f);
+                else if (edge < (style == RowStyle.Tray ? 5 : 4))
+                    color = Color.Lerp(color, highlighted ? Gold : line, highlighted ? 0.9f : style == RowStyle.Tray ? 0.85f : 0.6f);
                 color.a = 1;
                 pixels[y * w + x] = color;
             }
@@ -284,13 +313,13 @@ public static class UISpriteGenerator
 
     private delegate Color ColorAt(float x, float y); // y measured from the top
 
-    private static void WriteColor(string name, int size, ColorAt color_at)
+    private static void WriteColor(string name, int width, int height, ColorAt color_at)
     {
-        Color32[] pixels = new Color32[size * size];
-        for (int py = 0; py < size; py++)
-            for (int px = 0; px < size; px++)
-                pixels[py * size + px] = color_at(px + 0.5f, size - py - 0.5f);
-        Save(name, new Texture2D(size, size, TextureFormat.RGBA32, false), pixels, Vector4.zero, BoardFolder);
+        Color32[] pixels = new Color32[width * height];
+        for (int py = 0; py < height; py++)
+            for (int px = 0; px < width; px++)
+                pixels[py * width + px] = color_at(px + 0.5f, height - py - 0.5f);
+        Save(name, new Texture2D(width, height, TextureFormat.RGBA32, false), pixels, Vector4.zero, BoardFolder);
     }
 
     private static Color Shade(Color color, float factor)
@@ -316,7 +345,7 @@ public static class UISpriteGenerator
         Save(name, texture, pixels, border);
     }
 
-    private static void WriteAlpha(string name, int width, int height, Alpha alpha)
+    private static void WriteAlpha(string name, int width, int height, Alpha alpha, Vector4 border = default(Vector4), string folder = SpriteFolder)
     {
         Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
         Color32[] pixels = new Color32[width * height];
@@ -326,7 +355,7 @@ public static class UISpriteGenerator
                 float u = (px + 0.5f) / width, v = (height - py - 0.5f) / height;
                 pixels[py * width + px] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(Mathf.Clamp01(alpha(u, v)) * 255));
             }
-        Save(name, texture, pixels, Vector4.zero);
+        Save(name, texture, pixels, border, folder);
     }
 
     private static void Save(string name, Texture2D texture, Color32[] pixels, Vector4 border, string folder = SpriteFolder)
