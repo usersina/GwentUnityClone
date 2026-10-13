@@ -52,19 +52,40 @@ namespace Gwent.Rules
             List<int> units = info.UnitRow(row);
             List<int> base_strengths = info.BaseStrengths(row);
             List<int> strengths = info.ModifiedStrengths(row);
+            List<int> summoned = new List<int>();
             int destroyed = 0;
             for (int i = units.Count - 1; i >= 0; i--)
             {
                 if (i >= strengths.Count || strengths[i] != strength || db.Get(units[i]).unique)
                     continue;
-                info.DiscardList.Add(units[i]);
+                int card_id = units[i];
                 units.RemoveAt(i);
                 if (i < base_strengths.Count)
                     base_strengths.RemoveAt(i);
                 strengths.RemoveAt(i);
+                Discard(info, card_id);
+                if (AvengerOf(card_id) != -1)
+                    summoned.Add(AvengerOf(card_id));
                 destroyed++;
             }
+            // Avenger: the summoned card takes the field at once
+            info.CloseList.AddRange(summoned);
             return destroyed;
+        }
+
+        //----------------------------------------Avenger----------------------------------------//
+        // The card a unit summons when it leaves the battlefield (-1 if none): the Cow calls the Bovine Defense Force
+        public static int AvengerOf(int card_id)
+        {
+            return card_id == CardIds.Cow ? CardIds.BovineDefenseForce : -1;
+        }
+
+        // A unit leaving the battlefield goes to the discard pile. A summoned card is not a real card: it vanishes
+        // (so a medic cannot bring it back).
+        public static void Discard(PlayerState info, int card_id)
+        {
+            if (card_id != CardIds.BovineDefenseForce)
+                info.DiscardList.Add(card_id);
         }
 
         //----------------------------------------Muster----------------------------------------//

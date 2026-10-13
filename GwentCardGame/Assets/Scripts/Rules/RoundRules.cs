@@ -36,9 +36,11 @@ namespace Gwent.Rules
         }
 
         // Sends one side's board to its discard pile at the end of a round.
-        // Monsters keep one random unit on the board; a Cow leaving the board summons the Bovine Defense Force.
+        // Monsters keep one random unit on the board; each Cow that leaves summons a Bovine Defense Force for the
+        // next round.
         public static void CleanupBoard(PlayerState info, Random rnd, CardDatabase db)
         {
+            // The unit Monsters keep is taken off its row while the rest goes
             int kept_card = -1;
             string kept_row = null;
             if (info.Faction == Factions.Monsters && info.UnitsOnBoard() > 0)
@@ -51,19 +53,23 @@ namespace Gwent.Rules
                     {
                         kept_card = units[pick];
                         kept_row = row;
+                        units.RemoveAt(pick);
                         break;
                     }
                     pick -= units.Count;
                 }
             }
 
-            bool there_is_cow = false;
+            List<int> summoned = new List<int>();
             foreach (string row in Rows.Units)
             {
                 List<int> units = info.UnitRow(row);
-                if (units.Contains(CardIds.Cow))
-                    there_is_cow = true;
-                info.DiscardList.AddRange(units);
+                foreach (int card_id in units)
+                {
+                    AbilityRules.Discard(info, card_id);
+                    if (AbilityRules.AvengerOf(card_id) != -1)
+                        summoned.Add(AbilityRules.AvengerOf(card_id));
+                }
                 units.Clear();
 
                 // A leader horn is not a real card: it simply disappears
@@ -79,13 +85,8 @@ namespace Gwent.Rules
             info.WeatherPlayed.Clear();
 
             if (kept_card != -1)
-            {
-                info.DiscardList.RemoveAt(info.DiscardList.LastIndexOf(kept_card));
                 info.UnitRow(kept_row).Add(kept_card);
-            }
-
-            if (there_is_cow)
-                info.CloseList.Add(CardIds.BovineDefenseForce);
+            info.CloseList.AddRange(summoned);
         }
 
         // Draws up to num cards from the top of the deck, returns how many were drawn

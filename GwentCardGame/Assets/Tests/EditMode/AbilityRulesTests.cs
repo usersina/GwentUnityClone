@@ -149,6 +149,36 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void AScorchedCowSummonsTheDefenseForceAtOnce()
+        {
+            PlayerState p = TestBoard.Player();
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            p.RangeList.Add(CardIds.Cow);
+            e.CloseList.Add(Draug); // a hero: the Cow is the strongest unit Scorch can hit
+            TestBoard.Recalc(null, p, e);
+
+            Assert.AreEqual(1, AbilityRules.Scorch(p, e, Db));
+
+            Assert.IsEmpty(p.RangeList);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+            CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.DiscardList);
+        }
+
+        [Test]
+        public void AScorchedDefenseForceVanishes()
+        {
+            PlayerState p = TestBoard.Player();
+            PlayerState e = TestBoard.Player(Factions.Monsters);
+            p.CloseList.Add(CardIds.BovineDefenseForce);
+            TestBoard.Recalc(null, p, e);
+
+            Assert.AreEqual(1, AbilityRules.Scorch(p, e, Db));
+
+            Assert.IsEmpty(p.CloseList);
+            Assert.IsEmpty(p.DiscardList);
+        }
+
+        [Test]
         public void RowScorchNeedsTenStrength()
         {
             PlayerState e = TestBoard.Player(Factions.Monsters);

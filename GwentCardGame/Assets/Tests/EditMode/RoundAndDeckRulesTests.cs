@@ -64,6 +64,48 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void EachCowSummonsItsOwnDefenseForce()
+        {
+            PlayerState p = TestBoard.Player();
+            p.RangeList.Add(CardIds.Cow);
+            p.RangeList.Add(CardIds.Cow);
+            RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce, CardIds.BovineDefenseForce }, p.CloseList);
+        }
+
+        [Test]
+        public void ACowThatMonstersKeepSummonsNothing()
+        {
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+            p.RangeList.Add(CardIds.Cow);
+            RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
+            CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.RangeList);
+            Assert.IsEmpty(p.CloseList);
+            Assert.IsEmpty(p.DiscardList);
+        }
+
+        [Test]
+        public void TheDefenseForceVanishesInsteadOfGoingToTheDiscardPile()
+        {
+            PlayerState p = TestBoard.Player();
+            p.CloseList.Add(CardIds.BovineDefenseForce);
+            p.CloseList.Add(Fiend);
+            RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
+            Assert.IsEmpty(p.CloseList);
+            CollectionAssert.AreEqual(new[] { Fiend }, p.DiscardList);
+        }
+
+        [Test]
+        public void MonstersCanKeepTheDefenseForce()
+        {
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+            p.CloseList.Add(CardIds.BovineDefenseForce);
+            RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+            Assert.IsEmpty(p.DiscardList);
+        }
+
+        [Test]
         public void DrawingFromAShortDeckDrawsWhatIsLeft()
         {
             PlayerState p = TestBoard.Player();
