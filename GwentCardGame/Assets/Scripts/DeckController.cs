@@ -366,19 +366,23 @@ public class DeckController : MonoBehaviour
     {
         if (battleDeckStatus == null)
         {
-            battleDeckStatus = UIOverlay.CreateText(UIOverlay.Root, "", 28, new Vector2(0.5f, 0f), new Vector2(0, 40), new Vector2(1000, 50));
-            battleDeckStatus.textWrappingMode = TextWrappingModes.NoWrap;
+            // Fits between the two "Show neutrals" toggles; long messages shrink instead of overlapping them
+            battleDeckStatus = UIOverlay.CreateText(UIOverlay.Root, "", 26, new Vector2(0.5f, 0f), new Vector2(0, 42), new Vector2(560, 72));
+            battleDeckStatus.textWrappingMode = TextWrappingModes.Normal;
+            battleDeckStatus.enableAutoSizing = true;
+            battleDeckStatus.fontSizeMin = 14;
+            battleDeckStatus.fontSizeMax = 26;
         }
 
         string battle_path = ApplicationModel.playerDeckPath;
         Deck battle_deck = !string.IsNullOrEmpty(battle_path) && File.Exists(battle_path) ? DeckStorage.Load(battle_path) : null;
-        string battle_name = battle_deck != null ? battle_deck.Name : "the default Northern Realms deck";
+        string battle_name = battle_deck != null ? battle_deck.Name : "default (Northern Realms)";
 
         bool editing_real_deck = currentDeckPath != EmptyDeckResourcePath && my_deck.Name != DeckRules.EmptyDeckName;
         if (editing_real_deck && !IsDeckValid(my_deck))
         {
             string problem = DeckRules.Validate(my_deck, Db).FirstOrDefault();
-            battleDeckStatus.text = "Not battle-ready: " + problem + ". Battle deck: " + battle_name;
+            battleDeckStatus.text = "Not battle-ready: " + problem + "\nBattle deck: " + battle_name;
             battleDeckStatus.color = new Color32(245, 80, 60, 255);
         }
         else
