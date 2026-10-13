@@ -8,9 +8,15 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 
 // End-to-end smoke test: plays whole battles in the real Game scene with a random "player" against the AI.
+// The first two battles start with the redraw played through real mouse input (a virtual mouse clicking at human speed),
+// and the player's first turn checks card selection the same way.
 // Every leader of every faction gets a generated deck. Fails on exceptions/errors in the log, on a game that
 // stops progressing (softlock), and on cards appearing or disappearing (card conservation).
 // Then exercises the deck builder (add, duplicate names, rename, battle deck, corrupt files, delete) in the Deck scene;
@@ -122,6 +128,9 @@ public static class GwentAutoplay
         private double lastProgress;
         private double nextActionTime;
         private string currentDeck;
+        private InputCheck inputCheck;
+        private int redrawChecks;
+        private bool selectionChecked;
 
         public Runner(int total_matches, int seed, bool batch, string report_path)
         {
@@ -207,7 +216,8 @@ public static class GwentAutoplay
         {
             if (!EditorApplication.isPlaying)
                 return;
-            Time.timeScale = TimeScale;
+            // Real-time input runs at normal speed, like a person playing
+            Time.timeScale = inputCheck != null ? 1f : TimeScale;
 
             if (menuPhase)
             {
@@ -227,6 +237,7 @@ public static class GwentAutoplay
             catch (Exception e)
             {
                 failures.Add("[" + Label() + "] autoplay exception: " + e);
+                EndInputCheck();
                 NextMatch();
             }
         }
@@ -268,10 +279,26 @@ public static class GwentAutoplay
                 return;
             }
 
+            if (inputCheck != null)
+            {
+                inputCheck.Tick();
+                if (inputCheck.Done)
+                    EndInputCheck();
+                return;
+            }
+
             if (now < nextActionTime)
                 return;
             nextActionTime = now + 0.02;
             PlayerStep(c);
+        }
+
+        private void EndInputCheck()
+        {
+            if (inputCheck == null)
+                return;
+            inputCheck.Teardown();
+            inputCheck = null;
         }
 
         //----------------------------------------The random player----------------------------------------//
@@ -279,6 +306,13 @@ public static class GwentAutoplay
         {
             if (c.battleState == BattleState.START && c.PlayerInfo.CanExchange)
             {
+                if (redrawChecks < 2)
+                {
+                    InputScenario scenario = redrawChecks++ == 0 ? InputScenario.RedrawSlowClicksThenDone : InputScenario.RedrawTwice;
+                    inputCheck = new InputCheck(c, scenario, (ok, what) => Check(ok, what, "redraw input"));
+                    return;
+                }
+
                 List<int> hand = c.PlayerInfo.HandList;
                 int exchanges = rnd.Next(3);
                 for (int i = 0; i < exchanges && hand.Count > 0; i++)
@@ -333,6 +367,13 @@ public static class GwentAutoplay
                     return;
                 case PendingAction.PanelChoice:
                     return;
+            }
+
+            if (!selectionChecked && c.PlayerField.transform.Find("Hand").childCount > 0)
+            {
+                selectionChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.SelectCard, (ok, what) => Check(ok, what, "selection input"));
+                return;
             }
 
             // A normal turn: maybe the leader, sometimes pass, otherwise play a random card through the real UI scripts
@@ -452,11 +493,11 @@ public static class GwentAutoplay
             Finish();
         }
 
-        private void Check(bool condition, string what)
+        private void Check(bool condition, string what, string area = "deck builder")
         {
-            Count(condition ? "deck builder check passed" : "deck builder check FAILED");
+            Count(area + (condition ? " check passed" : " check FAILED"));
             if (!condition)
-                failures.Add("[deck builder] " + what);
+                failures.Add("[" + area + "] " + what);
         }
 
         private void RunDeckBuilderChecks(DeckController dc, List<string> created)
@@ -570,6 +611,7 @@ public static class GwentAutoplay
 
         private void Finish()
         {
+            EndInputCheck();
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
             Time.timeScale = 1f;
@@ -582,7 +624,7 @@ public static class GwentAutoplay
             foreach (string result in results)
                 report.AppendLine("  " + result);
             report.AppendLine();
-            report.AppendLine("Coverage (actions performed by the random player):");
+            report.AppendLine("Coverage (actions performed by the random player, and checks):");
             foreach (KeyValuePair<string, int> stat in stats.OrderBy(s => s.Key))
                 report.AppendLine("  " + stat.Key + ": " + stat.Value);
             report.AppendLine();
@@ -632,6 +674,165 @@ public static class GwentAutoplay
                         failures.Add("Generated deck invalid (" + deck.Name + "): " + problems[0]);
                 }
             return generated;
+        }
+    }
+
+    //----------------------------------------Real mouse input----------------------------------------//
+    private enum InputScenario
+    {
+        RedrawSlowClicksThenDone, // two slow clicks (no redraw), an ordinary double-click (redraw), then Done
+        RedrawTwice,              // a quick double-click, then a slower one (the second redraw ends the redraw phase)
+        SelectCard,               // left-click selects a hand card, a second click deselects it, right-click does nothing
+    }
+
+    // Plays part of a battle like a person would: a virtual mouse clicks at human speed, and the clicks go through
+    // the Input System, the EventSystem and the cards' own click handlers.
+    private class InputCheck
+    {
+        private const double PressDuration = 0.1;
+
+        private readonly SceneController c;
+        private readonly Action<bool, string> check;
+        private readonly List<KeyValuePair<double, Action>> steps = new List<KeyValuePair<double, Action>>();
+        private readonly double start;
+        private int next;
+        private Mouse mouse;
+        private bool settingsChanged;
+        private InputSettings.EditorInputBehaviorInPlayMode savedEditorBehavior;
+        private InputSettings.BackgroundBehavior savedBackgroundBehavior;
+        private Transform card;
+
+        public bool Done { get { return next >= steps.Count; } }
+
+        // The times are when the button goes down, in seconds
+        public InputCheck(SceneController controller, InputScenario scenario, Action<bool, string> check)
+        {
+            c = controller;
+            this.check = check;
+            start = EditorApplication.timeSinceStartup;
+
+            At(0, Setup);
+            if (scenario == InputScenario.RedrawSlowClicksThenDone)
+            {
+                Click(0.4, CardPosition);
+                Click(1.2, CardPosition);
+                At(1.7, () => check(c.PlayerInfo.CardsExchanged == 0, "two clicks 0.8 s apart on a hand card do not redraw it"));
+                Click(2.0, CardPosition);
+                Click(2.25, CardPosition);
+                At(2.8, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a double-click (0.25 s) on a hand card redraws it"));
+                Click(3.1, DonePosition);
+                At(3.6, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
+            }
+            else if (scenario == InputScenario.RedrawTwice)
+            {
+                Click(0.4, CardPosition);
+                Click(0.52, CardPosition);
+                At(1.0, () => check(c.PlayerInfo.CardsExchanged == 1, "a quick double-click (0.12 s) on a hand card redraws it"));
+                Click(1.3, CardPosition);
+                Click(1.65, CardPosition);
+                At(2.2, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "a slower double-click (0.35 s) redraws a second card and ends the redraw"));
+            }
+            else
+            {
+                Click(0.4, CardPosition, MouseButton.Right);
+                At(0.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
+                Click(1.2, CardPosition);
+                At(1.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it"));
+                Click(2.4, CardPosition);
+                At(2.9, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
+            }
+        }
+
+        public void Tick()
+        {
+            double elapsed = EditorApplication.timeSinceStartup - start;
+            while (next < steps.Count && elapsed >= steps[next].Key)
+                steps[next++].Value();
+        }
+
+        public void Teardown()
+        {
+            next = steps.Count;
+            if (mouse != null)
+            {
+                InputSystem.RemoveDevice(mouse);
+                mouse = null;
+            }
+            if (settingsChanged)
+            {
+                InputSystem.settings.editorInputBehaviorInPlayMode = savedEditorBehavior;
+                InputSystem.settings.backgroundBehavior = savedBackgroundBehavior;
+                settingsChanged = false;
+            }
+        }
+
+        private void At(double time, Action action)
+        {
+            steps.Add(new KeyValuePair<double, Action>(time, action));
+        }
+
+        // Moves onto the target first (where it is at that moment), then presses and releases the button
+        private void Click(double time, Func<Vector2> position, MouseButton button = MouseButton.Left)
+        {
+            Vector2 at = Vector2.zero;
+            At(time - 0.05, () => { at = position(); Send(at, button, false); });
+            At(time, () => Send(at, button, true));
+            At(time + PressDuration, () => Send(at, button, false));
+        }
+
+        private void Setup()
+        {
+            // Input reaches the game without the Game view having focus (batch mode has none). The settings are changed
+            // in place and restored afterwards: replacing the settings object would destroy the Input System's own one.
+            InputSettings settings = InputSystem.settings;
+            savedEditorBehavior = settings.editorInputBehaviorInPlayMode;
+            savedBackgroundBehavior = settings.backgroundBehavior;
+            settingsChanged = true;
+            settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+            settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+            mouse = InputSystem.AddDevice<Mouse>("AutoplayMouse");
+
+            InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
+            check(module != null, "the Game scene uses the Input System UI module");
+            if (module != null && module.actionsAsset != null)
+            {
+                module.actionsAsset.Disable();
+                module.actionsAsset.Enable();
+            }
+
+            check(CardPosition() != Vector2.zero, "the hand has cards to click");
+        }
+
+        private void Send(Vector2 position, MouseButton button, bool pressed)
+        {
+            if (mouse != null)
+                InputSystem.QueueStateEvent(mouse, new MouseState { position = position }.WithButton(button, pressed));
+        }
+
+        // A card in the middle of the hand (another one once a redraw has rebuilt the hand)
+        private Vector2 CardPosition()
+        {
+            Transform hand = c.PlayerField.transform.Find("Hand");
+            if (card == null && hand.childCount > 0)
+                card = hand.GetChild(hand.childCount / 2);
+            return card != null ? ScreenPoint(card) : Vector2.zero;
+        }
+
+        private Vector2 DonePosition()
+        {
+            GameObject done = GameObject.Find("Button Done");
+            check(done != null, "the redraw prompt shows a Done button");
+            return done != null ? ScreenPoint(done.transform) : Vector2.zero;
+        }
+
+        private static Vector2 ScreenPoint(Transform target)
+        {
+            RectTransform rect = (RectTransform)target;
+            Vector3[] corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            Canvas canvas = rect.GetComponentInParent<Canvas>().rootCanvas;
+            Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+            return RectTransformUtility.WorldToScreenPoint(camera, (corners[0] + corners[2]) / 2);
         }
     }
 }
