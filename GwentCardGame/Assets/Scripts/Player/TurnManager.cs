@@ -48,7 +48,7 @@ public class TurnManager : MonoBehaviour
         if (controller == null)
             controller = SceneController.Instance;
         GameLog.Info("Going First");
-        controller.TurnCallBack(false);
+        controller.ChooseFirstPlayer(true);
         gameObject.SetActive(false);
     }
 
@@ -56,9 +56,8 @@ public class TurnManager : MonoBehaviour
     {
         if (controller == null)
             controller = SceneController.Instance;
-        // Start Enemy Turn
         GameLog.Info("Going Second");
-        controller.TurnCallBack(true);
+        controller.ChooseFirstPlayer(false);
         gameObject.SetActive(false);
     }
 }

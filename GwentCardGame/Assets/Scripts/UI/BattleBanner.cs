@@ -3,35 +3,72 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// The Witcher 3's notices across the middle of the board ("Your turn!", "Your opponent has passed", "You won the
-// round!"): a dark band with gold edges, a title and an optional line under it. Notices queue up and show one after
-// another, and the band never catches a click. Runs on game time, so pausing the game holds it.
+// The Witcher 3's notices across the middle of the screen ("Your turn!", "Your opponent has passed", "You won the
+// round!"): a translucent dark band, the game's bronze emblem left of centre (overflowing the band) and the message
+// in gold beside it. Notices queue up and show one after another, and the band never catches a click. Runs on game
+// time, so pausing the game holds it.
 public class BattleBanner : MonoBehaviour
 {
-    public const float Short = 1.3f;
-    public const float Long = 2.4f;
-    private const float FadeIn = 0.15f;
-    private const float FadeOut = 0.3f;
-    private const float BoardMiddle = 78; // the line between the two sides of the board, above the screen's middle
+    // How long a notice stays, fades included (as measured in The Witcher 3)
+    public const float Turn = 1.9f;
+    public const float Short = Turn;
+    public const float Long = 3.2f;
+    private const float Fade = 0.2f;
+
+    // Emblems (Resources/W3/Notifications)
+    public const string YourTurn = "me_turn";
+    public const string OpponentsTurn = "op_turn";
+    public const string RoundStart = "round_start";
+    public const string Passed = "round_passed";
+    public const string RoundWon = "win_round";
+    public const string RoundLost = "lose_round";
+    public const string RoundDrawn = "draw_round";
+    public const string YouFirst = "me_coin";
+    public const string OpponentFirst = "op_coin";
+
+    private const float BandHeight = 150;
+    private const float EmblemHeight = 300;
+    private const float EmblemX = -300;  // the emblem's centre, from the middle of the screen
+    private const float TextX = -105;    // where the message starts
 
     private struct Notice
     {
-        public string Title;
-        public string Subtitle;
-        public Color Color;
+        public string Emblem;
+        public string Text;
         public float Duration;
     }
 
     private static BattleBanner instance;
     private readonly Queue<Notice> queue = new Queue<Notice>();
     private CanvasGroup group;
-    private TextMeshProUGUI title;
-    private TextMeshProUGUI subtitle;
+    private Image emblem;
+    private TextMeshProUGUI text;
     private float age = -1; // -1: nothing showing
     private float duration;
 
     // True while a notice shows or waits for its turn
     public static bool Busy { get { return instance != null && (instance.age >= 0 || instance.queue.Count > 0); } }
+
+    // The faction's crest, for its perk's notice
+    public static string FactionEmblem(string faction)
+    {
+        switch (faction)
+        {
+            case Gwent.Rules.Factions.NorthernRealms: return "north";
+            case Gwent.Rules.Factions.Nilfgaard: return "nilfgaard";
+            case Gwent.Rules.Factions.Monsters: return "monsters";
+            case Gwent.Rules.Factions.Scoiatael: return "scoiatael";
+            default: return null;
+        }
+    }
+
+    public static void Show(string emblem, string text, float duration = Turn)
+    {
+        if (instance == null)
+            instance = Create();
+        instance.queue.Enqueue(new Notice { Emblem = emblem, Text = text, Duration = duration });
+        GameLog.Info("Banner: " + text);
+    }
 
     // Drops every notice (the battle is over)
     public static void Clear()
@@ -43,38 +80,44 @@ public class BattleBanner : MonoBehaviour
         instance.group.alpha = 0;
     }
 
-    public static void Show(string title, string subtitle = null, Color? color = null, float duration = Short)
-    {
-        if (instance == null)
-            instance = Create();
-        instance.queue.Enqueue(new Notice { Title = title, Subtitle = subtitle, Color = color ?? UITheme.Current.goldBright, Duration = duration });
-        GameLog.Info("Banner: " + title + (subtitle != null ? " (" + subtitle + ")" : ""));
-    }
-
     private static BattleBanner Create()
     {
         UITheme theme = UITheme.Current;
-        RectTransform band = UIKit.NewImage(UIOverlay.FixedRoot, "BattleBanner", null, new Color(0, 0, 0, 0.8f)).rectTransform;
-        band.anchorMin = new Vector2(0, 0.5f);
-        band.anchorMax = new Vector2(1, 0.5f);
-        band.pivot = new Vector2(0.5f, 0.5f);
-        band.anchoredPosition = new Vector2(0, BoardMiddle);
-        band.sizeDelta = new Vector2(0, 150);
-        foreach (float edge in new[] { 0f, 1f })
-        {
-            Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
-            line.rectTransform.anchorMin = new Vector2(0, edge);
-            line.rectTransform.anchorMax = new Vector2(1, edge);
-            line.rectTransform.sizeDelta = new Vector2(0, 2);
-        }
+        RectTransform root = UIKit.Rect("BattleBanner", UIOverlay.FixedRoot);
+        root.anchorMin = new Vector2(0, 0.5f);
+        root.anchorMax = new Vector2(1, 0.5f);
+        root.pivot = new Vector2(0.5f, 0.5f);
+        root.anchoredPosition = Vector2.zero;
+        root.sizeDelta = new Vector2(0, BandHeight);
 
-        BattleBanner banner = band.gameObject.AddComponent<BattleBanner>();
-        banner.title = UIKit.Text(band, "", UIKit.TextStyle.Title, TextAlignmentOptions.Center);
-        banner.title.characterSpacing = 4;
-        banner.subtitle = UIKit.Text(band, "", UIKit.TextStyle.Label, TextAlignmentOptions.Center);
-        foreach (Graphic graphic in band.GetComponentsInChildren<Graphic>())
+        // A translucent band, a little darker through its middle
+        Image band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.5f));
+        band.rectTransform.Stretch();
+        Image core = UIKit.NewImage(root, "Core", theme.gradientV, new Color(0, 0, 0, 0.25f));
+        core.rectTransform.Stretch(0, 0, 18, 18);
+
+        BattleBanner banner = root.gameObject.AddComponent<BattleBanner>();
+        banner.emblem = UIKit.NewImage(root, "Emblem", null, Color.white);
+        banner.emblem.preserveAspect = true;
+        banner.emblem.rectTransform.anchorMin = banner.emblem.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        banner.emblem.rectTransform.anchoredPosition = new Vector2(EmblemX, 0);
+        banner.emblem.rectTransform.sizeDelta = new Vector2(EmblemHeight * 1.4f, EmblemHeight);
+
+        banner.text = UIKit.Text(root, "", UIKit.TextStyle.Body, TextAlignmentOptions.MidlineLeft);
+        if (theme.bodyFont != null)
+            banner.text.font = theme.bodyFont;
+        banner.text.fontStyle = FontStyles.Bold;
+        banner.text.fontSize = 34;
+        banner.text.characterSpacing = 0;
+        banner.text.color = new Color32(0xE2, 0xBD, 0x7C, 0xFF);
+        banner.text.rectTransform.anchorMin = banner.text.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+        banner.text.rectTransform.pivot = new Vector2(0, 0.5f);
+        banner.text.rectTransform.anchoredPosition = new Vector2(TextX, 0);
+        banner.text.rectTransform.sizeDelta = new Vector2(1000, BandHeight);
+
+        foreach (Graphic graphic in root.GetComponentsInChildren<Graphic>())
             graphic.raycastTarget = false;
-        banner.group = band.gameObject.AddComponent<CanvasGroup>();
+        banner.group = root.gameObject.AddComponent<CanvasGroup>();
         banner.group.alpha = 0;
         banner.group.blocksRaycasts = false;
         banner.group.interactable = false;
@@ -88,18 +131,16 @@ public class BattleBanner : MonoBehaviour
             if (queue.Count == 0)
                 return;
             Notice next = queue.Dequeue();
-            bool two_lines = !string.IsNullOrEmpty(next.Subtitle);
-            title.text = next.Title;
-            title.color = next.Color;
-            title.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, two_lines ? 18 : 0), new Vector2(1600, 80));
-            subtitle.text = two_lines ? next.Subtitle : "";
-            subtitle.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -38), new Vector2(1600, 40));
+            Sprite sprite = next.Emblem != null ? SpriteCache.Load("W3/Notifications/" + next.Emblem) : null;
+            emblem.sprite = sprite;
+            emblem.enabled = sprite != null;
+            text.text = next.Text;
             duration = next.Duration;
             age = 0;
         }
 
         age += Time.deltaTime;
-        group.alpha = age < FadeIn ? age / FadeIn : Mathf.Clamp01((duration - age) / FadeOut);
+        group.alpha = age < Fade ? age / Fade : Mathf.Clamp01((duration - age) / Fade);
         if (age >= duration)
         {
             age = -1;

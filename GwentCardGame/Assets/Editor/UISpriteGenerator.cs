@@ -119,10 +119,6 @@ public static class UISpriteGenerator
     // The board keeps the original Witcher 3 layout; these match its look: pale score discs with a thin silver rim
     // (cream for the player, frost blue for the opponent, white totals), a silver portrait frame with a point at
     // the bottom, rows recessed into the table, a warm golden hand tray and soft card shadows.
-    private static readonly Color Cream = new Color32(0xF4, 0xEA, 0xD5, 0xFF);
-    private static readonly Color CreamDeep = new Color32(0xD3, 0xBD, 0x96, 0xFF);
-    private static readonly Color Frost = new Color32(0xE8, 0xF1, 0xF6, 0xFF);
-    private static readonly Color FrostDeep = new Color32(0xA9, 0xC5, 0xD5, 0xFF);
     private static readonly Color Chalk = new Color32(0xF7, 0xF5, 0xF0, 0xFF);
     private static readonly Color ChalkDeep = new Color32(0xCE, 0xCA, 0xC1, 0xFF);
     private static readonly Color Silver = new Color32(0xB6, 0xBA, 0xBE, 0xFF);
@@ -135,11 +131,8 @@ public static class UISpriteGenerator
     private static void GenerateBoard()
     {
         Directory.CreateDirectory(BoardFolder);
-        WriteColor("ScorePlayer", 192, 192, (x, y) => Medallion(x, y, 192, Cream, CreamDeep, Silver));
-        WriteColor("ScoreOpponent", 192, 192, (x, y) => Medallion(x, y, 192, Frost, FrostDeep, Silver));
+        // GemRed, GemGrey, ScorePlayer and ScoreOpponent are The Witcher 3's own (see Resources/W3/CREDITS.md)
         WriteColor("ScoreTotal", 192, 192, (x, y) => Medallion(x, y, 192, Chalk, ChalkDeep, Silver));
-        WriteColor("GemRed", 96, 96, (x, y) => Gem(x, y, 96, new Color(0.82f, 0.16f, 0.14f)));
-        WriteColor("GemGrey", 96, 96, (x, y) => Gem(x, y, 96, new Color(0.40f, 0.38f, 0.36f)));
         WriteColor("PortraitFrame", 192, 212, (x, y) => PortraitFrame(x, y, Silver));
         WriteColor("AbilityButton", 192, 192, AbilityButton);
         WriteColorSliced("CardSlot", 96, 96, CardSlot, new Vector4(24, 24, 24, 24));
@@ -224,40 +217,6 @@ public static class UISpriteGenerator
         Color result = color * (coverage / alpha);
         result.a = alpha;
         return result;
-    }
-
-    // Faceted octagonal gem lit from the top left
-    private static Color Gem(float x, float y, int size, Color base_color)
-    {
-        float c = size / 2f, apothem = c - 4, table = apothem * 0.48f;
-        Vector2 p = new Vector2(x - c, y - c);
-        float distance = -1e9f, table_distance = -1e9f;
-        int facet = 0;
-        for (int k = 0; k < 8; k++)
-        {
-            float angle = k * Mathf.PI / 4;
-            float d = Vector2.Dot(p, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)));
-            if (d - apothem > distance)
-            {
-                distance = d - apothem;
-                facet = k;
-            }
-            table_distance = Mathf.Max(table_distance, d - table);
-        }
-        Color color;
-        if (table_distance < 0)
-            color = Shade(base_color, 1.25f);
-        else
-        {
-            float angle = facet * Mathf.PI / 4;
-            color = Shade(base_color, 0.72f + 0.42f * Vector2.Dot(new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), Light));
-        }
-        if (distance > -2.5f || Mathf.Abs(table_distance) < 0.8f)
-            color = Shade(color, 0.55f); // outline and table edge
-        Vector2 sparkle = p - new Vector2(-table * 0.4f, -table * 0.45f);
-        color = Color.Lerp(color, Color.white, Mathf.Exp(-sparkle.sqrMagnitude / 20f) * 0.7f);
-        color.a = Mathf.Clamp01(0.5f - distance);
-        return color;
     }
 
     // Beveled metal portrait ring with a small point at the bottom (the Witcher 3 frame), transparent inside.

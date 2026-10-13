@@ -332,8 +332,21 @@ public static class GwentAutoplay
         //----------------------------------------The random player----------------------------------------//
         private void PlayerStep(SceneController c)
         {
+            // The Scoia'tael choice comes first, before the redraw (as in The Witcher 3)
+            if (c.TurnPicker.activeInHierarchy)
+            {
+                Check(GameObject.Find("Button Go first") != null && GameObject.Find("Button Go second") != null, "the Scoia'tael turn dialog shows its two choices", "turn dialog");
+                TurnManager picker = c.TurnPicker.GetComponentInChildren<TurnManager>();
+                if (rnd.Next(2) == 0) picker.GoFirst(); else picker.GoSecond();
+                Count("scoiatael turn pick");
+                return;
+            }
+
             if (c.battleState == BattleState.START && c.PlayerInfo.CanExchange)
             {
+                // The redraw opens once the coin toss has been announced
+                if (!RedrawPicker.IsOpen)
+                    return;
                 if (redrawChecks < 3)
                 {
                     InputScenario scenario = new[] { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel }[redrawChecks++];
@@ -350,15 +363,6 @@ public static class GwentAutoplay
                     Count("exchange");
                 }
                 c.FinishCardExchange();
-                return;
-            }
-
-            if (c.TurnPicker.activeInHierarchy)
-            {
-                Check(GameObject.Find("Button Go first") != null && GameObject.Find("Button Go second") != null, "the Scoia'tael turn dialog shows its two choices", "turn dialog");
-                TurnManager picker = c.TurnPicker.GetComponentInChildren<TurnManager>();
-                if (rnd.Next(2) == 0) picker.GoFirst(); else picker.GoSecond();
-                Count("scoiatael turn pick");
                 return;
             }
 

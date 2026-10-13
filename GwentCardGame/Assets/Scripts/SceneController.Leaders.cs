@@ -151,8 +151,6 @@ public partial class SceneController
         GameAudio.PlaySfx("leader");
         Info(is_player_turn).canLeader = false;
         View(is_player_turn).Leader.MarkUsed();
-        if (!is_player_turn)
-            AnnounceOpponentLeader();
 
         RecalculateStrengths();
         RefreshBoard();
@@ -248,11 +246,6 @@ public partial class SceneController
         return true;
     }
 
-    private void AnnounceOpponentLeader()
-    {
-        BattleBanner.Show("Your opponent used their leader", LeaderIds.DescribeForOpponent(EnemyInfo.Leader));
-    }
-
     // AI leader that plays a weather card from its deck (chosen by the AI)
     public bool AiUseWeatherLeader(int weather_card_id)
     {
@@ -261,7 +254,6 @@ public partial class SceneController
         EnemyInfo.canLeader = false;
         View(false).Leader.MarkUsed();
         GameAudio.PlaySfx("leader");
-        AnnounceOpponentLeader();
         EnemyInfo.HandList.Add(weather_card_id);
         PlayCard(weather_card_id, Rows.Weather, false);
         return true;

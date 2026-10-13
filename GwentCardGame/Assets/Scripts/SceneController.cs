@@ -57,7 +57,8 @@ public partial class SceneController : MonoBehaviour
     private GameObject mulliganPrompt;
     private Coroutine turnRoutine;
     private int turnGeneration;
-    private bool roundOpening;      // the next turn opens a round (announced as "Round N")
+    private bool roundOpening;      // the next turn opens a round (after "Round Start")
+    private bool? firstPlayer;      // who takes the battle's first turn
     private bool? lastTurnWasPlayer; // whose turn was announced last in this round
     private bool lastPasserWasPlayer; // after a drawn round, whoever passed last starts the next one
     private string whiteFlameNotice;  // shown once the redraw is over
@@ -100,15 +101,56 @@ public partial class SceneController : MonoBehaviour
         UIOverlay.SetEscapeAction(PauseMenu.Open);
         battleState = BattleState.START;
         SetupBattle();
+        StartCoroutine(BattleOpening());
+    }
+
+    // The Witcher 3's opening: the leaders' notice (The White Flame), who goes first (a coin toss, or the Scoia'tael
+    // perk), then the redraw; the first round starts once both sides are done
+    private IEnumerator BattleOpening()
+    {
+        if (whiteFlameNotice != null)
+        {
+            BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Nilfgaard), whiteFlameNotice, BattleBanner.Long);
+            whiteFlameNotice = null;
+        }
+
+        if (PlayerInfo.Faction == Factions.Scoiatael && EnemyInfo.Faction != Factions.Scoiatael)
+        {
+            while (BattleBanner.Busy)
+                yield return null;
+            firstPlayer = null;
+            TurnPicker.SetActive(true); // the player's choice comes back through ChooseFirstPlayer
+            while (!firstPlayer.HasValue)
+                yield return null;
+            BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
+        }
+        else if (PlayerInfo.Faction != Factions.Scoiatael && EnemyInfo.Faction == Factions.Scoiatael)
+        {
+            firstPlayer = false; // the AI's Scoia'tael goes first
+            BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Scoiatael), "Opponent used the Scoia'tael faction perk to go first.");
+        }
+        else
+        {
+            firstPlayer = Rng.Shared.Next(0, 2) != 0;
+            BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
+        }
+        while (BattleBanner.Busy)
+            yield return null;
+
         if (PlayerInfo.CanExchange)
             mulliganPrompt = RedrawPicker.ShowPhase(this);
+        yield return RoundOpening(firstPlayer.Value);
+    }
 
-        StartCoroutine(FirstTurnPicker());
+    // The Scoia'tael dialog's answer
+    public void ChooseFirstPlayer(bool player_first)
+    {
+        firstPlayer = player_first;
     }
 
     private void Update()
     {
-        if (battleState == BattleState.START && PlayerInfo.CanExchange && ShouldSkipCardExchange())
+        if (battleState == BattleState.START && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
         {
             GameLog.Info("Player has skipped cards exchanging !");
             FinishCardExchange();
@@ -256,7 +298,7 @@ public partial class SceneController : MonoBehaviour
     //----------------------------------------------TURNS---------------------------------------------------//
     // Picks who takes the first turn of a round: the given side, or for the battle's first round the Scoia'tael perk
     // or a coin toss
-    private IEnumerator FirstTurnPicker(bool? player_starts = null)
+    private IEnumerator RoundOpening(bool player_starts)
     {
         if (EnemyInfo.CanExchange)
         {
@@ -272,26 +314,12 @@ public partial class SceneController : MonoBehaviour
         if (mulliganPrompt != null)
             Destroy(mulliganPrompt);
 
-        // The White Flame's notice, once the redraw is over (The Witcher 3 announces it at the start)
-        if (whiteFlameNotice != null)
-        {
-            BattleBanner.Show("Emhyr: The White Flame", whiteFlameNotice, null, BattleBanner.Long);
-            whiteFlameNotice = null;
-            while (BattleBanner.Busy)
-                yield return null;
-        }
+        BattleBanner.Show(BattleBanner.RoundStart, "Round Start");
+        while (BattleBanner.Busy)
+            yield return null;
         roundOpening = true;
         lastTurnWasPlayer = null;
-
-        if (player_starts.HasValue)
-            StartTurn(player_starts.Value);
-        //------------Scoia'tael: decides who takes the first turn of the battle-------------//
-        else if (PlayerInfo.Faction == Factions.Scoiatael && EnemyInfo.Faction != Factions.Scoiatael)
-            TurnPicker.SetActive(true);
-        else if (PlayerInfo.Faction != Factions.Scoiatael && EnemyInfo.Faction == Factions.Scoiatael)
-            StartTurn(false); // The AI's Scoia'tael goes first, as in The Witcher 3
-        else
-            StartTurn(Rng.Shared.Next(0, 2) != 0);
+        StartTurn(player_starts);
     }
 
     // Only one turn coroutine at a time: a stale "player turn in 1s" must not fire during a later turn
@@ -317,14 +345,16 @@ public partial class SceneController : MonoBehaviour
     private IEnumerator PlayerTurn(int generation)
     {
         if (!PlayerInfo.hasPassed && OutOfPlays(true))
-            MarkPassed(true, "No cards left to play");
+            MarkPassed(true);
         if (PlayerInfo.hasPassed)
         {
             CheckRoundEnd();
             yield break;
         }
         AnnounceTurn(true);
-        yield return new WaitForSeconds(1f);
+        yield return new WaitForSeconds(0.3f);
+        while (BattleBanner.Busy)
+            yield return null;
         if (generation != turnGeneration)
             yield break;
         GameLog.Info("Player Turn !");
@@ -335,7 +365,7 @@ public partial class SceneController : MonoBehaviour
     private IEnumerator EnemyTurn(int generation)
     {
         if (!EnemyInfo.hasPassed && OutOfPlays(false))
-            MarkPassed(false, "No cards left to play");
+            MarkPassed(false);
         if (EnemyInfo.hasPassed)
         {
             CheckRoundEnd();
@@ -345,7 +375,10 @@ public partial class SceneController : MonoBehaviour
         AnnounceTurn(false);
         GameLog.Info("Enemy Turn !");
         GameAudio.PlaySfx("turn_enemy");
-        yield return new WaitForSeconds(1.2f);
+        yield return new WaitForSeconds(0.3f);
+        while (BattleBanner.Busy)
+            yield return null;
+        yield return new WaitForSeconds(0.15f);
         if (generation != turnGeneration)
             yield break;
 
@@ -365,17 +398,13 @@ public partial class SceneController : MonoBehaviour
         board.ClearFlight();
     }
 
-    // The Witcher 3's turn notices: who opens the round, then each change of side. Not while the other side has
-    // passed: its pass was announced already and the turns no longer alternate.
+    // The Witcher 3's turn notices: each change of side. Not while the other side has passed: its pass was
+    // announced already and the turns no longer alternate.
     private void AnnounceTurn(bool is_player)
     {
-        if (roundOpening)
-        {
-            roundOpening = false;
-            BattleBanner.Show("Round " + (PlayerInfo.RoundsScore.Count + 1), is_player ? "You will go first" : "Your opponent will go first");
-        }
-        else if (lastTurnWasPlayer != is_player && !Opponent(is_player).hasPassed)
-            BattleBanner.Show(is_player ? "Your turn!" : "Opponent's turn");
+        roundOpening = false;
+        if (lastTurnWasPlayer != is_player && !Opponent(is_player).hasPassed)
+            BattleBanner.Show(is_player ? BattleBanner.YourTurn : BattleBanner.OpponentsTurn, is_player ? "Your turn!" : "Opponent's turn");
         lastTurnWasPlayer = is_player;
     }
 
@@ -411,7 +440,7 @@ public partial class SceneController : MonoBehaviour
             return;
         }
 
-        MarkPassed(is_player_turn, null);
+        MarkPassed(is_player_turn);
         TurnCallBack(is_player_turn);
     }
 
@@ -422,13 +451,13 @@ public partial class SceneController : MonoBehaviour
         return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Rows.LeaderActive);
     }
 
-    private void MarkPassed(bool is_player, string why)
+    private void MarkPassed(bool is_player)
     {
         GameAudio.PlaySfx("pass");
         // A pass that ends the round is followed by the round's result instead; at the opening of a round the
         // other side's "Round N" notice says it all
         if (!Opponent(is_player).hasPassed && !roundOpening)
-            BattleBanner.Show(is_player ? "You passed" : "Your opponent has passed", why);
+            BattleBanner.Show(BattleBanner.Passed, is_player ? "Turn passed" : "Your opponent has passed");
         Info(is_player).hasPassed = true;
         lastPasserWasPlayer = is_player;
         if (is_player)
@@ -451,13 +480,15 @@ public partial class SceneController : MonoBehaviour
         View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
         View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
-        // The result over the board as it ended, then the board clears
-        UITheme theme = UITheme.Current;
-        string result = winner == RoundWinner.Player ? "You won the round!" : winner == RoundWinner.Enemy ? "Your opponent won the round" : "The round ended in a draw";
-        string score = player_total + "  –  " + enemy_total;
+        // The result over the board as it ended, then the board clears; a tie Nilfgaard wins is announced first
         if (player_total == enemy_total && winner != RoundWinner.Draw)
-            score += "   ·   Nilfgaard wins ties";
-        BattleBanner.Show(result, score, winner == RoundWinner.Player ? theme.goldBright : winner == RoundWinner.Enemy ? theme.danger : theme.textSecondary, BattleBanner.Long);
+            BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
+        if (winner == RoundWinner.Player)
+            BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
+        else if (winner == RoundWinner.Enemy)
+            BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long);
+        else
+            BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long);
         PlayRoundOutcomeAudio(winner);
         StartCoroutine(FinishRound(winner));
     }
@@ -505,7 +536,7 @@ public partial class SceneController : MonoBehaviour
         {
             int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
             if (kept != -1)
-                BattleBanner.Show("Monsters perk", (is_player ? "Your " : "Your opponent's ") + Db.Get(kept).DisplayName + " stays on the battlefield");
+                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
         }
         weatherList.Clear();
 
@@ -514,13 +545,13 @@ public partial class SceneController : MonoBehaviour
         {
             bool is_player = winner == RoundWinner.Player;
             if (DrawCards(1, Info(is_player), is_player) > 0)
-                BattleBanner.Show("Northern Realms perk", is_player ? "You draw a card for winning the round" : "Your opponent draws a card for winning the round");
+                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
         }
 
         RefreshBoard();
 
         // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
-        StartCoroutine(FirstTurnPicker(winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer)));
+        StartCoroutine(RoundOpening(winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer)));
     }
 
     public bool IsBattleOver
