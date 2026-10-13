@@ -66,7 +66,8 @@ public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
         if (pointerDown)
         {
-            pointerDownTimer += Time.deltaTime;
+            // Real time: a hold is a gesture, and a hitch (game time is capped per frame) must not stretch it
+            pointerDownTimer += Time.unscaledDeltaTime;
             if (pointerDownTimer >= requiredHoldTime)
             {
                 if (onLongClick != null)
