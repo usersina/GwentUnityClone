@@ -32,10 +32,12 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
             controller = SceneController.Instance;
         if (controller.battleState == BattleState.PLAYERTURN)
         {
-            if (controller.selectedCard != null && isWeatherCard && controller.TryPlaySelectedCardOnBoard())
-            {
+            if (controller.selectedCard == null)
+                return;
+            if (isWeatherCard && controller.TryPlaySelectedCardOnBoard())
                 GameLog.Info("Player placing weather card !");
-            }
+            else
+                GameAudio.PlaySfx("invalid"); // only weather and scorch go on the weather board
         }
     }
 

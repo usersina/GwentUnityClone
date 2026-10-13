@@ -44,6 +44,14 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
                     // Just be sure to update the lists
                     controller.DirectlyPlaceCard(controller.selectedCard, targetField, true);
                 }
+                else
+                {
+                    // Not a place for this card: say so instead of doing nothing
+                    GameAudio.PlaySfx("invalid");
+                    CardStats selected = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+                    if (selected.ability == Abilities.Decoy)
+                        UIOverlay.Toast("Decoy: click one of your units to take it back to your hand");
+                }
             }
             else
                 GameLog.Info("Player has no card selected to play !");

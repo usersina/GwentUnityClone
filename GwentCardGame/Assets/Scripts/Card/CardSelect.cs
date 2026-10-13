@@ -29,6 +29,13 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
 
         if (isSelectable)
         {
+            // A hand card while the opponent plays: not now
+            if (controller.battleState == BattleState.ENEMYTURN && gameObject.CompareTag("Player"))
+            {
+                GameAudio.PlaySfx("invalid");
+                return;
+            }
+
             // If the turn is the player's and the card is his, hence the Tag
             if (controller.IsPlayerActionAllowed && gameObject.CompareTag("Player") && !controller.PlayerInfo.CanDiscard)
             {
@@ -56,7 +63,22 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
         if (controller.TryPlaySelectedCardOnBoard())
             return;
 
-        TryActivateLeaderCard();
+        if (TryActivateLeaderCard())
+            return;
+
+        // A card already on a row or the weather board, with a card selected: the click counts for the row (or
+        // the weather board) under it, so full rows still take the selected card
+        if (controller.selectedCard != null && controller.battleState == BattleState.PLAYERTURN)
+        {
+            RowClick row = GetComponentInParent<RowClick>();
+            WeatherManager weather = GetComponentInParent<WeatherManager>();
+            if (row != null)
+                row.OnRowClick();
+            else if (weather != null)
+                weather.OnWeatherClick();
+            else
+                GameAudio.PlaySfx("invalid");
+        }
     }
 
     private bool TryActivateLeaderCard()
