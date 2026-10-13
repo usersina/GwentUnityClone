@@ -5,6 +5,10 @@ public class GameAudio : MonoBehaviour
 {
     private const string MusicPath = "Audio/Music";
     private const string SfxPath = "Audio/Sfx";
+    private const string MusicVolumeKey = "musicVolume";
+    private const string SfxVolumeKey = "sfxVolume";
+    private const float MusicBaseVolume = 0.45f;
+    private const float SfxBaseVolume = 0.9f;
 
     private static GameAudio instance;
     private static readonly Dictionary<string, string[]> SfxAliases = new Dictionary<string, string[]>
@@ -98,7 +102,6 @@ public class GameAudio : MonoBehaviour
             musicSource = gameObject.AddComponent<AudioSource>();
             musicSource.loop = true;
             musicSource.playOnAwake = false;
-            musicSource.volume = 0.45f;
         }
 
         if (sfxSource == null)
@@ -106,8 +109,40 @@ public class GameAudio : MonoBehaviour
             sfxSource = gameObject.AddComponent<AudioSource>();
             sfxSource.loop = false;
             sfxSource.playOnAwake = false;
-            sfxSource.volume = 0.9f;
         }
+        ApplyVolumes();
+    }
+
+    //----------------------------------------Settings (saved in PlayerPrefs)----------------------------------------//
+    // 0..1, multiplied with the base mix volume
+    public static float MusicVolume
+    {
+        get { return PlayerPrefs.GetFloat(MusicVolumeKey, 1f); }
+        set
+        {
+            PlayerPrefs.SetFloat(MusicVolumeKey, Mathf.Clamp01(value));
+            PlayerPrefs.Save();
+            Instance.ApplyVolumes();
+        }
+    }
+
+    public static float SfxVolume
+    {
+        get { return PlayerPrefs.GetFloat(SfxVolumeKey, 1f); }
+        set
+        {
+            PlayerPrefs.SetFloat(SfxVolumeKey, Mathf.Clamp01(value));
+            PlayerPrefs.Save();
+            Instance.ApplyVolumes();
+        }
+    }
+
+    private void ApplyVolumes()
+    {
+        if (musicSource != null)
+            musicSource.volume = MusicBaseVolume * MusicVolume;
+        if (sfxSource != null)
+            sfxSource.volume = SfxBaseVolume * SfxVolume;
     }
 
     public static void PlayMenuMusic()
@@ -156,6 +191,9 @@ public class GameAudio : MonoBehaviour
     private void PlaySoundEffect(string clipName, float volumeScale)
     {
         ConfigureSources();
+
+        if (SfxVolume <= 0f)
+            return;
 
         AudioClip clip = LoadSfxClip(clipName);
         if (clip == null)
