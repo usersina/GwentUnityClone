@@ -137,6 +137,8 @@ public static class UISpriteGenerator
         WriteColor("GemRed", 96, 96, (x, y) => Gem(x, y, 96, new Color(0.82f, 0.16f, 0.14f)));
         WriteColor("GemGrey", 96, 96, (x, y) => Gem(x, y, 96, new Color(0.40f, 0.38f, 0.36f)));
         WriteColor("PortraitFrame", 192, 212, (x, y) => PortraitFrame(x, y, Silver));
+        WriteColor("AbilityButton", 192, 192, AbilityButton);
+        WriteColorSliced("CardSlot", 96, 96, CardSlot, new Vector4(24, 24, 24, 24));
         WriteAlpha("SoftShadow", 64, 64, (u, v) => 1 - Smooth((RoundedBox(u * 64, v * 64, 64, 64, 14, 16) + 10) / 22), new Vector4(32, 32, 32, 32), BoardFolder);
 
         foreach (string row in new[] { "close_combat", "range_combat", "siege_combat" })
@@ -309,6 +311,97 @@ public static class UISpriteGenerator
                 pixels[y * w + x] = color;
             }
         Save(name, new Texture2D(w, h, TextureFormat.RGBA32, false), pixels, Vector4.zero, BoardFolder);
+    }
+
+    // Leader ability button: a beveled gold ring around a dark face with a gold crown, a soft shadow below.
+    // Drawn bright: Unity's colour tint dims it for the normal, pressed and disabled states.
+    private static Color AbilityButton(float x, float y)
+    {
+        const float c = 96, outer = 84, ring_in = 70;
+        Vector2 p = new Vector2(x - c, y - c);
+        float r = p.magnitude;
+        float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
+        Color color;
+        if (r > ring_in)
+        {
+            float t = (r - ring_in) / (outer - ring_in);
+            color = Shade(Gold, 0.8f + 0.3f * (t < 0.5f ? -light : light));
+        }
+        else
+        {
+            color = Color.Lerp(new Color32(0x3A, 0x2C, 0x1E, 0xFF), new Color32(0x1C, 0x14, 0x0D, 0xFF), Mathf.Clamp01((p.y / ring_in + 1) / 2));
+            color = Shade(color, 1 - 0.35f * Smooth((r - (ring_in - 12)) / 12));
+            // The crown, scaled from a 64 px drawing centred in the face
+            float crown = Crown((p.x / 1.55f) + 32, (p.y / 1.55f) + 33);
+            float crown_coverage = Mathf.Clamp01(0.5f - crown * 1.55f);
+            color = Color.Lerp(color, Shade(Gold, 1.05f - 0.25f * Mathf.Clamp01((p.y + 30) / 60)), crown_coverage);
+        }
+        if (Mathf.Abs(r - ring_in) < 1.5f || r > outer - 2)
+            color = Shade(color, 0.5f);
+        return OverShadow(color, Mathf.Clamp01(outer + 0.5f - r), (new Vector2(x - c - 3, y - c - 5).magnitude - outer) / 8f);
+    }
+
+    // A crown in a 64x64 box (y down): band, three points with balls on top
+    private static float Crown(float x, float y)
+    {
+        float band = RoundedBoxAt(x, y, 32, 46, 19, 4, 1.5f);
+        float body = Polygon(x, y, new[] { new Vector2(13, 44), new Vector2(13, 22), new Vector2(23, 32), new Vector2(32, 15), new Vector2(41, 32), new Vector2(51, 22), new Vector2(51, 44) });
+        float balls = Mathf.Min(Circle(x, y, 13, 19, 3.2f), Mathf.Min(Circle(x, y, 32, 12, 3.6f), Circle(x, y, 51, 19, 3.2f)));
+        return Mathf.Min(band, Mathf.Min(body, balls));
+    }
+
+    // Card slot: a dark recess with an inner shadow along the top and left, and a thin bronze edge
+    private static Color CardSlot(float x, float y)
+    {
+        const float w = 96, h = 96;
+        float d = RoundedBox(x, y, w, h, 10, 1);
+        float depth = -d; // distance inside the edge
+        Color color = new Color(0.05f, 0.03f, 0.02f, 0.62f);
+        // Inner shadow, stronger on the top and left (light from the top left)
+        float top_left = 1 - Smooth(Mathf.Min(x - 1, y - 1) / 14f);
+        color.a = Mathf.Clamp01(color.a + 0.25f * (1 - Smooth(depth / 10f)) + 0.15f * top_left);
+        if (depth < 2.5f)
+        {
+            float bevel = Mathf.Clamp01((x / w + y / h) / 2); // lighter on the bottom right edge
+            color = Color.Lerp(Shade(Bronze, 0.6f), Shade(Bronze, 1.2f), bevel);
+            color.a = 0.9f;
+        }
+        color.a *= Mathf.Clamp01(0.5f - d);
+        return color;
+    }
+
+    private static float RoundedBoxAt(float x, float y, float cx, float cy, float half_width, float half_height, float radius)
+    {
+        float qx = Mathf.Abs(x - cx) - (half_width - radius);
+        float qy = Mathf.Abs(y - cy) - (half_height - radius);
+        return new Vector2(Mathf.Max(qx, 0), Mathf.Max(qy, 0)).magnitude + Mathf.Min(Mathf.Max(qx, qy), 0) - radius;
+    }
+
+    // Signed distance to a closed polygon (negative inside)
+    private static float Polygon(float x, float y, Vector2[] points)
+    {
+        Vector2 p = new Vector2(x, y);
+        float distance = float.MaxValue;
+        bool inside = false;
+        for (int i = 0, j = points.Length - 1; i < points.Length; j = i++)
+        {
+            Vector2 a = points[j], b = points[i];
+            Vector2 ab = b - a;
+            float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude);
+            distance = Mathf.Min(distance, (p - (a + ab * t)).magnitude);
+            if ((a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x))
+                inside = !inside;
+        }
+        return inside ? -distance : distance;
+    }
+
+    private static void WriteColorSliced(string name, int width, int height, ColorAt color_at, Vector4 border)
+    {
+        Color32[] pixels = new Color32[width * height];
+        for (int py = 0; py < height; py++)
+            for (int px = 0; px < width; px++)
+                pixels[py * width + px] = color_at(px + 0.5f, height - py - 0.5f);
+        Save(name, new Texture2D(width, height, TextureFormat.RGBA32, false), pixels, border, BoardFolder);
     }
 
     private delegate Color ColorAt(float x, float y); // y measured from the top

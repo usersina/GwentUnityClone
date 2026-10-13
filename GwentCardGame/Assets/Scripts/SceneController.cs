@@ -145,7 +145,7 @@ public partial class SceneController : MonoBehaviour
             if (Info(is_player).Leader == LeaderIds.EmhyrTheWhiteFlame)
             {
                 Opponent(is_player).leaderDisabled = true;
-                View(!is_player).Leader.DisableButtonRC();
+                View(!is_player).Leader.MarkCancelled();
             }
     }
 

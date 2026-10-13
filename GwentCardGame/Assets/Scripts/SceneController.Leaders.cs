@@ -116,6 +116,12 @@ public partial class SceneController
     // Activate the leader's ACTIVE ability. Does nothing (and keeps the leader) when it would have no effect.
     public void ActivateLeader(int leader_id, bool is_player_turn)
     {
+        // Only a side's own leader: clicking the opponent's crown must not apply their ability for the player
+        if (leader_id != Info(is_player_turn).Leader)
+        {
+            GameAudio.PlaySfx("invalid");
+            return;
+        }
         if (!CanUseLeader(is_player_turn))
         {
             GameAudio.PlaySfx("invalid");
@@ -136,7 +142,7 @@ public partial class SceneController
 
         GameAudio.PlaySfx("leader");
         Info(is_player_turn).canLeader = false;
-        View(is_player_turn).Leader.DisableButtonRC();
+        View(is_player_turn).Leader.MarkUsed();
 
         RecalculateStrengths();
         RefreshBoard();
@@ -251,7 +257,7 @@ public partial class SceneController
         if (!CanUseLeader(false) || LeaderIds.WeatherPickRow(EnemyInfo.Leader) == null || !EnemyInfo.DeckList.Remove(weather_card_id))
             return false;
         EnemyInfo.canLeader = false;
-        View(false).Leader.DisableButtonRC();
+        View(false).Leader.MarkUsed();
         GameAudio.PlaySfx("leader");
         EnemyInfo.HandList.Add(weather_card_id);
         PlayCard(weather_card_id, Rows.Weather, false);

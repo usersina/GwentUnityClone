@@ -18,6 +18,8 @@ public class LeaderManager : MonoBehaviour
     }
 
     private Button activateButton;
+    private bool used;
+    private bool cancelled;
 
     private Button ActivateButton
     {
@@ -29,25 +31,74 @@ public class LeaderManager : MonoBehaviour
         }
     }
 
+    // The opponent's crown only shows the state of their ability: it is not a button for the player
+    private bool IsPlayers
+    {
+        get
+        {
+            if (controller == null)
+                controller = SceneController.Instance;
+            return controller != null && transform.IsChildOf(controller.PlayerField.transform);
+        }
+    }
+
+    private void Awake()
+    {
+        UITooltip tooltip = ActivateButton.gameObject.AddComponent<UITooltip>();
+        tooltip.text = TooltipText;
+    }
+
     public void UISetPassive()
     {
+        if (!IsPlayers)
+            ActivateButton.transition = Selectable.Transition.None; // no hover / press look
         // Disable the button if passive ability
         if (type == Rows.LeaderPassive)
-            ActivateButton.interactable = false;
+            SetUnavailable(Color.white);
     }
 
-    // Disabled in red: the opponent's leader cancels this one
-    public void DisableButtonRC()
+    // The ability was used: the button greys out
+    public void MarkUsed()
     {
-        ColorBlock colors = ActivateButton.colors;
-        colors.disabledColor = new Color32(255, 134, 134, 160);
-        ActivateButton.colors = colors;
-        ActivateButton.interactable = false;
+        used = true;
+        SetUnavailable(new Color(0.45f, 0.45f, 0.45f, 0.9f));
     }
 
-    // Reference: Activate button. The controller disables the button once the ability is really used.
+    // Cancelled by the opponent's leader (Emhyr, The White Flame): the button turns red
+    public void MarkCancelled()
+    {
+        cancelled = true;
+        SetUnavailable(new Color32(255, 134, 134, 200));
+    }
+
+    private void SetUnavailable(Color tint)
+    {
+        Button button = ActivateButton;
+        ColorBlock colors = button.colors;
+        colors.disabledColor = type == Rows.LeaderPassive && !used && !cancelled ? new Color(0.78f, 0.78f, 0.78f, 1f) : tint;
+        button.colors = colors;
+        button.interactable = false;
+        if (button.transition == Selectable.Transition.None && button.targetGraphic != null)
+            button.targetGraphic.color = colors.disabledColor;
+    }
+
+    private string TooltipText()
+    {
+        string whose = IsPlayers ? "Leader ability" : "Opponent's leader ability";
+        if (cancelled)
+            return whose + ": cancelled by the other leader";
+        if (type == Rows.LeaderPassive)
+            return whose + ": passive, always in effect";
+        if (used)
+            return whose + ": used";
+        return IsPlayers ? "Leader ability: click to use" : whose + ": not used yet";
+    }
+
+    // Reference: Activate button. The controller marks the button used once the ability really happened.
     public void ActivateLeader()
     {
+        if (!IsPlayers)
+            return;
         if (controller.battleState == BattleState.PLAYERTURN)
             controller.ActivateLeader(leaderId, true);
     }
