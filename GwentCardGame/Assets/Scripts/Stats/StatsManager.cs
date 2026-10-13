@@ -28,11 +28,23 @@ public class StatsManager : MonoBehaviour
                 transform.Find("Avatar").Find("faction").GetComponent<Image>().sprite = factionShields[2];
                 break;
             case "SC":
-                deck_name = "Scoia'tel";
+                deck_name = "Scoia'tael";
                 transform.Find("Avatar").Find("faction").GetComponent<Image>().sprite = factionShields[3];
                 break;
         }
         transform.Find("TextInfo").Find("Deck").GetComponent<TextMeshProUGUI>().text = deck_name;
+    }
+
+    // Player name, and the leader card's art in the round portrait frame (Avatar/Image masks Avatar/Image/Portrait)
+    public void UISetPlayer(string player_name, Sprite portrait)
+    {
+        transform.Find("TextInfo").Find("Name").GetComponent<TextMeshProUGUI>().text = player_name;
+        Transform portrait_transform = transform.Find("Avatar").Find("Image").Find("Portrait");
+        if (portrait_transform == null || portrait == null)
+            return;
+        Image portrait_image = portrait_transform.GetComponent<Image>();
+        portrait_image.sprite = portrait;
+        portrait_image.enabled = true;
     }
 
     public void UIUpdateTotalScore(List<int> close_list, List<int> range_list, List<int> siege_list)

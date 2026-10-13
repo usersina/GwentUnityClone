@@ -10,6 +10,7 @@ using UnityEngine;
 public static class UISpriteGenerator
 {
     public const string SpriteFolder = "Assets/UI/Sprites";
+    public const string BoardFolder = "Assets/UI/Board";
     public const string ThemePath = "Assets/Resources/UITheme.asset";
     private const int PixelsPerUnit = 200;
 
@@ -68,9 +69,12 @@ public static class UISpriteGenerator
             return Mathf.Min(body, Mathf.Min(band, tip));
         }, Vector4.zero);
 
+        GenerateBoard();
+
         AssetDatabase.Refresh();
-        foreach (string file in Directory.GetFiles(SpriteFolder, "*.png"))
-            ConfigureImporter(file.Replace('\\', '/'));
+        foreach (string folder in new[] { SpriteFolder, BoardFolder })
+            foreach (string file in Directory.GetFiles(folder, "*.png"))
+                ConfigureImporter(file.Replace('\\', '/'), folder == BoardFolder ? 100 : PixelsPerUnit);
         AssetDatabase.Refresh();
         WireTheme();
         Debug.Log("UI sprites and theme regenerated in " + SpriteFolder);
@@ -106,6 +110,160 @@ public static class UISpriteGenerator
         return t * t * (3 - 2 * t);
     }
 
+    //----------------------------------------Battle board----------------------------------------//
+    // The board keeps its layout and wood; these replace the flat score discs, gems and portrait placeholder,
+    // and give the rows a recessed frame (gold when highlighted) instead of the bright orange border.
+    private static readonly Color Amber = new Color32(0xF0, 0xB2, 0x45, 0xFF);
+    private static readonly Color AmberDeep = new Color32(0xB8, 0x72, 0x14, 0xFF);
+    private static readonly Color Brass = new Color32(0xC2, 0x93, 0x48, 0xFF);
+    private static readonly Color Ice = new Color32(0xA8, 0xDA, 0xEE, 0xFF);
+    private static readonly Color IceDeep = new Color32(0x4E, 0x96, 0xB8, 0xFF);
+    private static readonly Color Steel = new Color32(0x9A, 0xA8, 0xB4, 0xFF);
+    private static readonly Color Bronze = new Color32(0x8A, 0x6A, 0x3E, 0xFF);
+    private static readonly Color Gold = new Color32(0xE3, 0xC2, 0x7E, 0xFF);
+    private static readonly Color DarkLine = new Color32(0x14, 0x0C, 0x07, 0xFF);
+    private static readonly Vector2 Light = new Vector2(-0.6f, -0.8f); // from the top left (y down)
+
+    private static void GenerateBoard()
+    {
+        Directory.CreateDirectory(BoardFolder);
+        WriteColor("MedallionAmber", 192, (x, y) => Medallion(x, y, 192, Amber, AmberDeep, Brass));
+        WriteColor("MedallionSteel", 192, (x, y) => Medallion(x, y, 192, Ice, IceDeep, Steel));
+        WriteColor("GemRed", 96, (x, y) => Gem(x, y, 96, new Color(0.82f, 0.16f, 0.14f)));
+        WriteColor("GemGrey", 96, (x, y) => Gem(x, y, 96, new Color(0.40f, 0.38f, 0.36f)));
+        WriteColor("PortraitRing", 192, (x, y) => Ring(x, y, 192, 80, 94, Brass));
+
+        foreach (string row in new[] { "close_combat", "range_combat", "siege_combat" })
+        {
+            Reframe("Assets/Resources/UnitsRows/" + row + ".png", "Row_" + row, false);
+            Reframe("Assets/Resources/UnitsRows/" + row + "_selected.png", "Row_" + row + "_selected", true);
+        }
+        Reframe("Assets/Resources/UnitsRows/hand_row.png", "Row_hand", false);
+        Reframe("Assets/Resources/PowerRows/special.png", "Row_special", false);
+        Reframe("Assets/Resources/PowerRows/special_selected.png", "Row_special_selected", true);
+    }
+
+    // Score medallion: beveled metal rim around a colored disc (dark numbers go on top)
+    private static Color Medallion(float x, float y, int size, Color top, Color bottom, Color rim)
+    {
+        float c = size / 2f, outer = c - 2, rim_in = outer * 0.8f;
+        Vector2 p = new Vector2(x - c, y - c);
+        float r = p.magnitude;
+        float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
+        Color color;
+        if (r > rim_in)
+        {
+            float t = (r - rim_in) / (outer - rim_in);
+            float bevel = t < 0.5f ? -light : light; // inner half faces the light from below, outer half from above
+            color = Shade(rim, 0.78f + 0.32f * bevel);
+        }
+        else
+        {
+            color = Color.Lerp(top, bottom, Mathf.Clamp01((p.y / rim_in + 1) / 2));
+            color = Shade(color, 1 - 0.32f * Smooth((r - (rim_in - 14)) / 14)); // inner shadow under the rim
+            float glint = Mathf.Exp(-(p.x * p.x / (2 * 900f) + (p.y + rim_in * 0.45f) * (p.y + rim_in * 0.45f) / (2 * 200f)));
+            color = Color.Lerp(color, Color.white, glint * 0.22f);
+        }
+        if (Mathf.Abs(r - rim_in) < 1.5f || r > outer - 2)
+            color = Shade(color, 0.45f); // groove and outer edge
+        color.a = Mathf.Clamp01(outer + 0.5f - r);
+        return color;
+    }
+
+    // Faceted octagonal gem lit from the top left
+    private static Color Gem(float x, float y, int size, Color base_color)
+    {
+        float c = size / 2f, apothem = c - 4, table = apothem * 0.48f;
+        Vector2 p = new Vector2(x - c, y - c);
+        float distance = -1e9f, table_distance = -1e9f;
+        int facet = 0;
+        for (int k = 0; k < 8; k++)
+        {
+            float angle = k * Mathf.PI / 4;
+            float d = Vector2.Dot(p, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)));
+            if (d - apothem > distance)
+            {
+                distance = d - apothem;
+                facet = k;
+            }
+            table_distance = Mathf.Max(table_distance, d - table);
+        }
+        Color color;
+        if (table_distance < 0)
+            color = Shade(base_color, 1.25f);
+        else
+        {
+            float angle = facet * Mathf.PI / 4;
+            color = Shade(base_color, 0.72f + 0.42f * Vector2.Dot(new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), Light));
+        }
+        if (distance > -2.5f || Mathf.Abs(table_distance) < 0.8f)
+            color = Shade(color, 0.55f); // outline and table edge
+        Vector2 sparkle = p - new Vector2(-table * 0.4f, -table * 0.45f);
+        color = Color.Lerp(color, Color.white, Mathf.Exp(-sparkle.sqrMagnitude / 20f) * 0.7f);
+        color.a = Mathf.Clamp01(0.5f - distance);
+        return color;
+    }
+
+    // Beveled metal ring (portrait frame), transparent inside
+    private static Color Ring(float x, float y, int size, float inner, float outer, Color metal)
+    {
+        float c = size / 2f;
+        Vector2 p = new Vector2(x - c, y - c);
+        float r = p.magnitude;
+        float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
+        float t = (r - inner) / (outer - inner);
+        Color color = Shade(metal, 0.78f + 0.32f * (t < 0.5f ? -light : light));
+        if (r < inner + 1.5f || r > outer - 1.5f)
+            color = Shade(color, 0.45f);
+        color.a = Mathf.Clamp01(Mathf.Min(r - inner + 0.5f, outer + 0.5f - r));
+        return color;
+    }
+
+    // Row art: the wood is extended over the old border, then a recessed dark frame with a bronze line
+    // (or a gold edge and a soft glow for the highlighted version) is drawn
+    private static void Reframe(string source, string name, bool highlighted)
+    {
+        Texture2D input = new Texture2D(2, 2);
+        input.LoadImage(File.ReadAllBytes(source));
+        int w = input.width, h = input.height;
+        Color32[] src = input.GetPixels32();
+        UnityEngine.Object.DestroyImmediate(input);
+        const int band = 7;
+        Color32[] pixels = new Color32[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int edge = Mathf.Min(Mathf.Min(x, y), Mathf.Min(w - 1 - x, h - 1 - y));
+                int sx = Mathf.Clamp(x, band, w - 1 - band), sy = Mathf.Clamp(y, band, h - 1 - band);
+                Color color = src[sy * w + sx];
+                float near = 1 - Smooth((edge - 2) / (highlighted ? 14f : 12f));
+                color = highlighted ? Color.Lerp(color, Gold, near * 0.22f) : Shade(color, 1 - 0.38f * near);
+                if (edge < 2)
+                    color = highlighted ? Shade(Gold, 0.8f) : DarkLine;
+                else if (edge < 4)
+                    color = Color.Lerp(color, highlighted ? Gold : Bronze, highlighted ? 0.9f : 0.6f);
+                color.a = 1;
+                pixels[y * w + x] = color;
+            }
+        Save(name, new Texture2D(w, h, TextureFormat.RGBA32, false), pixels, Vector4.zero, BoardFolder);
+    }
+
+    private delegate Color ColorAt(float x, float y); // y measured from the top
+
+    private static void WriteColor(string name, int size, ColorAt color_at)
+    {
+        Color32[] pixels = new Color32[size * size];
+        for (int py = 0; py < size; py++)
+            for (int px = 0; px < size; px++)
+                pixels[py * size + px] = color_at(px + 0.5f, size - py - 0.5f);
+        Save(name, new Texture2D(size, size, TextureFormat.RGBA32, false), pixels, Vector4.zero, BoardFolder);
+    }
+
+    private static Color Shade(Color color, float factor)
+    {
+        return new Color(Mathf.Clamp01(color.r * factor), Mathf.Clamp01(color.g * factor), Mathf.Clamp01(color.b * factor), color.a);
+    }
+
     //----------------------------------------Output----------------------------------------//
     private static void Write(string name, int width, int height, Shape shape, Vector4 border, Alpha fade = null)
     {
@@ -137,11 +295,11 @@ public static class UISpriteGenerator
         Save(name, texture, pixels, Vector4.zero);
     }
 
-    private static void Save(string name, Texture2D texture, Color32[] pixels, Vector4 border)
+    private static void Save(string name, Texture2D texture, Color32[] pixels, Vector4 border, string folder = SpriteFolder)
     {
         texture.SetPixels32(pixels);
         texture.Apply();
-        string path = SpriteFolder + "/" + name + ".png";
+        string path = folder + "/" + name + ".png";
         File.WriteAllBytes(path, texture.EncodeToPNG());
         UnityEngine.Object.DestroyImmediate(texture);
         Borders[path] = border;
@@ -149,14 +307,14 @@ public static class UISpriteGenerator
 
     private static readonly System.Collections.Generic.Dictionary<string, Vector4> Borders = new System.Collections.Generic.Dictionary<string, Vector4>();
 
-    private static void ConfigureImporter(string path)
+    private static void ConfigureImporter(string path, int pixels_per_unit)
     {
         TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
         if (importer == null)
             return;
         importer.textureType = TextureImporterType.Sprite;
         importer.spriteImportMode = SpriteImportMode.Single;
-        importer.spritePixelsPerUnit = PixelsPerUnit;
+        importer.spritePixelsPerUnit = pixels_per_unit;
         importer.mipmapEnabled = false;
         importer.alphaIsTransparency = true;
         importer.wrapMode = TextureWrapMode.Clamp;

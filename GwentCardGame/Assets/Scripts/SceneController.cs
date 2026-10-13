@@ -249,6 +249,7 @@ public class SceneController : MonoBehaviour
         info.Leader = deck.Leader;
 
         View(is_player_deck).Stats.UISetGeneral(info.Faction);
+        View(is_player_deck).Stats.UISetPlayer(info.Name, SpriteCache.Load("Cards/List/591x380/" + deck.Leader));
         SetLeaderCard(deck.Leader, is_player_deck);
 
         // Francesca, Daisy of the Valley: one extra card at the beginning of the battle
