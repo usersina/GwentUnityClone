@@ -95,6 +95,13 @@ public class StatsManager : MonoBehaviour
     }
 
     // Red gems for the lives left, grey for the lost ones
+    // The gem a side loses when it is down to this many lives (the left one goes first)
+    public Image LostGem(int lives)
+    {
+        CacheReferences();
+        return lives >= 1 ? rubyLeft : rubyRight;
+    }
+
     public void UIUpdateGemLives(int lives)
     {
         CacheReferences();

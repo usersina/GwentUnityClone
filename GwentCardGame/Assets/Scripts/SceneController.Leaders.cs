@@ -161,7 +161,7 @@ public partial class SceneController
 
         // Pending abilities end the turn once their choice is made
         if (outcome == LeaderOutcome.Instant)
-            Present(change, -1, is_player_turn, false, () => TurnCallBack(is_player_turn));
+            Present(change, presenter.Play(change, -1, is_player_turn, false), () => TurnCallBack(is_player_turn));
         else
             change.Flush();
     }

@@ -7,6 +7,33 @@ using UnityEngine.UI;
 // in its new place, following it while its line makes room; the object shows once the ghost lands.
 public static class CardMotion
 {
+    private static RectTransform layer;
+
+    // The overlay's layer for the battle's moving cards and effects, cleared at once when a battle is cut short
+    public static Transform Layer
+    {
+        get
+        {
+            if (layer == null)
+            {
+                layer = new GameObject("BoardEffects", typeof(RectTransform)).GetComponent<RectTransform>();
+                layer.SetParent(UIOverlay.FixedRoot, false);
+                layer.anchorMin = Vector2.zero;
+                layer.anchorMax = Vector2.one;
+                layer.offsetMin = layer.offsetMax = Vector2.zero; // the overlay's own frame: centred, same size
+            }
+            return layer;
+        }
+    }
+
+    public static void ClearLayer()
+    {
+        if (layer == null)
+            return;
+        foreach (Transform child in layer)
+            Object.Destroy(child.gameObject);
+    }
+
     // Screen rectangle of a UI element, whatever canvas it is on
     public static Rect ScreenRect(RectTransform rect)
     {
@@ -40,7 +67,7 @@ public static class CardMotion
     // An image of the card on the overlay, over a screen rectangle (never catches clicks)
     public static RectTransform Ghost(int card_id, Rect screen_rect)
     {
-        Image art = UIKit.NewImage(UIOverlay.FixedRoot, "CardGhost", SpriteCache.Load("Cards/List/591x380/" + card_id), Color.white);
+        Image art = UIKit.NewImage(Layer, "CardGhost", SpriteCache.Load("Cards/List/591x380/" + card_id), Color.white);
         art.preserveAspect = true;
         Place(art.rectTransform, screen_rect);
         return art.rectTransform;
@@ -51,7 +78,7 @@ public static class CardMotion
     {
         RectTransform rect = (RectTransform)card.transform;
         Rect screen_rect = ScreenRect(rect);
-        rect.SetParent(UIOverlay.FixedRoot, false);
+        rect.SetParent(Layer, false);
         Place(rect, screen_rect);
         Group(card).blocksRaycasts = false;
         return rect;

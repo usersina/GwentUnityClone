@@ -89,7 +89,7 @@ public static class CardShowcase
     private static void Show(Card card, Rect from, bool glow)
     {
         GameObject go = new GameObject("CardShowcase", typeof(RectTransform));
-        go.transform.SetParent(UIOverlay.FixedRoot, false);
+        go.transform.SetParent(CardMotion.Layer, false);
         shown = (RectTransform)go.transform;
         if (glow)
             UIKit.NewImage(shown, "Glow", UITheme.Current.softShadow, new Color(1f, 0.64f, 0.22f, 0.9f)).rectTransform.Stretch(-28, -28, -28, -28);
@@ -106,7 +106,7 @@ public static class CardShowcase
                 return;
             // Its description, under it
             RectTransform layout = Layout(false);
-            Image text = UIKit.NewImage(UIOverlay.FixedRoot, "CardShowcaseText", SpriteCache.Load(CardHover.EffectBoxPath(card)), Color.white);
+            Image text = UIKit.NewImage(CardMotion.Layer, "CardShowcaseText", SpriteCache.Load(CardHover.EffectBoxPath(card)), Color.white);
             text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             text.rectTransform.anchoredPosition = layout.anchoredPosition;
             text.rectTransform.sizeDelta = layout.sizeDelta;

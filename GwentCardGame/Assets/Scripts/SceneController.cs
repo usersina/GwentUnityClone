@@ -480,13 +480,11 @@ public partial class SceneController : MonoBehaviour
         RecalculateStrengths();
         int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
         RoundWinner winner = RoundRules.DecideRound(player_total, enemy_total, PlayerInfo.Faction, EnemyInfo.Faction);
+        int player_lives = PlayerInfo.Lives, enemy_lives = EnemyInfo.Lives;
         RoundRules.ApplyRoundResult(PlayerInfo, EnemyInfo, winner);
         PlayerInfo.hasPassed = false;
         EnemyInfo.hasPassed = false;
-
-        // Update UI Gems
-        View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
-        View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
+        bool[] lost = { PlayerInfo.Lives < player_lives, EnemyInfo.Lives < enemy_lives }; // the player's, the opponent's
 
         // The result over the board as it ended, then the board clears; a tie Nilfgaard wins is announced first
         if (player_total == enemy_total && winner != RoundWinner.Draw)
@@ -498,13 +496,23 @@ public partial class SceneController : MonoBehaviour
         else
             BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long);
         PlayRoundOutcomeAudio(winner);
-        StartCoroutine(FinishRound(winner));
+        StartCoroutine(FinishRound(winner, lost));
     }
 
-    private IEnumerator FinishRound(RoundWinner winner)
+    // After the result, the gem of each side that lost a life breaks (The Witcher 3), then the battle ends or the
+    // board clears for the next round
+    private IEnumerator FinishRound(RoundWinner winner, bool[] lost)
     {
         while (BattleBanner.Busy)
             yield return null;
+
+        foreach (bool is_player in new[] { true, false })
+            if (lost[is_player ? 0 : 1])
+                StartCoroutine(CardEffects.Shatter(View(is_player).Stats.LostGem(Info(is_player).Lives), View(is_player).Stats.greyRuby));
+        if (lost[0] || lost[1])
+            yield return new WaitForSeconds(CardEffects.GemPulseSeconds + CardEffects.ShardSeconds);
+        View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
+        View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
         if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
             ConcludeBattle(BattleState.DRAW);
@@ -539,7 +547,9 @@ public partial class SceneController : MonoBehaviour
         pendingAction = PendingAction.None;
         PlayerInfo.CanDiscard = false;
 
-        // Monsters keep a random unit; leader horns vanish; weather goes back to whoever played it
+        // The board clears as in The Witcher 3: every card flies to its discard pile. Monsters keep a random unit;
+        // leader horns vanish; weather goes back to whoever played it
+        board.BeginChange();
         foreach (bool is_player in new[] { true, false })
         {
             int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
@@ -557,9 +567,11 @@ public partial class SceneController : MonoBehaviour
         }
 
         RefreshBoard();
+        BoardChange change = board.EndChange();
 
         // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
-        StartCoroutine(RoundOpening(winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer)));
+        bool player_starts = winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer);
+        Present(change, presenter.Clear(change), () => StartCoroutine(RoundOpening(player_starts)));
     }
 
     public bool IsBattleOver
@@ -592,6 +604,7 @@ public partial class SceneController : MonoBehaviour
         GameLog.Info("Battle ended: " + outcome);
         battleState = outcome;
         CardShowcase.Clear();
+        CardMotion.ClearLayer();
         PostGame.SetActive(true);
         PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
         if (outcome == BattleState.WON)
@@ -648,7 +661,8 @@ public partial class SceneController : MonoBehaviour
         SetHider(false);
 
         bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
-        Present(board.EndChange(), card_id, is_player_turn, medic_choice, () =>
+        BoardChange change = board.EndChange();
+        Present(change, presenter.Play(change, card_id, is_player_turn, medic_choice), () =>
         {
             // Medic: the player picks a unit to restore from the discard panel
             if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
@@ -660,19 +674,19 @@ public partial class SceneController : MonoBehaviour
         });
     }
 
-    // Shows a play on the board (BoardPresenter), then goes on; meanwhile the player cannot act
-    private void Present(BoardChange change, int played_id, bool by_player, bool medic_choice, Action then)
+    // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act
+    private void Present(BoardChange change, IEnumerator show, Action then)
     {
-        StartCoroutine(Presenting(change, played_id, by_player, medic_choice, then));
+        StartCoroutine(Presenting(change, show, then));
     }
 
-    private IEnumerator Presenting(BoardChange change, int played_id, bool by_player, bool medic_choice, Action then)
+    private IEnumerator Presenting(BoardChange change, IEnumerator show, Action then)
     {
         presenting++;
         presented.Add(change);
         // Never left waiting: a presentation that fails or runs too long is cut short (game time, the pause stops it)
         bool finished = false;
-        StartCoroutine(Then(presenter.Play(change, played_id, by_player, medic_choice), () => finished = true));
+        StartCoroutine(Then(show, () => finished = true));
         float limit = Time.time + PresentationLimit;
         while (!finished && Time.time < limit)
             yield return null;
@@ -700,6 +714,7 @@ public partial class SceneController : MonoBehaviour
         presented.Clear();
         presenting = 0;
         CardShowcase.Clear();
+        CardMotion.ClearLayer();
     }
 
     // A card chosen from a pile (medic, weather from the deck) comes from that pile to the showcase
@@ -787,7 +802,8 @@ public partial class SceneController : MonoBehaviour
         board.BeginChange();
         PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
         RefreshBoard();
-        Present(board.EndChange(), decoy_id, is_player_card, false, () => TurnCallBack(is_player_card));
+        BoardChange change = board.EndChange();
+        Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => TurnCallBack(is_player_card));
     }
 
     private bool IsSelectedCardPlayable()

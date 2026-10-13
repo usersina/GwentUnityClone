@@ -30,6 +30,7 @@ public class BattleBanner : MonoBehaviour
     private const float EmblemHeight = 300;
     private const float EmblemX = -300;  // the emblem's centre, from the middle of the screen
     private const float TextX = -105;    // where the message starts
+    private const float TextWidth = 900; // up to 75 from the right edge of the 1920 reference
 
     private struct Notice
     {
@@ -113,7 +114,8 @@ public class BattleBanner : MonoBehaviour
         banner.text.rectTransform.anchorMin = banner.text.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
         banner.text.rectTransform.pivot = new Vector2(0, 0.5f);
         banner.text.rectTransform.anchoredPosition = new Vector2(TextX, 0);
-        banner.text.rectTransform.sizeDelta = new Vector2(1000, BandHeight);
+        banner.text.rectTransform.sizeDelta = new Vector2(TextWidth, BandHeight);
+        banner.text.textWrappingMode = TextWrappingModes.Normal; // a long notice takes two lines, as in The Witcher 3
 
         foreach (Graphic graphic in root.GetComponentsInChildren<Graphic>())
             graphic.raycastTarget = false;

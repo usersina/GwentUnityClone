@@ -16,6 +16,7 @@ public class BoardPresenter
     public const float LandSeconds = 0.3f;
     public const float MoveSeconds = 0.35f;
     private const float Stagger = 0.07f;  // between cards moving together
+    private const float ClearStagger = 0.03f;
     private const float Arc = 50f;        // the bend of a played card's glide (overlay units)
 
     private readonly MonoBehaviour host;
@@ -71,10 +72,25 @@ public class BoardPresenter
         foreach (BoardChange.Move move in change.Moves.Where(m => !shown.Contains(m)))
             rest.Add(Move(move, rest.Count * Stagger));
         foreach (BoardChange.Arrival arrival in change.New.Where(a => !shown.Contains(a)))
-            rest.Add(Arrive(arrival, rest.Count * Stagger));
+            rest.Add(Arrive(arrival, rest.Count * Stagger, arrival.To == Place.Hand || arrival.To == Place.Row));
         foreach (BoardChange.Departure departure in change.Gone)
             rest.Add(Vanish(departure));
         yield return All(rest);
+    }
+
+    // The end of a round: every card on the board leaves for its discard pile at once (the Monsters' kept unit
+    // stays). A card the new round brings flies from the deck to the hand (the Northern Realms' draw); a summoned one
+    // (the Bovine Defense Force) appears in its place.
+    public IEnumerator Clear(BoardChange change)
+    {
+        List<IEnumerator> all = new List<IEnumerator>();
+        foreach (BoardChange.Move move in change.Moves)
+            all.Add(Move(move, all.Count * ClearStagger));
+        foreach (BoardChange.Arrival arrival in change.New)
+            all.Add(Arrive(arrival, all.Count * ClearStagger, arrival.To == Place.Hand));
+        foreach (BoardChange.Departure departure in change.Gone)
+            all.Add(Vanish(departure));
+        yield return All(all);
     }
 
     // The played card's arrival. Copies called with it are the same card: the player's played card is the one
@@ -134,15 +150,15 @@ public class BoardPresenter
         yield return CardMotion.Fly(move.From.Ghost, move.To.Card, MoveSeconds);
     }
 
-    // A card from off the board: from the deck into a hand or a row; anything else appears where it is
-    private IEnumerator Arrive(BoardChange.Arrival arrival, float delay)
+    // A card from off the board: from the deck, or appearing where it is
+    private IEnumerator Arrive(BoardChange.Arrival arrival, float delay, bool from_deck)
     {
         if (delay > 0)
             yield return new WaitForSeconds(delay);
         LaneHold.Release(arrival.Card);
         if (arrival.Card == null)
             yield break;
-        if (arrival.To == Place.Hand || arrival.To == Place.Row)
+        if (from_deck)
         {
             yield return CardMotion.Fly(CardMotion.Ghost(arrival.CardId, board.DeckRect(arrival.IsPlayer)), arrival.Card, MoveSeconds);
             yield break;

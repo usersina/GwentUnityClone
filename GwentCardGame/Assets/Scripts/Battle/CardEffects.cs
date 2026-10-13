@@ -13,6 +13,8 @@ public static class CardEffects
     public const float HeroSeconds = 0.9f;
     public const float GlowSeconds = 0.8f;
     public const float BurnSeconds = 0.7f;
+    public const float GemPulseSeconds = 0.55f;
+    public const float ShardSeconds = 0.75f;
 
     private static readonly Color Blaze = new Color(1f, 0.55f, 0.15f);
     private static readonly Color Heal = new Color(0.35f, 1f, 0.45f);
@@ -145,10 +147,64 @@ public static class CardEffects
                 Object.Destroy(flame.gameObject);
     }
 
+    // A lost round: the gem pulses, then bursts into shards that fall away, leaving it grey
+    public static IEnumerator Shatter(Image gem, Sprite broken)
+    {
+        if (gem == null)
+            yield break;
+        Rect rect = CardMotion.ScreenRect(gem.rectTransform);
+        Color red = new Color(0.86f, 0.12f, 0.1f);
+        Image glow = Overlay("GemGlow", UITheme.Current.radial, new Color(red.r, red.g, red.b, 0), Grow(rect, 2.6f));
+        Image pulse = Overlay("Gem", gem.sprite, Color.white, rect);
+        pulse.preserveAspect = true;
+        yield return Animate(GemPulseSeconds, t =>
+        {
+            float beat = Mathf.Abs(Mathf.Sin(t * Mathf.PI * 2)); // two beats
+            pulse.rectTransform.localScale = Vector3.one * (1 + 0.22f * beat);
+            glow.color = new Color(red.r, red.g, red.b, 0.75f * beat);
+        });
+        Object.Destroy(pulse.gameObject);
+        Object.Destroy(glow.gameObject);
+        gem.sprite = broken;
+
+        // The shards: thin red slivers flying out, spinning and falling
+        const int count = 10;
+        Image[] shards = new Image[count];
+        Vector2[] start = new Vector2[count], velocity = new Vector2[count];
+        float[] spin = new float[count];
+        for (int i = 0; i < count; i++)
+        {
+            float width = rect.width * Random.Range(0.2f, 0.32f);
+            Vector2 size = new Vector2(width, width * Random.Range(1.5f, 2.4f));
+            Color tint = Color.Lerp(red, i % 3 == 0 ? new Color(1f, 0.75f, 0.7f) : new Color(0.45f, 0.03f, 0.03f), Random.Range(0.1f, 0.5f));
+            shards[i] = Overlay("Shard", UITheme.Current.diamond, tint, new Rect(rect.center - size / 2, size));
+            start[i] = shards[i].rectTransform.anchoredPosition;
+            float angle = (i * 360f / count + Random.Range(-15f, 15f)) * Mathf.Deg2Rad;
+            velocity[i] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * Random.Range(160f, 300f) + new Vector2(0, 110);
+            spin[i] = Random.Range(-600f, 600f);
+            shards[i].rectTransform.localEulerAngles = new Vector3(0, 0, Random.Range(0f, 360f));
+        }
+        yield return Animate(ShardSeconds, t =>
+        {
+            float seconds = t * ShardSeconds;
+            for (int i = 0; i < count; i++)
+            {
+                RectTransform shard = shards[i].rectTransform;
+                shard.anchoredPosition = start[i] + velocity[i] * seconds + new Vector2(0, -0.5f * 1100f * seconds * seconds);
+                shard.localEulerAngles += new Vector3(0, 0, spin[i] * Time.deltaTime);
+                Color color = shards[i].color;
+                color.a = 1 - t * t;
+                shards[i].color = color;
+            }
+        });
+        foreach (Image shard in shards)
+            Object.Destroy(shard.gameObject);
+    }
+
     //----------------------------------------Helpers----------------------------------------//
     private static Image Overlay(string name, Sprite sprite, Color color, Rect screen_rect)
     {
-        Image image = UIKit.NewImage(UIOverlay.FixedRoot, name, sprite, color);
+        Image image = UIKit.NewImage(CardMotion.Layer, name, sprite, color);
         image.raycastTarget = false;
         CardMotion.Place(image.rectTransform, screen_rect);
         return image;
