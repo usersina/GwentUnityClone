@@ -43,6 +43,11 @@ public class UITheme : ScriptableObject
     public Sprite chevronRight;
     public Sprite iconMenu;
     public Sprite iconClose;
+    public Sprite iconPlus;
+    public Sprite iconCheck;
+    public Sprite iconBack;
+    public Sprite iconTrash;
+    public Sprite iconEdit;
 
     private static UITheme current;
 

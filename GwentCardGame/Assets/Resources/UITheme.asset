@@ -44,3 +44,8 @@ MonoBehaviour:
   chevronRight: {fileID: 21300000, guid: ae1e51723a9e5dcaf9148c6a71859e73, type: 3}
   iconMenu: {fileID: 21300000, guid: 144a58489334e73abbe5b94cd5fcaf8a, type: 3}
   iconClose: {fileID: 21300000, guid: 560f0ff13c3324636abbd5a817c0e6c1, type: 3}
+  iconPlus: {fileID: 21300000, guid: 9fe7f2ee49a180ea8ab0fe616f5702cd, type: 3}
+  iconCheck: {fileID: 21300000, guid: c3de172601e3bf5d389a62b479310e43, type: 3}
+  iconBack: {fileID: 21300000, guid: 9aa01236082e928f2aed0b81afade690, type: 3}
+  iconTrash: {fileID: 21300000, guid: d300d694e3f6f57a6b28389c531d3d61, type: 3}
+  iconEdit: {fileID: 21300000, guid: a300519d6bea215d6ab620baaf9aa4f9, type: 3}

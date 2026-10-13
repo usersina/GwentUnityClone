@@ -39,7 +39,7 @@ Sorry, no multiplayer :/ (yet)
 | Select a card from your hand | Click it (click again to deselect) | Tap it |
 | Play the selected card | Click a highlighted row (weather/scorch: the weather board, decoy: one of your units) | Same, with taps |
 | Use your leader | Click the leader card or its button | Tap |
-| Pass | Hold the **Press to pass** button | Hold |
+| Pass | Hold the **Hold to pass** button | Hold |
 | Pause (resume, settings, leave the battle) | Esc or the menu button at the top right | Back button or the menu button |
 | Preview a card | Hover it | Selecting it shows the preview |
 | Deck builder: add/remove a card | Double-click it | Tap it |

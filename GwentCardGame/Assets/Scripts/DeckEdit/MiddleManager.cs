@@ -132,12 +132,12 @@ public class MiddleManager : MonoBehaviour
         helperNumber = deckController.GetUnitCards(deckCards, "all", "all", false).Count;
         if (helperNumber < DeckRules.MinUnits)
         {
-            deckInfo[1].color = new Color32(245, 2, 0, 255); // Red
+            deckInfo[1].color = UITheme.Current.danger;
             deckInfo[1].text = helperNumber.ToString() + "/" + DeckRules.MinUnits;
         }
         else
         {
-            deckInfo[1].color = new Color32(255, 188, 0, 255); // Golden Orange
+            deckInfo[1].color = UITheme.Current.gold;
             deckInfo[1].text = helperNumber.ToString();
         }
 

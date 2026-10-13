@@ -49,6 +49,24 @@ public static class UISpriteGenerator
         Write("ChevronRight", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 19, 13, 30, 24), Segment(x, y, 30, 24, 19, 35)) - 2.5f, Vector4.zero);
         Write("IconMenu", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 12, 14, 36, 14), Mathf.Min(Segment(x, y, 12, 24, 36, 24), Segment(x, y, 12, 34, 36, 34))) - 2.5f, Vector4.zero);
         Write("IconClose", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 14, 14, 34, 34), Segment(x, y, 14, 34, 34, 14)) - 2.5f, Vector4.zero);
+        Write("IconPlus", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 24, 11, 24, 37), Segment(x, y, 11, 24, 37, 24)) - 2.5f, Vector4.zero);
+        Write("IconCheck", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 12, 25, 20, 33), Segment(x, y, 20, 33, 36, 15)) - 2.5f, Vector4.zero);
+        Write("IconBack", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 13, 24, 36, 24), Mathf.Min(Segment(x, y, 23, 14, 13, 24), Segment(x, y, 13, 24, 23, 34))) - 2.5f, Vector4.zero);
+        Write("IconTrash", 48, 48, (x, y) =>
+        {
+            float lid = Mathf.Min(Segment(x, y, 11, 14, 37, 14), Segment(x, y, 20, 9, 28, 9));
+            float body = Mathf.Min(Mathf.Min(Segment(x, y, 15, 19, 17, 38), Segment(x, y, 17, 38, 31, 38)), Segment(x, y, 31, 38, 33, 19));
+            float ribs = Mathf.Min(Segment(x, y, 21, 23, 21, 33), Segment(x, y, 27, 23, 27, 33));
+            return Mathf.Min(lid, Mathf.Min(body, ribs)) - 2f;
+        }, Vector4.zero);
+        // Pencil: hollow rounded body along the diagonal, a band near the top and the tip
+        Write("IconEdit", 48, 48, (x, y) =>
+        {
+            float body = Mathf.Abs(Segment(x, y, 17, 31, 32, 16) - 4.5f) - 1.75f;
+            float band = Segment(x, y, 25.5f, 16.5f, 31.5f, 22.5f) - 1.75f;
+            float tip = Segment(x, y, 11, 37, 15.5f, 32.5f) - 2f;
+            return Mathf.Min(body, Mathf.Min(band, tip));
+        }, Vector4.zero);
 
         AssetDatabase.Refresh();
         foreach (string file in Directory.GetFiles(SpriteFolder, "*.png"))
@@ -182,6 +200,11 @@ public static class UISpriteGenerator
         theme.chevronRight = sprite("ChevronRight");
         theme.iconMenu = sprite("IconMenu");
         theme.iconClose = sprite("IconClose");
+        theme.iconPlus = sprite("IconPlus");
+        theme.iconCheck = sprite("IconCheck");
+        theme.iconBack = sprite("IconBack");
+        theme.iconTrash = sprite("IconTrash");
+        theme.iconEdit = sprite("IconEdit");
         EditorUtility.SetDirty(theme);
         AssetDatabase.SaveAssets();
     }

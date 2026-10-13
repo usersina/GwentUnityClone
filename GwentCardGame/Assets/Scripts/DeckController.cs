@@ -383,7 +383,7 @@ public class DeckController : MonoBehaviour
         {
             string problem = DeckRules.Validate(my_deck, Db).FirstOrDefault();
             battleDeckStatus.text = "Not battle-ready: " + problem + "\nBattle deck: " + battle_name;
-            battleDeckStatus.color = new Color32(245, 80, 60, 255);
+            battleDeckStatus.color = UITheme.Current.danger;
         }
         else
         {
