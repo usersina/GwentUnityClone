@@ -146,6 +146,8 @@ public partial class SceneController : MonoBehaviour
         yield return RoundOpening(firstPlayer.Value);
     }
 
+    public Rect DeckScreenRect(bool is_player) { return board.DeckRect(is_player); }
+
     // The Scoia'tael dialog's answer
     public void ChooseFirstPlayer(bool player_first)
     {
@@ -314,8 +316,9 @@ public partial class SceneController : MonoBehaviour
             AIManager.AIExchangeCards();
         }
 
-        // Wait for all players to either redraw or skip, and for the end of the last round's notices
-        while (EnemyInfo.CanExchange || PlayerInfo.CanExchange || BattleBanner.Busy)
+        // Wait for all players to either redraw or skip (and the last redrawn card to land), and for the end of the last
+        // round's notices
+        while (EnemyInfo.CanExchange || PlayerInfo.CanExchange || RedrawPicker.IsAnimating || BattleBanner.Busy)
             yield return null;
 
         if (mulliganPrompt != null)

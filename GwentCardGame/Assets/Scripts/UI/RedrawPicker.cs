@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -17,6 +19,7 @@ public class RedrawPicker : MonoBehaviour
     private const float SideScale = 0.74f;
     private const int VisibleSide = 3;     // cards shown on each side of the front one
     private const float RedrawCooldown = 0.35f;
+    private const float RedrawFlightSeconds = 0.3f;
 
     private static RedrawPicker current;
 
@@ -30,6 +33,7 @@ public class RedrawPicker : MonoBehaviour
     private int focus;
     private float lastRedraw = float.NegativeInfinity;
     private float scrolled;
+    private int arriving = -1; // the card coming up from the deck into its place, hidden until it lands
 
     private class CarouselCard
     {
@@ -40,6 +44,9 @@ public class RedrawPicker : MonoBehaviour
 
     // While open, hovering hand cards shows no big preview on the right
     public static bool IsOpen { get { return current != null; } }
+
+    // A redrawn card is still on its way (the phase ends once it has landed)
+    public static bool IsAnimating { get { return current != null && current.arriving >= 0; } }
 
     public int FocusIndex { get { return focus; } }
     public int CardCount { get { return cards.Count; } }
@@ -156,6 +163,12 @@ public class RedrawPicker : MonoBehaviour
 
     private void Rebuild()
     {
+        // A redraw replaces one card in place: as in The Witcher 3, it goes down into the deck and the new card comes
+        // up from the deck into its place
+        int replaced = ReplacedIndex();
+        Rect slot = replaced >= 0 ? CardMotion.ScreenRect(cards[replaced].rect) : new Rect();
+        int redrawn = replaced >= 0 ? shownHand[replaced] : -1;
+
         foreach (CarouselCard card in cards)
             Destroy(card.rect.gameObject);
         cards.Clear();
@@ -179,7 +192,76 @@ public class RedrawPicker : MonoBehaviour
             cards.Add(new CarouselCard { rect = holder, group = group, glow = glow });
         }
         focus = Mathf.Clamp(focus, 0, Mathf.Max(0, cards.Count - 1));
+        if (replaced >= 0)
+            StartCoroutine(RedrawFlight(redrawn, slot, replaced));
         Animate(1f);
+    }
+
+    private int ReplacedIndex()
+    {
+        List<int> hand = controller.PlayerInfo.HandList;
+        if (hand.Count != shownHand.Count || cards.Count != shownHand.Count)
+            return -1;
+        int changed = -1;
+        for (int i = 0; i < hand.Count; i++)
+            if (hand[i] != shownHand[i])
+            {
+                if (changed >= 0)
+                    return -1;
+                changed = i;
+            }
+        return changed;
+    }
+
+    private IEnumerator RedrawFlight(int redrawn, Rect slot, int index)
+    {
+        arriving = index;
+        Rect deck = controller.DeckScreenRect(true);
+        yield return Glide(Ghost(redrawn, slot), () => deck, true);
+        if (index < cards.Count)
+        {
+            RectTransform target = cards[index].rect;
+            yield return Glide(Ghost(shownHand[index], deck), () => target != null ? CardMotion.ScreenRect(target) : deck, true);
+        }
+        arriving = -1;
+    }
+
+    // An image of a card on the carousel's canvas (above the board), over a screen rectangle
+    private RectTransform Ghost(int card_id, Rect screen_rect)
+    {
+        Image art = UIKit.NewImage(transform, "RedrawGhost", SpriteCache.Load("Cards/List/591x380/" + card_id), Color.white);
+        art.preserveAspect = true;
+        PlaceOnScreen(art.rectTransform, screen_rect);
+        return art.rectTransform;
+    }
+
+    private void PlaceOnScreen(RectTransform rect, Rect screen_rect)
+    {
+        Vector2 min, max;
+        RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen_rect.min, null, out min);
+        RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen_rect.max, null, out max);
+        Vector2 pivot_offset = Vector2.Scale(((RectTransform)transform).rect.size, ((RectTransform)transform).pivot - new Vector2(0.5f, 0.5f));
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = (min + max) / 2 + pivot_offset; // local points are from the pivot, anchors from the centre
+        rect.sizeDelta = max - min;
+    }
+
+    // Glides a ghost to a screen rectangle (easing out), then removes it
+    private IEnumerator Glide(RectTransform ghost, Func<Rect> to, bool remove)
+    {
+        Rect from = CardMotion.ScreenRect(ghost);
+        float age = 0;
+        while (age < RedrawFlightSeconds && ghost != null)
+        {
+            age += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(age / RedrawFlightSeconds);
+            float eased = 1 - (1 - t) * (1 - t) * (1 - t);
+            Rect target = to();
+            PlaceOnScreen(ghost, new Rect(Vector2.LerpUnclamped(from.position, target.position, eased), Vector2.LerpUnclamped(from.size, target.size, eased)));
+            yield return null;
+        }
+        if (remove && ghost != null)
+            Destroy(ghost.gameObject);
     }
 
     private void Animate(float blend)
@@ -195,7 +277,7 @@ public class RedrawPicker : MonoBehaviour
             CarouselCard card = cards[i];
             card.rect.anchoredPosition = Vector2.Lerp(card.rect.anchoredPosition, new Vector2(x, 0), blend);
             card.rect.localScale = Vector3.Lerp(card.rect.localScale, Vector3.one * scale, blend);
-            card.group.alpha = Mathf.Lerp(card.group.alpha, alpha, blend);
+            card.group.alpha = i == arriving ? 0 : Mathf.Lerp(card.group.alpha, alpha, blend);
             card.group.blocksRaycasts = distance <= VisibleSide;
             card.glow.color = Color.Lerp(card.glow.color, UITheme.WithAlpha(UITheme.Current.goldBright, offset == 0 ? 0.85f : 0), blend);
         }
