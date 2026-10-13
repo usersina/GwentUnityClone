@@ -1,11 +1,10 @@
 ﻿using DanielLochner.Assets.SimpleScrollSnap;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+using Gwent.Rules;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using static DeckController;
 
 public class CollectionManager : MonoBehaviour
 {
@@ -34,29 +33,12 @@ public class CollectionManager : MonoBehaviour
     IEnumerator Start()
     {
         ClearCardsArea();
-        yield return new WaitForSeconds(0.3f); // To make sure DeckController starts first
+        // DeckController loads everything in Awake; this only guards against a disabled controller
+        yield return new WaitUntil(() => deckController.IsReady);
 
         // Collection Cards or player deck
         if (transform.CompareTag("Player"))
-        {
             LoadFromDeck();
-            // Switch to the panel of the selected deck (first time only)
-            //switch (deckController.my_deck.Faction)
-            //{
-            //    case "NR":
-            //        headerSnap.GoToPanel(0);
-            //        break;
-            //    case "NF":
-            //        headerSnap.GoToPanel(1);
-            //        break;
-            //    case "SC":
-            //        headerSnap.GoToPanel(2);
-            //        break;
-            //    case "M":
-            //        headerSnap.GoToPanel(3);
-            //        break;
-            //}
-        }
         else
             CardsToDisplay = deckController.allCards;
 
@@ -144,24 +126,24 @@ public class CollectionManager : MonoBehaviour
         ClearCardsArea();
         foreach (Card card in cards_list)
         {
-            // Bovine defense force (cannot add to deck, only // TODO: (SceneController) called with cow)
-            if (card._id == 9) { continue; }
-            else
-            {
-                GameObject instantiatedCard = Instantiate(CCardPrefab);
-                instantiatedCard.name = card._id.ToString();
-                instantiatedCard.GetComponent<CardStats>().name = card.name;
-                instantiatedCard.GetComponent<CardStats>()._id = card._id;
-                instantiatedCard.GetComponent<CardStats>()._idstr = card._idstr;
-                instantiatedCard.GetComponent<CardStats>().faction = card.faction;
-                instantiatedCard.GetComponent<CardStats>().unique = card.unique;
-                instantiatedCard.GetComponent<CardStats>().strength = card.strength;
-                instantiatedCard.GetComponent<CardStats>().row = card.row;
-                instantiatedCard.GetComponent<CardStats>().ability = card.ability;
+            // Bovine defense force cannot be added to a deck (it is summoned by the Cow)
+            if (card._id == CardIds.BovineDefenseForce)
+                continue;
 
-                instantiatedCard.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + card._id);
-                instantiatedCard.transform.SetParent(cardsArea.transform, false);
-            }
+            GameObject instantiatedCard = Instantiate(CCardPrefab);
+            instantiatedCard.name = card._id.ToString();
+            CardStats stats = instantiatedCard.GetComponent<CardStats>();
+            stats.name = card.name;
+            stats._id = card._id;
+            stats._idstr = card._idstr;
+            stats.faction = card.faction;
+            stats.unique = card.unique;
+            stats.strength = card.strength;
+            stats.row = card.row;
+            stats.ability = card.ability;
+
+            instantiatedCard.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + card._id);
+            instantiatedCard.transform.SetParent(cardsArea.transform, false);
         }
     }
 
@@ -276,33 +258,11 @@ public class CollectionManager : MonoBehaviour
         // Related to Deck Cards
         if (transform.CompareTag("Player"))
         {
-            //Debug.Log("Updating deck options...");
-
-            // Update the faction of the new empty deck
-            deckController.my_deck.Faction = faction;
-
-            // Empty the deck
-            deckController.my_deck.Cards.Clear();
-
-            // Sets the deck name to empty
-            deckController.my_deck.Name = "__emptyname__";
+            // Start from a new empty deck of that faction (the loaded deck object is shared with the dropdown list)
+            deckController.my_deck = new Deck { Faction = faction, Name = DeckRules.EmptyDeckName };
 
             // Change the leader to the default of each faction
-            switch (faction)
-            {
-                case "NR":
-                    deckController.my_deck.Leader = 51;
-                    break;
-                case "NF":
-                    deckController.my_deck.Leader = 33;
-                    break;
-                case "SC":
-                    deckController.my_deck.Leader = 57;
-                    break;
-                case "M":
-                    deckController.my_deck.Leader = 40;
-                    break;
-            }
+            deckController.my_deck.Leader = LeaderIds.DefaultFor(faction);
 
             // Load the new decklists and get the first deck if not empty
             middleManager.LoadDecks();
@@ -317,7 +277,7 @@ public class CollectionManager : MonoBehaviour
 
     // DECK CARDS RELATED
     // Changes my_deck and currentDeckPath in DeckController
-    public void OnDeckChange(Deck selectedDeck, string selectedPath)
+    public void OnDeckChange(Deck selectedDeck, string selectedPath, bool select_for_battle = true)
     {
         // Replace the loaded deck with the selected one
         deckController.my_deck = selectedDeck;
@@ -325,8 +285,9 @@ public class CollectionManager : MonoBehaviour
         LoadFromDeck();
         Select(selectedTab);
 
-        // Save to prefs
-        SaveDeckToPrefs();
+        // A valid selected deck becomes the battle deck
+        if (select_for_battle)
+            deckController.UpdateBattleDeck();
     }
 
     // From Double Clicking a card
@@ -339,23 +300,8 @@ public class CollectionManager : MonoBehaviour
         // Save to the current deck
         deckController.WriteDeckToFile(deckController.my_deck, deckController.currentDeckPath);
 
-        // Save to prefs
-        SaveDeckToPrefs();
-    }
-
-
-    public void SaveDeckToPrefs()
-    {
-        // Save deck path to playerprefs
-        if (deckController.currentDeckPath.EndsWith(".json") && deckController.my_deck.Name != "__emptyname__")
-        {
-            // Further check if deck is valid
-            if (!deckController.IsDeckValid(deckController.my_deck))
-                return;
-
-            PlayerPrefs.SetString("playerDeckPath", deckController.currentDeckPath);
-            Debug.Log("New selected deck: " + deckController.currentDeckPath);
-        }
+        // Becomes (or stops being, if now invalid) the battle deck
+        deckController.UpdateBattleDeck();
     }
 
 }

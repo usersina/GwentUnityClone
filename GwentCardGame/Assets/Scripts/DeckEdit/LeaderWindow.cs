@@ -16,10 +16,6 @@ public class LeaderWindow : MonoBehaviour, IPointerClickHandler
         {
             if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
                 SelectLeader();
-            else
-            {
-                // Single Click
-            }
             lastClick = Time.time;
         }
     }

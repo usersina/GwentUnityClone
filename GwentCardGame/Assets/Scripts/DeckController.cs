@@ -1,15 +1,19 @@
-﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Gwent.Rules;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
+// Deck builder: owns the card database, the deck files and the currently edited deck
 public class DeckController : MonoBehaviour
 {
     public const string EmptyDeckResourcePath = "resource://Decks/__empty__";
+    private const string PlayerDeckPrefKey = "playerDeckPath";
+
+    public static DeckController Instance { get; private set; }
 
     public TextAsset CardsDatabase;
     public MiddleManager middleManager;
@@ -26,39 +30,52 @@ public class DeckController : MonoBehaviour
     public List<string> SCDecks;
     public List<string> MDecks;
 
-    //[HideInInspector] // List of all cards (each card has unique stats)
+    [HideInInspector] // List of all cards (each card has unique stats)
     public List<Card> allCards;
     public Deck my_deck;
-    //public Deck first_timer;
 
-    // Loads Cards Data (Database and loaded deck)
+    public bool IsReady { get; private set; }
+    public CardDatabase Db { get; private set; }
+
+    private TextMeshProUGUI battleDeckStatus;
+
+    // Loads card data and the selected deck before any other deck builder script starts
+    private void Awake()
+    {
+        Instance = this;
+        Db = CardLibrary.Get(CardsDatabase);
+        allCards = Db.All;
+
+        DeckStorage.EnsureDirectories();
+        DecksPath = Factions.Playable.Select(DeckStorage.FactionFolder).ToList();
+
+        // Get Player Deck
+        currentDeckPath = EmptyDeckResourcePath;
+        if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath) && File.Exists(ApplicationModel.playerDeckPath))
+            currentDeckPath = ApplicationModel.playerDeckPath;
+        GameLog.Info("DeckController: Current deck path is: " + currentDeckPath);
+
+        my_deck = LoadDeckFromPath(currentDeckPath);
+        if (my_deck == null)
+        {
+            currentDeckPath = EmptyDeckResourcePath;
+            my_deck = LoadDeckFromPath(EmptyDeckResourcePath);
+        }
+        PopulateDeckAssets();
+        IsReady = true;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     private void Start()
     {
         GameAudio.PlayDeckMusic();
         ConfigureMobileDeckBuilder();
-
-        string deckDir = Path.Combine(Application.persistentDataPath, "Decks");
-        DecksPath = new List<string> {
-        Path.Combine(deckDir, "NR"),
-        Path.Combine(deckDir, "NF"),
-        Path.Combine(deckDir, "SC"),
-        Path.Combine(deckDir, "M") };
-        EnsureDeckDirectories();
-
-        // Get Player Deck
-        currentDeckPath = EmptyDeckResourcePath;
-        if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath))
-            currentDeckPath = ApplicationModel.playerDeckPath;
-        Debug.Log("DeckController: Current deck path is: " + currentDeckPath);
-
-        SetUpData();
-        //first_timer = my_deck;
-    }
-
-    private void EnsureDeckDirectories()
-    {
-        foreach (string deckPath in DecksPath)
-            Directory.CreateDirectory(deckPath);
+        UpdateBattleDeckStatus();
     }
 
     private void ConfigureMobileDeckBuilder()
@@ -98,235 +115,72 @@ public class DeckController : MonoBehaviour
             Mathf.Max(rectTransform.sizeDelta.y, minimumHeight));
     }
 
-    //-----------------------------------------------Functions----------------------------------------------------//
-    private void SetUpData()
-    {
-        // Get the all the game cards
-        CardsDB cards_db = JsonUtility.FromJson<CardsDB>(CardsDatabase.text);
-        allCards = cards_db.Cards;
-
-        my_deck = LoadDeckFromPath(currentDeckPath);
-        PopulateDeckAssets();
-    }
-
+    //-----------------------------------------------Decks----------------------------------------------------//
+    // Null when the file cannot be read; unknown card ids are dropped
     public Deck LoadDeckFromPath(string path)
     {
+        Deck deck;
         if (path == EmptyDeckResourcePath)
-            return LoadDeckFromResource("Decks/__empty__");
-
-        return JsonUtility.FromJson<Deck>(File.ReadAllText(path));
-    }
-
-    private Deck LoadDeckFromResource(string resourcePath)
-    {
-        TextAsset deckAsset = Resources.Load<TextAsset>(resourcePath);
-        if (deckAsset == null)
         {
-            Debug.LogError("Missing deck resource: " + resourcePath);
-            return new Deck();
+            TextAsset deckAsset = Resources.Load<TextAsset>("Decks/__empty__");
+            deck = deckAsset != null ? CardLibrary.ParseDeck(deckAsset.text, path) : null;
+            if (deck == null)
+                deck = new Deck { Faction = Factions.NorthernRealms, Name = DeckRules.EmptyDeckName, Leader = LeaderIds.FoltestKingOfTemeria };
         }
-
-        return JsonUtility.FromJson<Deck>(deckAsset.text);
+        else
+            deck = DeckStorage.Load(path);
+        return DeckRules.Sanitize(deck, Db);
     }
 
-    // TODO: Make sure to call every time a deck is added
+    // Rescans the deck folders (call every time a deck is added, renamed or deleted)
     public void PopulateDeckAssets()
     {
-        NRDecks.Clear();
-        NFDecks.Clear();
-        SCDecks.Clear();
-        MDecks.Clear();
+        NRDecks = DeckStorage.DeckPaths(Factions.NorthernRealms);
+        NFDecks = DeckStorage.DeckPaths(Factions.Nilfgaard);
+        SCDecks = DeckStorage.DeckPaths(Factions.Scoiatael);
+        MDecks = DeckStorage.DeckPaths(Factions.Monsters);
+    }
 
-        for (int i = 0; i < DecksPath.Count; i++) // For each faction
+    public List<string> DeckPathsOf(string faction)
+    {
+        switch (faction)
         {
-            DirectoryInfo info = new DirectoryInfo(DecksPath[i]);
-            FileInfo[] fileInfos = info.GetFiles();
-
-            if (fileInfos.Length < 0) // No decks found in the folder
-                return;
-
-            foreach (FileInfo file in fileInfos)
-            {
-                if (file.ToString().EndsWith(".json"))
-                {
-                    //string filePath = GetRelativePath(file.ToString());
-                    string filePath = file.ToString();
-                    switch (i)
-                    {
-                        case 0: // NR
-                            NRDecks.Add(filePath);
-                            break;
-                        case 1: // NF
-                            NFDecks.Add(filePath);
-                            break;
-                        case 2: // SC
-                            SCDecks.Add(filePath);
-                            break;
-                        case 3: // M
-                            MDecks.Add(filePath);
-                            break;
-                    }
-                }
-            }
+            case Factions.Nilfgaard: return NFDecks;
+            case Factions.Scoiatael: return SCDecks;
+            case Factions.Monsters: return MDecks;
+            default: return NRDecks;
         }
     }
 
     public Card GetCardStats(int card_id)
     {
-        Card my_card = new Card();
-        for (int i = 0; i < allCards.Count; i++)
-        {
-            if (allCards[i]._id == card_id)
-            {
-                my_card = allCards[i];
-            }
-        }
-        return my_card;
+        return Db.Get(card_id);
     }
 
     public List<Card> GetCardsFromDeck(Deck deck)
     {
-        List<Card> returned_list = new List<Card>();
-
-        foreach (int card_id in deck.Cards)
-            returned_list.Add(GetCardStats(card_id));
-
-        return returned_list;
+        return Db.GetCards(deck.Cards.Where(Db.Contains));
     }
 
     //----------------------------------Card Fetching--------------------------------------//
-    // cards_list: Source list | faction: Card faction | row: close/range/siege
+    // cards_list: Source list | faction: Card faction ("all" for every faction) | row: close/range/siege
     public List<Card> GetUnitCards(List<Card> cards_list, string faction = "all", string row = "all", bool getUnique = false)
     {
-        List<Card> returned_list = new List<Card>();
-        bool isRow;
-        bool isUnique;
-        switch (faction)
-        {
-            case "all": // Return all unit cards
-                foreach (Card card in cards_list)
-                {
-                    if (row == "all")
-                        isRow = true;
-                    else
-                        isRow = card.row.Contains(row);
-
-                    if (!getUnique)
-                        isUnique = true;
-                    else
-                        isUnique = card.unique;
-
-                    if ((card.faction != "Special") && isRow && card.ability != "leader" && isUnique)
-                        returned_list.Add(card);
-                }
-                break;
-            case "NR": // Return all Northern Realms Units
-                foreach (Card card in cards_list)
-                {
-                    if (row == "all")
-                        isRow = true;
-                    else
-                        isRow = card.row.Contains(row);
-
-                    if (!getUnique)
-                        isUnique = true;
-                    else
-                        isUnique = card.unique;
-
-                    if ((card.faction == "NR") && isRow && card.ability != "leader" && isUnique)
-                        returned_list.Add(card);
-                }
-                break;
-            case "NF": // Return all Nilfgaard Units
-                foreach (Card card in cards_list)
-                {
-                    if (row == "all")
-                        isRow = true;
-                    else
-                        isRow = card.row.Contains(row);
-
-                    if (!getUnique)
-                        isUnique = true;
-                    else
-                        isUnique = card.unique;
-
-                    if ((card.faction == "NF") && isRow && card.ability != "leader" && isUnique)
-                        returned_list.Add(card);
-                }
-                break;
-            case "M": // Return all Monsters Units
-                foreach (Card card in cards_list)
-                {
-                    if (row == "all")
-                        isRow = true;
-                    else
-                        isRow = card.row.Contains(row);
-
-                    if (!getUnique)
-                        isUnique = true;
-                    else
-                        isUnique = card.unique;
-
-                    if ((card.faction == "M") && isRow && card.ability != "leader" && isUnique)
-                        returned_list.Add(card);
-                }
-                break;
-            case "SC": // Returns all scoiatel Units
-                foreach (Card card in cards_list)
-                {
-                    if (row == "all")
-                        isRow = true;
-                    else
-                        isRow = card.row.Contains(row);
-
-                    if (!getUnique)
-                        isUnique = true;
-                    else
-                        isUnique = card.unique;
-
-                    if ((card.faction == "SC") && isRow && card.ability != "leader" && isUnique)
-                        returned_list.Add(card);
-                }
-                break;
-            case "N": // Returns all Neutral Units
-                foreach (Card card in cards_list)
-                {
-                    if (row == "all")
-                        isRow = true;
-                    else
-                        isRow = card.row.Contains(row);
-
-                    if (!getUnique)
-                        isUnique = true;
-                    else
-                        isUnique = card.unique;
-
-                    if ((card.faction == "N") && isRow && card.ability != "leader" && isUnique)
-                        returned_list.Add(card);
-                }
-                break;
-            default:
-                Debug.LogError("GetUnitCards: Unexpected value: " + faction);
-                break;
-        }
-        return returned_list;
+        return cards_list.Where(card =>
+            card.IsUnit
+            && (faction == "all" || card.faction == faction)
+            && (row == "all" || (card.row != null && card.row.Contains(row)))
+            && (!getUnique || card.unique)).ToList();
     }
 
     public List<Card> GetSpecialCards(List<Card> cards_list)
     {
-        List<Card> returned_list = new List<Card>();
-        foreach (Card card in cards_list)
-            if (card.faction == "Special")
-                returned_list.Add(card);
-        return returned_list;
+        return cards_list.Where(card => card.IsSpecial).ToList();
     }
 
     public List<Card> MergedList(params List<Card>[] lists)
     {
-        int listLength = 0;
-        foreach (List<Card> cards_list in lists)
-            listLength += cards_list.Count;
-        List<Card> returned_list = new List<Card>(listLength);
+        List<Card> returned_list = new List<Card>(lists.Sum(list => list.Count));
         foreach (List<Card> list in lists)
             returned_list.AddRange(list);
         return returned_list;
@@ -334,247 +188,209 @@ public class DeckController : MonoBehaviour
 
     public int GetUnitsStrength(List<Card> units_list)
     {
-        int returned_int = 0;
-        foreach (Card card in units_list)
-            returned_int += card.strength;
-        return returned_int;
+        return units_list.Sum(card => card.strength);
     }
 
     public int GetSpecialsOccurence(Deck deck)
     {
-        List<Card> my_cards = GetCardsFromDeck(deck);
-        return GetSpecialCards(my_cards).Count;
-    }
-
-    //------------------------------------------Classes and JSON Related------------------------------------------//
-    // Card Structure
-    [Serializable] // Means the following class can be added to a list
-    public class Card
-    {
-        public string _idstr = null;
-        public string name = null;
-        public int _id = -1;
-        public string faction = null;
-        public bool unique = false;
-        public int strength = 0;
-        public string row = null;
-        public string ability = null;
-    }
-
-    // List of above Card
-    public class CardsDB
-    {
-        public List<Card> Cards = new List<Card>();
-    }
-
-    // Deck Structure
-    public class Deck
-    {
-        // Usage Example:
-        //
-        //Deck deck = new Deck
-        //{
-        //    Faction = "NR",
-        //    Name = "My Best Deck",
-        //    Cards = { 1, 2, 3, 4 } (card ids)
-        //};
-        //string json = JsonUtility.ToJson(deck);
-        public string Faction = null;
-        public string Name = null;
-        public int Leader = 0;
-        public List<int> Cards = new List<int>();
+        return GetSpecialCards(GetCardsFromDeck(deck)).Count;
     }
 
     //------------------------------------Middle Action Buttons---------------------------------------------------//
+    // Reference: "+" button
     public void AddDeck(TMP_InputField input)
     {
         if (input == null)
             return;
 
         input.DeactivateInputField();
-        input.text = FormatInput(input.text);
-        if (string.IsNullOrEmpty(input.text))
-            return;
-
-        // Check if name already exists; if not store new name
-        for (int i = 0; i < middleManager.deckPicker.options.Count; i++)
+        string name = DeckRules.NormalizeDisplayName(input.text);
+        string file_name = DeckRules.ToFileName(name);
+        if (file_name == null)
         {
-            //Debug.Log("Option" + i + ": " + middleManager.deckPicker.options[i].text);
-            string name = middleManager.deckPicker.options[i].text;
-
-            if (input.text == name)
-                return; // Name already exists
+            RejectName("Enter a deck name with letters or numbers");
+            return;
+        }
+        if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
+            return;
+        if (NameTaken(name, null))
+        {
+            RejectName("A deck called \"" + name + "\" already exists for this faction");
+            return;
         }
 
-        Debug.Log("Adding deck: " + input.text);
         Deck newDeck = new Deck
         {
-            Faction = my_deck.Faction, // Same faction as the currently selected 
-            Name = input.text,
-            Leader = my_deck.Leader,
-            Cards = { }
+            Faction = my_deck.Faction, // Same faction as the currently selected
+            Name = name,
+            Leader = LeaderIds.BelongsTo(my_deck.Leader, my_deck.Faction) ? my_deck.Leader : LeaderIds.DefaultFor(my_deck.Faction),
         };
-
-        Debug.Log("New Deck: Faction: " + newDeck.Faction);
-        string newPath;
-        string fileName = FormatDeckName(input.text) + ".json";
-        switch (newDeck.Faction)
+        string newPath = DeckStorage.PathFor(newDeck.Faction, file_name);
+        if (!DeckStorage.Save(newDeck, newPath))
         {
-            case "NR":
-                newPath = Path.Combine(DecksPath[0], fileName);
-                break;
-            case "NF":
-                newPath = Path.Combine(DecksPath[1], fileName);
-                break;
-            case "SC":
-                newPath = Path.Combine(DecksPath[2], fileName);
-                break;
-            case "M":
-                newPath = Path.Combine(DecksPath[3], fileName);
-                break;
-            default:
-                newPath = Path.Combine(Application.persistentDataPath, "Decks/errorDeck.json");
-                break;
+            RejectName("Could not save the deck");
+            return;
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(newPath));
-        WriteDeckToFile(newDeck, newPath);
+
+        GameLog.Info("Added deck: " + newPath);
         GameAudio.PlaySfx("deck_save");
-        PopulateDeckAssets();
-        middleManager.LoadDecks();
-
-        // Get the deck of the name input.text
-        int index = -1;
-        for (int i = 0; i < middleManager.deckPicker.options.Count; i++)
-        {
-            string name = middleManager.deckPicker.options[i].text;
-            if (input.text == name)
-                index = i;
-        }
         input.text = "";
-        middleManager.deckPicker.value = index;
+        PopulateDeckAssets();
+        middleManager.LoadDecks(false);
+        middleManager.SelectDeckPath(newPath);
     }
 
-    // NOTE: .meta warning (prolly not important)
+    // Reference: pencil button
     public void RenameDeck(TMP_InputField input)
     {
         if (input == null)
             return;
 
         input.DeactivateInputField();
-        input.text = FormatInput(input.text);
-        if (string.IsNullOrEmpty(input.text))
-            return;
-        if (my_deck.Name == "__emptyname__")
-            return;
-
-        Debug.Log("Renaming deck to: " + input.text);
-
-        my_deck.Name = input.text;
-
-        // Change the file name
-        string newPath;
-        string fileName = FormatDeckName(input.text) + ".json";
-        switch (my_deck.Faction)
+        if (my_deck.Name == DeckRules.EmptyDeckName || currentDeckPath == EmptyDeckResourcePath)
         {
-            case "NR":
-                newPath = DecksPath[0] + "/" + fileName;
-                break;
-            case "NF":
-                newPath = DecksPath[1] + "/" + fileName;
-                break;
-            case "SC":
-                newPath = DecksPath[2] + "/" + fileName;
-                break;
-            case "M":
-                newPath = DecksPath[3] + "/" + fileName;
-                break;
-            default:
-                newPath = Path.Combine(Application.persistentDataPath, "Decks/errorDeck.json");
-                break;
+            RejectName("Select a deck to rename first");
+            return;
+        }
+        string name = DeckRules.NormalizeDisplayName(input.text);
+        string file_name = DeckRules.ToFileName(name);
+        if (file_name == null)
+        {
+            RejectName("Enter a deck name with letters or numbers");
+            return;
+        }
+        if (NameTaken(name, currentDeckPath))
+        {
+            RejectName("Another deck is already called \"" + name + "\"");
+            return;
         }
 
-        // Save the deck with the new name
-        WriteDeckToFile(my_deck, currentDeckPath);
+        string oldPath = currentDeckPath;
+        string newPath = DeckStorage.PathFor(my_deck.Faction, file_name);
+        Deck renamed = new Deck { Faction = my_deck.Faction, Name = name, Leader = my_deck.Leader, Cards = new List<int>(my_deck.Cards) };
 
-        // Rename file
-        Debug.Log("Old deck path: " + currentDeckPath);
-        Debug.Log("Renaming file to: " + newPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(newPath));
-        File.Move(currentDeckPath, newPath);
+        // Write the new file first, then remove the old one: a failure never loses the deck
+        if (!DeckStorage.Save(renamed, newPath))
+        {
+            RejectName("Could not rename the deck");
+            return;
+        }
+        if (!DeckStorage.SamePath(oldPath, newPath))
+            DeckStorage.Delete(oldPath);
+        if (DeckStorage.SamePath(PlayerPrefs.GetString(PlayerDeckPrefKey, ""), oldPath))
+            SetBattleDeck(newPath);
+
+        GameLog.Info("Renamed deck: " + oldPath + " -> " + newPath);
         GameAudio.PlaySfx("deck_save");
-        PopulateDeckAssets();
-
-        // Refresh in UI
-        middleManager.LoadDecks();
-
-        // Select the new deck
-        // Get the deck of the name input.text
-        int index = -1;
-        for (int i = 0; i < middleManager.deckPicker.options.Count; i++)
-        {
-            string name = middleManager.deckPicker.options[i].text;
-            if (input.text == name)
-                index = i;
-        }
-
-        // Clear the field
         input.text = "";
-        middleManager.deckPicker.value = index;
+        my_deck = renamed;
+        currentDeckPath = newPath;
+        PopulateDeckAssets();
+        middleManager.LoadDecks(false);
+        middleManager.SelectDeckPath(newPath);
     }
 
+    // Reference: trash button (asks for confirmation first)
     public void DeleteDeck()
     {
-        if (middleManager.deckPicker.options.Count <= 0)
+        if (middleManager.deckPicker.options.Count <= 0 || currentDeckPath == EmptyDeckResourcePath)
             return;
 
-        int index = middleManager.deckPicker.value;
-        string filePath;
-        switch (my_deck.Faction)
-        {
-            case "NR":
-                filePath = NRDecks[index];
-                break;
-            case "NF":
-                filePath = NFDecks[index];
-                break;
-            case "SC":
-                filePath = SCDecks[index];
-                break;
-            case "M":
-                filePath = MDecks[index];
-                break;
-            default:
-                filePath = "Invalid path";
-                break;
-        }
+        string filePath = currentDeckPath;
+        UIOverlay.Confirm("Delete the deck \"" + my_deck.Name + "\"?\nThis cannot be undone.", "Delete", "Cancel", () => ConfirmDelete(filePath));
+    }
 
-        File.Delete(filePath);
+    public void ConfirmDelete(string filePath)
+    {
+        if (!DeckStorage.Delete(filePath))
+        {
+            UIOverlay.Toast("Could not delete the deck");
+            return;
+        }
         GameAudio.PlaySfx("deck_remove");
-        Debug.Log("Deleting: " + filePath);
+        GameLog.Info("Deleted: " + filePath);
+        if (DeckStorage.SamePath(PlayerPrefs.GetString(PlayerDeckPrefKey, ""), filePath))
+            SetBattleDeck(null);
 
         PopulateDeckAssets();
         // To make sure deck list is cleared as well
         deckCollection.UpdateSelectedFaction();
     }
 
+    // Same display name (ignoring case/spaces) or same file name as another deck of the faction
+    private bool NameTaken(string name, string ignored_path)
+    {
+        string file_name = DeckRules.ToFileName(name);
+        foreach (string path in DeckPathsOf(my_deck.Faction))
+        {
+            if (ignored_path != null && DeckStorage.SamePath(path, ignored_path))
+                continue;
+            if (Path.GetFileNameWithoutExtension(path) == file_name)
+                return true;
+            Deck other = DeckStorage.Load(path);
+            if (other != null && DeckRules.NamesCollide(name, other.Name))
+                return true;
+        }
+        return false;
+    }
+
+    private static void RejectName(string message)
+    {
+        GameAudio.PlaySfx("invalid");
+        UIOverlay.Toast(message);
+    }
+
+    //----------------------Battle deck (the deck used when pressing Play)---------------------//
+    // Called whenever the edited deck changes: a valid deck becomes the battle deck, an invalid one stops being it
+    public void UpdateBattleDeck()
+    {
+        bool real_deck = currentDeckPath != EmptyDeckResourcePath && my_deck.Name != DeckRules.EmptyDeckName;
+        if (real_deck && IsDeckValid(my_deck))
+            SetBattleDeck(currentDeckPath);
+        else if (real_deck && DeckStorage.SamePath(PlayerPrefs.GetString(PlayerDeckPrefKey, ""), currentDeckPath))
+            SetBattleDeck(null);
+        UpdateBattleDeckStatus();
+    }
+
+    private void SetBattleDeck(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            PlayerPrefs.DeleteKey(PlayerDeckPrefKey);
+        else
+            PlayerPrefs.SetString(PlayerDeckPrefKey, path);
+        PlayerPrefs.Save();
+        ApplicationModel.playerDeckPath = string.IsNullOrEmpty(path) ? null : path;
+        GameLog.Info("Battle deck: " + (path ?? "default"));
+    }
+
+    // Line at the bottom of the screen telling which deck will be used in battle
+    private void UpdateBattleDeckStatus()
+    {
+        if (battleDeckStatus == null)
+        {
+            battleDeckStatus = UIOverlay.CreateText(UIOverlay.Root, "", 28, new Vector2(0.5f, 0f), new Vector2(0, 40), new Vector2(1000, 50));
+            battleDeckStatus.enableWordWrapping = false;
+        }
+
+        string battle_path = ApplicationModel.playerDeckPath;
+        Deck battle_deck = !string.IsNullOrEmpty(battle_path) && File.Exists(battle_path) ? DeckStorage.Load(battle_path) : null;
+        string battle_name = battle_deck != null ? battle_deck.Name : "the default Northern Realms deck";
+
+        bool editing_real_deck = currentDeckPath != EmptyDeckResourcePath && my_deck.Name != DeckRules.EmptyDeckName;
+        if (editing_real_deck && !IsDeckValid(my_deck))
+        {
+            string problem = DeckRules.Validate(my_deck, Db).FirstOrDefault();
+            battleDeckStatus.text = "Not battle-ready: " + problem + ". Battle deck: " + battle_name;
+            battleDeckStatus.color = new Color32(245, 80, 60, 255);
+        }
+        else
+        {
+            battleDeckStatus.text = "Battle deck: " + battle_name;
+            battleDeckStatus.color = UIOverlay.Gold;
+        }
+    }
+
     //----------------------Helper Methods---------------------//
-    // Get relative path from absolute path
-    public string FormatDeckName(string deck_name)
-    {
-        deck_name = deck_name.Trim();
-        deck_name = deck_name.ToLower();
-        deck_name = deck_name.Replace(" ", "_");
-        return deck_name;
-    }
-
-    public string FormatInput(string text)
-    {
-        text = text.Trim();
-        var demo = text.Split(' ').Where(s => !string.IsNullOrWhiteSpace(s));
-        text = string.Join(" ", demo);
-        return text;
-    }
-
     public void WriteDeckToFile(Deck deck, string file_path)
     {
         if (file_path == EmptyDeckResourcePath)
@@ -583,29 +399,21 @@ public class DeckController : MonoBehaviour
             return;
         }
 
-        string json = JsonUtility.ToJson(deck);
-        //Debug.Log(json);
-        File.WriteAllText(file_path, json);
-        Debug.Log("Deck saved correctly under: " + file_path);
+        if (DeckStorage.Save(deck, file_path))
+            GameLog.Info("Deck saved correctly under: " + file_path);
+        else
+            UIOverlay.Toast("Could not save the deck");
     }
 
     public bool IsDeckValid(Deck deck)
     {
-        bool isValid = false;
-
-        int units_number = GetUnitCards(GetCardsFromDeck(deck)).Count();
-        Debug.Log("Units number in deck: " + units_number);
-
-        if (units_number >= 22)
-            isValid = true;
-
-        return isValid;
+        return DeckRules.IsValid(deck, Db);
     }
 
     //--------To Main Menu
     public void ToMainMenu()
     {
         GameAudio.PlaySfx("ui_click");
-        SceneManager.LoadScene(0);
+        SceneManager.LoadScene(SceneNames.Menu);
     }
 }

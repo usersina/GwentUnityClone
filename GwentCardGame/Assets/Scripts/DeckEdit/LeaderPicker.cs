@@ -9,10 +9,6 @@ public class LeaderPicker : MonoBehaviour
     public DeckController deckController;
     public CollectionManager deckCollection;
 
-    public List<int> NRLeaders = new List<int> { 51, 52, 53, 54, 55};
-    public List<int> NFLeaders = new List<int> { 33, 34, 35, 36, 37};
-    public List<int> SCLeaders = new List<int> { 57 ,58, 59 ,60 ,61};
-    public List<int> MLeaders = new List<int> { 40, 41, 42 ,43 ,44};
 
     private void Update()
     {
@@ -33,36 +29,23 @@ public class LeaderPicker : MonoBehaviour
 
     public void SetLeaderContent(string faction)
     {
-        switch (faction)
-        {
-            case "NR":
-                CreateLeaders(NRLeaders);
-                break;
-            case "NF":
-                CreateLeaders(NFLeaders);
-                break;
-            case "SC":
-                CreateLeaders(SCLeaders);
-                break;
-            case "M":
-                CreateLeaders(MLeaders);
-                break;
-            default:
-                Debug.LogError("SetLeaderContent: Unexpected value: " + faction);
-                break;
-        }
+        int[] leaders;
+        if (Gwent.Rules.LeaderIds.ByFaction.TryGetValue(faction ?? "", out leaders))
+            CreateLeaders(leaders);
+        else
+            Debug.LogError("SetLeaderContent: Unexpected value: " + faction);
     }
 
-    private void CreateLeaders(List<int> leaders_list)
+    private void CreateLeaders(int[] leaders_list)
     {
-        for (int i = 0; i < leaders_list.Count; i++)
+        for (int i = 0; i < leaders_list.Length; i++)
         {
             GameObject instantiatedLeader = Instantiate(leaderWPrefab);
             instantiatedLeader.GetComponent<LeaderWindow>().leaderId = leaders_list[i];
-            instantiatedLeader.transform.Find("LImage").GetComponent<Image>().sprite = 
-                Resources.Load<Sprite>("Cards/List/591x380/" + leaders_list[i]);
+            instantiatedLeader.transform.Find("LImage").GetComponent<Image>().sprite =
+                SpriteCache.Load("Cards/List/591x380/" + leaders_list[i]);
             instantiatedLeader.transform.Find("LEffect").GetComponent<Image>().sprite =
-                Resources.Load<Sprite>("Cards/EffectBox/Leader/" + leaders_list[i]);
+                SpriteCache.Load("Cards/EffectBox/Leader/" + leaders_list[i]);
             instantiatedLeader.transform.SetParent(contentGO.transform, false);
         }
     }

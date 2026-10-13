@@ -16,22 +16,16 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
     float interval = 0.4f;
 
     [HideInInspector]
-    public GameObject deckControllerGO;
-    [HideInInspector]
     public DeckController deckController;
 
-    [HideInInspector]
-    public GameObject deckCollectionGO;
+    // The "Cards in Deck" collection (the one tagged Player)
     [HideInInspector]
     public CollectionManager deckCollection;
 
     private void Start()
     {
-        deckControllerGO = GameObject.Find("DeckController");
-        deckController = deckControllerGO.GetComponent<DeckController>();
-
-        deckCollectionGO = GameObject.Find("DeckCollection");
-        deckCollection = deckCollectionGO.GetComponent<CollectionManager>();
+        deckController = DeckController.Instance;
+        deckCollection = deckController.deckCollection;
 
         UpdateCardGUI();
     }
@@ -49,10 +43,6 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         {
             if (UseSingleTapActions() || (lastClick + interval) > Time.time)
                 EditDeckWithThisCard();
-            else
-            {
-                //Debug.Log("Single Click :)");
-            }
             lastClick = Time.time;
         }
     }
@@ -69,7 +59,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         {
             // Remove card from deck
             GameAudio.PlaySfx("deck_remove");
-            Debug.Log("Removing card from deck: " + deckController.my_deck.Name);
+            GameLog.Info("Removing card from deck: " + deckController.my_deck.Name);
             deckController.my_deck.Cards.Remove(cardStats._id);
             deckCollection.OnDeckEdit();
         }
@@ -81,10 +71,10 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
     private void AddCardToSelectedDeck(CardStats cardStats)
     {
-        if (deckController.my_deck.Name == "__emptyname__")
+        if (deckController.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("No selected deck to add card to !");
+            UIOverlay.Toast("Create a deck first: type a name and press +");
             return;
         }
 
@@ -94,15 +84,15 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         if (cardStats.unique && occurences > 0)
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("Cannot add hero card to deck, already contains: " + occurences);
+            UIOverlay.Toast(cardStats.name + " is a hero: only one copy per deck");
             return;
         }
 
         // Normal Unit or Special Card
-        if (!cardStats.unique && occurences >= 3)
+        if (!cardStats.unique && occurences >= Gwent.Rules.DeckRules.MaxCopies)
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("Cannot add card to deck, already contains: " + occurences);
+            UIOverlay.Toast("At most " + Gwent.Rules.DeckRules.MaxCopies + " copies of a card");
             return;
         }
 
@@ -110,10 +100,10 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         if (cardStats.faction == "Special")
         {
             int specialsOcc = deckController.GetSpecialsOccurence(deckController.my_deck);
-            if (specialsOcc >= 10)
+            if (specialsOcc >= Gwent.Rules.DeckRules.MaxSpecials)
             {
                 GameAudio.PlaySfx("invalid");
-                Debug.Log("Cannot add special card to deck, deck already contains " + specialsOcc + " specials.");
+                UIOverlay.Toast("A deck can hold at most " + Gwent.Rules.DeckRules.MaxSpecials + " special cards");
                 return;
             }
         }
@@ -161,47 +151,8 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         CardStats cardStats = GetComponent<CardStats>();
 
         cardDetails.SetActive(true);
-        cardDetails.transform.Find("BigImage")
-            .GetComponent<Image>()
-            .sprite = Resources.Load<Sprite>("Cards/List/591x380/" + cardStats._id);
-
-        if (cardStats.faction == "Special")
-        {// Special Card
-            cardDetails.transform.Find("BigEffect")
-                .GetComponent<Image>()
-                .sprite = Resources.Load<Sprite>("Cards/EffectBox/" + cardStats._idstr);
-        }
-        else
-        {// Unit Card or Leader
-            if (cardStats.ability == "leader") // Leader Card
-                cardDetails.transform.Find("BigEffect")
-                    .GetComponent<Image>()
-                    .sprite = Resources.Load<Sprite>("Cards/EffectBox/Leader/" + cardStats._id);
-            else // Unit Card
-            {
-                if (cardStats.unique)
-                {
-                    cardDetails.transform.Find("BigEffect")
-                        .GetComponent<Image>()
-                        .sprite = Resources.Load<Sprite>("Cards/EffectBox/hero");
-                }
-
-                if (cardStats.ability != "")
-                    cardDetails.transform.Find("BigEffect")
-                        .GetComponent<Image>()
-                        .sprite = Resources.Load<Sprite>("Cards/EffectBox/" + cardStats.ability);
-                else if (!cardStats.unique)
-                    // No ability (normal unit)
-                    if (cardStats.row == "close_range")
-                        cardDetails.transform.Find("BigEffect")
-                            .GetComponent<Image>()
-                            .sprite = Resources.Load<Sprite>("Cards/EffectBox/agile");
-                    else
-                        cardDetails.transform.Find("BigEffect")
-                            .GetComponent<Image>()
-                            .sprite = Resources.Load<Sprite>("Cards/EffectBox/normal_unit");
-            }
-        }
+        cardDetails.transform.Find("BigImage").GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
+        cardDetails.transform.Find("BigEffect").GetComponent<Image>().sprite = SpriteCache.Load(CardHover.EffectBoxPath(cardStats));
     }
 
 }

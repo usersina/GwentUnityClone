@@ -13,30 +13,23 @@ public class CLeaderManager : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        // Detect Card Right Click
-        if (eventData.button == PointerEventData.InputButton.Right)
-        {
-            //ShowBigCard();
-            Debug.Log("Leader: Right Click !");
-        }
-
+        // Double-click (tap on mobile) opens the leader picker
         if (eventData.button == PointerEventData.InputButton.Left)
         {
             if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
                 OpenLeaderPicker();
-            else
-            {
-                // Single Click
-            }
             lastClick = Time.time;
         }
-
     }
 
     private void OpenLeaderPicker()
     {
-        if (deckController.my_deck.Name == "__emptyname__")
+        if (deckController.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
+        {
+            GameAudio.PlaySfx("invalid");
+            UIOverlay.Toast("Create a deck first: type a name and press +");
             return;
+        }
 
         LeaderPicker.SetActive(true);
         LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
