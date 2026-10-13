@@ -92,3 +92,7 @@ Unity -batchmode -nographics -projectPath GwentCardGame -executeMethod GwentAuto
 # Credits:
 It naturally goes without saying, but I don't claim ownership of the game idea, the card assets or any other materials related to The Witcher 3 Wild Hunt, all credits goes to the owners CD PROJEKT RED.
 This is a non-commercial fan project.
+
+# License
+The source code is released under the [MIT License](LICENSE).
+The license does not cover the Gwent/Witcher card art, names and other CD PROJEKT RED material, which remain the property of their owners.
