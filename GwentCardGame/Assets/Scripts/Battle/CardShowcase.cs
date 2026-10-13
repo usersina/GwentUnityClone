@@ -92,7 +92,11 @@ public static class CardShowcase
         go.transform.SetParent(CardMotion.Layer, false);
         shown = (RectTransform)go.transform;
         if (glow)
-            UIKit.NewImage(shown, "Glow", UITheme.Current.softShadow, new Color(1f, 0.64f, 0.22f, 0.9f)).rectTransform.Stretch(-28, -28, -28, -28);
+        {
+            Image halo = UIKit.NewImage(shown, "Glow", UITheme.Current.softShadow, new Color(1f, 0.64f, 0.22f, 0.9f));
+            halo.rectTransform.Stretch(-28, -28, -28, -28);
+            halo.gameObject.AddComponent<ShowcaseGlow>();
+        }
         Image art = UIKit.NewImage(shown, "Art", SpriteCache.Load("Cards/List/591x380/" + card._id), Color.white);
         art.preserveAspect = true;
         art.rectTransform.Stretch();
@@ -137,6 +141,27 @@ public static class CardShowcase
         Vector2 center = root.TransformPoint(layout.anchoredPosition);
         Vector2 size = layout.sizeDelta * scale;
         return new Rect(center - size / 2, size);
+    }
+}
+
+// The selected card's glow breathes (The Witcher 3)
+public class ShowcaseGlow : MonoBehaviour
+{
+    private const float Seconds = 1.2f;
+    private Image image;
+    private Color color;
+
+    private void Awake()
+    {
+        image = GetComponent<Image>();
+        color = image.color;
+    }
+
+    private void Update()
+    {
+        float breath = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2 / Seconds);
+        image.color = new Color(color.r, color.g, color.b, color.a * Mathf.Lerp(0.5f, 1f, breath));
+        transform.localScale = Vector3.one * Mathf.Lerp(0.99f, 1.05f, breath);
     }
 }
 
