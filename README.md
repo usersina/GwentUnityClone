@@ -48,7 +48,7 @@ Sorry, no multiplayer :/ (yet)
 | Preview a card | Hover it | Selecting it shows the preview |
 | Deck builder: add/remove a card | Double-click it | Tap it |
 | Deck builder: card details | Right-click | - |
-| Settings (audio, display) | Main menu or pause menu > **Settings** | Same |
+| Settings (audio, display, game speed) | Main menu or pause menu > **Settings**. **Game > Game speed** (Slow, Normal, Fast) sets how fast cards move, notices pass and the opponent plays | Same |
 | Rules of the game | Main menu > **How to play** (the battle, the board, cards, abilities, special cards, factions, controls) | Same |
 
 The deck you last selected in the deck builder is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
@@ -92,7 +92,7 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 |---|---|
 | `Assets/Scripts/Rules` | The game rules as plain C# with no Unity dependency (`Gwent.Rules` assembly): card data, strength calculation (weather, tight bond, morale, horns), scorch, muster, medic, agile, rounds, deck validation and the AI's decisions |
 | `Assets/Scripts/SceneController.cs` | The battle: turns, rounds and the board UI, built on top of the rules |
-| `Assets/Scripts/Battle` | The board: `BoardView` draws it from the model, `CardLane` lays out the hand and the rows in The Witcher 3's order, and `BoardPresenter` plays each play as The Witcher 3 does (the showcase, the card gliding in from the board's edge, ability flares, scorch flames, the medic's flare over the discard pile, cards flying from the deck) before the turn passes |
+| `Assets/Scripts/Battle` | The board: `BoardView` draws it from the model, `CardLane` lays out the hand and the rows in The Witcher 3's order, and `BoardPresenter` plays each play as The Witcher 3 does (the showcase, the card gliding in from the board's edge, a hero's fire running around its edge, ability flares, scorch flames, the medic's green sign on the discard pile, cards flying from the deck, a lost round's gem breaking) before the turn passes |
 | `Assets/Scripts/AI` | Executes the AI's decisions (always ends its turn, falls back to passing) |
 | `Assets/Scripts/DeckController.cs`, `DeckEdit/` | The deck builder |
 | `Assets/Scripts/Utility` | Audio, settings, deck files, card database, runtime UI layer (toasts, dialogs, Escape handling), logging |

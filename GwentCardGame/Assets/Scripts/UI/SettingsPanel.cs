@@ -12,7 +12,7 @@ public class SettingsPanel : MonoBehaviour
     private const float RowHeight = 92;
     private const float ControlWidth = 420;
 
-    private static readonly string[] Tabs = { "Audio", "Display" };
+    private static readonly string[] Tabs = { "Audio", "Display", "Game" };
 
     private readonly List<RectTransform> pages = new List<RectTransform>();
     private readonly List<TextMeshProUGUI> tabLabels = new List<TextMeshProUGUI>();
@@ -90,6 +90,7 @@ public class SettingsPanel : MonoBehaviour
         RectTransform content = UIKit.Rect("Content", panel).Stretch(64, 64, 184, 130);
         pages.Add(BuildAudioPage(content));
         pages.Add(BuildDisplayPage(content));
+        pages.Add(BuildGamePage(content));
 
         // Footer
         Button reset = UIKit.Button(panel, "Reset to defaults", UIKit.ButtonStyle.Ghost, ResetToDefaults, new Vector2(300, 64));
@@ -220,6 +221,15 @@ public class SettingsPanel : MonoBehaviour
             i => GameSettings.MenuScale = scales[i], "Menus and dialogs only");
 
         firstControls.Add(first);
+        return page;
+    }
+
+    private RectTransform BuildGamePage(RectTransform content)
+    {
+        RectTransform page = Page(content, "Game");
+        UIStepper speed = StepperRow(page, 0, "Game speed", GameSettings.GameSpeedNames, GameSettings.GameSpeed,
+            i => GameSettings.GameSpeed = i, "How fast cards move, notices pass and the opponent plays");
+        firstControls.Add(speed.left);
         return page;
     }
 

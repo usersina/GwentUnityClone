@@ -66,7 +66,8 @@ public class PauseMenu : MonoBehaviour
 
     private void Resumed()
     {
-        Time.timeScale = previousTimeScale > 0 ? previousTimeScale : 1f;
+        // In a battle, at the game speed (it may have changed in the settings)
+        Time.timeScale = SceneController.Instance != null ? GameSettings.GameTimeScale : previousTimeScale > 0 ? previousTimeScale : 1f;
         if (current == this)
             current = null;
     }

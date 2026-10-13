@@ -17,12 +17,15 @@ public static class GameSettings
     private const string ResolutionHeightKey = "resolutionHeight";
     private const string FrameRateKey = "frameRate";
     private const string MenuScaleKey = "menuScale";
+    private const string GameSpeedKey = "gameSpeed";
 
     // Frame rate choices: VSync follows the screen, 0 is unlimited (desktop); phones have no VSync choice
     public const int VSync = -1;
     public static readonly int[] DesktopFrameRates = { VSync, 30, 60, 120, 144, 0 };
     public static readonly int[] MobileFrameRates = { 30, 60, 120 };
     public static readonly float[] MenuScales = { 0.9f, 1f, 1.15f, 1.3f };
+    public static readonly string[] GameSpeedNames = { "Slow", "Normal", "Fast" };
+    private static readonly float[] GameSpeedScales = { 0.75f, 1f, 3f };
 
     // Raised after any change (GameAudio and the overlay canvas listen)
     public static event Action Changed;
@@ -116,12 +119,24 @@ public static class GameSettings
         set { SetFloat(MenuScaleKey, value); }
     }
 
+    //----------------------------------------Game----------------------------------------//
+    // How fast a battle runs: the cards' moves and effects, the notices and the opponent's turns (0 slow, 1 normal,
+    // 2 fast). Clicks and holds keep their real-time feel.
+    public static int GameSpeed
+    {
+        get { return Mathf.Clamp(PlayerPrefs.GetInt(GameSpeedKey, 1), 0, GameSpeedScales.Length - 1); }
+        set { SetInt(GameSpeedKey, Mathf.Clamp(value, 0, GameSpeedScales.Length - 1)); }
+    }
+
+    // The battle's time scale at that speed
+    public static float GameTimeScale { get { return GameSpeedScales[GameSpeed]; } }
+
     //----------------------------------------Apply / reset----------------------------------------//
     public static void ResetToDefaults()
     {
         bool window_was_set = WindowSet;
         foreach (string key in new[] { MasterVolumeKey, MusicVolumeKey, SfxVolumeKey, MuteInBackgroundKey, FullscreenKey,
-                                       ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey })
+                                       ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, GameSpeedKey })
             PlayerPrefs.DeleteKey(key);
         PlayerPrefs.Save();
         ApplyFrameRate();

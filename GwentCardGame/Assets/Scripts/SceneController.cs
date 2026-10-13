@@ -87,7 +87,10 @@ public partial class SceneController : MonoBehaviour
     private void OnDestroy()
     {
         if (Instance == this)
+        {
             Instance = null;
+            Time.timeScale = 1f; // the game speed is the battle's
+        }
     }
 
     public LeaderManager PlayerLeader { get { return View(true).Leader; } }
@@ -97,6 +100,7 @@ public partial class SceneController : MonoBehaviour
         if (!Application.isMobilePlatform)
             gameObject.AddComponent<BattleKeys>();
         GameAudio.PlayGameMusic();
+        Time.timeScale = GameSettings.GameTimeScale;
         PlayerInfo.Name = "Player";
         EnemyInfo.Name = "Opponent";
 
