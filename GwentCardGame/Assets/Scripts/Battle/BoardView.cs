@@ -548,7 +548,6 @@ public class BoardView
     // its row's horn slot, the opponent's row it scorches, the rows of agile units, the discard pile it takes a unit
     // from (framed). Nothing for the others (a second click on the leader uses them). Returns the places lit.
     public const string LeaderTargetFrame = "LeaderTarget";
-    private readonly List<GameObject> leaderFrames = new List<GameObject>();
 
     public List<GameObject> MarkLeaderTargets(int leader_id)
     {
@@ -582,26 +581,26 @@ public class BoardView
         }
         else if (leader_id == LeaderIds.EredinDestroyerOfWorlds || leader_id == LeaderIds.EmhyrTheRelentless)
         {
-            // The card on the right and its description cover the piles: the frame goes on the overlay, above them
-            // (clicks go through to the pile)
             GameObject pile = View(leader_id == LeaderIds.EredinDestroyerOfWorlds).DiscardPile.transform.parent.gameObject;
-            RectTransform holder = UIKit.Rect(LeaderTargetFrame, CardMotion.Layer);
-            holder.gameObject.AddComponent<OverlayFrame>().target = (RectTransform)pile.transform;
-            foreach (Image side in UIKit.Frame(holder, "Frame", UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
+            foreach (Image side in UIKit.Frame(pile.transform, LeaderTargetFrame, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
                 side.gameObject.AddComponent<UIPulse>();
-            leaderFrames.Add(holder.gameObject);
             targets.Add(pile);
         }
         return targets;
     }
 
-    // Takes the piles' frames away (the rows and the weather board go back to normal with Lightoff)
-    public void UnmarkLeaderTargets()
+    // Lights them off (the rows and the weather board go back to normal with Lightoff)
+    public void UnmarkLeaderTargets(List<GameObject> targets)
     {
-        foreach (GameObject frame in leaderFrames)
+        foreach (GameObject target in targets)
+        {
+            Transform frame = target != null ? target.transform.Find(LeaderTargetFrame) : null;
             if (frame != null)
+            {
+                frame.SetParent(null, false);
                 Object.Destroy(frame.gameObject);
-        leaderFrames.Clear();
+            }
+        }
     }
 
     // A gold frame around each unit of this side a decoy can take back (non-hero units on the rows)
@@ -637,24 +636,5 @@ public class BoardView
     public void SetHider(bool hidden)
     {
         controller.hiderObject.transform.localPosition = hidden ? new Vector2(0, -461) : new Vector2(0, -618);
-    }
-}
-
-// A frame on the overlay over a board element: it follows the element and stays above the overlay's cards (the card
-// on the right, its description), so it always shows in full
-public class OverlayFrame : MonoBehaviour
-{
-    public RectTransform target;
-
-    private void LateUpdate()
-    {
-        if (target == null)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        CardMotion.Place((RectTransform)transform, CardMotion.ScreenRect(target));
-        if (transform.GetSiblingIndex() != transform.parent.childCount - 1)
-            transform.SetAsLastSibling();
     }
 }
