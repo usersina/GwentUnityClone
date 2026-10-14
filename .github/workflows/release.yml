@@ -48,6 +48,9 @@ jobs:
     name: Tests
     needs: prepare
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write # the test runner posts the results as a check on the commit
     steps:
       - uses: jlumbroso/free-disk-space@v1.3.1
         with:
