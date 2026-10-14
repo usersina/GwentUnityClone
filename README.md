@@ -1,35 +1,62 @@
 # GwentUnityClone
 
- The Witcher 3 card game (Gwent Legacy Version), remade in Unity for Windows and Android.
+<p align="center">
+  <img src="Screenshots/banner.jpg" alt="The main menu: Geralt and Ciri playing Gwent">
+</p>
+
+ Gwent, the card game of The Witcher 3: Wild Hunt (the original in-game version, not the standalone Gwent), remade in Unity for Windows and Android.
  This is the original repository ([wolfofRome/GwentUnityClone](https://github.com/wolfofRome/GwentUnityClone) is a fork of it).
  Contributions from [Usama171](https://github.com/Usama171) added music, sound effects, better card handling on the battle board and Android support.
 
- Showcase video: [Youtube video link](https://youtu.be/k31I2_2ARas)
+ Showcase video (of the first version, from 2020): [YouTube](https://youtu.be/k31I2_2ARas)
 
 # About this project
 
-This is a fan remake of The Witcher 3's famous card game Gwent.
-I'm fully aware that an official standalone version of Gwent is on steam. However I'm enthusiastic about the older version of Gwent and its mechanics which is one of the reasons I got so immersed in The Witcher 3 world. Therefore, here's the original version made nearly from scratch in Unity game engine.
+This is a fan remake of Gwent, the famous card game of The Witcher 3.
+I'm aware that CD PROJEKT RED made an official standalone Gwent, but it plays very differently. I'm enthusiastic about the original version and its mechanics, which is one of the reasons I got so immersed in the world of The Witcher 3. So here it is, made nearly from scratch in the Unity game engine.
 
-I got the card assets from here: [Gwent Cards Repository (game rules are here if you're unfamiliar)](https://github.com/matt77hias/Gwent)
+The card art comes from [matt77hias/Gwent](https://github.com/matt77hias/Gwent), which also explains the rules if you're new to the game.
 
-Every other asset I made myself using Adobe Photoshop.
+I made the original interface in Adobe Photoshop. Today most of it is drawn by the game's own sprite generator, next to some of The Witcher 3's own interface art and a few free assets (see [Credits](#credits)).
 
-Some of them are clunky, but the game rules are covered by automated tests (see [Tests](#tests)).
+The rules follow The Witcher 3's Gwent closely and are covered by automated tests (see [Tests](#tests)).
 
 This game supports full deck editing and has an AI opponent with 9 decks across the four factions.
 
 Sorry, no multiplayer :/ (yet)
 
-# Screenshots:
-<h3 align="center">Northern realms vs Monsters</p>
+# Screenshots
 
-![](/Screenshots/Game2.jpg)
-![](/Screenshots/Game.jpg)
+<h3 align="center">Northern Realms vs Monsters, the deciding round</h3>
 
-<h3 align="center">Deck Editing</p>
+![Northern Realms against Monsters in the third round](Screenshots/battle.jpg)
 
-![](/Screenshots/DeckEdit.jpg)
+<h3 align="center">Heroes take the field in flames</h3>
+
+<p align="center">
+  <img src="Screenshots/hero-fire.gif" alt="Ciri landing on the board, fire running around her card">
+</p>
+
+<h3 align="center">A card in the spotlight, a medic's choice</h3>
+
+<p align="center">
+  <img src="Screenshots/showcase.jpg" width="49%" alt="Ciri selected, shown on the right with her description, her row lit">
+  <img src="Screenshots/medic.jpg" width="49%" alt="Yennefer's revival: units from the discard pile in the card carousel">
+</p>
+
+<h3 align="center">The redraw, and the end of the battle</h3>
+
+<p align="center">
+  <img src="Screenshots/redraw.jpg" width="49%" alt="Choosing a card to redraw at the start of the battle">
+  <img src="Screenshots/victory.jpg" width="49%" alt="The victory screen with every round's score">
+</p>
+
+<h3 align="center">Choosing an opponent, building a deck</h3>
+
+<p align="center">
+  <img src="Screenshots/opponents.jpg" width="49%" alt="The opponent picker: nine decks across the four factions">
+  <img src="Screenshots/deck-builder.jpg" width="49%" alt="The deck builder on a Northern Realms preset">
+</p>
 
 # How to play
 
@@ -53,7 +80,7 @@ Sorry, no multiplayer :/ (yet)
 | Settings (audio, display, game speed) | Main menu or pause menu > **Settings**. **Game > Game speed** (Slow, Normal, Fast) sets how fast cards move, notices pass and the opponent plays | Same |
 | Rules of the game | Main menu > **How to play** (the battle, the board, cards, abilities, special cards, factions, controls) | Same |
 
-The deck you last selected in the deck builder is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
+The deck you last selected in the deck builder (one of yours or a preset) is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
 and each card at most as many times as The Witcher 3 has copies of it: heroes and most cards once, up to 5 Mahakaman Defenders). The line
 at the bottom of the deck builder shows which deck that is. Without a valid deck, the battle uses the built-in Northern Realms deck. A deck
 saved with more copies than that loses the extra ones when it is loaded.
@@ -83,14 +110,12 @@ Differences that remain: the Ice Giant is 6 strength as on its card (5 in The Wi
 it (The Witcher 3 puts it on the row where it is stronger), a leader's horn leaves no card in the discard pile, and the Skellige
 faction (Blood and Wine) is not in the game.
 
-# Download:
-If you don't have Unity Game Engine or simply want to test this game for fun.
+# Download
 
-Here's the google drive for the installer: [Google Drive Link](https://drive.google.com/file/d/1WsCp0E4xeTDZUHbzHgFfujBZ5r5Jd4t0/view?usp=sharing)
+A Windows installer of the first version (from 2020) is on [Google Drive](https://drive.google.com/file/d/1WsCp0E4xeTDZUHbzHgFfujBZ5r5Jd4t0/view?usp=sharing), if you don't have the Unity game engine or simply want to try the game.
+It predates the current version: to play that one, build it from Unity (File > Build Settings) for Windows or Android. Builds are not committed to the repository (the `Builds/` folder is git-ignored).
 
-##### (If the installer fails, simply disable any antivirus software as it is made without a digital license using Inno Setup)
-
-Builds are not committed to the repository (the `Builds/` folder is git-ignored); build them from Unity (File > Build Settings) for Windows or Android.
+##### (The installer, made with Inno Setup, isn't code-signed, so Windows SmartScreen or an antivirus may warn about it)
 
 # Development
 
@@ -110,8 +135,9 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 | `Assets/Resources/Cards` | `cards_db.json` (every card's stats, including how many copies The Witcher 3 has of it) and the card images |
 | `Assets/Resources/Decks` | `player_default.json` (the built-in deck), `__empty__.json`, and the AI's 9 decks in `AI/` |
 | `Assets/Resources/W3` | The Witcher 3's interface art: notices' emblems, ability effects, the end of battle emblems (see `CREDITS.md`) |
-| `Assets/Tests/EditMode` | Unit tests for the rules |
+| `Assets/Tests/EditMode` | Unit tests for the rules, and a fuzz test that plays hundreds of random battles |
 | `Assets/Editor/GwentAutoplay.cs` | End-to-end smoke test that plays full battles |
+| `Assets/Editor/GwentMonkey.cs` | Monkey test: battles under a storm of random input |
 
 Saved decks live in `Application.persistentDataPath/Decks/<faction>/<file name>.json`, the file name being the deck's name in lower case
 with anything unsafe removed (`My Deck!` is `my_deck.json`); settings are saved in `PlayerPrefs`.
@@ -156,8 +182,8 @@ claude mcp add --scope user unity-editor-mcp -- /absolute/path/to/unity mcp
 
 `unity status` lists the editors the server can reach.
 
-# Credits:
-It naturally goes without saying, but I don't claim ownership of the game idea, the card assets or any other materials related to The Witcher 3 Wild Hunt, all credits goes to the owners CD PROJEKT RED.
+# Credits
+It goes without saying, but I don't claim ownership of the game idea, the card art or any other material from The Witcher 3: Wild Hunt; all credit goes to its owner, CD PROJEKT RED.
 This is a non-commercial fan project.
 
 # License
