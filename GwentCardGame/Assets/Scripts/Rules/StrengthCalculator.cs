@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Gwent.Rules
@@ -7,19 +8,32 @@ namespace Gwent.Rules
     // Heroes take no modifier, and neither does a decoy lying on a row.
     public static class StrengthCalculator
     {
+        // The strength lists are filled in place (the AI recalculates thousands of times a move)
         public static void Recalculate(PlayerState info, IList<int> weather, bool double_spies, CardDatabase db)
         {
+            List<Card> cards = cardBuffer ?? (cardBuffer = new List<Card>());
             foreach (string row in Rows.Units)
             {
-                List<Card> cards = db.GetCards(info.UnitRow(row));
-                List<int> base_strengths = new List<int>(cards.Count);
+                cards.Clear();
+                foreach (int card_id in info.UnitRow(row))
+                    cards.Add(db.Get(card_id));
+                List<int> base_strengths = info.BaseStrengths(row);
+                List<int> modified = info.ModifiedStrengths(row);
+                if (base_strengths == null || modified == null)
+                {
+                    base_strengths = new List<int>();
+                    modified = new List<int>();
+                    info.SetStrengths(row, base_strengths, modified);
+                }
+                base_strengths.Clear();
                 foreach (Card card in cards)
                     base_strengths.Add(card.strength);
-
-                List<int> modified = ComputeRow(cards, IsWeathered(row, weather), info.HasHorn(row), double_spies);
-                info.SetStrengths(row, base_strengths, modified);
+                ComputeRow(cards, IsWeathered(row, weather), info.HasHorn(row), double_spies, modified);
             }
+            cards.Clear();
         }
+
+        [ThreadStatic] private static List<Card> cardBuffer; // (the Hard AI thinks on another thread)
 
         public static bool IsWeathered(string row, IList<int> weather)
         {
@@ -28,10 +42,16 @@ namespace Gwent.Rules
 
         public static List<int> ComputeRow(IList<Card> cards, bool weathered, bool has_horn, bool double_spies)
         {
+            return ComputeRow(cards, weathered, has_horn, double_spies, new List<int>(cards.Count));
+        }
+
+        // Into the given list
+        private static List<int> ComputeRow(IList<Card> cards, bool weathered, bool has_horn, bool double_spies, List<int> strengths)
+        {
             int count = cards.Count;
-            List<int> strengths = new List<int>(count);
-            foreach (Card card in cards)
-                strengths.Add(card.strength);
+            strengths.Clear();
+            for (int i = 0; i < count; i++)
+                strengths.Add(cards[i].strength);
 
             // Weather: non-hero units drop to 1
             if (weathered)
@@ -72,8 +92,8 @@ namespace Gwent.Rules
             if (!has_horn)
             {
                 int doublers = 0;
-                foreach (Card card in cards)
-                    if (card.ability == Abilities.UnitHorn)
+                for (int i = 0; i < count; i++)
+                    if (cards[i].ability == Abilities.UnitHorn)
                         doublers++;
 
                 if (doublers > 0)

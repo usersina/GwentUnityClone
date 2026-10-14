@@ -134,6 +134,51 @@ namespace Gwent.Rules.Tests
             }
         }
 
+        // The AI's simulations copy a side into the same object again and again (PlayerState.CopyFrom): every field
+        // must come across, into lists of its own, whatever was there before
+        [Test]
+        public void CopyingASideInPlaceCopiesEveryField()
+        {
+            PlayerState source = new PlayerState(), target = new PlayerState();
+            int value = 1;
+            foreach (System.Reflection.FieldInfo field in typeof(PlayerState).GetFields())
+            {
+                foreach (PlayerState side in new[] { source, target })
+                {
+                    int n = side == source ? value : 1000 + value;
+                    if (field.FieldType == typeof(List<int>))
+                        field.SetValue(side, new List<int> { n, n + 1 });
+                    else if (field.FieldType == typeof(List<string>))
+                        field.SetValue(side, new List<string> { "row" + n });
+                    else if (field.FieldType == typeof(List<bool>))
+                        field.SetValue(side, new List<bool> { side == source, true });
+                    else if (field.FieldType == typeof(int))
+                        field.SetValue(side, n);
+                    else if (field.FieldType == typeof(bool))
+                        field.SetValue(side, side == source);
+                    else if (field.FieldType == typeof(string))
+                        field.SetValue(side, "faction" + n);
+                    else
+                        Assert.Fail("PlayerState." + field.Name + ": a field of a kind this test does not know (" + field.FieldType.Name + ")");
+                }
+                value += 10;
+            }
+
+            target.CopyFrom(source);
+
+            foreach (System.Reflection.FieldInfo field in typeof(PlayerState).GetFields())
+            {
+                object copied = field.GetValue(target), original = field.GetValue(source);
+                if (original is System.Collections.IEnumerable && !(original is string))
+                {
+                    CollectionAssert.AreEqual((System.Collections.IEnumerable)original, (System.Collections.IEnumerable)copied, field.Name);
+                    Assert.AreNotSame(original, copied, field.Name + " is a list of its own");
+                }
+                else
+                    Assert.AreEqual(original, copied, field.Name);
+            }
+        }
+
         [TestCase(AiDifficulty.Easy)]
         [TestCase(AiDifficulty.Hard)]
         public void EveryDifficultyPassesWhenTheOpponentPassedAndItIsAhead(AiDifficulty difficulty)

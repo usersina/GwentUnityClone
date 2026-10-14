@@ -14,8 +14,8 @@ namespace Gwent.Rules
     {
         public static int Rollouts = 24;        // battles played out per move (8 still beat Normal two times in three)
         private const int MinRollouts = 4;      // at the least, however slow the device
-        public static int TimeLimitMs = 1500;   // then the battles played so far decide (0.4 to 1.4 s for an opening move
-                                                // on a desktop, less later in the battle)
+        public static int TimeLimitMs = 1500;   // then the battles played so far decide (an opening move takes 0.15 to
+                                                // 0.35 s in the editor on a desktop, a later one less)
         private const int StrongestMoves = 5;   // the moves considered: the Normal AI's own, passing, the moves that add
         private const int CheapestMoves = 2;    // the most strength now, and the cheapest that add any (to bait)
         private const double NormalBonus = 0.5; // another move must win more often than the Normal AI's own
@@ -142,16 +142,36 @@ namespace Gwent.Rules
         }
 
         //----------------------------------------Helpers----------------------------------------//
-        // The opponent's unseen cards dealt anew, the AI's deck reshuffled
+        // The opponent's unseen cards dealt anew, the AI's deck reshuffled. On the same board every time (per thread):
+        // a battle played out is over before the next one is dealt.
+        [ThreadStatic] private static Board guessed;
+        [ThreadStatic] private static List<int> unseen;
+
         private static Board Guess(Board root, Random rnd)
         {
-            Board board = Copy(root, rnd);
+            Board board = guessed ?? (guessed = new Board { Player = new PlayerState(), Enemy = new PlayerState(), Weather = new List<int>() });
+            board.Player.CopyFrom(root.Player);
+            board.Enemy.CopyFrom(root.Enemy);
+            board.Weather.Clear();
+            board.Weather.AddRange(root.Weather);
+            board.DoubleSpies = root.DoubleSpies;
+            board.RandomMedic = root.RandomMedic;
+            board.Db = root.Db;
+            board.Rnd = rnd;
+
             PlayerState opponent = board.Enemy;
-            List<int> unseen = Shuffle(opponent.HandList.Concat(opponent.DeckList).OrderBy(card_id => card_id), rnd); // (sorted: which were in hand cannot matter)
+            List<int> cards = unseen ?? (unseen = new List<int>());
+            cards.Clear();
+            cards.AddRange(opponent.HandList);
+            cards.AddRange(opponent.DeckList);
+            cards.Sort(); // which were in the hand cannot matter
+            Shuffle(cards, rnd);
             int in_hand = opponent.HandList.Count;
-            opponent.HandList = unseen.GetRange(0, in_hand);
-            opponent.DeckList = unseen.GetRange(in_hand, unseen.Count - in_hand);
-            board.Player.DeckList = Shuffle(board.Player.DeckList, rnd);
+            opponent.HandList.Clear();
+            opponent.DeckList.Clear();
+            for (int i = 0; i < cards.Count; i++)
+                (i < in_hand ? opponent.HandList : opponent.DeckList).Add(cards[i]);
+            Shuffle(board.Player.DeckList, rnd);
             return board;
         }
 
@@ -169,9 +189,9 @@ namespace Gwent.Rules
             };
         }
 
-        private static List<int> Shuffle(IEnumerable<int> cards, Random rnd)
+        // Fisher-Yates, in place
+        private static void Shuffle(List<int> list, Random rnd)
         {
-            List<int> list = new List<int>(cards);
             for (int i = list.Count - 1; i > 0; i--)
             {
                 int j = rnd.Next(i + 1);
@@ -179,7 +199,6 @@ namespace Gwent.Rules
                 list[i] = list[j];
                 list[j] = swap;
             }
-            return list;
         }
 
         private static int Margin(Board board)

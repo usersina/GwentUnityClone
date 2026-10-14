@@ -137,6 +137,54 @@ namespace Gwent.Rules
                     yield return card_id;
         }
 
+        // Makes this side a copy of another, reusing its own lists: the AI tries thousands of moves on the same copy
+        // instead of making new lists for each (keep in step with the fields above; a test compares it with Clone)
+        public PlayerState CopyFrom(PlayerState other)
+        {
+            Faction = other.Faction;
+            Leader = other.Leader;
+            canLeader = other.canLeader;
+            leaderDisabled = other.leaderDisabled;
+            Copy(other.DeckList, ref DeckList);
+            Copy(other.HandList, ref HandList);
+            Copy(other.DiscardList, ref DiscardList);
+            Copy(other.SpCloseList, ref SpCloseList);
+            Copy(other.SpRangeList, ref SpRangeList);
+            Copy(other.SpSiegeList, ref SpSiegeList);
+            Copy(other.CloseList, ref CloseList);
+            Copy(other.RangeList, ref RangeList);
+            Copy(other.SiegeList, ref SiegeList);
+            Copy(other.CloseStrengthL, ref CloseStrengthL);
+            Copy(other.RangeStrengthL, ref RangeStrengthL);
+            Copy(other.SiegeStrengthL, ref SiegeStrengthL);
+            Copy(other.MCloseStrength, ref MCloseStrength);
+            Copy(other.MRangeStrength, ref MRangeStrength);
+            Copy(other.MSiegeStrength, ref MSiegeStrength);
+            Copy(other.WeatherPlayed, ref WeatherPlayed);
+            Copy(other.LeaderHornRows, ref LeaderHornRows);
+            Copy(other.PendingSummons, ref PendingSummons);
+            CanExchange = other.CanExchange;
+            CardsExchanged = other.CardsExchanged;
+            CanDiscard = other.CanDiscard;
+            CardsDiscarded = other.CardsDiscarded;
+            hasPassed = other.hasPassed;
+            Lives = other.Lives;
+            Copy(other.RoundsScore, ref RoundsScore);
+            Copy(other.RoundsWon, ref RoundsWon);
+            return this;
+        }
+
+        private static void Copy<T>(List<T> from, ref List<T> to)
+        {
+            if (to == null || ReferenceEquals(to, from))
+                to = new List<T>(from);
+            else
+            {
+                to.Clear();
+                to.AddRange(from);
+            }
+        }
+
         // Deep copy of the lists and flags (used by the AI to simulate moves)
         public PlayerState Clone()
         {

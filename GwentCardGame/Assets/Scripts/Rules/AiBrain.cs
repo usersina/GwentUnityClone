@@ -196,8 +196,12 @@ namespace Gwent.Rules
         private static List<Candidate> BuildCandidates(AiContext ctx)
         {
             List<Candidate> candidates = new List<Candidate>();
-            foreach (int card_id in ctx.Me.HandList.Distinct())
+            List<int> hand = ctx.Me.HandList;
+            for (int i = 0; i < hand.Count; i++)
             {
+                int card_id = hand[i];
+                if (hand.IndexOf(card_id) < i)
+                    continue; // each card once
                 Card card;
                 if (!ctx.Db.TryGet(card_id, out card) || card.IsLeader)
                     continue;
@@ -212,6 +216,8 @@ namespace Gwent.Rules
             return candidates;
         }
 
+        private static readonly string[] AgileRows = { Rows.Close, Rows.Range };
+
         private static Candidate UnitCandidate(AiContext ctx, Card card)
         {
             if (card.ability == Abilities.Spy)
@@ -223,9 +229,10 @@ namespace Gwent.Rules
             }
 
             Candidate best = null;
-            string[] rows = card.row == Rows.Agile ? new[] { Rows.Close, Rows.Range } : new[] { card.row };
-            foreach (string row in rows)
+            bool agile = card.row == Rows.Agile;
+            for (int r = 0; r < (agile ? 2 : 1); r++)
             {
+                string row = agile ? AgileRows[r] : card.row;
                 if (!Rows.IsUnitRow(row))
                     continue;
                 string chosen_row = row;
@@ -381,17 +388,23 @@ namespace Gwent.Rules
             return new Candidate { Action = AiAction.Leader(weather_card), Gain = gain, Board = gain, Cost = LeaderCost };
         }
 
-        // Applies a move to copies of the board and returns the change of (AI total - opponent total)
+        // Applies a move to copies of the board and returns the change of (AI total - opponent total). The copies are
+        // the same objects every time (per thread: Hard thinks on another one), filled anew for each move tried.
+        [ThreadStatic] private static PlayerState simulatedMe, simulatedOpponent;
+        [ThreadStatic] private static List<int> simulatedWeather;
+
         private static int Simulate(AiContext ctx, Action<PlayerState, PlayerState, List<int>> apply)
         {
             int before = ctx.Me.TotalScore() - ctx.Opponent.TotalScore();
-            PlayerState me = ctx.Me.Clone();
-            PlayerState opp = ctx.Opponent.Clone();
-            List<int> weather = new List<int>(ctx.Weather);
+            PlayerState me = (simulatedMe ?? (simulatedMe = new PlayerState())).CopyFrom(ctx.Me);
+            PlayerState opp = (simulatedOpponent ?? (simulatedOpponent = new PlayerState())).CopyFrom(ctx.Opponent);
+            List<int> weather = simulatedWeather ?? (simulatedWeather = new List<int>());
+            weather.Clear();
+            weather.AddRange(ctx.Weather);
             bool double_spies = ctx.DoubleSpies;
 
-            StrengthCalculator.Recalculate(me, weather, double_spies, ctx.Db);
-            StrengthCalculator.Recalculate(opp, weather, double_spies, ctx.Db);
+            // The copies carry the strengths the decision began with (as `before` does): only the move's result is
+            // recalculated
             apply(me, opp, weather);
             StrengthCalculator.Recalculate(me, weather, double_spies, ctx.Db);
             StrengthCalculator.Recalculate(opp, weather, double_spies, ctx.Db);
@@ -408,9 +421,20 @@ namespace Gwent.Rules
 
         public static int ChooseRestoreTarget(List<int> candidates, PlayerState me, CardDatabase db)
         {
-            if (candidates.Count == 0)
-                return -1;
-            return candidates.OrderByDescending(id => RestorePriority(db.Get(id), me)).ThenByDescending(id => db.Get(id).strength).First();
+            // The first of the best, in the pile's order
+            int best = -1, best_priority = 0, best_strength = 0;
+            foreach (int card_id in candidates)
+            {
+                Card card = db.Get(card_id);
+                int priority = RestorePriority(card, me);
+                if (best == -1 || priority > best_priority || priority == best_priority && card.strength > best_strength)
+                {
+                    best = card_id;
+                    best_priority = priority;
+                    best_strength = card.strength;
+                }
+            }
+            return best;
         }
 
         private static int RestorePriority(Card card, PlayerState me)
