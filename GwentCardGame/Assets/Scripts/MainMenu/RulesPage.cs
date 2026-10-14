@@ -116,8 +116,8 @@ public class RulesPage : MonoBehaviour
         new Topic
         {
             Name = "Controls",
-            Intro = Application.isMobilePlatform ? "Everything is done with taps." : "The mouse does everything; the keyboard has shortcuts.",
-            Entries = Application.isMobilePlatform ? new[]
+            Intro = GameInput.IsTouch ? "Everything is done with taps; hold a finger on a card to look at it." : "The mouse does everything, and so do the keys.",
+            Entries = GameInput.IsTouch ? new[]
             {
                 new Entry(null, "Play a card", "Tap it in your hand (it shows large on the right), then tap where it lights up."),
                 new Entry(null, "Leader", "Tap the leader's button; hold a finger on it to see whether it can still be used."),
@@ -126,7 +126,7 @@ public class RulesPage : MonoBehaviour
                 new Entry(null, "Pause", "The back button or the menu button: resume, settings, or give up the battle."),
             } : new[]
             {
-                new Entry(null, "Play a card", "Click it in your hand, then click where it lights up (Enter does it when only one place fits). The cursor shows a red sign where it can't go."),
+                new Entry(null, "Play a card", "Click it in your hand, then click where it lights up. The cursor shows a red sign where it can't go. With the keys: Left/Right go through your hand, Enter takes the card, Up/Down choose where it goes, Enter plays it, Esc puts it back."),
                 new Entry(null, "Leader", "Click the leader's button, or press X twice."),
                 new Entry(null, "Pass", "Hold Space, or hold the Hold to pass button."),
                 new Entry(null, "Look", "Hover a card to see it large; click a discard pile to look through it."),

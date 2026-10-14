@@ -46,6 +46,7 @@ public class CardHover : MonoBehaviour
         if (GameInput.IsTouch)
             return;
 
+        BattleKeys.PointerEntered(gameObject);
         ShowPreview();
 
         if (isHoverable && !isCardUp)

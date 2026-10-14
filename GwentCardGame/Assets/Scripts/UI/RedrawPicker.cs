@@ -8,8 +8,8 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // The redraw phase as in The Witcher 3: the hand as big cards in a carousel. A side card (or the arrow keys, A/D,
-// the mouse wheel) comes to the front; the front card (or Enter) is redrawn. Double-clicking a card in the hand
-// still works, and the carousel follows the hand.
+// the mouse wheel) comes to the front; the front card (or Enter) is redrawn; Done (or Space) keeps the hand.
+// Double-clicking a card in the hand still works, and the carousel follows the hand.
 public class RedrawPicker : MonoBehaviour
 {
     public const float CardWidth = 300;
@@ -101,12 +101,18 @@ public class RedrawPicker : MonoBehaviour
         counter.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -38), new Vector2(1100, 50));
         string how = GameInput.IsTouch
             ? "Tap a card to bring it forward, tap it again to redraw it"
-            : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click keeps your hand";
+            : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click or Space keeps your hand";
         TextMeshProUGUI hint = UIKit.Text(band, how, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
         hint.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
 
         Button done = UIKit.Button(band, "Done", UIKit.ButtonStyle.Primary, controller.FinishCardExchange, new Vector2(200, 60));
         ((RectTransform)done.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
+        if (!GameInput.IsTouch)
+        {
+            // Space is Done too (as it passes in the battle: "I'm done")
+            done.GetComponentInChildren<TextMeshProUGUI>().text = "<size=72%>[Space]</size>  Done";
+            ((RectTransform)done.transform).sizeDelta = new Vector2(250, 60);
+        }
 
         RedrawPicker picker = Create(root, controller, new Vector2(0, 50));
         picker.counter = counter;
@@ -366,6 +372,9 @@ public class RedrawPicker : MonoBehaviour
             bool other_button = selected != null && selected.activeInHierarchy && !selected.transform.IsChildOf(transform);
             if (!other_button && (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
                 RedrawFocused();
+            // Space keeps the hand, like the Done button
+            if (keyboard.spaceKey.wasPressedThisFrame)
+                controller.FinishCardExchange();
         }
         Mouse mouse = Mouse.current;
         if (mouse != null)
