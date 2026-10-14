@@ -149,7 +149,7 @@ Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or w
 
 Menu **Gwent > Build > All platforms** (or one platform) builds the game for Linux, Windows, macOS (Intel and Apple Silicon),
 Android and the web, each from the same editor, into `GwentCardGame/Builds/<version>/` with archives ready to hand out
-(`GwentLegacy-<version>-linux.tar.gz`, `-windows.zip`, `-macos.zip`, `.apk`, `-web.zip`) and `build-report.txt`. A platform
+(`GwentLegacy-Linux.tar.gz`, `-Windows.zip`, `-macOS.zip`, `-Android.apk`, `-Web.zip`) and `build-report.txt`. A platform
 whose build support is not installed (Unity Hub > Installs > Add modules) is skipped. The run goes on with the editor in the
 background, starts with the platform the editor is on and switches back to it at the end (each platform's imports are cached,
 so a switch takes seconds); all five take about 4 minutes once they have been built once. From the command line, with the
@@ -162,6 +162,7 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBa
 - The Android build is a 64-bit (ARM64) `.apk` to install directly. It is signed with a release key when the environment has
   `GWENT_KEYSTORE` (the keystore file), `GWENT_KEYSTORE_PASS`, `GWENT_KEY_ALIAS` and `GWENT_KEY_PASS`; otherwise with Unity's
   debug key, and a build from another machine then only installs after the old one is removed (which deletes its decks).
+  The keystore path and version code it sets are put back in the project's settings after the build.
 - The macOS app is ad-hoc signed by Unity, not notarized: macOS asks once to allow it (System Settings > Privacy & Security >
   Open Anyway). Windows shows "Windows protected your PC" once (More info > Run anyway).
 - The web build is compressed with a fallback, so any static host serves it. In a browser Hard thinks a few milliseconds a frame
@@ -170,6 +171,22 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBa
   four times larger).
 - One graphics API per platform (Windows Direct3D 11, Linux OpenGL Core, macOS Metal, Android OpenGL ES 3, the web WebGL 2) and no
   post-processing in the renderer (the game uses none): shaders are compiled once per platform, not for every effect and API.
+
+### Releases
+
+**Every push to `main` is a release.** `.github/workflows/release.yml` runs the EditMode tests, builds the five platforms on
+GitHub's machines ([GameCI](https://game.ci), Unity 6000.6.5f1, `GwentBuild.BuildAllBatch` for each) and replaces the one
+release, tagged `latest`, with the new archives; its notes are the newest section of [`CHANGELOG.md`](CHANGELOG.md), followed
+by the downloads and their checksums. Nothing is published unless the tests and all five builds pass, and a push whose
+`CHANGELOG.md` has no new section since the last release is not released: add a section, headed by the date, before pushing.
+Work on other branches and merge into `main` only to release.
+
+The download links stay the same from one release to the next:
+`https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-<Windows.zip|macOS.zip|Linux.tar.gz|Android.apk|Web.zip>`.
+
+The workflow needs the Unity license and the Android release key as repository secrets; `tools/release-secrets.sh` sets them
+once (it reads the license Unity Hub keeps on the machine, asks for the Unity account, and makes the Android key in
+`~/.config/gwentlegacy/`, to back up: a new key would sign APKs that no longer install over the ones already out).
 
 ## Tests
 
