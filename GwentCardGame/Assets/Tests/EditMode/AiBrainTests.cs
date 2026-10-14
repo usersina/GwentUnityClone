@@ -89,10 +89,70 @@ namespace Gwent.Rules.Tests
         [Test]
         public void AlwaysReturnsALegalAction()
         {
+            ReturnsLegalActions(AiDifficulty.Normal, 400);
+        }
+
+        [TestCase(AiDifficulty.Easy, 400)]
+        [TestCase(AiDifficulty.Hard, 40)]
+        public void EveryDifficultyReturnsALegalAction(AiDifficulty difficulty, int positions)
+        {
+            ReturnsLegalActions(difficulty, positions);
+        }
+
+        // Hard guesses the opponent's hand from the cards it has not seen: which of them are in the hand and which in
+        // the deck makes no difference to its move
+        [Test]
+        public void HardNeverReadsTheOpponentsHand()
+        {
+            int limit = AiSearch.TimeLimitMs;
+            AiSearch.TimeLimitMs = int.MaxValue;
+            try
+            {
+                for (int seed = 0; seed < 6; seed++)
+                {
+                    AiAction[] moves = new AiAction[2];
+                    for (int deal = 0; deal < 2; deal++)
+                    {
+                        PlayerState me = Ai(Fiend, EarthElemental, Nekker, PrinceStennis, MysteriousElf, Leshen);
+                        me.DeckList.AddRange(new[] { 47, 30, 22, 135 });
+                        PlayerState opp = TestBoard.Player();
+                        opp.CloseList.AddRange(new[] { 7, 7 });
+                        int[] unseen = { 4, 4, 28, 99, 11, 11, 7, 205, 200 };
+                        opp.HandList.AddRange(deal == 0 ? unseen.Take(5) : unseen.Skip(4));
+                        opp.DeckList.AddRange(deal == 0 ? unseen.Skip(5) : unseen.Take(4));
+                        AiContext ctx = Context(me, opp);
+                        ctx.Difficulty = AiDifficulty.Hard;
+                        ctx.Seed = seed;
+                        moves[deal] = AiBrain.Decide(ctx);
+                    }
+                    Assert.AreEqual(moves[0].ToString(), moves[1].ToString(), "seed " + seed);
+                }
+            }
+            finally
+            {
+                AiSearch.TimeLimitMs = limit;
+            }
+        }
+
+        [TestCase(AiDifficulty.Easy)]
+        [TestCase(AiDifficulty.Hard)]
+        public void EveryDifficultyPassesWhenTheOpponentPassedAndItIsAhead(AiDifficulty difficulty)
+        {
+            PlayerState me = Ai(Fiend, Nekker);
+            me.CloseList.Add(Draug);
+            PlayerState opp = Opponent(Fiend);
+            opp.hasPassed = true;
+            AiContext ctx = Context(me, opp);
+            ctx.Difficulty = difficulty;
+            Assert.AreEqual(AiActionType.Pass, AiBrain.Decide(ctx).Type);
+        }
+
+        private static void ReturnsLegalActions(AiDifficulty difficulty, int positions)
+        {
             Random rnd = new Random(1234);
             CardDatabase db = TestBoard.Db;
             List<int> units = db.All.Where(c => c.IsUnit).Select(c => c._id).ToList();
-            for (int i = 0; i < 400; i++)
+            for (int i = 0; i < positions; i++)
             {
                 PlayerState me = TestBoard.Player(Factions.Monsters, LeaderIds.ByFaction[Factions.Monsters][rnd.Next(5)]);
                 PlayerState opp = TestBoard.Player(Factions.NorthernRealms, LeaderIds.ByFaction[Factions.NorthernRealms][rnd.Next(5)]);
@@ -116,7 +176,10 @@ namespace Gwent.Rules.Tests
                 me.canLeader = rnd.Next(2) == 0;
                 int[] weather = new[] { 200, 204, 206 }.Where(w => rnd.Next(3) == 0).ToArray();
 
-                AiAction action = AiBrain.Decide(Context(me, opp, weather));
+                AiContext ctx = Context(me, opp, weather);
+                ctx.Difficulty = difficulty;
+                ctx.Seed = i;
+                AiAction action = AiBrain.Decide(ctx);
 
                 switch (action.Type)
                 {

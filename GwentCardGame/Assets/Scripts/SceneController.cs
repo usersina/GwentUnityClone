@@ -389,8 +389,9 @@ public partial class SceneController : MonoBehaviour
         AnnounceTurn(false);
         GameLog.Info("Enemy Turn !");
         GameAudio.PlaySfx("turn_enemy");
+        AIManager.Decision decision = AIManager.AIDecide(); // Hard thinks while the turn's notice shows
         yield return new WaitForSeconds(0.3f);
-        while (BattleBanner.Busy)
+        while (BattleBanner.Busy || !decision.Done)
             yield return null;
         yield return new WaitForSeconds(0.15f);
         if (generation != turnGeneration)
@@ -398,7 +399,7 @@ public partial class SceneController : MonoBehaviour
 
         // The card the opponent plays (or its leader) comes in from above the board to the showcase and stays a
         // moment there, then glides to its place
-        AiAction action = AIManager.AIDecide();
+        AiAction action = decision.Action;
         int shown = action.Type == AiActionType.PlayCard ? action.CardId : action.Type == AiActionType.UseLeader ? EnemyInfo.Leader : -1;
         if (shown != -1)
         {

@@ -222,7 +222,13 @@ public static class RulesFuzzer
         // The AI's own choice sometimes (its decisions must always be legal)
         if (r < 25)
         {
-            AiAction a = AiBrain.Decide(board.AiContextFor(p));
+            // Every difficulty (Hard rarely: it plays whole battles out for each move)
+            AiContext ctx = board.AiContextFor(p);
+            int level = rnd.Next(100);
+            ctx.Difficulty = level < 40 ? AiDifficulty.Easy : level < 98 ? AiDifficulty.Normal : AiDifficulty.Hard;
+            ctx.Seed = rnd.Next();
+            AiAction a = AiBrain.Decide(ctx);
+            Count("AI " + ctx.Difficulty);
             return ExecuteAi(board, a, p, rnd);
         }
         if (r < 30 || me.HandList.Count == 0 && !LeaderUsable(board, p))

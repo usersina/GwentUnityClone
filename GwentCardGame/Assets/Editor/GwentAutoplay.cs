@@ -172,6 +172,7 @@ public static class GwentAutoplay
         // Restored at the end: what the run changes in the player's settings
         private string savedBattleDeck;
         private string savedOpponent;
+        private int savedDifficulty;
         private bool savedTouch;
         private readonly List<string> testFiles = new List<string>();
 
@@ -202,6 +203,7 @@ public static class GwentAutoplay
             Running = true;
             savedBattleDeck = PlayerPrefs.GetString("playerDeckPath", "");
             savedOpponent = OpponentDecks.Chosen;
+            savedDifficulty = PlayerPrefs.HasKey("aiDifficulty") ? (int)GameSettings.AiDifficulty : -1;
             savedTouch = GameInput.SimulateTouch;
             GameInput.SimulateTouch = false;
             Application.logMessageReceived += OnLog;
@@ -226,7 +228,7 @@ public static class GwentAutoplay
 
         private string Label()
         {
-            return "match " + (match + 1) + " (" + currentDeck + " vs " + OpponentDecks.Override + ")";
+            return "match " + (match + 1) + " (" + currentDeck + " vs " + OpponentDecks.Override + ", " + GameSettings.AiDifficulty + ")";
         }
 
         private void Count(string key)
@@ -258,6 +260,9 @@ public static class GwentAutoplay
             }
 
             Rng.Seed(seed * 1000 + match);
+            // Every difficulty in turn, each opponent deck meeting all three over the run
+            GameSettings.AiDifficulty = (AiDifficulty)((match + match / Math.Max(1, opponents.Count)) % 3);
+            Count("AI " + GameSettings.AiDifficulty);
             // Match 0: the built-in default deck; then one generated deck per leader (cycling)
             if (match == 0 || decks.Count == 0)
             {
@@ -1027,6 +1032,10 @@ public static class GwentAutoplay
             else
                 PlayerPrefs.SetString("playerDeckPath", savedBattleDeck);
             OpponentDecks.Chosen = savedOpponent;
+            if (savedDifficulty < 0)
+                PlayerPrefs.DeleteKey("aiDifficulty");
+            else
+                GameSettings.AiDifficulty = (AiDifficulty)savedDifficulty;
             ApplicationModel.playerDeckPath = null;
             GameInput.SimulateTouch = savedTouch;
             EditorApplication.update -= Tick;
@@ -1147,6 +1156,9 @@ public static class GwentAutoplay
         private bool savedTouch;
         private bool touchChanged;
         private int savedSpeed = -1;
+        private int savedMatchDifficulty = -1;
+        private int difficultyBefore;
+        private string captionBefore;
 
         public bool Done { get { return next >= steps.Count; } }
 
@@ -1401,6 +1413,7 @@ public static class GwentAutoplay
             OwnsTimeScale = true;
             At(0.1, () =>
             {
+                savedMatchDifficulty = (int)GameSettings.AiDifficulty;
                 savedSpeed = GameSettings.GameSpeed;
                 GameSettings.GameSpeed = 1;
                 Time.timeScale = GameSettings.GameTimeScale;
@@ -1422,9 +1435,34 @@ public static class GwentAutoplay
                 check(GameSettings.GameSpeed == 2, "its right arrow sets it to " + GameSettings.GameSpeedNames[2] + " (speed " + GameSettings.GameSpeed
                     + ", stepper " + (stepper != null ? stepper.index.ToString() : "gone") + ", over " + Hovered() + ")");
             });
-            Key(2.8, UnityEngine.InputSystem.Key.Escape);
-            Click(3.3, Named("Item Resume"));
-            At(3.8, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
+            // The opponent's difficulty, on the same tab: one step of its arrows changes it and the caption under it
+            Click(2.7, () =>
+            {
+                GameObject row = GameObject.Find("Row Difficulty");
+                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
+                Transform caption = row != null ? row.transform.Find("Caption") : null;
+                check(stepper != null && caption != null && stepper.index == (int)GameSettings.AiDifficulty,
+                    "the settings' Game tab shows the opponent's difficulty (" + GameSettings.AiDifficulty + ")");
+                if (stepper == null || caption == null)
+                    return Vector2.zero;
+                difficultyBefore = stepper.index;
+                captionBefore = caption.GetComponent<TextMeshProUGUI>().text;
+                return ScreenPoint(stepper.index > 0 ? stepper.left.transform : stepper.right.transform);
+            });
+            At(3.2, () =>
+            {
+                GameObject row = GameObject.Find("Row Difficulty");
+                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
+                Transform caption = row != null ? row.transform.Find("Caption") : null;
+                string about = caption != null ? caption.GetComponent<TextMeshProUGUI>().text : "";
+                int shown = stepper != null ? stepper.index : -1;
+                check(shown >= 0 && shown != difficultyBefore && (int)GameSettings.AiDifficulty == shown && stepper.label.text == GameSettings.AiDifficultyNames[shown],
+                    "its arrow changes the difficulty (" + GameSettings.AiDifficulty + ", stepper " + shown + ", over " + Hovered() + ")");
+                check(about.Length > 0 && about != captionBefore, "the caption follows the difficulty (\"" + about + "\")");
+            });
+            Key(3.5, UnityEngine.InputSystem.Key.Escape);
+            Click(4.0, Named("Item Resume"));
+            At(4.5, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
                 "after Resume the battle runs at that speed (time scale " + Time.timeScale + ")"));
         }
 
@@ -1710,6 +1748,8 @@ public static class GwentAutoplay
                 GameInput.SimulateTouch = savedTouch;
             if (savedSpeed >= 0)
                 GameSettings.GameSpeed = savedSpeed;
+            if (savedMatchDifficulty >= 0)
+                GameSettings.AiDifficulty = (AiDifficulty)savedMatchDifficulty;
             if (settingsChanged)
             {
                 InputSystem.settings.editorInputBehaviorInPlayMode = savedEditorBehavior;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Gwent.Rules;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -136,6 +137,7 @@ public class SettingsPanel : MonoBehaviour
         if (caption != null)
         {
             TextMeshProUGUI small = UIKit.Text(row, caption, UIKit.TextStyle.Caption);
+            small.name = "Caption";
             small.rectTransform.Stretch(0, ControlWidth + 120, RowHeight - 34, 4);
             small.alignment = TextAlignmentOptions.TopLeft;
         }
@@ -225,11 +227,29 @@ public class SettingsPanel : MonoBehaviour
         return page;
     }
 
+    // What each difficulty means, under its name
+    private static readonly string[] DifficultyCaptions =
+    {
+        "Your opponent plays like a beginner",
+        "Your opponent saves cards for later rounds",
+        "Your opponent thinks the battle through",
+    };
+
     private RectTransform BuildGamePage(RectTransform content)
     {
         RectTransform page = Page(content, "Game");
         UIStepper speed = StepperRow(page, 0, "Game speed", GameSettings.GameSpeedNames, GameSettings.GameSpeed,
             i => GameSettings.GameSpeed = i, "Cards, notices and the opponent");
+
+        TextMeshProUGUI about = null;
+        UIStepper difficulty = StepperRow(page, 1, "Difficulty", GameSettings.AiDifficultyNames, (int)GameSettings.AiDifficulty, i =>
+        {
+            GameSettings.AiDifficulty = (AiDifficulty)i;
+            if (about != null)
+                about.text = DifficultyCaptions[i];
+        }, DifficultyCaptions[(int)GameSettings.AiDifficulty]);
+        about = difficulty.transform.parent.parent.Find("Caption").GetComponent<TextMeshProUGUI>();
+
         firstControls.Add(speed.left);
         return page;
     }

@@ -34,6 +34,9 @@ namespace Gwent.Rules
         }
     }
 
+    // How well the AI plays (Settings > Game). The rules are the same for all three.
+    public enum AiDifficulty { Easy, Normal, Hard }
+
     // Snapshot of the board from the AI's point of view
     public class AiContext
     {
@@ -43,10 +46,13 @@ namespace Gwent.Rules
         public bool DoubleSpies;
         public bool RandomMedic;
         public CardDatabase Db;
+        public AiDifficulty Difficulty = AiDifficulty.Normal;
+        public int Seed;        // Easy's slips and Hard's look-ahead: the same position and seed, the same move
     }
 
     // Decides the AI's move. Every candidate move is simulated on copies of the board, so weather,
     // horns, morale, bonds and scorch are all accounted for. Always returns an action (Pass at worst).
+    // Normal is described below; Easy plays like a beginner (DecideEasy); Hard looks ahead (AiSearch).
     public static class AiBrain
     {
         private const int DrawValue = 10;       // What drawing one extra card is worth
@@ -66,6 +72,19 @@ namespace Gwent.Rules
         }
 
         public static AiAction Decide(AiContext ctx)
+        {
+            switch (ctx.Difficulty)
+            {
+                case AiDifficulty.Easy:
+                    return DecideEasy(ctx);
+                case AiDifficulty.Hard:
+                    return AiSearch.Decide(ctx);
+                default:
+                    return DecideNormal(ctx);
+            }
+        }
+
+        public static AiAction DecideNormal(AiContext ctx)
         {
             StrengthCalculator.Recalculate(ctx.Me, ctx.Weather, ctx.DoubleSpies, ctx.Db);
             StrengthCalculator.Recalculate(ctx.Opponent, ctx.Weather, ctx.DoubleSpies, ctx.Db);
@@ -123,6 +142,34 @@ namespace Gwent.Rules
             if (advantage < needed)
                 return CheapestWinningOrBest(candidates, advantage, needed); // Behind: catch up as cheaply as possible
             return WeakestPositiveOrPass(candidates);                         // Ahead: keep the pressure with weak cards
+        }
+
+        // Easy: a beginner. It fights every round with the move that adds the most strength right now, round 1 included,
+        // so it runs short of cards later; a spy is just a weak card to it, and now and then it plays a card that is not
+        // its best. It still stops once it is ahead after the opponent has passed, and keeps its cards when it could
+        // not catch up.
+        private const int EasySlipPercent = 25;
+
+        private static AiAction DecideEasy(AiContext ctx)
+        {
+            StrengthCalculator.Recalculate(ctx.Me, ctx.Weather, ctx.DoubleSpies, ctx.Db);
+            StrengthCalculator.Recalculate(ctx.Opponent, ctx.Weather, ctx.DoubleSpies, ctx.Db);
+
+            List<Candidate> on_board = BuildCandidates(ctx).Where(c => !c.OffBoard && c.Board > 0).OrderByDescending(c => c.Board).ToList();
+            int advantage = ctx.Me.TotalScore() - ctx.Opponent.TotalScore();
+            Board seen_from_opponent = new Board { Player = ctx.Opponent, Enemy = ctx.Me, Weather = ctx.Weather, DoubleSpies = ctx.DoubleSpies, RandomMedic = ctx.RandomMedic, Db = ctx.Db };
+            bool opponent_done = ctx.Opponent.hasPassed || RoundRules.OutOfPlays(seen_from_opponent, true);
+            int needed = ctx.Me.Faction == Factions.Nilfgaard && ctx.Opponent.Faction != Factions.Nilfgaard ? 0 : 1;
+
+            if (on_board.Count == 0 || opponent_done && advantage >= needed)
+                return AiAction.Pass();
+            if (opponent_done && ctx.Me.Lives > 1 && advantage + on_board.Sum(c => c.Board) < needed)
+                return AiAction.Pass();
+
+            Random rnd = new Random(ctx.Seed);
+            if (rnd.Next(100) < EasySlipPercent)
+                return on_board[rnd.Next(on_board.Count)].Action;
+            return on_board[0].Action;
         }
 
         private static AiAction CheapestWinningOrBest(List<Candidate> candidates, int advantage, int needed)

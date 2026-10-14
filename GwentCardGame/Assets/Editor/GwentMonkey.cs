@@ -109,7 +109,7 @@ public static class GwentMonkey
         private int battles;
 
         private static readonly string[] PrefKeys = { "masterVolume", "musicVolume", "sfxVolume", "muteInBackground", "fullscreen",
-            "resolutionWidth", "resolutionHeight", "frameRate", "menuScale", "gameSpeed", "playerDeckPath" };
+            "resolutionWidth", "resolutionHeight", "frameRate", "menuScale", "gameSpeed", "aiDifficulty", "playerDeckPath" };
 
         public bool Running { get; private set; }
 
@@ -442,10 +442,15 @@ public static class GwentMonkey
                 GameInput.SimulateTouch = !GameInput.SimulateTouch;
                 Count("touch controls " + (GameInput.SimulateTouch ? "on" : "off"));
             }
-            else if (r < 990)
+            else if (r < 984)
             {
                 GameSettings.GameSpeed = rnd.Next(3);
                 Count("game speed " + GameSettings.GameSpeed);
+            }
+            else if (r < 990)
+            {
+                GameSettings.AiDifficulty = (AiDifficulty)rnd.Next(3);
+                Count("AI " + GameSettings.AiDifficulty);
             }
             else
             {

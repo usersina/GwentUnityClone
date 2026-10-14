@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Gwent.Rules;
 using UnityEngine;
 
 // The player's settings, saved in PlayerPrefs and applied as soon as they change: audio (applied by GameAudio)
@@ -18,6 +19,7 @@ public static class GameSettings
     private const string FrameRateKey = "frameRate";
     private const string MenuScaleKey = "menuScale";
     private const string GameSpeedKey = "gameSpeed";
+    private const string AiDifficultyKey = "aiDifficulty";
 
     // Frame rate choices: VSync follows the screen, 0 is unlimited (desktop); phones have no VSync choice
     public const int VSync = -1;
@@ -26,6 +28,7 @@ public static class GameSettings
     public static readonly float[] MenuScales = { 0.9f, 1f, 1.15f, 1.3f };
     public static readonly string[] GameSpeedNames = { "Slow", "Normal", "Fast" };
     private static readonly float[] GameSpeedScales = { 0.75f, 1f, 3f };
+    public static readonly string[] AiDifficultyNames = { "Easy", "Normal", "Hard" };
 
     // Raised after any change (GameAudio listens; the overlay canvas reads the menu size every frame)
     public static event Action Changed;
@@ -131,12 +134,20 @@ public static class GameSettings
     // The battle's time scale at that speed
     public static float GameTimeScale { get { return GameSpeedScales[GameSpeed]; } }
 
+    // How well the opponent plays (AiBrain); from its next move on
+    public static AiDifficulty AiDifficulty
+    {
+        get { return (AiDifficulty)Mathf.Clamp(PlayerPrefs.GetInt(AiDifficultyKey, (int)AiDifficulty.Normal), 0, AiDifficultyNames.Length - 1); }
+        set { SetInt(AiDifficultyKey, Mathf.Clamp((int)value, 0, AiDifficultyNames.Length - 1)); }
+    }
+
     //----------------------------------------Apply / reset----------------------------------------//
     public static void ResetToDefaults()
     {
         bool window_was_set = WindowSet;
         foreach (string key in new[] { MasterVolumeKey, MusicVolumeKey, SfxVolumeKey, MuteInBackgroundKey, FullscreenKey,
-                                       ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, GameSpeedKey })
+                                       ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, GameSpeedKey,
+                                       AiDifficultyKey })
             PlayerPrefs.DeleteKey(key);
         PlayerPrefs.Save();
         ApplyFrameRate();
