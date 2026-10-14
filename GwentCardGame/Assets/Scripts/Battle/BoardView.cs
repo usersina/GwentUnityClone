@@ -544,6 +544,65 @@ public class BoardView
         MarkDecoyTargets(view, false);
     }
 
+    // Lights where the player's leader ability acts, as for a selected card: the weather board (weather leaders),
+    // its row's horn slot, the opponent's row it scorches, the rows of agile units, the discard pile it takes a unit
+    // from (framed). Nothing for the others (a second click on the leader uses them). Returns the places lit.
+    public const string LeaderTargetFrame = "LeaderTarget";
+
+    public List<GameObject> MarkLeaderTargets(int leader_id)
+    {
+        List<GameObject> targets = new List<GameObject>();
+        FieldView mine = View(true);
+        FieldView opp = View(false);
+        string horn = LeaderIds.HornRow(leader_id);
+        string scorch = LeaderIds.ScorchRow(leader_id);
+        if (LeaderIds.WeatherPickRow(leader_id) != null || leader_id == LeaderIds.FoltestLordCommander)
+        {
+            weatherImage.sprite = Weather.weatherSelected;
+            targets.Add(controller.WeatherField);
+        }
+        else if (horn != null)
+        {
+            mine.Rows[horn].SpecialImage.sprite = mine.Picker.specialSelected;
+            targets.Add(mine.Rows[horn].Special);
+        }
+        else if (scorch != null)
+        {
+            opp.Rows[scorch].UnitImage.sprite = SelectedSprite(opp.Picker, scorch);
+            targets.Add(opp.Rows[scorch].Unit);
+        }
+        else if (leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe)
+        {
+            foreach (string row in new[] { Rows.Close, Rows.Range })
+            {
+                mine.Rows[row].UnitImage.sprite = SelectedSprite(mine.Picker, row);
+                targets.Add(mine.Rows[row].Unit);
+            }
+        }
+        else if (leader_id == LeaderIds.EredinDestroyerOfWorlds || leader_id == LeaderIds.EmhyrTheRelentless)
+        {
+            GameObject pile = View(leader_id == LeaderIds.EredinDestroyerOfWorlds).DiscardPile.transform.parent.gameObject;
+            foreach (Image side in UIKit.Frame(pile.transform, LeaderTargetFrame, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
+                side.gameObject.AddComponent<UIPulse>();
+            targets.Add(pile);
+        }
+        return targets;
+    }
+
+    // Lights them off (the rows and the weather board go back to normal with Lightoff)
+    public void UnmarkLeaderTargets(List<GameObject> targets)
+    {
+        foreach (GameObject target in targets)
+        {
+            Transform frame = target != null ? target.transform.Find(LeaderTargetFrame) : null;
+            if (frame != null)
+            {
+                frame.SetParent(null, false);
+                Object.Destroy(frame.gameObject);
+            }
+        }
+    }
+
     // A gold frame around each unit of this side a decoy can take back (non-hero units on the rows)
     public const string DecoyFrame = "DecoyTarget";
 

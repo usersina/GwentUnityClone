@@ -2,8 +2,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using Gwent.Rules;
 
-// Click on a card: select a hand card; on the board, the target of a selected decoy, the leader, a discard pile to
-// browse, or the row / weather board under it for a selected card
+// Click on a card: select a hand card; on the board, the target of a selected decoy, the leader (chosen first, used
+// by a second click), a discard pile to browse, or the row / weather board under it for a selected card
 public class CardSelect : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
@@ -61,11 +61,11 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        // A card in a discard pile: browse the pile
+        // A card in a discard pile: browse the pile (or use the leader that takes a unit from it)
         DiscardPileBrowser pile = GetComponentInParent<DiscardPileBrowser>();
         if (pile != null)
         {
-            pile.Browse();
+            pile.Clicked();
             return;
         }
 
@@ -75,9 +75,9 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
         if (TryActivateLeaderCard())
             return;
 
-        // A card already on a row or the weather board, with a card selected: the click counts for the row (or
-        // the weather board) under it, so full rows still take the selected card
-        if (controller.selectedCard != null && controller.battleState == BattleState.PLAYERTURN)
+        // A card already on a row or the weather board, with a card selected (or the leader chosen): the click counts
+        // for the row (or the weather board) under it, so full rows still take the selected card
+        if ((controller.selectedCard != null || controller.LeaderSelected) && controller.battleState == BattleState.PLAYERTURN)
         {
             RowClick row = GetComponentInParent<RowClick>();
             WeatherManager weather = GetComponentInParent<WeatherManager>();
@@ -110,6 +110,12 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
     // Deselects the previously selected card; true if it was this very card (click again = deselect)
     private bool CheckSameCard()
     {
+        // The chosen leader goes back: this card takes its place
+        if (controller.LeaderSelected)
+        {
+            controller.PutBackSelectedCard(false);
+            return false;
+        }
         if (controller.selectedCard == null)
             return false;
 

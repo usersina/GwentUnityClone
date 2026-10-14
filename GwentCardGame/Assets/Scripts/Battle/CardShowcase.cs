@@ -21,14 +21,16 @@ public static class CardShowcase
 
     public static bool IsShown { get { return shown != null; } }
 
-    // The player's selected hand card, popped out of its slot
-    public static void Select(GameObject hand_card, Card card)
+    // The player's selected hand card, popped out of its slot. The leader stays in its place (a second click on it
+    // uses it).
+    public static void Select(GameObject hand_card, Card card, bool leaves_slot = true)
     {
         Clear();
         Rect slot = CardMotion.ScreenRect((RectTransform)hand_card.transform);
         Vector2 size = slot.size * Pop;
         handCard = hand_card;
-        CardMotion.Hide(hand_card, true, true); // its empty slot puts it back when clicked
+        if (leaves_slot)
+            CardMotion.Hide(hand_card, true, true); // its empty slot puts it back when clicked
         Show(card, new Rect(slot.center.x - size.x / 2, slot.yMin, size.x, size.y), true);
     }
 

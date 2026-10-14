@@ -32,6 +32,13 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
             controller = SceneController.Instance;
         if (controller.battleState == BattleState.PLAYERTURN)
         {
+            // The chosen leader: a weather leader is used here
+            if (controller.LeaderSelected)
+            {
+                if (!controller.TryUseLeaderOn(gameObject))
+                    GameAudio.PlaySfx("invalid");
+                return;
+            }
             if (controller.selectedCard == null)
                 return;
             if (isWeatherCard && controller.TryPlaySelectedCardOnBoard())

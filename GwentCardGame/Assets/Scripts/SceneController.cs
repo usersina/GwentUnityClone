@@ -816,18 +816,20 @@ public partial class SceneController : MonoBehaviour
         Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => TurnCallBack(is_player_card));
     }
 
-    // Escape (the back button on Android) puts a selected card back first, as in The Witcher 3; otherwise it pauses
+    // Escape (the back button on Android) puts a selected card (or the chosen leader) back first, as in The Witcher 3;
+    // otherwise it pauses
     private void OnEscape()
     {
-        if (selectedCard != null && IsPlayerActionAllowed)
+        if ((selectedCard != null || LeaderSelected) && IsPlayerActionAllowed)
             PutBackSelectedCard();
         else
             PauseMenu.Open();
     }
 
-    public void PutBackSelectedCard()
+    public void PutBackSelectedCard(bool sound = true)
     {
-        GameAudio.PlaySfx("card_select");
+        if (sound)
+            GameAudio.PlaySfx("card_select");
         DeselectCard();
     }
 
@@ -843,8 +845,11 @@ public partial class SceneController : MonoBehaviour
         return selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
     }
 
-    private void DeselectCard()
+    // The selected card (or the chosen leader) goes back to its place, gliding there from the showcase (or leaving it
+    // at once: its play takes over)
+    private void DeselectCard(bool glide = true)
     {
+        ReleaseLeader();
         if (selectedCard != null)
         {
             CardHover hover = selectedCard.GetComponent<CardHover>();
@@ -852,7 +857,10 @@ public partial class SceneController : MonoBehaviour
             hover.TranslateDown();
             hover.DestroyEffect();
         }
-        CardShowcase.Deselect();
+        if (glide)
+            CardShowcase.Deselect();
+        else
+            CardShowcase.Clear();
         selectedCard = null;
         LightoffField(true);
         LightoffField(false);

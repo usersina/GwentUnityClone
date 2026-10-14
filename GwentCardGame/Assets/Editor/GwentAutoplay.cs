@@ -156,6 +156,7 @@ public static class GwentAutoplay
         private bool touchChecked;
         private bool speedChecked;
         private bool pickerChecked;
+        private bool leaderChecked;
         private bool endScreenChecked;
         private int roundEndChecked;
         private readonly HashSet<int> turnsChecked = new HashSet<int>();
@@ -530,6 +531,13 @@ public static class GwentAutoplay
             {
                 speedChecked = true;
                 inputCheck = new InputCheck(c, InputScenario.GameSpeed, (ok, what) => Check(ok, what, "game speed"));
+                return;
+            }
+            // The first turn with a leader ability that would act
+            if (!leaderChecked && c.CanUseLeader(true) && c.LeaderProblem() == null && c.PlayerInfo.HandList.Count > 0)
+            {
+                leaderChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.LeaderTwoClicks, (ok, what) => Check(ok, what, "leader input"));
                 return;
             }
 
@@ -1051,6 +1059,9 @@ public static class GwentAutoplay
                                   // and is no tap; a tap selects a card, another puts it back
         GameSpeed,                // pause menu > Settings > Game: Fast, and after Resume the battle runs faster
         PickerKeys,               // the card picker: Right frames a card, Down goes to Skip, Up comes back, Enter chooses
+        LeaderTwoClicks,          // a click on the leader chooses it (shown on the right, its places lit), Escape puts it
+                                  // back, its button chooses it too, a hand card takes its place; then a click on a lit
+                                  // place (or the leader again) uses it
         DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
                                   // a held press (touch) shows a card, the leader picker, the header's faction arrows,
                                   // the deck dropdown
@@ -1096,7 +1107,7 @@ public static class GwentAutoplay
 
             At(0, Setup);
             InputScenario[] with_hand = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace,
-                InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls };
+                InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls, InputScenario.LeaderTwoClicks };
             if (c != null && with_hand.Contains(scenario))
                 At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
             if (scenario == InputScenario.RedrawSlowClicksThenDone)
@@ -1176,6 +1187,8 @@ public static class GwentAutoplay
                 GameSpeed();
             else if (scenario == InputScenario.PickerKeys)
                 PickerKeys();
+            else if (scenario == InputScenario.LeaderTwoClicks)
+                LeaderTwoClicks();
             else if (scenario == InputScenario.DeckBuilder)
                 DeckBuilder(deck_path);
             else if (scenario == InputScenario.MenuPlay)
@@ -1312,7 +1325,7 @@ public static class GwentAutoplay
             });
             Hold(0.4, () => leader != null ? ScreenPoint(leader.transform) : Vector2.zero, 0.8);
             At(1.0, () => check(leader != null && leader.bigImage != null, "a finger held on the leader card shows it on the right (" + PressState(leader) + ")"));
-            At(1.5, () => check(leader != null && leader.bigImage == null && c.CanUseLeader(true) == leader_usable, "lifting the finger closes it, and the leader is not used"));
+            At(1.5, () => check(leader != null && leader.bigImage == null && c.CanUseLeader(true) == leader_usable && !c.LeaderSelected, "lifting the finger closes it, and the leader is neither chosen nor used"));
             Hold(1.8, () => ScreenPoint(c.PlayerLeader.Button.transform), 0.8);
             At(2.4, () => check(GameObject.Find("Tooltip") != null, "a finger held on the leader's button shows its state"));
             At(2.9, () => check(GameObject.Find("Tooltip") == null && c.CanUseLeader(true) == leader_usable, "lifting the finger hides it, and the leader is not used"));
@@ -1355,6 +1368,39 @@ public static class GwentAutoplay
             Click(3.3, Named("Item Resume"));
             At(3.8, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
                 "after Resume the battle runs at that speed (time scale " + Time.timeScale + ")"));
+        }
+
+        private void LeaderTwoClicks()
+        {
+            Func<Vector2> leader_card = () =>
+            {
+                Transform holder = c.PlayerField.transform.Find("Leader/Holder");
+                CardSelect leader = holder != null ? holder.GetComponentInChildren<CardSelect>() : null;
+                return leader != null ? ScreenPoint(leader.transform) : Vector2.zero;
+            };
+            int leader_id = c.PlayerInfo.Leader;
+            int targets = LeaderIds.WeatherPickRow(leader_id) != null || LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
+                || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinDestroyerOfWorlds || leader_id == LeaderIds.EmhyrTheRelentless ? 1
+                : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe ? 2 : 0;
+            Click(0.4, leader_card);
+            At(0.9, () => check(c.LeaderSelected && CardShowcase.IsShown && c.CanUseLeader(true) && c.LeaderTargets.Count == targets,
+                "a click on the leader chooses it: it shows on the right, " + targets + " place(s) lit (" + c.LeaderTargets.Count + "), not used yet"));
+            Key(1.2, UnityEngine.InputSystem.Key.Escape);
+            At(1.6, () => check(!c.LeaderSelected && c.CanUseLeader(true) && !PauseMenu.IsOpen, "Escape puts it back"));
+            Click(1.9, () => ScreenPoint(c.PlayerLeader.Button.transform));
+            At(2.4, () => check(c.LeaderSelected && c.CanUseLeader(true), "a click on its button chooses it too"));
+            Click(2.7, CardPosition);
+            At(3.2, () => check(!c.LeaderSelected && card != null && c.selectedCard == card.gameObject && c.CanUseLeader(true), "a hand card takes its place"));
+            Click(3.5, CardPosition);
+            At(4.0, () => check(c.selectedCard == null, "(and goes back)"));
+            Click(4.3, leader_card);
+            Click(4.9, () =>
+            {
+                GameObject place = c.LeaderTargets.Count > 0 ? c.LeaderTargets[0] : null;
+                return place != null ? ScreenPoint(place.transform) : leader_card();
+            });
+            At(5.5, () => check(!c.LeaderSelected && !c.PlayerInfo.canLeader,
+                (targets > 0 ? "a click on the place it lit" : "a second click on it") + " uses the ability"));
         }
 
         private void PickerKeys()

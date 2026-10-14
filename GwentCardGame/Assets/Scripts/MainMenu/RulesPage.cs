@@ -120,14 +120,14 @@ public class RulesPage : MonoBehaviour
             Entries = GameInput.IsTouch ? new[]
             {
                 new Entry(null, "Play a card", "Tap it in your hand (it shows large on the right), then tap where it lights up."),
-                new Entry(null, "Leader", "Tap the leader's button; hold a finger on it to see whether it can still be used."),
+                new Entry(null, "Leader", "Tap the leader: it shows on the right and lights where it acts; tap it again, or the lit place, to use it. Hold a finger on its button to see whether it can still be used."),
                 new Entry(null, "Pass", "Hold the Hold to pass button."),
                 new Entry(null, "Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large until you lift it; tap a discard pile to look through it."),
                 new Entry(null, "Pause", "The back button or the menu button: resume, settings, or give up the battle."),
             } : new[]
             {
                 new Entry(null, "Play a card", "Click it in your hand, then click where it lights up. The cursor shows a red sign where it can't go. With the keys: Left/Right go through your hand, Enter takes the card, Up/Down choose where it goes, Enter plays it, Esc puts it back."),
-                new Entry(null, "Leader", "Click the leader's button, or press X twice."),
+                new Entry(null, "Leader", "Click the leader (or its button): it shows on the right and lights where it acts; click it again, or the lit place, to use it. Or X, then X again or Enter."),
                 new Entry(null, "Pass", "Hold Space, or hold the Hold to pass button."),
                 new Entry(null, "Look", "Hover a card to see it large; click a discard pile to look through it."),
                 new Entry(null, "Pause", "Esc: resume, settings, or give up the battle."),

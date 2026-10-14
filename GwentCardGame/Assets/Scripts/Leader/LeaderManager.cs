@@ -93,15 +93,17 @@ public class LeaderManager : MonoBehaviour
             return whose + ": passive, always in effect";
         if (used)
             return whose + ": used";
-        return IsPlayers ? (GameInput.IsTouch ? "Leader ability: tap to use" : "Leader ability: click to use") : whose + ": not used yet";
+        string press = GameInput.IsTouch ? "tap" : "click";
+        return IsPlayers ? "Leader ability: " + press + " to choose it, " + press + " again to use it" : whose + ": not used yet";
     }
 
-    // Reference: Activate button. The controller marks the button used once the ability really happened.
+    // Reference: Activate button (and a click on the leader card). The first click chooses the leader, the second uses
+    // it; the controller marks the button used once the ability really happened.
     public void ActivateLeader()
     {
         if (!IsPlayers)
             return;
         if (controller.battleState == BattleState.PLAYERTURN)
-            controller.ActivateLeader(leaderId, true);
+            controller.LeaderClicked();
     }
 }

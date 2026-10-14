@@ -36,6 +36,13 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
 
         if (controller.battleState == BattleState.PLAYERTURN) // Just to be extra sure
         {
+            // The chosen leader: a row it lights uses it
+            if (controller.LeaderSelected)
+            {
+                if (!controller.TryUseLeaderOn(gameObject))
+                    GameAudio.PlaySfx("invalid");
+                return;
+            }
             if (controller.IsSelectedCardPlayable())
             {
                 GameObject targetField = GetPlayableTargetField(highLighted_fields);

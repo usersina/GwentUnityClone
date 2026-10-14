@@ -110,6 +110,102 @@ public partial class SceneController
     //----------------------------------------------LEADERS---------------------------------------------------//
     private enum LeaderOutcome { Unavailable, Instant, Pending }
 
+    // The player's leader is chosen like a card first (The Witcher 3): it shows on the right and lights where its
+    // ability acts. A second click on it, a click on a lit place, Enter or X uses it; Escape, a right click,
+    // another card or passing puts it back. A click alone never spends the ability.
+    public bool LeaderSelected { get; private set; }
+    private readonly List<GameObject> leaderTargets = new List<GameObject>();
+
+    // The places the chosen leader lit
+    public IList<GameObject> LeaderTargets { get { return leaderTargets.AsReadOnly(); } }
+
+    // Why the player's leader ability would do nothing now (null when it would act)
+    public string LeaderProblem()
+    {
+        return LeaderRules.Unavailable(CurrentBoard(), PlayerInfo.Leader, true);
+    }
+
+    // A click on the player's leader (its card or its button), a tap, or X
+    public void LeaderClicked()
+    {
+        if (LeaderSelected)
+            UseSelectedLeader();
+        else
+            SelectLeader();
+    }
+
+    private void SelectLeader()
+    {
+        if (!CanUseLeader(true))
+        {
+            GameAudio.PlaySfx("invalid");
+            if (PlayerInfo.leaderDisabled)
+                UIOverlay.Toast("Your leader ability was cancelled by the opponent's leader");
+            return;
+        }
+        // An ability that would do nothing is not chosen: why, at once
+        string reason = LeaderProblem();
+        if (reason != null)
+        {
+            GameAudio.PlaySfx("invalid");
+            UIOverlay.Toast(reason);
+            return;
+        }
+        DeselectCard(); // a selected card goes back to the hand
+        GameAudio.PlaySfx("card_select");
+        LeaderSelected = true;
+        GameObject card = LeaderCard();
+        if (card != null)
+        {
+            card.GetComponent<CardHover>().TranslateUp();
+            CardShowcase.Select(card, Db.Get(PlayerInfo.Leader), false);
+        }
+        leaderTargets.AddRange(board.MarkLeaderTargets(PlayerInfo.Leader));
+    }
+
+    // Uses the chosen leader
+    public void UseSelectedLeader()
+    {
+        if (LeaderSelected)
+            ActivateLeader(PlayerInfo.Leader, true);
+    }
+
+    // A click on a place while the leader is chosen: a lit place uses it (true)
+    public bool TryUseLeaderOn(GameObject place)
+    {
+        if (!LeaderSelected || !leaderTargets.Contains(place))
+            return false;
+        UseSelectedLeader();
+        return true;
+    }
+
+    public bool IsLeaderTarget(GameObject place)
+    {
+        return LeaderSelected && leaderTargets.Contains(place);
+    }
+
+    // The leader goes back to its place: down, its places lit off (the showcase is the caller's)
+    private void ReleaseLeader()
+    {
+        if (!LeaderSelected)
+            return;
+        LeaderSelected = false;
+        GameObject card = LeaderCard();
+        if (card != null)
+            card.GetComponent<CardHover>().TranslateDown();
+        board.UnmarkLeaderTargets(leaderTargets);
+        leaderTargets.Clear();
+        LightoffField(true);
+        LightoffField(false);
+    }
+
+    // The player's leader card on the board
+    private GameObject LeaderCard()
+    {
+        CardHover card = View(true).LeaderHolder.GetComponentInChildren<CardHover>();
+        return card != null ? card.gameObject : null;
+    }
+
     public bool CanUseLeader(bool is_player)
     {
         MainInfo info = Info(is_player);
@@ -137,7 +233,7 @@ public partial class SceneController
 
         string reason;
         if (is_player_turn)
-            DeselectCard(); // a selected card goes back to the hand (it would stay raised, still selected)
+            DeselectCard(false); // the chosen leader (or a selected card) leaves the showcase: the ability takes over
         CardShowcase.Clear();
         board.BeginChange();
         LeaderOutcome outcome = ApplyLeader(leader_id, is_player_turn, out reason);

@@ -106,12 +106,22 @@ public class GameCursor : MonoBehaviour
         if (card != null && card.isSelectable && card.CompareTag("Player"))
             return my_turn || RedrawPicker.IsOpen ? State.Interact : State.Invalid;
 
-        // The player's leader card uses the leader ability
+        // The player's leader card: chosen by a click, used by a second one
         if (card != null && !card.isSelectable && card.CompareTag("Player") && battle.selectedCard == null)
         {
             CardStats stats = card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
             if (stats.ability == Gwent.Rules.Abilities.Leader)
                 return battle.CanUseLeader(true) ? State.Interact : State.Default;
+        }
+
+        // The leader chosen: the places it lit use it
+        if (battle.LeaderSelected && my_turn)
+        {
+            if (weather != null)
+                return battle.IsLeaderTarget(weather.gameObject) ? State.Interact : State.Invalid;
+            if (row != null)
+                return battle.IsLeaderTarget(row.gameObject) ? State.Interact : State.Invalid;
+            return State.Default;
         }
 
         if (battle.selectedCard == null || !my_turn)

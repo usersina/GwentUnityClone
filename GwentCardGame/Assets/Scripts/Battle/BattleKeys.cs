@@ -7,13 +7,11 @@ using UnityEngine.InputSystem.Controls;
 
 // The battle's keyboard controls (desktop), as in The Witcher 3: Left/Right (A/D) go through the hand and Enter takes
 // the card; Up/Down (W/S) go through the places it can go and Enter plays it there (or where it fits, when only one
-// place does); Escape or a right click puts it back. X picks the leader and X again uses it. Space (hold to pass)
-// is the pass button's; the redraw and the card picker have their own keys.
+// place does); Escape or a right click puts it back. X chooses the leader (as a click on it does), X again or Enter
+// uses it. Space (hold to pass) is the pass button's; the redraw and the card picker have their own keys.
 public class BattleKeys : MonoBehaviour
 {
-    private const float LeaderConfirmSeconds = 3f;
     private const string PlaceMark = "KeyPlace";
-    private float leaderArmedUntil = -1;
     private GameObject focused;  // the hand card the keys are on: raised, shown on the right
     private GameObject place;    // the place the keys chose for the selected card: framed
     private GameObject placeFor; // the selected card it was chosen for
@@ -46,16 +44,8 @@ public class BattleKeys : MonoBehaviour
         if (keyboard == null || battle == null || UIOverlay.HasModal)
             return;
 
-        // The "press X again" window closed: the leader button gives up the focus (Enter would use the leader)
-        if (leaderArmedUntil > 0 && Time.unscaledTime > leaderArmedUntil)
-        {
-            leaderArmedUntil = -1;
-            if (LeaderFocused(battle))
-                EventSystem.current.SetSelectedGameObject(null);
-        }
-
-        // Right-click puts a selected card back in the hand (The Witcher 3)
-        if (GameInput.SecondaryPressed() && battle.selectedCard != null && battle.IsPlayerActionAllowed)
+        // Right-click puts a selected card back in the hand (The Witcher 3), and the chosen leader back in its place
+        if (GameInput.SecondaryPressed() && (battle.selectedCard != null || battle.LeaderSelected) && battle.IsPlayerActionAllowed)
             battle.PutBackSelectedCard();
 
         // A chosen place is only for the card it was chosen for
@@ -89,29 +79,13 @@ public class BattleKeys : MonoBehaviour
         return arrow.wasPressedThisFrame || letter.wasPressedThisFrame;
     }
 
-    private static bool LeaderFocused(SceneController battle)
-    {
-        return EventSystem.current != null && battle.PlayerLeader.Button != null && EventSystem.current.currentSelectedGameObject == battle.PlayerLeader.Button.gameObject;
-    }
-
+    // As a click on the leader: the first chooses it, the second uses it
     private void LeaderKey(SceneController battle)
     {
-        if (!battle.CanUseLeader(true))
-        {
-            GameAudio.PlaySfx("invalid");
-            leaderArmedUntil = -1;
-            return;
-        }
-        if (Time.unscaledTime <= leaderArmedUntil)
-        {
-            leaderArmedUntil = -1;
-            battle.ActivateLeader(battle.PlayerInfo.Leader, true);
-            return;
-        }
-        leaderArmedUntil = Time.unscaledTime + LeaderConfirmSeconds;
-        GameAudio.PlaySfx("card_select");
-        UIKit.Focus(battle.PlayerLeader.Button);
-        UIOverlay.Toast("Press X again to use your leader ability", LeaderConfirmSeconds);
+        Unfocus();
+        battle.LeaderClicked();
+        if (battle.LeaderSelected)
+            UIOverlay.Toast("X again or Enter uses your leader ability; Esc puts it back");
     }
 
     //----------------------------------------The hand----------------------------------------//
@@ -135,10 +109,9 @@ public class BattleKeys : MonoBehaviour
             return;
         GameObject from = battle.selectedCard != null && hand.Contains(battle.selectedCard) ? battle.selectedCard : hand.Contains(focused) ? focused : null;
         GameObject next = from != null ? hand[Mathf.Clamp(hand.IndexOf(from) + step, 0, hand.Count - 1)] : hand[step > 0 ? 0 : hand.Count - 1];
-        if (next == from && from == focused)
+        if (next == from && from == focused && !battle.LeaderSelected)
             return; // at an end of the hand
-        LetGoOfLeader(battle);
-        if (from != null && from == battle.selectedCard)
+        if ((from != null && from == battle.selectedCard) || battle.LeaderSelected)
             battle.PutBackSelectedCard();
         Focus(next);
     }
@@ -165,16 +138,13 @@ public class BattleKeys : MonoBehaviour
         focused = null;
     }
 
-    // X put the focus on the leader button: arrows and Enter are the hand's again
-    private void LetGoOfLeader(SceneController battle)
-    {
-        leaderArmedUntil = -1;
-        if (LeaderFocused(battle))
-            EventSystem.current.SetSelectedGameObject(null);
-    }
-
     private void EnterKey(SceneController battle)
     {
+        if (battle.LeaderSelected)
+        {
+            battle.UseSelectedLeader();
+            return;
+        }
         if (battle.selectedCard != null)
         {
             if (place != null)
@@ -223,7 +193,6 @@ public class BattleKeys : MonoBehaviour
         index = index < 0 ? (step > 0 ? 0 : places.Count - 1) : Mathf.Clamp(index + step, 0, places.Count - 1);
         if (places[index] == place)
             return;
-        LetGoOfLeader(battle);
         GameAudio.PlaySfx("card_select");
         MarkPlace(places[index], battle.selectedCard);
     }
