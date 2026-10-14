@@ -7,9 +7,8 @@ using UnityEngine.UI;
 // spacing as they fade in and the rules draw outwards; then, every few seconds, a soft light runs across the letters.
 public class LegacyTitle : MonoBehaviour
 {
-    // Where the logo is in the key art (Resources/Background/gwent_cover 1.png, 1920 x 1080): centred, its letters
+    // Under the logo in the key art (Resources/Background/gwent_cover 1.png, 1920 px wide): centred, the logo's letters
     // ending 487 px from the top
-    private static readonly Vector2 ArtSize = new Vector2(1920, 1080);
     private static readonly Vector2 UnderLogo = new Vector2(960, 518);
 
     private const float Delay = 0.35f;        // after the menu opens
@@ -31,17 +30,12 @@ public class LegacyTitle : MonoBehaviour
     private Image[] diamonds;
     private float age;
 
-    // Over the menu's key art: in a box the art's shape, fitted to the background as the art is, so the word stays under
-    // the logo whatever the screen's shape
-    public static LegacyTitle Create(RectTransform background)
+    // On the menu's key art (an image exactly the art's shape), so the word stays under the logo whatever the screen's shape
+    public static LegacyTitle Create(Image art)
     {
-        RectTransform art = UIKit.Rect("KeyArt", background).Stretch();
-        AspectRatioFitter fit = art.gameObject.AddComponent<AspectRatioFitter>();
-        fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
-        fit.aspectRatio = ArtSize.x / ArtSize.y;
-
-        RectTransform root = UIKit.Rect("Legacy", art);
-        Vector2 anchor = new Vector2(UnderLogo.x / ArtSize.x, 1 - UnderLogo.y / ArtSize.y);
+        Vector2 size = art.sprite != null ? art.sprite.rect.size : new Vector2(1920, 1010);
+        RectTransform root = UIKit.Rect("Legacy", art.rectTransform);
+        Vector2 anchor = new Vector2(UnderLogo.x / size.x, 1 - UnderLogo.y / size.y);
         root.Place(anchor, Vector2.zero, new Vector2(800, 64));
         LegacyTitle title = root.gameObject.AddComponent<LegacyTitle>();
         title.Build();

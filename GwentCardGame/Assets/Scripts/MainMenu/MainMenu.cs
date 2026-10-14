@@ -39,10 +39,18 @@ public class MainMenu : MonoBehaviour
         AddItem(list, "Settings", OpenSettings);
         AddItem(list, "Quit", QuitGame);
 
-        // "Legacy" under the key art's logo
+        // The key art covers the screen whatever its shape (its edges are cropped rather than bars shown), "Legacy" under
+        // its logo
         Transform background = transform.parent != null ? transform.parent.Find("Background") : null;
-        if (background != null)
-            LegacyTitle.Create((RectTransform)background);
+        Image art = background != null ? background.GetComponent<Image>() : null;
+        if (art != null && art.sprite != null)
+        {
+            art.preserveAspect = false;
+            AspectRatioFitter cover = art.gameObject.AddComponent<AspectRatioFitter>();
+            cover.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            cover.aspectRatio = art.sprite.rect.width / art.sprite.rect.height;
+            LegacyTitle.Create(art);
+        }
 
         TextMeshProUGUI note = UIKit.Text(root, "Fan project, not affiliated with CD PROJEKT RED", UIKit.TextStyle.Caption);
         note.rectTransform.Place(new Vector2(0, 0), new Vector2(156, 48), new Vector2(800, 36), new Vector2(0, 0));
