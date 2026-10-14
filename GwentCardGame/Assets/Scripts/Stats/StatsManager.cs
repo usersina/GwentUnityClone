@@ -22,13 +22,14 @@ public class StatsManager : MonoBehaviour
     private Image portrait;
     private Image portraitCircle; // the round, masked picture
     private Image border;         // the silver ring around it
-    private Image turnGlow;
     private Image passedVeil;
+    private Image[] edges;        // the band's top and bottom lines
+    private Color edgeColor;
+    private float edgeHeight;
     private int shownTurnState = -1;
 
-    private const float TurnPulseSeconds = 1.4f;
-    private static readonly Color RingGold = new Color(1f, 0.72f, 0.16f);
-    private static readonly Color RingGoldBright = new Color(1f, 0.9f, 0.45f);
+    private const float TurnEdgeHeight = 3;
+    private static readonly Color TurnEdgeGold = new Color(1f, 0.74f, 0.3f);
     private static readonly Color PassedGrey = new Color(0.55f, 0.55f, 0.55f);
 
     // Looked up once instead of on every board refresh
@@ -106,29 +107,25 @@ public class StatsManager : MonoBehaviour
         handCountText.text = cards_number.ToString();
     }
 
-    // Red gems for the lives left, grey for the lost ones
-    // Whose turn it is shows on the portrait: its ring turns gold and glows, breathing. A side that has passed is
-    // greyed out until the round ends.
+    // Whose turn it is shows as in The Witcher 3: gold lines along the top and bottom of that side's band. A side that
+    // has passed is greyed out until the round ends.
     public void UISetTurnState(bool active, bool passed)
     {
         CacheReferences();
-        if (turnGlow == null)
+        if (passedVeil == null)
             CreateTurnMarkers();
         int state = passed ? 2 : active ? 1 : 0;
-        if (state == 1)
-        {
-            float breath = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2 / TurnPulseSeconds);
-            border.color = Color.Lerp(RingGold, RingGoldBright, breath);
-            turnGlow.color = new Color(1f, 0.68f, 0.12f, Mathf.Lerp(0.55f, 1f, breath));
-        }
         if (state == shownTurnState)
             return;
         shownTurnState = state;
-        turnGlow.enabled = state == 1;
+        foreach (Image edge in edges)
+        {
+            edge.color = state == 1 ? TurnEdgeGold : edgeColor;
+            edge.rectTransform.sizeDelta = new Vector2(edge.rectTransform.sizeDelta.x, state == 1 ? TurnEdgeHeight : edgeHeight);
+        }
         passedVeil.enabled = state == 2;
-        if (state != 1)
-            border.color = state == 2 ? PassedGrey : Color.white;
         Color picture = state == 2 ? PassedGrey : Color.white;
+        border.color = picture;
         portraitCircle.color = picture;
         if (portrait != null)
             portrait.color = picture;
@@ -136,17 +133,13 @@ public class StatsManager : MonoBehaviour
 
     private void CreateTurnMarkers()
     {
-        // A warm glow behind the ring, centred on the picture
-        RectTransform circle = portraitCircle.rectTransform;
-        turnGlow = UIKit.NewImage(border.transform.parent, "TurnGlow", UITheme.Current.radial, Color.clear);
-        RectTransform glow = turnGlow.rectTransform;
-        glow.anchorMin = glow.anchorMax = glow.pivot = new Vector2(0.5f, 0.5f);
-        glow.sizeDelta = circle.rect.size * 2.5f;
-        glow.position = circle.TransformPoint(circle.rect.center);
-        glow.SetAsFirstSibling();
-        turnGlow.enabled = false;
+        Transform cover = transform.Find("Cover");
+        edges = new[] { cover.Find("EdgeTop").GetComponent<Image>(), cover.Find("EdgeBottom").GetComponent<Image>() };
+        edgeColor = edges[0].color;
+        edgeHeight = edges[0].rectTransform.sizeDelta.y;
 
         // A grey veil over the picture of a side that has passed (inside its round mask)
+        RectTransform circle = portraitCircle.rectTransform;
         passedVeil = UIKit.NewImage(circle, "PassedVeil", null, new Color(0.28f, 0.28f, 0.3f, 0.55f));
         passedVeil.rectTransform.Stretch();
         passedVeil.transform.SetAsLastSibling();
@@ -160,6 +153,7 @@ public class StatsManager : MonoBehaviour
         return lives >= 1 ? rubyLeft : rubyRight;
     }
 
+    // Red gems for the lives left, grey for the lost ones
     public void UIUpdateGemLives(int lives)
     {
         CacheReferences();

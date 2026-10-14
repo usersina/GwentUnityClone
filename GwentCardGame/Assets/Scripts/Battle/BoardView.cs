@@ -122,12 +122,12 @@ public class BoardView
             FieldView view = View(is_player);
             // A click on either discard pile shows it card by card
             view.DiscardPile.transform.parent.gameObject.AddComponent<DiscardPileBrowser>().isPlayer = is_player;
-            // "Passed" right by the total score, between the two panels (The Witcher 3): under the opponent's, above
-            // the player's, ending before the rows' score coins (they are drawn over it)
+            // "Passed" right under the opponent's total score, above the player's (The Witcher 3), on the edge of
+            // the band, clear of the laurel and of the rows' score coins
             RectTransform passed = (RectTransform)view.PassedLabel.transform;
             RectTransform total = (RectTransform)passed.parent.Find("Total");
-            float gap = total.rect.height / 2 + passed.rect.height / 2;
-            passed.anchoredPosition = total.anchoredPosition + new Vector2(-44, is_player ? gap : -gap);
+            float gap = ((RectTransform)view.LeadMarker.transform).rect.height / 2 + passed.rect.height / 3;
+            passed.anchoredPosition = total.anchoredPosition + new Vector2(-6, is_player ? gap : -gap);
             // The Witcher 3's lines of cards: centred, gliding into place (the grids snapped)
             CardLane.Install(view.Hand.gameObject, 50);
             foreach (RowView row in view.Rows.Values)
@@ -158,7 +158,7 @@ public class BoardView
         UpdateScores(false);
     }
 
-    // The laurel on the side that is ahead, "Passed" on a side that has passed, the glow around the portrait of the
+    // The laurel on the side that is ahead, "Passed" on a side that has passed, the gold lines on the band of the
     // side whose turn it is, the lit crown of a leader ability that can still be used this round (every frame)
     public void UpdateMarkers()
     {
