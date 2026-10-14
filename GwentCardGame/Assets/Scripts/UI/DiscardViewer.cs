@@ -11,6 +11,13 @@ public class DiscardViewer : MonoBehaviour
 
     public static bool IsOpen { get { return current != null; } }
 
+    // Closes it if it is open (the battle ends under it), restoring the time scale
+    public static void Close()
+    {
+        if (current != null)
+            UIOverlay.CloseModal(current.gameObject);
+    }
+
     public static void Open(List<int> cards, bool is_player)
     {
         if (current != null || cards == null || cards.Count == 0)

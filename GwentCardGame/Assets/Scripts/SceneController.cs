@@ -599,6 +599,7 @@ public partial class SceneController : MonoBehaviour
         StopAllCoroutines();
         EndPresentations();
         BattleBanner.Clear();
+        DiscardViewer.Close();
         if (mulliganPrompt != null)
             Destroy(mulliganPrompt);
         TurnPicker.SetActive(false);
