@@ -101,8 +101,9 @@ jobs:
           targetPlatform: ${{ matrix.target }}
           # The game's own build: GwentBuild builds and packages it into Builds/<version>/GwentLegacy-<platform>.*
           buildMethod: GwentBuild.BuildAllBatch
-          customParameters: -buildTargets ${{ matrix.name }} -androidVersionCode ${{ needs.prepare.outputs.version_code }}
+          customParameters: -buildTargets ${{ matrix.name }}
           versioning: None
+          androidVersionCode: ${{ needs.prepare.outputs.version_code }}
           androidKeystoreName: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_BASE64 != '' && 'gwentlegacy.keystore' || '' }}
           androidKeystoreBase64: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
           androidKeystorePass: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_PASS || '' }}

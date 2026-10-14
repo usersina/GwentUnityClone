@@ -243,12 +243,15 @@ public static class GwentBuild
         AssetDatabase.SaveAssets();
     }
 
-    // A "-name value" argument of the command line, null when absent
+    // A "-name value" argument of the command line, null when absent or empty; the last one when it is given twice (GameCI
+    // passes its own -androidVersionCode and keystore arguments, empty when unset, before the custom parameters)
     private static string Argument(string name)
     {
         string[] args = Environment.GetCommandLineArgs();
-        int index = Array.IndexOf(args, name);
-        return index >= 0 && index + 1 < args.Length && !string.IsNullOrEmpty(args[index + 1]) ? args[index + 1] : null;
+        for (int i = args.Length - 2; i >= 0; i--)
+            if (args[i] == name && !string.IsNullOrEmpty(args[i + 1]) && !args[i + 1].StartsWith("-"))
+                return args[i + 1];
+        return null;
     }
 
     private static string Signing(Target target)
