@@ -135,6 +135,7 @@ public static class UISpriteGenerator
         WriteColor("ScoreTotal", 192, 192, (x, y) => Medallion(x, y, 192, Chalk, ChalkDeep, Silver));
         WriteColor("PortraitFrame", 192, 212, (x, y) => PortraitFrame(x, y, Silver));
         WriteColor("AbilityButton", 192, 192, AbilityButton);
+        WriteColor("AbilityButtonReady", 192, 192, AbilityButtonReady);
         WriteColorSliced("CardSlot", 96, 96, CardSlot, new Vector4(24, 24, 24, 24));
         WriteAlpha("SoftShadow", 64, 64, (u, v) => 1 - Smooth((RoundedBox(u * 64, v * 64, 64, 64, 14, 16) + 10) / 22), new Vector4(32, 32, 32, 32), BoardFolder);
 
@@ -302,6 +303,43 @@ public static class UISpriteGenerator
         if (Mathf.Abs(r - ring_in) < 1.5f || r > outer - 2)
             color = Shade(color, 0.5f);
         return OverShadow(color, Mathf.Clamp01(outer + 0.5f - r), (new Vector2(x - c - 3, y - c - 5).magnitude - outer) / 8f);
+    }
+
+    // The same button lit, as The Witcher 3 shows an ability that can still be used: a blue face with a white crown
+    // in a pale ring, glowing softly
+    [MenuItem("Gwent/UI/Regenerate Leader Ready Crown")]
+    public static void GenerateLeaderReady()
+    {
+        Directory.CreateDirectory(BoardFolder);
+        WriteColor("AbilityButtonReady", 192, 192, AbilityButtonReady);
+        AssetDatabase.Refresh();
+        ConfigureImporter(BoardFolder + "/AbilityButtonReady.png", 100);
+        WireTheme();
+    }
+
+    private static Color AbilityButtonReady(float x, float y)
+    {
+        const float c = 96, outer = 82, ring_in = 72;
+        Vector2 p = new Vector2(x - c, y - c);
+        float r = p.magnitude;
+        float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
+        Color color;
+        if (r > ring_in)
+            color = Color.Lerp(new Color32(0xB8, 0xD8, 0xF4, 0xFF), new Color32(0xF2, 0xF8, 0xFF, 0xFF), 0.5f + 0.4f * light);
+        else
+        {
+            // Lighter at the top, as if lit from above
+            color = Color.Lerp(new Color32(0x4E, 0x9A, 0xDC, 0xFF), new Color32(0x1E, 0x5C, 0xA6, 0xFF), Mathf.Clamp01((p.y / ring_in + 1) / 2));
+            float crown = Crown((p.x / 1.55f) + 32, (p.y / 1.55f) + 33);
+            color = Color.Lerp(color, new Color32(0xF4, 0xF8, 0xFF, 0xFF), Mathf.Clamp01(0.5f - crown * 1.55f));
+        }
+        if (Mathf.Abs(r - ring_in) < 1.2f)
+            color = Shade(color, 0.75f);
+        float coverage = Mathf.Clamp01(outer + 0.5f - r);
+        // The glow around it: a pale blue halo fading out to the texture's edge
+        float glow = Mathf.Clamp01(1 - (r - outer) / (c - outer)) * 0.55f;
+        Color halo = new Color(0.75f, 0.88f, 1f, glow * glow);
+        return coverage >= 1 ? color : Color.Lerp(halo, color, coverage);
     }
 
     // A crown in a 64x64 box (y down): band, three points with balls on top
@@ -562,6 +600,7 @@ public static class UISpriteGenerator
         theme.iconTrash = sprite("IconTrash");
         theme.iconEdit = sprite("IconEdit");
         theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
+        theme.leaderReady = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/AbilityButtonReady.png");
         theme.cursorDefault = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorDefault.png");
         theme.cursorInteract = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInteract.png");
         theme.cursorInvalid = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInvalid.png");

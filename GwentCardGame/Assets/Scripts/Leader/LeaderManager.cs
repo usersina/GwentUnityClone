@@ -20,6 +20,12 @@ public class LeaderManager : MonoBehaviour
     private Button activateButton;
     private bool used;
     private bool cancelled;
+    private bool ready = true; // the ability can still be used this round (not used, cancelled or passed)
+    private Sprite plainFace;  // the gold crown; the lit one is UITheme.leaderReady
+
+    private static readonly Color UsedGrey = new Color(0.45f, 0.45f, 0.45f, 0.9f);
+    private static readonly Color PassiveGrey = new Color(0.78f, 0.78f, 0.78f, 1f);
+    private static readonly Color CancelledRed = new Color32(255, 134, 134, 200);
 
     private Button ActivateButton
     {
@@ -54,34 +60,52 @@ public class LeaderManager : MonoBehaviour
     {
         if (!IsPlayers)
             ActivateButton.transition = Selectable.Transition.None; // no hover / press look
-        // Disable the button if passive ability
-        if (type == Rows.LeaderPassive)
-            SetUnavailable(Color.white);
+        Refresh();
     }
 
-    // The ability was used: the button greys out
+    // The ability was used: the crown greys out
     public void MarkUsed()
     {
         used = true;
-        SetUnavailable(new Color(0.45f, 0.45f, 0.45f, 0.9f));
+        Refresh();
     }
 
-    // Cancelled by the opponent's leader (Emhyr, The White Flame): the button turns red
+    // Cancelled by the opponent's leader (Emhyr, The White Flame): the crown turns red
     public void MarkCancelled()
     {
         cancelled = true;
-        SetUnavailable(new Color32(255, 134, 134, 200));
+        Refresh();
     }
 
-    private void SetUnavailable(Color tint)
+    // Whether the ability can still be used this round (a side that passed cannot), every frame
+    public void UISetReady(bool can_use)
+    {
+        if (ready == can_use)
+            return;
+        ready = can_use;
+        Refresh();
+    }
+
+    // The Witcher 3's crown: lit (blue) while the ability can still be used this round, grey once used, after
+    // passing, or when passive; red when cancelled
+    private void Refresh()
     {
         Button button = ActivateButton;
+        Image face = button.targetGraphic as Image;
+        if (face == null)
+            return;
+        if (plainFace == null)
+            plainFace = face.sprite;
+        bool passive = type == Rows.LeaderPassive;
+        bool lit = ready && !used && !cancelled && !passive && UITheme.Current.leaderReady != null;
+        face.sprite = lit ? UITheme.Current.leaderReady : plainFace;
+        face.color = cancelled ? CancelledRed : used ? UsedGrey : passive ? PassiveGrey : lit ? Color.white : UsedGrey;
+        if (button.transition == Selectable.Transition.None)
+            face.canvasRenderer.SetColor(Color.white); // no tint left over from the button's earlier look
+        button.interactable = IsPlayers && !used && !cancelled && !passive;
         ColorBlock colors = button.colors;
-        colors.disabledColor = type == Rows.LeaderPassive && !used && !cancelled ? new Color(0.78f, 0.78f, 0.78f, 1f) : tint;
+        colors.disabledColor = Color.white; // the face carries the state
         button.colors = colors;
-        button.interactable = false;
-        if (button.transition == Selectable.Transition.None && button.targetGraphic != null)
-            button.targetGraphic.color = colors.disabledColor;
     }
 
     private string TooltipText()

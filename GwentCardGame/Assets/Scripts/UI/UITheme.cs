@@ -49,6 +49,7 @@ public class UITheme : ScriptableObject
     public Sprite iconTrash;
     public Sprite iconEdit;
     public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
+    public Sprite leaderReady; // the leader ability's crown, lit: the ability can still be used this round
 
     [Header("Cursors (tip at 5, 4)")]
     public Texture2D cursorDefault;
