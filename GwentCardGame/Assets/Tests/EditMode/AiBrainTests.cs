@@ -32,7 +32,7 @@ namespace Gwent.Rules.Tests
 
         private static PlayerState Ai(params int[] hand)
         {
-            PlayerState me = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
+            PlayerState me = TestBoard.Player(Factions.Monsters, LeaderIds.EredinKingOfTheWildHunt);
             me.HandList.AddRange(hand);
             return me;
         }

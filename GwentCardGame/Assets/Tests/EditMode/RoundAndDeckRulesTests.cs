@@ -22,6 +22,21 @@ namespace Gwent.Rules.Tests
             Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(0, 0, Factions.NorthernRealms, Factions.Monsters));
         }
 
+        // The Witcher 3 passes a side automatically when its hand is empty and its leader could do nothing right now
+        [Test]
+        public void AnEmptyHandWithALeaderThatWouldDoNothingIsDone()
+        {
+            PlayerState p = TestBoard.Player(Factions.NorthernRealms, LeaderIds.FoltestLordCommander);
+            Board board = new Board { Player = p, Enemy = TestBoard.Player(Factions.Monsters), Db = TestBoard.Db };
+            Assert.IsTrue(RoundRules.OutOfPlays(board, true), "no weather to clear: done");
+            board.Weather.Add(CardIds.BitingFrost);
+            Assert.IsFalse(RoundRules.OutOfPlays(board, true), "weather to clear: the leader is a play");
+            p.canLeader = false;
+            Assert.IsTrue(RoundRules.OutOfPlays(board, true), "leader used: done");
+            p.HandList.Add(Fiend);
+            Assert.IsFalse(RoundRules.OutOfPlays(board, true), "a card in hand: not done");
+        }
+
         [Test]
         public void DrawCostsBothALife()
         {

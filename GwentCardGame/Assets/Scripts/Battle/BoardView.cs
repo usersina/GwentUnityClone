@@ -609,9 +609,9 @@ public class BoardView
                 targets.Add(mine.Rows[row].Unit);
             }
         }
-        else if (leader_id == LeaderIds.EredinDestroyerOfWorlds || leader_id == LeaderIds.EmhyrTheRelentless)
+        else if (leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless)
         {
-            GameObject pile = View(leader_id == LeaderIds.EredinDestroyerOfWorlds).DiscardPile.transform.parent.gameObject;
+            GameObject pile = View(leader_id == LeaderIds.EredinBringerOfDeath).DiscardPile.transform.parent.gameObject;
             foreach (Image side in UIKit.Frame(pile.transform, LeaderTargetFrame, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
                 side.gameObject.AddComponent<UIPulse>();
             targets.Add(pile);

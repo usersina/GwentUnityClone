@@ -14,6 +14,14 @@ namespace Gwent.Rules
             return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || db.Get(info.Leader).row != Rows.LeaderActive);
         }
 
+        // In the battle, an unused leader whose ability would do nothing right now does not keep it going either
+        // (The Witcher 3 checks that the ability can be applied)
+        public static bool OutOfPlays(Board board, bool is_player)
+        {
+            PlayerState info = board.Side(is_player);
+            return OutOfPlays(info, board.Db) || info.HandList.Count == 0 && LeaderRules.Unavailable(board, info.Leader, is_player) != null;
+        }
+
         // Higher total wins. Nilfgaard automatically wins a round that ends in a draw (unless both are Nilfgaard).
         public static RoundWinner DecideRound(int player_total, int enemy_total, string player_faction, string enemy_faction)
         {

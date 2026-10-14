@@ -62,7 +62,8 @@ saved with more copies than that loses the extra ones when it is loaded.
 
 - Each turn you do one thing: play a card, use your leader or pass. Playing a card ends your turn. Passing is final for the round:
   the other side keeps playing until it passes too, then the higher total wins the round. A side with no card left and no leader
-  ability to use passes automatically.
+  ability it could use right now passes automatically, and a side that starts a round with no card in hand sits that round out,
+  even with its leader unused.
 - The winner of a round starts the next one (after a drawn round, whoever passed last). Scoia'tael decide who starts the battle.
 - A leader ability that would do nothing right now (no weather to clear, an enemy row under 10 for a scorch, no matching weather card
   in the deck...) can't be used, so it is never wasted. Passive leaders (The Treacherous, Invader of the North, The White Flame,
@@ -72,9 +73,15 @@ saved with more copies than that loses the extra ones when it is loaded.
   the next round, and vanishes instead of going to the discard pile.
 - Muster also pulls the matching cards from your hand, not only from your deck (The Witcher 3 does this too, although the card only
   says "deck"). The Arachas Behemoth calls the Arachas and Gaunter O'Dimm calls the Darkness, but not the other way round.
+- Francesca, Hope of the Aen Seidhe moves an agile unit when its own strength would be higher on the other row (ranged row first),
+  as The Witcher 3 judges it, not when your total would be.
+- The Eredin leaders do what their cards say in The Witcher 3 (as the Witcher wiki lists them): Commander of the Red Riders doubles
+  your close combat row, Bringer of Death restores a card from your discard pile, Destroyer of Worlds discards 2 cards to draw 1 of
+  your choice, King of the Wild Hunt plays any weather card from your deck.
 
-Differences that remain: the Ice Giant is 6 strength as on its card (5 in The Witcher 3), the Eredin leader cards carry swapped names
-on their art (their abilities are right), and the Skellige faction (Blood and Wine) is not in the game.
+Differences that remain: the Ice Giant is 6 strength as on its card (5 in The Witcher 3), a revived agile unit goes where you put
+it (The Witcher 3 puts it on the row where it is stronger), a leader's horn leaves no card in the discard pile, and the Skellige
+faction (Blood and Wine) is not in the game.
 
 # Download:
 If you don't have Unity Game Engine or simply want to test this game for fun.

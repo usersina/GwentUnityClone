@@ -1438,7 +1438,7 @@ public static class GwentAutoplay
             };
             int leader_id = c.PlayerInfo.Leader;
             int targets = LeaderIds.WeatherPickRow(leader_id) != null || LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
-                || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinDestroyerOfWorlds || leader_id == LeaderIds.EmhyrTheRelentless ? 1
+                || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless ? 1
                 : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe ? 2 : 0;
             Click(0.4, leader_card);
             At(0.9, () => check(c.LeaderSelected && CardShowcase.IsShown && c.CanUseLeader(true) && c.LeaderTargets.Count == targets,

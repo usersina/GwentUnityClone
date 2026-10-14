@@ -166,10 +166,10 @@ namespace Gwent.Rules
         public const int EmhyrTheRelentless = 36;           // Draw a card from the opponent's discard pile
         public const int EmhyrTheWhiteFlame = 37;           // Passive: cancel the opponent's leader ability
         public const int EredinTheTreacherous = 40;         // Passive: spies are doubled (both players)
-        public const int EredinBringerOfDeath = 41;         // Discard 2 cards, draw 1 of your choice from your deck
-        public const int EredinCommanderOfTheRedRiders = 42; // Play any weather card from your deck (Clear Weather too)
-        public const int EredinDestroyerOfWorlds = 43;      // Restore a card from your discard pile to your hand
-        public const int EredinKingOfTheWildHunt = 44;      // Commander's Horn on your close row
+        public const int EredinBringerOfDeath = 41;         // Restore a card from your discard pile to your hand
+        public const int EredinCommanderOfTheRedRiders = 42; // Commander's Horn on your close row
+        public const int EredinDestroyerOfWorlds = 43;      // Discard 2 cards, draw 1 of your choice from your deck
+        public const int EredinKingOfTheWildHunt = 44;      // Play any weather card from your deck (Clear Weather too)
         public const int FoltestKingOfTemeria = 51;         // Play an Impenetrable Fog from your deck
         public const int FoltestLordCommander = 52;         // Clear all weather
         public const int FoltestSonOfMedell = 53;           // Scorch the enemy range row (if it totals 10+)
@@ -206,7 +206,7 @@ namespace Gwent.Rules
         {
             switch (leader_id)
             {
-                case EredinCommanderOfTheRedRiders: return "all";
+                case EredinKingOfTheWildHunt: return "all";
                 case EmhyrHisImperialMajesty: return Rows.Siege;
                 case FoltestKingOfTemeria: return Rows.Range;
                 case FrancescaPurebloodElf: return Rows.Close;
@@ -219,7 +219,7 @@ namespace Gwent.Rules
         {
             switch (leader_id)
             {
-                case EredinKingOfTheWildHunt: return Rows.Close;
+                case EredinCommanderOfTheRedRiders: return Rows.Close;
                 case FoltestTheSiegemaster: return Rows.Siege;
                 case FrancescaTheBeautiful: return Rows.Range;
                 default: return null;

@@ -166,46 +166,48 @@ namespace Gwent.Rules
         }
 
         //----------------------------------------Agile----------------------------------------//
-        // Francesca, Hope of the Aen Seidhe: move each agile unit to the row where it adds the most.
-        // Units already in their best row (ties included) stay where they are.
+        // Francesca, Hope of the Aen Seidhe, as The Witcher 3 does it: each non-hero agile unit, the ranged row's
+        // first, moves to the other row when its own strength would be higher there (not the side's total: a morale
+        // booster moving away helps the others, not itself). Returns how many moved.
         public static int OptimizeAgile(PlayerState info, IList<int> weather, bool double_spies, CardDatabase db)
         {
-            int moves = 0;
-            for (int pass = 0; pass < 3; pass++)
-            {
-                bool changed = false;
-                foreach (string from in new[] { Rows.Close, Rows.Range })
+            // Listed first, then moved one by one, each judged on the board as it is by then
+            List<KeyValuePair<string, int>> units = new List<KeyValuePair<string, int>>();
+            foreach (string row in new[] { Rows.Range, Rows.Close })
+                foreach (int card_id in info.UnitRow(row))
                 {
-                    string to = from == Rows.Close ? Rows.Range : Rows.Close;
-                    List<int> snapshot = new List<int>(info.UnitRow(from));
-                    foreach (int card_id in snapshot)
-                    {
-                        Card card = db.Get(card_id);
-                        if (card.row != Rows.Agile || card.unique || !info.UnitRow(from).Contains(card_id))
-                            continue;
-
-                        StrengthCalculator.Recalculate(info, weather, double_spies, db);
-                        int before = info.TotalScore();
-                        info.UnitRow(from).Remove(card_id);
-                        info.UnitRow(to).Add(card_id);
-                        StrengthCalculator.Recalculate(info, weather, double_spies, db);
-                        if (info.TotalScore() > before)
-                        {
-                            changed = true;
-                            moves++;
-                        }
-                        else
-                        {
-                            info.UnitRow(to).Remove(card_id);
-                            info.UnitRow(from).Add(card_id);
-                        }
-                    }
+                    Card card = db.Get(card_id);
+                    if (card.row == Rows.Agile && !card.unique)
+                        units.Add(new KeyValuePair<string, int>(row, card_id));
                 }
-                if (!changed)
-                    break;
+
+            int moves = 0;
+            foreach (KeyValuePair<string, int> unit in units)
+            {
+                string from = unit.Key, to = from == Rows.Close ? Rows.Range : Rows.Close;
+                StrengthCalculator.Recalculate(info, weather, double_spies, db);
+                int before = StrengthOf(info, from, unit.Value);
+                info.UnitRow(from).Remove(unit.Value);
+                info.UnitRow(to).Add(unit.Value);
+                StrengthCalculator.Recalculate(info, weather, double_spies, db);
+                if (StrengthOf(info, to, unit.Value) > before)
+                    moves++;
+                else
+                {
+                    info.UnitRow(to).RemoveAt(info.UnitRow(to).Count - 1);
+                    info.UnitRow(from).Add(unit.Value);
+                }
             }
             StrengthCalculator.Recalculate(info, weather, double_spies, db);
             return moves;
+        }
+
+        // A unit's strength on a row (copies of a card on the same row are equally strong)
+        private static int StrengthOf(PlayerState info, string row, int card_id)
+        {
+            int index = info.UnitRow(row).LastIndexOf(card_id);
+            List<int> strengths = info.ModifiedStrengths(row);
+            return index >= 0 && index < strengths.Count ? strengths[index] : 0;
         }
 
         // Row that gives the side the higher total when an agile unit is added

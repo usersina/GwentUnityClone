@@ -22,6 +22,9 @@ namespace Gwent.Rules.Tests
         private const int Nekker = 94;
         private const int Arachas = 1, ArachasBehemoth = 2;
         private const int Darkness = 66;           // Gaunter O'Dimm: Darkness, range 4 muster
+        private const int Olgierd = 95;             // N agile 6 morale boost
+        private const int DolBlathannaArcher = 25, VrihheddRecruit = 137, Toruviel = 122; // SC range 4, 4, 2
+        private const int MahakamanDefender = 87;   // SC close 5
 
         private CardDatabase Db { get { return TestBoard.Db; } }
 
@@ -88,6 +91,33 @@ namespace Gwent.Rules.Tests
             p.CloseList.Add(BarclayEls);
             Assert.AreEqual(0, AbilityRules.OptimizeAgile(p, new List<int>(), false, Db));
             CollectionAssert.AreEqual(new[] { BarclayEls }, p.CloseList);
+        }
+
+        // The Witcher 3 moves a unit when its own strength rises, not the side's total: Olgierd (agile, morale boost)
+        // gains nothing by joining three range units (they gain 3), so he stays, and the leader can't be used
+        [Test]
+        public void OptimizeAgileJudgesEachUnitByItsOwnStrength()
+        {
+            PlayerState p = TestBoard.Player(Factions.Scoiatael, LeaderIds.FrancescaHopeOfTheAenSeidhe);
+            p.CloseList.Add(Olgierd);
+            p.RangeList.AddRange(new[] { DolBlathannaArcher, VrihheddRecruit, Toruviel });
+            Board board = NewBoard(p, TestBoard.Player());
+            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.FrancescaHopeOfTheAenSeidhe, true), "no unit of its own would gain");
+            Assert.AreEqual(0, AbilityRules.OptimizeAgile(p, new List<int>(), false, Db));
+            CollectionAssert.AreEqual(new[] { Olgierd }, p.CloseList);
+        }
+
+        // ... and leaves a frozen close row for his own sake (1 -> 6) even though the six units he boosted lose 6
+        [Test]
+        public void OptimizeAgileMovesAUnitThatGainsEvenIfTheSideLoses()
+        {
+            PlayerState p = TestBoard.Player(Factions.Scoiatael, LeaderIds.FrancescaHopeOfTheAenSeidhe);
+            p.CloseList.Add(Olgierd);
+            for (int i = 0; i < 6; i++)
+                p.CloseList.Add(MahakamanDefender);
+            List<int> weather = new List<int> { CardIds.BitingFrost };
+            Assert.AreEqual(1, AbilityRules.OptimizeAgile(p, weather, false, Db));
+            CollectionAssert.AreEqual(new[] { Olgierd }, p.RangeList);
         }
 
         //----------------------------------------Muster (B10)----------------------------------------//
@@ -290,7 +320,7 @@ namespace Gwent.Rules.Tests
             Assert.IsNull(LeaderRules.Unavailable(board, LeaderIds.FoltestLordCommander, true));
 
             Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.EmhyrEmperorOfNilfgaard, true), "empty opponent hand");
-            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.EredinBringerOfDeath, true), "nothing to discard");
+            Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.EredinDestroyerOfWorlds, true), "nothing to discard");
             Assert.IsNotNull(LeaderRules.Unavailable(board, LeaderIds.FrancescaHopeOfTheAenSeidhe, true), "no agile unit");
         }
 
@@ -306,7 +336,7 @@ namespace Gwent.Rules.Tests
         [Test]
         public void PickAnyWeatherIncludesClearWeather()
         {
-            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinKingOfTheWildHunt);
             p.DeckList.AddRange(new[] { CardIds.ClearWeather, Fiend, CardIds.TorrentialRain, CardIds.TorrentialRain });
             CollectionAssert.AreEquivalent(new[] { CardIds.ClearWeather, CardIds.TorrentialRain }, LeaderRules.WeatherCardsFor(p, "all", Db));
             CollectionAssert.AreEqual(new[] { CardIds.TorrentialRain }, LeaderRules.WeatherCardsFor(p, Rows.Siege, Db));

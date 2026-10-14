@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// Eredin, Bringer of Death: double-click (double-tap on mobile, Enter with the keys) two hand cards to discard them,
+// Eredin, Destroyer of Worlds: double-click (double-tap on mobile, Enter with the keys) two hand cards to discard them,
 // then pick one from the deck
 public class CardDiscard : MonoBehaviour, IPointerClickHandler
 {

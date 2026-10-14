@@ -83,7 +83,7 @@ public partial class SceneController
             pendingAction = PendingAction.None;
     }
 
-    // Discard (Eredin, Bringer of Death: discard 2 then pick 1 from the deck)
+    // Discard (Eredin, Destroyer of Worlds: discard 2 then pick 1 from the deck)
     public void DiscardCard(int card_id, bool is_player_card)
     {
         MainInfo info = Info(is_player_card);
@@ -91,7 +91,7 @@ public partial class SceneController
             return;
 
         GameAudio.PlaySfx("card_discard");
-        info.DiscardList.Add(card_id);
+        AbilityRules.Discard(info, card_id); // a discarded Cow still calls the Bovine Defense Force (The Witcher 3)
         SetHandObject(info.HandList, is_player_card);
         SetDiscardObject(info.DiscardList, is_player_card);
     }
@@ -282,7 +282,7 @@ public partial class SceneController
 
         switch (leader_id)
         {
-            case LeaderIds.EredinBringerOfDeath:
+            case LeaderIds.EredinDestroyerOfWorlds:
                 if (!is_player_turn)
                 {
                     reason = "The AI does not use this ability";
@@ -293,7 +293,7 @@ public partial class SceneController
                 pendingAction = PendingAction.DiscardCards;
                 UIOverlay.Toast((GameInput.IsTouch ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
                 return LeaderOutcome.Pending;
-            case LeaderIds.EredinDestroyerOfWorlds:
+            case LeaderIds.EredinBringerOfDeath:
                 return RestoreToHand("discard_list", info.DiscardList, is_player_turn, out reason);
             case LeaderIds.EmhyrTheRelentless:
                 return RestoreToHand("opp_discard_list", Opponent(is_player_turn).DiscardList, is_player_turn, out reason);

@@ -329,6 +329,10 @@ public partial class SceneController : MonoBehaviour
             yield return null;
         roundOpening = true;
         lastTurnWasPlayer = null;
+        // The Witcher 3: a side that starts a round with no card in hand sits it out, even with its leader unused
+        foreach (bool is_player in new[] { true, false })
+            if (Info(is_player).HandList.Count == 0 && !Info(is_player).hasPassed)
+                MarkPassed(is_player);
         StartTurn(player_starts);
     }
 
@@ -454,10 +458,10 @@ public partial class SceneController : MonoBehaviour
         TurnCallBack(is_player_turn);
     }
 
-    // The Witcher 3: a side with no card in hand and no leader ability left passes automatically
+    // The Witcher 3: a side with no card in hand and no leader ability it could use right now passes automatically
     private bool OutOfPlays(bool is_player)
     {
-        return RoundRules.OutOfPlays(Info(is_player), Db);
+        return RoundRules.OutOfPlays(CurrentBoard(), is_player);
     }
 
     private void MarkPassed(bool is_player)

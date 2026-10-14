@@ -16,7 +16,7 @@ namespace Gwent.Rules.Tests
         {
             Faction = Factions.Monsters,
             Name = "Monsters Slay",
-            Leader = LeaderIds.EredinCommanderOfTheRedRiders,
+            Leader = LeaderIds.EredinKingOfTheWildHunt,
             Cards = new List<int> { 67, 14, 77, 83, 85, 27, 125, 126, 127, 128, 129, 1, 1, 1, 2, 18, 19, 20, 47, 30, 22, 135, 92, 94, 94, 94, 201, 202, 204 }
         };
 
@@ -132,7 +132,7 @@ namespace Gwent.Rules.Tests
                         Assert.IsTrue(me.DeckList.Remove(action.CardId), "weather leader card not in deck: " + context);
                         PlayRules.Resolve(board, Db.Get(action.CardId), Rows.Weather, is_player, false);
                     }
-                    else if (me.Leader == LeaderIds.EredinDestroyerOfWorlds || me.Leader == LeaderIds.EmhyrTheRelentless)
+                    else if (me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
                     {
                         // A unit from a discard pile to the hand (SceneController.RestoreToHand, the AI's choice)
                         List<int> pile = me.Leader == LeaderIds.EmhyrTheRelentless ? board.Side(!is_player).DiscardList : me.DiscardList;

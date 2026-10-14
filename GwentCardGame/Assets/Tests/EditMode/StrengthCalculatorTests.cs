@@ -88,8 +88,8 @@ namespace Gwent.Rules.Tests
         [Test]
         public void ALeaderHornIsTheRowsOneHorn()
         {
-            // Eredin, King of the Wild Hunt: doubles the close row like a horn, never on top of one, never a hero
-            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinKingOfTheWildHunt);
+            // Eredin, Commander of the Red Riders: doubles the close row like a horn, never on top of one, never a hero
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
             p.CloseList.AddRange(new[] { Fiend, CardIds.Dandelion, Geralt });
             Assert.IsTrue(AbilityRules.PlaceLeaderHorn(p, Rows.Close));
             TestBoard.Recalc(null, p);

@@ -75,8 +75,9 @@ namespace Gwent.Rules
                 return AiAction.Pass();
 
             int advantage = ctx.Me.TotalScore() - ctx.Opponent.TotalScore();
-            // Done: passed, or nothing left to play (an empty hand with a leader to use is not done)
-            bool opponent_done = ctx.Opponent.hasPassed || RoundRules.OutOfPlays(ctx.Opponent, ctx.Db);
+            // Done: passed, or nothing left to play (an empty hand with a leader it can use is not done)
+            Board seen_from_opponent = new Board { Player = ctx.Opponent, Enemy = ctx.Me, Weather = ctx.Weather, DoubleSpies = ctx.DoubleSpies, RandomMedic = ctx.RandomMedic, Db = ctx.Db };
+            bool opponent_done = ctx.Opponent.hasPassed || RoundRules.OutOfPlays(seen_from_opponent, true);
             // Nilfgaard wins a tied round (unless both sides are Nilfgaard)
             int needed = ctx.Me.Faction == Factions.Nilfgaard && ctx.Opponent.Faction != Factions.Nilfgaard ? 0 : 1;
 
@@ -316,7 +317,7 @@ namespace Gwent.Rules
                 gain = Simulate(ctx, (m, o, w) => AbilityRules.ClearWeather(m, o, w));
             else if (leader == LeaderIds.FrancescaHopeOfTheAenSeidhe)
                 gain = Simulate(ctx, (m, o, w) => AbilityRules.OptimizeAgile(m, w, ctx.DoubleSpies, ctx.Db));
-            else if (leader == LeaderIds.EredinDestroyerOfWorlds || leader == LeaderIds.EmhyrTheRelentless)
+            else if (leader == LeaderIds.EredinBringerOfDeath || leader == LeaderIds.EmhyrTheRelentless)
             {
                 // A unit from a discard pile to the hand: worth a card, more for a strong one or a spy
                 List<int> pile = leader == LeaderIds.EmhyrTheRelentless ? ctx.Opponent.DiscardList : me.DiscardList;

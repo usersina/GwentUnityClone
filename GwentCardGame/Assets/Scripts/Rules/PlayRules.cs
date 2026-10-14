@@ -179,9 +179,9 @@ namespace Gwent.Rules
                     return opp.HandList.Count > 0 ? null : "Your opponent has no cards in hand";
                 case LeaderIds.EmhyrTheRelentless:
                     return AbilityRules.MedicCandidates(opp.DiscardList, board.Db).Count > 0 ? null : "No unit in your opponent's discard pile";
-                case LeaderIds.EredinBringerOfDeath: // discard 2, draw 1 of your choice
+                case LeaderIds.EredinDestroyerOfWorlds: // discard 2, draw 1 of your choice
                     return me.HandList.Count >= 2 && me.DeckList.Count > 0 ? null : "You need 2 cards in your hand and 1 in your deck";
-                case LeaderIds.EredinDestroyerOfWorlds: // restore a unit from your discard pile to your hand
+                case LeaderIds.EredinBringerOfDeath: // restore a unit from your discard pile to your hand
                     return AbilityRules.MedicCandidates(me.DiscardList, board.Db).Count > 0 ? null : "No unit in your discard pile to restore";
             }
             return "This leader ability is passive";

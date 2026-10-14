@@ -155,7 +155,7 @@ public class BattleKeys : MonoBehaviour
         }
         if (focused == null || !HandCards(battle).Contains(focused))
             return;
-        // Eredin, Bringer of Death: Enter discards the card, as a double-click does
+        // Eredin, Destroyer of Worlds: Enter discards the card, as a double-click does
         if (battle.PlayerInfo.CanDiscard)
             focused.GetComponent<CardDiscard>().Discard();
         else
