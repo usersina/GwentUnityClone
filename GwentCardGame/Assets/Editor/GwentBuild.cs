@@ -12,8 +12,9 @@ using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 // Release builds for every platform this editor has the build support of, ready to hand out:
-// Builds/<version>/ holds GwentLegacy-<version>-linux.tar.gz, -windows.zip, -macos.zip, .apk and -web.zip, with
-// build-report.txt. Menu Gwent > Build, or from the command line (the editor closed):
+// Builds/<version>/ holds GwentLegacy-Linux.tar.gz, -Windows.zip, -macOS.zip, -Android.apk and -Web.zip, with
+// build-report.txt (the names carry no version: the GitHub release keeps the same download links from one version to
+// the next). Menu Gwent > Build, or from the command line (the editor closed):
 //   Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBatch
 // The run starts at once, the editor focused or not (in the background it may not update for a long time), and goes
 // through every platform in one go: script reloads (a platform switch asks for one) wait until it is over. The current
@@ -21,8 +22,10 @@ using Debug = UnityEngine.Debug;
 // are also kept in SessionState, should a reload come anyway: the run then picks up again after it.
 //
 // Android: signed with a release key when GWENT_KEYSTORE (the .keystore file), GWENT_KEYSTORE_PASS, GWENT_KEY_ALIAS and
-// GWENT_KEY_PASS are set in the environment (the passwords never go into the project); otherwise with Unity's debug
-// key, which only installs over a build signed on the same machine.
+// GWENT_KEY_PASS are set in the environment, or GameCI's -androidKeystoreName (relative to the project),
+// -androidKeystorePass, -androidKeyaliasName and -androidKeyaliasPass are on the command line; the project's settings
+// are put back afterwards (no keystore path or password stays in it). Otherwise with Unity's debug key, which only
+// installs over a build signed on the same machine.
 public static class GwentBuild
 {
     private const string QueueKey = "GwentBuild.Queue";
@@ -36,17 +39,18 @@ public static class GwentBuild
         public string Name;
         public BuildTarget Build;
         public BuildTargetGroup Group;
+        public string Label;        // in the archive's name
         public string Folder;       // under Builds/<version>/
         public string Player;       // the file BuildPlayer writes, in that folder
     }
 
     private static readonly Target[] Targets =
     {
-        new Target { Name = "linux", Build = BuildTarget.StandaloneLinux64, Group = BuildTargetGroup.Standalone, Folder = "linux", Player = ProductFile + ".x86_64" },
-        new Target { Name = "windows", Build = BuildTarget.StandaloneWindows64, Group = BuildTargetGroup.Standalone, Folder = "windows", Player = ProductFile + ".exe" },
-        new Target { Name = "macos", Build = BuildTarget.StandaloneOSX, Group = BuildTargetGroup.Standalone, Folder = "macos", Player = ProductFile + ".app" },
-        new Target { Name = "android", Build = BuildTarget.Android, Group = BuildTargetGroup.Android, Folder = "android", Player = ProductFile + ".apk" },
-        new Target { Name = "web", Build = BuildTarget.WebGL, Group = BuildTargetGroup.WebGL, Folder = "web", Player = "" },
+        new Target { Name = "linux", Label = "Linux", Build = BuildTarget.StandaloneLinux64, Group = BuildTargetGroup.Standalone, Folder = "linux", Player = ProductFile + ".x86_64" },
+        new Target { Name = "windows", Label = "Windows", Build = BuildTarget.StandaloneWindows64, Group = BuildTargetGroup.Standalone, Folder = "windows", Player = ProductFile + ".exe" },
+        new Target { Name = "macos", Label = "macOS", Build = BuildTarget.StandaloneOSX, Group = BuildTargetGroup.Standalone, Folder = "macos", Player = ProductFile + ".app" },
+        new Target { Name = "android", Label = "Android", Build = BuildTarget.Android, Group = BuildTargetGroup.Android, Folder = "android", Player = ProductFile + ".apk" },
+        new Target { Name = "web", Label = "Web", Build = BuildTarget.WebGL, Group = BuildTargetGroup.WebGL, Folder = "web", Player = "" },
     };
 
     private static string Version { get { return PlayerSettings.bundleVersion; } }
@@ -152,14 +156,23 @@ public static class GwentBuild
             options = BuildOptions.None,
         };
         Stopwatch watch = Stopwatch.StartNew();
-        BuildReport report = BuildPipeline.BuildPlayer(options);
+        BuildReport report;
+        string signing = Signing(target);
+        try
+        {
+            report = BuildPipeline.BuildPlayer(options);
+        }
+        finally
+        {
+            Restore(target);
+        }
         BuildSummary summary = report.summary;
         string line = target.Name + ": " + summary.result + " in " + watch.Elapsed.TotalMinutes.ToString("F1") + " min, " + summary.totalErrors + " errors, " + summary.totalWarnings + " warnings";
         if (summary.result != BuildResult.Succeeded)
             return line;
 
         string archive = Package(target, folder);
-        return line + "\n  " + Path.GetFileName(archive) + " (" + (new FileInfo(archive).Length / 1048576.0).ToString("F1") + " MB)" + Signing(target);
+        return line + "\n  " + Path.GetFileName(archive) + " (" + (new FileInfo(archive).Length / 1048576.0).ToString("F1") + " MB)" + signing;
     }
 
     // The settings each platform's build depends on, applied every time (some are this machine's editor settings)
@@ -172,17 +185,57 @@ public static class GwentBuild
                 break;
             case BuildTarget.Android:
                 EditorUserBuildSettings.buildAppBundle = false; // an .apk, to install directly
-                string keystore = Environment.GetEnvironmentVariable("GWENT_KEYSTORE");
+                // A release installs over the one before only with a version code at least as high (the release
+                // workflow passes the number of commits on main)
+                savedVersionCode = PlayerSettings.Android.bundleVersionCode;
+                int version_code;
+                if (int.TryParse(Argument("-androidVersionCode"), out version_code) && version_code > 0)
+                    PlayerSettings.Android.bundleVersionCode = version_code;
+                string keystore = Argument("-androidKeystoreName");
+                if (!string.IsNullOrEmpty(keystore))
+                    keystore = Path.GetFullPath(Path.Combine(Application.dataPath, "..", keystore));
+                else
+                    keystore = Environment.GetEnvironmentVariable("GWENT_KEYSTORE");
                 PlayerSettings.Android.useCustomKeystore = !string.IsNullOrEmpty(keystore) && File.Exists(keystore);
                 if (PlayerSettings.Android.useCustomKeystore)
                 {
                     PlayerSettings.Android.keystoreName = keystore;
-                    PlayerSettings.Android.keystorePass = Environment.GetEnvironmentVariable("GWENT_KEYSTORE_PASS");
-                    PlayerSettings.Android.keyaliasName = Environment.GetEnvironmentVariable("GWENT_KEY_ALIAS");
-                    PlayerSettings.Android.keyaliasPass = Environment.GetEnvironmentVariable("GWENT_KEY_PASS");
+                    PlayerSettings.Android.keystorePass = Argument("-androidKeystorePass") ?? Environment.GetEnvironmentVariable("GWENT_KEYSTORE_PASS");
+                    PlayerSettings.Android.keyaliasName = Argument("-androidKeyaliasName") ?? Environment.GetEnvironmentVariable("GWENT_KEY_ALIAS");
+                    PlayerSettings.Android.keyaliasPass = Argument("-androidKeyaliasPass") ?? Environment.GetEnvironmentVariable("GWENT_KEY_PASS");
                 }
                 break;
         }
+    }
+
+    // The project's settings as they were: the keystore path and the version code are saved in ProjectSettings (the
+    // passwords never are)
+    private static int savedVersionCode;
+
+    private static void Restore(Target target)
+    {
+        if (target.Build != BuildTarget.Android)
+            return;
+        PlayerSettings.Android.bundleVersionCode = savedVersionCode;
+        if (!PlayerSettings.Android.useCustomKeystore)
+        {
+            AssetDatabase.SaveAssets();
+            return;
+        }
+        PlayerSettings.Android.useCustomKeystore = false;
+        PlayerSettings.Android.keystoreName = "";
+        PlayerSettings.Android.keystorePass = "";
+        PlayerSettings.Android.keyaliasName = "";
+        PlayerSettings.Android.keyaliasPass = "";
+        AssetDatabase.SaveAssets();
+    }
+
+    // A "-name value" argument of the command line, null when absent
+    private static string Argument(string name)
+    {
+        string[] args = Environment.GetCommandLineArgs();
+        int index = Array.IndexOf(args, name);
+        return index >= 0 && index + 1 < args.Length && !string.IsNullOrEmpty(args[index + 1]) ? args[index + 1] : null;
     }
 
     private static string Signing(Target target)
@@ -195,7 +248,7 @@ public static class GwentBuild
     //----------------------------------------Archives----------------------------------------//
     private static string Package(Target target, string folder)
     {
-        string name = ProductFile + "-" + Version + "-" + target.Name;
+        string name = ProductFile + "-" + target.Label;
         switch (target.Build)
         {
             case BuildTarget.Android:
@@ -213,10 +266,19 @@ public static class GwentBuild
             }
             case BuildTarget.StandaloneOSX:
             {
-                // zip -y keeps the app's executable permission and symbolic links
+                // zip -y keeps the app's executable permission and symbolic links; without zip (a bare build machine),
+                // tar keeps them too (and macOS opens a .tar.gz on a double click)
                 string archive = Path.Combine(Root, name + ".zip");
                 File.Delete(archive);
-                Run("zip", "-qry \"" + archive + "\" " + target.Player, folder);
+                try
+                {
+                    Run("zip", "-qry \"" + archive + "\" " + target.Player, folder);
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    archive = Path.Combine(Root, name + ".tar.gz");
+                    Run("tar", "-czf \"" + archive + "\" " + target.Player, folder);
+                }
                 return archive;
             }
             default:
