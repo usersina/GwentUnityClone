@@ -54,5 +54,17 @@ public class DeckManager : MonoBehaviour
             if (image.sprite != my_sprite)
                 image.sprite = my_sprite;
         }
+        PlaceCount();
+    }
+
+    // The count on the deck itself, along the bottom of its top card (The Witcher 3), not under it: the card on the
+    // right of the board sits just below the opponent's deck
+    private void PlaceCount()
+    {
+        Transform count = deckCount.transform.parent;
+        Transform top = deckBase.childCount > 0 ? deckBase.GetChild(deckBase.childCount - 1) : transform.Find("DeckHolder");
+        float bottom = -((RectTransform)top).rect.height / 2 + 24;
+        foreach (Transform part in count)
+            part.position = top.TransformPoint(new Vector3(0, bottom, 0));
     }
 }
