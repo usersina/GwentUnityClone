@@ -33,7 +33,8 @@ public static class UISpriteGenerator
         Write("Ring", 64, 64, (x, y) => Mathf.Abs(Circle(x, y, 32, 32, 28.5f)) - 2.5f, Vector4.zero);
         Write("Diamond", 24, 24, (x, y) => (Mathf.Abs(x - 12) + Mathf.Abs(y - 12) - 11) * 0.7071f, Vector4.zero);
 
-        // Gradients (white, tinted by the Image color): horizontal fades out to the right, vertical fades out to the top
+        // Gradients (white, tinted by the Image color): horizontal fades out to the right, vertical is opaque at the top
+        // and fades out downwards
         WriteAlpha("GradientH", 256, 4, (u, v) => Smooth(1 - u));
         WriteAlpha("GradientV", 4, 256, (u, v) => Smooth(1 - v));
         WriteAlpha("Radial", 128, 128, (u, v) => Smooth(Mathf.Clamp01(1 - Vector2.Distance(new Vector2(u, v), new Vector2(0.5f, 0.5f)) * 2)));
@@ -138,6 +139,13 @@ public static class UISpriteGenerator
         WriteColor("AbilityButtonReady", 192, 192, AbilityButtonReady);
         WriteColorSliced("CardSlot", 96, 96, CardSlot, new Vector4(24, 24, 24, 24));
         WriteAlpha("SoftShadow", 64, 64, (u, v) => 1 - Smooth((RoundedBox(u * 64, v * 64, 64, 64, 14, 16) + 10) / 22), new Vector4(32, 32, 32, 32), BoardFolder);
+        // A glow around a rectangle, clear inside: brightest on the edge of what it frames, fading out over 28 px.
+        // Nine-sliced, drawn 32 px larger on every side than its target, so it lights the edge and never veils the art.
+        WriteAlpha("GlowRing", 96, 96, (u, v) =>
+        {
+            float d = RoundedBox(u * 96, v * 96, 96, 96, 3, 32);
+            return d >= 0 ? Mathf.Pow(1 - Mathf.Clamp01(d / 28), 2) : 1 - Smooth(-d / 3);
+        }, new Vector4(32, 32, 32, 32), BoardFolder);
 
         foreach (string row in new[] { "close_combat", "range_combat", "siege_combat" })
         {
@@ -643,6 +651,7 @@ public static class UISpriteGenerator
         theme.iconTrash = sprite("IconTrash");
         theme.iconEdit = sprite("IconEdit");
         theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
+        theme.glowRing = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GlowRing.png");
         theme.leaderReady = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/AbilityButtonReady.png");
         theme.cursorDefault = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorDefault.png");
         theme.cursorInteract = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInteract.png");

@@ -67,7 +67,8 @@ public static class UIKit
             bar.anchorMax = maxs[i];
             bar.pivot = new Vector2(mins[i].x == maxs[i].x ? mins[i].x : 0.5f, mins[i].y == maxs[i].y ? mins[i].y : 0.5f);
             bar.anchoredPosition = Vector2.zero;
-            bar.sizeDelta = i < 2 ? new Vector2(thickness, 0) : new Vector2(0, thickness);
+            // The top and bottom stop at the sides: no corner is drawn twice (it would show brighter when faded)
+            bar.sizeDelta = i < 2 ? new Vector2(thickness, 0) : new Vector2(-2 * thickness, thickness);
         }
         return frame;
     }

@@ -91,7 +91,7 @@ public class CardHover : MonoBehaviour
         isCardUp = false;
     }
 
-    // A raised hand card has a thin gold edge and the light rising across it, as in The Witcher 3
+    // A raised hand card has a thin gold edge in a warm halo and the light rising across it, as in The Witcher 3
     private const string FocusEdge = "FocusEdge";
     private const string FocusShine = "FocusShine";
     private const string FocusGlow = "FocusGlow";
@@ -102,10 +102,10 @@ public class CardHover : MonoBehaviour
         if (on && edge == null)
         {
             CardShine.Attach((RectTransform)transform, FocusShine, 1f, 3.2f);
-            UIKit.Frame(transform, FocusEdge, UITheme.Current.goldBright, 3, 2); // square, as the card is
-            // A faint glow around it: behind the art (after the card's shadow), so only its fringe shows
-            Image glow = UIKit.NewImage(transform, FocusGlow, UITheme.Current.softShadow, new Color(1f, 0.78f, 0.3f, 0.6f));
-            glow.rectTransform.Stretch(-12, -12, -12, -12);
+            UIKit.Frame(transform, FocusEdge, UITheme.Current.goldBright, 2, 1); // square, as the card is
+            // A warm halo around it: behind the art (after the card's shadow), so only its fringe shows
+            Image glow = UIKit.NewImage(transform, FocusGlow, UITheme.Current.softShadow, new Color(1f, 0.72f, 0.25f, 0.85f));
+            glow.rectTransform.Stretch(-18, -18, -18, -18);
             glow.transform.SetSiblingIndex(Mathf.Min(1, transform.childCount - 1));
         }
         else if (!on && edge != null)

@@ -649,10 +649,9 @@ public class BoardView
                 bool target = on && !stats.unique && stats.faction != Factions.Special;
                 if (target && frame == null)
                 {
-                    Image image = UIKit.NewImage(card, DecoyFrame, UITheme.Current.panelOutline, UITheme.Current.goldBright);
-                    image.raycastTarget = false;
-                    image.rectTransform.Stretch(-4, -4, -4, -4);
-                    image.gameObject.AddComponent<UIPulse>();
+                    // Square, as the card is, and pulsing like the leader's targets
+                    foreach (Image side in UIKit.Frame(card, DecoyFrame, UITheme.Current.goldBright, 3, 3).GetComponentsInChildren<Image>())
+                        side.gameObject.AddComponent<UIPulse>();
                 }
                 else if (!target && frame != null)
                 {

@@ -30,10 +30,11 @@ public class StatsManager : MonoBehaviour
     private float edgeHeight;
     private int shownTurnState = -1;
 
-    private const float TurnEdgeHeight = 3;
-    private const float TurnGlowHeight = 12;
-    private static readonly Color TurnEdgeGold = new Color(1f, 0.8f, 0.42f);
-    private static readonly Color TurnGlowGold = new Color(1f, 0.6f, 0.16f, 0.75f);
+    // The Witcher 3's tones: a thin amber line, a soft orange glow
+    private const float TurnEdgeHeight = 2;
+    private const float TurnGlowHeight = 14;
+    private static readonly Color TurnEdgeGold = new Color(0.98f, 0.74f, 0.4f);
+    private static readonly Color TurnGlowGold = new Color(1f, 0.52f, 0.12f, 0.6f);
     private static readonly Color PassedGrey = new Color(0.55f, 0.55f, 0.55f);
 
     // Looked up once instead of on every board refresh
@@ -145,7 +146,8 @@ public class StatsManager : MonoBehaviour
         edgeSprite = edges[0].sprite;
         edgeColor = edges[0].color;
         edgeHeight = edges[0].rectTransform.sizeDelta.y;
-        // The glow spreads out of the band, up from the top line and down from the bottom one, under the lines
+        // The glow spreads out of the band from each line, brightest at the line, under the lines (GradientV is
+        // opaque at its top: the bottom glow hangs from its line, the top one is turned over to rise from its line)
         edgeGlows = new Image[edges.Length];
         for (int i = 0; i < edges.Length; i++)
         {
@@ -154,11 +156,11 @@ public class StatsManager : MonoBehaviour
             float edge_y = i == 0 ? 1 : 0;
             rect.anchorMin = new Vector2(0, edge_y);
             rect.anchorMax = new Vector2(1, edge_y);
-            rect.pivot = new Vector2(0.5f, 0);
+            rect.pivot = new Vector2(0.5f, 1);
             rect.sizeDelta = new Vector2(0, TurnGlowHeight);
             rect.anchoredPosition = Vector2.zero;
-            if (i == 1)
-                rect.localEulerAngles = new Vector3(0, 0, 180); // fades out downwards
+            if (i == 0)
+                rect.localEulerAngles = new Vector3(0, 0, 180);
             glow.transform.SetAsFirstSibling();
             glow.enabled = false;
             edgeGlows[i] = glow;

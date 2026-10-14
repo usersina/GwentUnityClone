@@ -39,18 +39,17 @@ public static class CardEffects
         }
     }
 
-    // A soft white light around a card that just landed
+    // A soft white light around a card that just landed (around it: its art stays clear)
     public static IEnumerator Sparkle(GameObject card)
     {
         if (card == null)
             yield break;
-        Rect rect = CardMotion.ScreenRect((RectTransform)card.transform);
-        Image glow = Overlay("Sparkle", UITheme.Current.softShadow, Color.white, Grow(rect, 1.25f));
+        Image glow = Halo("Sparkle", new Color(1f, 0.95f, 0.8f, 0), CardMotion.ScreenRect((RectTransform)card.transform));
         yield return Animate(SparkleSeconds, t =>
         {
             float a = t < 0.3f ? t / 0.3f : 1 - (t - 0.3f) / 0.7f;
-            glow.color = new Color(1, 1, 1, 0.6f * a);
-            glow.rectTransform.localScale = Vector3.one * Mathf.Lerp(0.95f, 1.08f, t);
+            glow.color = new Color(1f, 0.95f, 0.8f, 0.9f * a);
+            glow.rectTransform.localScale = Vector3.one * Mathf.Lerp(0.98f, 1.04f, t);
         });
         Object.Destroy(glow.gameObject);
     }
@@ -261,15 +260,15 @@ public static class CardEffects
         return edge;
     }
 
-    // A horn's warm golden glow along its row
+    // A horn's warm golden glow around its row (the cards in it stay clear)
     public static IEnumerator RowGlow(RectTransform row)
     {
         if (row == null)
             yield break;
-        Image glow = Overlay("HornGlow", UITheme.Current.softShadow, new Color(1f, 0.78f, 0.35f, 0), Grow(CardMotion.ScreenRect(row), 1.04f));
+        Image glow = Halo("HornGlow", new Color(1f, 0.72f, 0.28f, 0), CardMotion.ScreenRect(row));
         yield return Animate(GlowSeconds, t =>
         {
-            glow.color = new Color(1f, 0.78f, 0.35f, 0.55f * Mathf.Sin(t * Mathf.PI));
+            glow.color = new Color(1f, 0.72f, 0.28f, 0.9f * Mathf.Sin(t * Mathf.PI));
         });
         Object.Destroy(glow.gameObject);
     }
@@ -455,6 +454,16 @@ public static class CardEffects
         Image image = UIKit.NewImage(CardMotion.Layer, name, sprite, color);
         image.raycastTarget = false;
         CardMotion.Place(image.rectTransform, screen_rect);
+        return image;
+    }
+
+    // A glow around a screen rectangle on the effects layer: the ring's clear middle covers the rectangle
+    private const float HaloReach = 32; // the GlowRing sprite's slice border
+
+    private static Image Halo(string name, Color color, Rect screen_rect)
+    {
+        Image image = Overlay(name, UITheme.Current.glowRing, color, screen_rect);
+        image.rectTransform.sizeDelta += Vector2.one * 2 * HaloReach;
         return image;
     }
 

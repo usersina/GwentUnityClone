@@ -91,11 +91,22 @@ public class BattleBanner : MonoBehaviour
         root.anchoredPosition = Vector2.zero;
         root.sizeDelta = new Vector2(0, BandHeight);
 
-        // A translucent band, a little darker through its middle
+        // A translucent band, a little darker through its middle: two halves of GradientV (opaque at its top), the
+        // upper one turned over, darkest where they meet
         Image band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.5f));
         band.rectTransform.Stretch();
-        Image core = UIKit.NewImage(root, "Core", theme.gradientV, new Color(0, 0, 0, 0.25f));
-        core.rectTransform.Stretch(0, 0, 18, 18);
+        for (int half = 0; half < 2; half++)
+        {
+            Image core = UIKit.NewImage(root, "Core", theme.gradientV, new Color(0, 0, 0, 0.25f));
+            RectTransform rect = core.rectTransform;
+            rect.anchorMin = new Vector2(0, 0.5f);
+            rect.anchorMax = new Vector2(1, 0.5f);
+            rect.pivot = new Vector2(0.5f, 1);
+            rect.sizeDelta = new Vector2(0, BandHeight / 2 - 18);
+            rect.anchoredPosition = Vector2.zero;
+            if (half == 0)
+                rect.localEulerAngles = new Vector3(0, 0, 180);
+        }
 
         BattleBanner banner = root.gameObject.AddComponent<BattleBanner>();
         banner.emblem = UIKit.NewImage(root, "Emblem", null, Color.white);
