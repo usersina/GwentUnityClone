@@ -1,39 +1,34 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Gwent.Rules;
 
 public class CCardManager : MonoBehaviour, IPointerClickHandler
 {
     public List<Sprite> normalPatch;
     public List<Sprite> uniquePatch;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
-    [HideInInspector]
-    public GameObject deckControllerGO;
     [HideInInspector]
     public DeckController deckController;
 
-    [HideInInspector]
-    public GameObject deckCollectionGO;
+    // The "Cards in Deck" collection (the one tagged Player)
     [HideInInspector]
     public CollectionManager deckCollection;
 
     private void Start()
     {
-        deckControllerGO = GameObject.Find("DeckController");
-        deckController = deckControllerGO.GetComponent<DeckController>();
-
-        deckCollectionGO = GameObject.Find("DeckCollection");
-        deckCollection = deckCollectionGO.GetComponent<CollectionManager>();
+        deckController = DeckController.Instance;
+        deckCollection = deckController.deckCollection;
 
         UpdateCardGUI();
+        // Touch controls have no right click: a finger held on the card shows it large until it lifts
+        LongPress.On(gameObject, () => { ShowBigCard(); return true; }, () => Details().SetActive(false));
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -47,19 +42,14 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (UseSingleTapActions() || (lastClick + interval) > Time.time)
+            if (UseSingleTapActions() || doubleClick.Register())
                 EditDeckWithThisCard();
-            else
-            {
-                //Debug.Log("Single Click :)");
-            }
-            lastClick = Time.time;
         }
     }
 
     private bool UseSingleTapActions()
     {
-        return Application.isMobilePlatform;
+        return GameInput.IsTouch;
     }
 
     private void EditDeckWithThisCard()
@@ -69,7 +59,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         {
             // Remove card from deck
             GameAudio.PlaySfx("deck_remove");
-            Debug.Log("Removing card from deck: " + deckController.my_deck.Name);
+            GameLog.Info("Removing card from deck: " + deckController.my_deck.Name);
             deckController.my_deck.Cards.Remove(cardStats._id);
             deckCollection.OnDeckEdit();
         }
@@ -81,28 +71,29 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
     private void AddCardToSelectedDeck(CardStats cardStats)
     {
-        if (deckController.my_deck.Name == "__emptyname__")
+        if (deckController.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("No selected deck to add card to !");
+            UIOverlay.Toast("Create a deck first: type a name and press +");
             return;
         }
 
         int occurences = deckController.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
 
-        // Hero Card
-        if (cardStats.unique && occurences > 0)
+        // Only the deck's faction, neutral and special cards
+        Gwent.Rules.Card card = deckController.Db.Get(cardStats._id);
+        if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckController.my_deck.Faction)
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("Cannot add hero card to deck, already contains: " + occurences);
+            UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
             return;
         }
 
-        // Normal Unit or Special Card
-        if (!cardStats.unique && occurences >= 3)
+        // The copies of the card that exist in The Witcher 3 (one of a hero)
+        if (occurences >= Gwent.Rules.DeckRules.MaxCopies(card))
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("Cannot add card to deck, already contains: " + occurences);
+            UIOverlay.Toast(Gwent.Rules.DeckRules.TooManyCopies(card));
             return;
         }
 
@@ -110,10 +101,10 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         if (cardStats.faction == "Special")
         {
             int specialsOcc = deckController.GetSpecialsOccurence(deckController.my_deck);
-            if (specialsOcc >= 10)
+            if (specialsOcc >= Gwent.Rules.DeckRules.MaxSpecials)
             {
                 GameAudio.PlaySfx("invalid");
-                Debug.Log("Cannot add special card to deck, deck already contains " + specialsOcc + " specials.");
+                UIOverlay.Toast("A deck can hold at most " + Gwent.Rules.DeckRules.MaxSpecials + " special cards");
                 return;
             }
         }
@@ -127,81 +118,40 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
     //------------------------------------------------------Functions---------------------------------------------------//
     private void UpdateCardGUI()
     {
-        string myText = Regex.Replace(GetComponent<CardStats>().name, @"[\d-]", string.Empty).Trim();
-        transform.Find("Name").GetComponent<TextMeshProUGUI>().text = myText;
-        if (GetComponent<CardStats>().faction == "N" || GetComponent<CardStats>().faction == "Special")
+        CardStats stats = GetComponent<CardStats>();
+        TextMeshProUGUI name_text = transform.Find("Name").GetComponent<TextMeshProUGUI>();
+        Image patch = transform.Find("Patch").GetComponent<Image>();
+        name_text.text = Card.DisplayNameOf(stats.name);
+
+        // Neutral and special cards have no faction banner: their name is centered on a wider patch
+        bool bannerless = stats.faction == Factions.Neutral || stats.faction == Factions.Special;
+        if (bannerless)
         {
-            float y = transform.Find("Name").GetComponent<RectTransform>().localPosition.y;
-            transform.Find("Name").GetComponent<RectTransform>().localPosition = new Vector2(0, y);
-            if (GetComponent<CardStats>().unique)
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = uniquePatch[1];
-            }
-            else
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = normalPatch[1];
-            }
+            RectTransform name_rect = name_text.rectTransform;
+            name_rect.localPosition = new Vector2(0, name_rect.localPosition.y);
         }
-        else
-        {
-            if (GetComponent<CardStats>().unique)
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = uniquePatch[0];
-            }
-            else
-            {
-                transform.Find("Patch").GetComponent<Image>().sprite = normalPatch[0];
-            }
-        }
+        int variant = bannerless ? 1 : 0;
+        patch.sprite = stats.unique ? uniquePatch[variant] : normalPatch[variant];
+    }
+
+    private GameObject Details()
+    {
+        return transform.parent.parent.parent.GetComponent<CollectionManager>().cardDetails;
     }
 
     private void ShowBigCard()
     {
-        GameObject cardDetails = transform.parent.parent.parent.GetComponent<CollectionManager>().cardDetails;
+        GameObject cardDetails = Details();
         CardStats cardStats = GetComponent<CardStats>();
 
         cardDetails.SetActive(true);
-        cardDetails.transform.Find("BigImage")
-            .GetComponent<Image>()
-            .sprite = Resources.Load<Sprite>("Cards/List/591x380/" + cardStats._id);
-
-        if (cardStats.faction == "Special")
-        {// Special Card
-            cardDetails.transform.Find("BigEffect")
-                .GetComponent<Image>()
-                .sprite = Resources.Load<Sprite>("Cards/EffectBox/" + cardStats._idstr);
-        }
-        else
-        {// Unit Card or Leader
-            if (cardStats.ability == "leader") // Leader Card
-                cardDetails.transform.Find("BigEffect")
-                    .GetComponent<Image>()
-                    .sprite = Resources.Load<Sprite>("Cards/EffectBox/Leader/" + cardStats._id);
-            else // Unit Card
-            {
-                if (cardStats.unique)
-                {
-                    cardDetails.transform.Find("BigEffect")
-                        .GetComponent<Image>()
-                        .sprite = Resources.Load<Sprite>("Cards/EffectBox/hero");
-                }
-
-                if (cardStats.ability != "")
-                    cardDetails.transform.Find("BigEffect")
-                        .GetComponent<Image>()
-                        .sprite = Resources.Load<Sprite>("Cards/EffectBox/" + cardStats.ability);
-                else if (!cardStats.unique)
-                    // No ability (normal unit)
-                    if (cardStats.row == "close_range")
-                        cardDetails.transform.Find("BigEffect")
-                            .GetComponent<Image>()
-                            .sprite = Resources.Load<Sprite>("Cards/EffectBox/agile");
-                    else
-                        cardDetails.transform.Find("BigEffect")
-                            .GetComponent<Image>()
-                            .sprite = Resources.Load<Sprite>("Cards/EffectBox/normal_unit");
-            }
-        }
+        cardDetails.transform.Find("BigImage").GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
+        // A plain unit has no description
+        string description = CardHover.EffectBoxPath(cardStats);
+        GameObject effect = cardDetails.transform.Find("BigEffect").gameObject;
+        effect.SetActive(description != null);
+        if (description != null)
+            effect.GetComponent<Image>().sprite = SpriteCache.Load(description);
     }
 
 }

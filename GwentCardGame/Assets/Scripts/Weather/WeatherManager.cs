@@ -6,8 +6,6 @@ using UnityEngine.EventSystems;
 public class WeatherManager : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
 
     public Sprite weather;
@@ -17,8 +15,7 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
 
     private void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -31,21 +28,24 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
 
     public void OnWeatherClick()
     {
+        if (controller == null)
+            controller = SceneController.Instance;
         if (controller.battleState == BattleState.PLAYERTURN)
         {
-            if (controller.selectedCard != null && isWeatherCard && controller.TryPlaySelectedCardOnBoard())
+            // The chosen leader: a weather leader is used here
+            if (controller.LeaderSelected)
             {
-                Debug.Log("Player placing weather card !");
+                if (!controller.TryUseLeaderOn(gameObject))
+                    GameAudio.PlaySfx("invalid");
+                return;
             }
+            if (controller.selectedCard == null)
+                return;
+            if (isWeatherCard && controller.TryPlaySelectedCardOnBoard())
+                GameLog.Info("Player placing weather card !");
+            else
+                GameAudio.PlaySfx("invalid"); // only weather and scorch go on the weather board
         }
     }
 
-    public void ClearWeatherObject()
-    {
-        for (int i=0; i< gameObject.transform.childCount; i++)
-        {
-            Destroy(gameObject.transform.GetChild(i).gameObject);
-        }
-        gameObject.transform.DetachChildren();
-    }
 }

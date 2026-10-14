@@ -1,11 +1,11 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using Gwent.Rules;
 
-public class CardSelect : MonoBehaviour
+// Click on a card: select a hand card; on the board, the target of a selected decoy, the leader (chosen first, used
+// by a second click), a discard pile to browse, or the row / weather board under it for a selected card
+public class CardSelect : MonoBehaviour, IPointerClickHandler
 {
-    [HideInInspector]
-    public GameObject controllerObject;
     [HideInInspector]
     public SceneController controller;
 
@@ -14,68 +14,79 @@ public class CardSelect : MonoBehaviour
 
     void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button == PointerEventData.InputButton.Left)
+            OnCardSelect();
     }
 
     public void OnCardSelect()
     {
+        if (controller == null)
+            controller = SceneController.Instance;
+
         if (isSelectable)
         {
+            // A hand card while the opponent plays: not now
+            if (controller.battleState == BattleState.ENEMYTURN && gameObject.CompareTag("Player"))
+            {
+                GameAudio.PlaySfx("invalid");
+                return;
+            }
+
             // If the turn is the player's and the card is his, hence the Tag
-            if (controller.battleState == BattleState.PLAYERTURN && gameObject.CompareTag("Player") && !controller.PlayerInfo.CanDiscard)
+            if (controller.IsPlayerActionAllowed && gameObject.CompareTag("Player") && !controller.PlayerInfo.CanDiscard)
             {
                 // Lightoff any previous fields
                 controller.LightoffField(true);
                 controller.LightoffField(false);
-                if (CheckSameCard())
+                GameAudio.PlaySfx("card_select");
+                if (!CheckSameCard())
                 {
-                    GameAudio.PlaySfx("card_select");
                     CardHover hover = gameObject.GetComponent<CardHover>();
-                    hover.isHoverable = true;
-                    hover.DestroyEffect();
-                    controller.selectedCard = null;
-                    //Debug.Log("Player deselected a card !");
-                }
-                else
-                {
-                    GameAudio.PlaySfx("card_select");
-                    CardHover hover = gameObject.GetComponent<CardHover>();
+                    CardStats stats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
                     hover.isHoverable = false;
                     hover.TranslateUp();
-                    hover.ShowPreview();
+                    hover.DestroyEffect();
                     controller.selectedCard = gameObject;
-                    //Debug.Log("Player selected a new card!");
+                    // The card goes to the showcase while its place is chosen (The Witcher 3)
+                    CardShowcase.Select(gameObject, controller.GetCardStats(stats._id));
                     // Hightlights the appropriate field based on: Card Faction AND Card Row
-                    controller.HighlightField(gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>() ,true);
+                    controller.HighlightField(stats, true);
                 }
             }
+            return;
         }
 
-        if (!isSelectable && controller.TryPlaySelectedDecoyOnCard(gameObject))
-            return;
-
-        if (!isSelectable && controller.TryPlaySelectedCardOnBoard())
-            return;
-
-        // Related to the legacy two-step decoy flow.
-        if (controller.swapActivated && !isSelectable)
+        // A card in a discard pile: browse the pile (or use the leader that takes a unit from it)
+        DiscardPileBrowser pile = GetComponentInParent<DiscardPileBrowser>();
+        if (pile != null)
         {
-            CardStats card_stats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-            if (card_stats.faction != "Special" && !card_stats.unique && !(card_stats.ability == "leader"))
-            {
-                gameObject.GetComponent<CardHover>().DestroyEffect();
-                controller.Decoy(card_stats._id, gameObject.tag, transform.parent.parent.name);
-            }
+            pile.Clicked();
+            return;
+        }
+
+        if (controller.TryPlaySelectedDecoyOnCard(gameObject))
+            return;
+
+        if (TryActivateLeaderCard())
+            return;
+
+        // A card already on a row or the weather board, with a card selected (or the leader chosen): the click counts
+        // for the row (or the weather board) under it, so full rows still take the selected card
+        if ((controller.selectedCard != null || controller.LeaderSelected) && controller.battleState == BattleState.PLAYERTURN)
+        {
+            RowClick row = GetComponentInParent<RowClick>();
+            WeatherManager weather = GetComponentInParent<WeatherManager>();
+            if (row != null)
+                row.OnRowClick();
+            else if (weather != null)
+                weather.OnWeatherClick();
             else
-            {
                 GameAudio.PlaySfx("invalid");
-                Debug.Log("Cannot Decoy !");
-            }
-        }
-        else if (!isSelectable)
-        {
-            TryActivateLeaderCard();
         }
     }
 
@@ -85,7 +96,7 @@ public class CardSelect : MonoBehaviour
             return false;
 
         CardStats cardStats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        if (cardStats.ability != "leader")
+        if (cardStats.ability != Abilities.Leader)
             return false;
 
         LeaderManager leaderManager = GetComponentInParent<LeaderManager>();
@@ -96,33 +107,25 @@ public class CardSelect : MonoBehaviour
         return true;
     }
 
-    // Check if the player selected a new card, if yes deselect it else select the appropriate card
+    // Deselects the previously selected card; true if it was this very card (click again = deselect)
     private bool CheckSameCard()
     {
-        if (controller.selectedCard != null)
+        // The chosen leader goes back: this card takes its place
+        if (controller.LeaderSelected)
         {
-            if (controller.selectedCard == gameObject)//Same card
-            {
-                //gameObject.GetComponent<CardHover>().isCardUp = true; // Deprecated
-                CardHover hover = gameObject.GetComponent<CardHover>();
-                hover.isHoverable = true;
-                hover.TranslateDown();
-                hover.DestroyEffect();
-                controller.selectedCard = null;
-                //sameCard = true;
-                return true;
-            }
-            else
-            {
-                CardHover hover = controller.selectedCard.gameObject.GetComponent<CardHover>();
-                hover.isHoverable = true;
-                hover.TranslateDown();
-                hover.DestroyEffect();
-                controller.selectedCard = null;
-                return false;
-                //sameCard = false;
-            }
+            controller.PutBackSelectedCard(false);
+            return false;
         }
-        return false;
+        if (controller.selectedCard == null)
+            return false;
+
+        bool same_card = controller.selectedCard == gameObject;
+        CardHover hover = controller.selectedCard.GetComponent<CardHover>();
+        hover.isHoverable = true;
+        hover.TranslateDown();
+        hover.DestroyEffect();
+        CardShowcase.Deselect();
+        controller.selectedCard = null;
+        return same_card;
     }
 }

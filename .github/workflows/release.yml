@@ -1,0 +1,145 @@
+# Every push to main is a release: the tests, then the five builds, then the one GitHub release ("latest") replaced by
+# the new one, its notes taken from the newest section of CHANGELOG.md. Nothing is published unless all of it succeeds,
+# and a push whose CHANGELOG.md has no new section since the last release is not released at all.
+#
+# Secrets (tools/release-secrets.sh sets them): UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD; for an Android release key,
+# ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASS, ANDROID_KEY_ALIAS, ANDROID_KEY_PASS (without them the APK is signed with
+# a throwaway debug key, and does not install over the previous one).
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One release at a time; a push made during a release waits for it
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PROJECT: GwentCardGame
+
+jobs:
+  prepare:
+    name: Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      version_code: ${{ steps.code.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: CHANGELOG.md has a new section since the last release
+        run: |
+          python3 .github/scripts/release_notes.py CHANGELOG.md
+          if git rev-parse -q --verify refs/tags/latest >/dev/null && git diff --quiet latest "$GITHUB_SHA" -- CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has not changed since the last release: add a section for this one."
+            exit 1
+          fi
+      - name: Android version code (the number of commits, so every release installs over the one before)
+        id: code
+        run: echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Tests
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/Library
+          key: Library-tests-${{ hashFiles('GwentCardGame/Assets/**', 'GwentCardGame/Packages/**', 'GwentCardGame/ProjectSettings/**') }}
+          restore-keys: Library-tests-
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.PROJECT }}
+          testMode: editmode
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { name: linux, target: StandaloneLinux64 }
+          - { name: windows, target: StandaloneWindows64 }
+          - { name: macos, target: StandaloneOSX }
+          - { name: android, target: Android }
+          - { name: web, target: WebGL }
+    steps:
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PROJECT }}/Library
+          key: Library-${{ matrix.target }}-${{ hashFiles('GwentCardGame/Assets/**', 'GwentCardGame/Packages/**', 'GwentCardGame/ProjectSettings/**') }}
+          restore-keys: Library-${{ matrix.target }}-
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: ${{ env.PROJECT }}
+          targetPlatform: ${{ matrix.target }}
+          # The game's own build: GwentBuild builds and packages it into Builds/<version>/GwentLegacy-<platform>.*
+          buildMethod: GwentBuild.BuildAllBatch
+          customParameters: -buildTargets ${{ matrix.name }} -androidVersionCode ${{ needs.prepare.outputs.version_code }}
+          versioning: None
+          androidKeystoreName: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_BASE64 != '' && 'gwentlegacy.keystore' || '' }}
+          androidKeystoreBase64: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+          androidKeystorePass: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_PASS || '' }}
+          androidKeyaliasName: ${{ matrix.name == 'android' && secrets.ANDROID_KEY_ALIAS || '' }}
+          androidKeyaliasPass: ${{ matrix.name == 'android' && secrets.ANDROID_KEY_PASS || '' }}
+      - name: Build report
+        if: always()
+        run: cat ${{ env.PROJECT }}/Builds/*/build-report.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.name }}
+          path: ${{ env.PROJECT }}/Builds/*/GwentLegacy-*
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    name: Release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: build-*
+          merge-multiple: true
+          path: assets
+      - name: Notes
+        run: python3 .github/scripts/release_notes.py CHANGELOG.md assets "$GITHUB_REPOSITORY" > notes.md
+      - name: Replace the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest assets/* \
+            --target "$GITHUB_SHA" \
+            --title "Gwent Legacy" \
+            --notes-file notes.md \
+            --latest

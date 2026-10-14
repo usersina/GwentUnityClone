@@ -1,84 +1,131 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+// The battle's card pickers (a medic's revival, the leaders' picks, Emhyr's look at the opponent's hand), shown as The
+// Witcher 3 does: the carousel under a title band (CardPicker). Skip (Close for a look) gives up the choice, so a picker
+// can never trap the player. The panel itself only keeps the board from taking clicks while it is open.
 public class PanelManager : MonoBehaviour
 {
-    public GameObject container;
-    public GameObject cardBtn;
+    private CardPicker picker;
+    private readonly List<int> cards = new List<int>();
+    private string field;
+    private string type;
+    private bool isPlayerCard;
+
+    // The cards on offer, and the carousel showing them
+    public IList<int> Cards { get { return cards.AsReadOnly(); } }
+    public CardPicker Picker { get { return picker; } }
+
+    private void Awake()
+    {
+        // The scene's scroll view and dark backdrop gave way to the carousel; the panel still catches the board's clicks
+        Transform legacy = transform.Find("ScrollView");
+        if (legacy != null)
+            legacy.gameObject.SetActive(false);
+        Image backdrop = GetComponent<Image>();
+        if (backdrop != null)
+            backdrop.color = Color.clear;
+    }
+
+    private void OnDisable()
+    {
+        ClosePicker();
+    }
 
     public void ShowToPlay(string field, List<int> discard_list, bool is_player_card)
     {
-        Debug.Log("Showing Discarded !");
-        for (int i = 0; i < container.transform.childCount; i++)
-            Destroy(container.transform.GetChild(i).gameObject);
-        // Do not remove this, otherwise count will still get the previous frame's count (NOT 0);
-        container.transform.DetachChildren();
-
-        for (int i = 0; i < discard_list.Count; i++)
-        {
-            GameObject instantiatedCardbtn = Instantiate(cardBtn);
-            instantiatedCardbtn.GetComponent<CardBtn>().cardId = discard_list[i];
-            instantiatedCardbtn.GetComponent<CardBtn>().type = "play";
-            instantiatedCardbtn.GetComponent<CardBtn>().field = field;
-            instantiatedCardbtn.GetComponent<CardBtn>().isPlayerCard = is_player_card;
-            instantiatedCardbtn.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + discard_list[i]);
-            instantiatedCardbtn.transform.SetParent(container.transform, false);
-        }
-
-        ResizeContainer(discard_list.Count);
+        Show(field, discard_list, "play", is_player_card);
     }
 
+    // Show the deck/discard then pick one card to add to the hand
     public void ShowToDraw(string field, List<int> deck_list, bool is_player_card)
     {
-        // Show the deck then shuffle after picking
-        Debug.Log("Choose a card from your deck !");
-        for (int i = 0; i < container.transform.childCount; i++)
-            Destroy(container.transform.GetChild(i).gameObject);
-        // Do not remove this, otherwise count will still get the previous frame's count (NOT 0);
-        container.transform.DetachChildren();
-
-        for (int i = 0; i < deck_list.Count; i++)
-        {
-            GameObject instantiatedCardbtn = Instantiate(cardBtn);
-            instantiatedCardbtn.GetComponent<CardBtn>().cardId = deck_list[i];
-            instantiatedCardbtn.GetComponent<CardBtn>().type = "draw";
-            instantiatedCardbtn.GetComponent<CardBtn>().field = field;
-            instantiatedCardbtn.GetComponent<CardBtn>().isPlayerCard = is_player_card;
-            instantiatedCardbtn.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + deck_list[i]);
-            instantiatedCardbtn.transform.SetParent(container.transform, false);
-        }
-
-        ResizeContainer(deck_list.Count);
+        Show(field, deck_list, "draw", is_player_card);
     }
 
+    // Showing the opponent's hand
     public void ShowToView(List<int> hand_list, bool is_player_card)
     {
-        Debug.Log("Showing opponent's hand!");
-        for (int i = 0; i < container.transform.childCount; i++)
-            Destroy(container.transform.GetChild(i).gameObject);
-        // Do not remove this, otherwise count will still get the previous frame's count (NOT 0);
-        container.transform.DetachChildren();
-
-        for (int i = 0; i < hand_list.Count; i++)
-        {
-            GameObject instantiatedCardbtn = Instantiate(cardBtn);
-            instantiatedCardbtn.GetComponent<CardBtn>().cardId = hand_list[i];
-            instantiatedCardbtn.GetComponent<CardBtn>().type = "view";
-            instantiatedCardbtn.GetComponent<CardBtn>().isPlayerCard = is_player_card;
-            instantiatedCardbtn.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + hand_list[i]);
-            instantiatedCardbtn.transform.SetParent(container.transform, false);
-        }
-
-        ResizeContainer(hand_list.Count);
+        Show(null, hand_list, "view", is_player_card);
     }
 
-    public void ResizeContainer(int cardsNum)
+    private void Show(string field, List<int> card_ids, string type, bool is_player_card)
     {
-        RectTransform containerTr = container.GetComponent<RectTransform>();
-        cardsNum -= 3;                                           // 3 Cards already have space
-        float width = (cardsNum * 380) + (cardsNum - 1) * 25;   // Card width: 380, Spacing: 25
-        containerTr.offsetMin = new Vector2(0, 0);
-        containerTr.offsetMax = new Vector2(width, 0);
+        ClosePicker();
+        this.field = field;
+        this.type = type;
+        isPlayerCard = is_player_card;
+        cards.Clear();
+        cards.AddRange(card_ids);
+        bool look = type == "view";
+        picker = CardPicker.Open(UIOverlay.Root, Title(type, field), cards, look ? (Action<int>)null : Choose, look ? "Close" : "Skip", OnSkip);
+    }
+
+    private static string Title(string type, string field)
+    {
+        switch (type)
+        {
+            case "play":
+                return field == "deck_list" ? "Choose a weather card to play from your deck" : "Choose a unit to bring back from your discard pile";
+            case "draw":
+                if (field == "opp_discard_list")
+                    return "Choose a unit to take from your opponent's discard pile";
+                return field == "discard_list" ? "Choose a unit to take back from your discard pile" : "Choose a card to take from your deck";
+            default:
+                return "Randomly selected cards from your opponent's hand"; // The Witcher 3's words
+        }
+    }
+
+    private void ClosePicker()
+    {
+        if (picker != null)
+            Destroy(picker.transform.parent.gameObject);
+        picker = null;
+    }
+
+    // Skip / Close: give up the choice and end the turn
+    private void OnSkip()
+    {
+        SceneController.Instance.CancelPanel();
+    }
+
+    // A card was picked
+    public void Choose(int card_id)
+    {
+        SceneController controller = SceneController.Instance;
+        switch (type)
+        {
+            // A medic or a weather leader: the card is placed on the board next
+            case "play":
+                GameAudio.PlaySfx("ability_medic");
+                GameLog.Info("Choosing card to play: " + card_id);
+                controller.PlayBtnCleanUp(field, card_id, isPlayerCard);
+                GameObject card = controller.CreateCardObject(controller.GetCardStats(card_id), isPlayerCard);
+                card.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
+                controller.selectedCard = card;
+                controller.HighlightField(card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), isPlayerCard);
+                controller.ShowcasePicked(card_id, field, isPlayerCard);
+                controller.SetHider(true);
+                gameObject.SetActive(false);
+                UIOverlay.Toast("Now choose where to play " + controller.GetCardStats(card_id).name);
+                break;
+
+            // A leader's pick: the card goes to the hand and the turn ends
+            case "draw":
+                GameAudio.PlaySfx("card_draw");
+                GameLog.Info("Choosing on: " + card_id);
+                gameObject.SetActive(false);
+                controller.ActuallyPickCard(field, card_id, isPlayerCard);
+                break;
+
+            // Emhyr's look at the opponent's hand
+            default:
+                GameAudio.PlaySfx("card_select");
+                gameObject.SetActive(false);
+                controller.TurnCallBack(isPlayerCard);
+                break;
+        }
     }
 }

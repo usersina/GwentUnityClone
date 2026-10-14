@@ -1,14 +1,24 @@
 ﻿using DanielLochner.Assets.SimpleScrollSnap;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+using Gwent.Rules;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
-using static DeckController;
 
 public class CollectionManager : MonoBehaviour
 {
+    // The factions of the header's panels, in order, and their perks
+    public static readonly string[] HeaderFactions = { Factions.NorthernRealms, Factions.Nilfgaard, Factions.Scoiatael, Factions.Monsters };
+    private static readonly string[] Perks =
+    {
+        "Draw a card from your deck whenever you win a round",
+        "Automatically win the round that ends in a draw",
+        "Choose who goes first at the start of the battle",
+        "Keep one random unit on the board after each round",
+    };
+
     public DeckController deckController;
     public SimpleScrollSnap headerSnap;
     public Toggle toggleBtn;
@@ -19,7 +29,7 @@ public class CollectionManager : MonoBehaviour
     public GameObject cardDetails;
 
     public int selectedTab;
-    public string faction = "NR";
+    public string faction = Factions.NorthernRealms;
     public TextMeshProUGUI factionPerk;
 
     public List<Image> currentSprites;
@@ -31,32 +41,20 @@ public class CollectionManager : MonoBehaviour
 
     public MiddleManager middleManager;
 
+    // The Witcher 3's filters: all cards, close, ranged, siege, heroes, weather, special cards
+    public const int WeatherTab = 5;
+    public const int SpecialTab = 6;
+
     IEnumerator Start()
     {
+        AddWeatherTab();
         ClearCardsArea();
-        yield return new WaitForSeconds(0.3f); // To make sure DeckController starts first
+        // DeckController loads everything in Awake; this only guards against a disabled controller
+        yield return new WaitUntil(() => deckController.IsReady);
 
         // Collection Cards or player deck
         if (transform.CompareTag("Player"))
-        {
             LoadFromDeck();
-            // Switch to the panel of the selected deck (first time only)
-            //switch (deckController.my_deck.Faction)
-            //{
-            //    case "NR":
-            //        headerSnap.GoToPanel(0);
-            //        break;
-            //    case "NF":
-            //        headerSnap.GoToPanel(1);
-            //        break;
-            //    case "SC":
-            //        headerSnap.GoToPanel(2);
-            //        break;
-            //    case "M":
-            //        headerSnap.GoToPanel(3);
-            //        break;
-            //}
-        }
         else
             CardsToDisplay = deckController.allCards;
 
@@ -93,21 +91,25 @@ public class CollectionManager : MonoBehaviour
                 break;
             case 1:
                 subtitle.text = "Close Units";
-                selected_row = "close";
+                selected_row = Rows.Close;
                 break;
             case 2:
                 subtitle.text = "Ranged Units";
-                selected_row = "range";
+                selected_row = Rows.Range;
                 break;
             case 3:
                 subtitle.text = "Siege Units";
-                selected_row = "siege";
+                selected_row = Rows.Siege;
                 break;
             case 4:
                 subtitle.text = "Heroes";
                 selected_row = "heroes";
                 break;
-            case 5:
+            case WeatherTab:
+                subtitle.text = "Weather";
+                selected_row = "weather";
+                break;
+            case SpecialTab:
                 subtitle.text = "Specials";
                 selected_row = "specials";
                 break;
@@ -139,36 +141,104 @@ public class CollectionManager : MonoBehaviour
         cardsArea.transform.DetachChildren();
     }
 
+    // The Witcher 3 shows each card once, with its count: the copies in the deck, or in the collection the copies
+    // left to add (a card whose copies are all in the deck leaves the collection)
     private void SetCardsArea(List<Card> cards_list)
     {
         ClearCardsArea();
+        bool deck = transform.CompareTag("Player");
+        Dictionary<int, int> in_deck = new Dictionary<int, int>();
+        foreach (int id in deckController.my_deck.Cards)
+            in_deck[id] = in_deck.TryGetValue(id, out int copies) ? copies + 1 : 1;
+        HashSet<int> shown = new HashSet<int>();
         foreach (Card card in cards_list)
         {
-            // Bovine defense force (cannot add to deck, only // TODO: (SceneController) called with cow)
-            if (card._id == 9) { continue; }
-            else
-            {
-                GameObject instantiatedCard = Instantiate(CCardPrefab);
-                instantiatedCard.name = card._id.ToString();
-                instantiatedCard.GetComponent<CardStats>().name = card.name;
-                instantiatedCard.GetComponent<CardStats>()._id = card._id;
-                instantiatedCard.GetComponent<CardStats>()._idstr = card._idstr;
-                instantiatedCard.GetComponent<CardStats>().faction = card.faction;
-                instantiatedCard.GetComponent<CardStats>().unique = card.unique;
-                instantiatedCard.GetComponent<CardStats>().strength = card.strength;
-                instantiatedCard.GetComponent<CardStats>().row = card.row;
-                instantiatedCard.GetComponent<CardStats>().ability = card.ability;
+            // Bovine defense force cannot be added to a deck (it is summoned by the Cow)
+            if (card._id == CardIds.BovineDefenseForce || !shown.Add(card._id))
+                continue;
+            in_deck.TryGetValue(card._id, out int used);
+            int count = deck ? used : DeckRules.MaxCopies(card) - used;
+            if (count <= 0)
+                continue;
 
-                instantiatedCard.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + card._id);
-                instantiatedCard.transform.SetParent(cardsArea.transform, false);
-            }
+            GameObject instantiatedCard = Instantiate(CCardPrefab);
+            instantiatedCard.name = card._id.ToString();
+            CardStats stats = instantiatedCard.GetComponent<CardStats>();
+            stats.name = card.name;
+            stats._id = card._id;
+            stats._idstr = card._idstr;
+            stats.faction = card.faction;
+            stats.unique = card.unique;
+            stats.strength = card.strength;
+            stats.row = card.row;
+            stats.ability = card.ability;
+
+            instantiatedCard.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + card._id);
+            instantiatedCard.transform.SetParent(cardsArea.transform, false);
+            AddCountBadge(instantiatedCard.transform, count);
         }
+    }
+
+    // "x2" near the bottom of the card, as in The Witcher 3: at the right of the art, just above the name strip
+    // (which it would cover on the left)
+    public const string CountBadge = "Count";
+
+    private static void AddCountBadge(Transform card, int count)
+    {
+        UITheme theme = UITheme.Current;
+        RectTransform badge = UIKit.Rect(CountBadge, card).Place(new Vector2(1, 0), new Vector2(-8, 70), new Vector2(50, 28), new Vector2(1, 0));
+        Image back = badge.gameObject.AddComponent<Image>();
+        back.sprite = theme.pill;
+        back.type = Image.Type.Sliced;
+        back.color = new Color(0.07f, 0.05f, 0.03f, 0.88f);
+        back.raycastTarget = false;
+        TextMeshProUGUI text = UIKit.Text(badge, "x" + count, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+        text.rectTransform.Stretch(0, 0, 0, 1);
+        text.fontSize = 21;
+        text.color = theme.goldBright;
+        text.raycastTarget = false;
+    }
+
+    // The scene has six tabs, the specials last; The Witcher 3 gives the weather cards a tab of their own, before
+    // the specials. The specials' tab is copied for it, and the seven tabs share the menu's width.
+    private void AddWeatherTab()
+    {
+        if (currentSprites.Count > SpecialTab)
+            return;
+        Image special = currentSprites[WeatherTab];
+        Image weather = Instantiate(special.gameObject, special.transform.parent).GetComponent<Image>();
+        weather.name = "weatherBtn";
+        weather.transform.SetSiblingIndex(special.transform.GetSiblingIndex());
+        currentSprites.Insert(WeatherTab, weather);
+        idleSprites.Insert(WeatherTab, SpriteCache.Load("DeckEdit/CardsView/Menu/idle/weather"));
+        selectedSprites.Insert(WeatherTab, SpriteCache.Load("DeckEdit/CardsView/Menu/selected/weather"));
+        weather.sprite = idleSprites[WeatherTab];
+        OnClickSelects(weather.GetComponent<Button>(), WeatherTab);
+        OnClickSelects(special.GetComponent<Button>(), SpecialTab);
+
+        RectTransform first = (RectTransform)currentSprites[0].transform;
+        float left = first.anchoredPosition.x, right = ((RectTransform)special.transform).anchoredPosition.x;
+        for (int i = 0; i < currentSprites.Count; i++)
+        {
+            RectTransform tab = (RectTransform)currentSprites[i].transform;
+            tab.anchoredPosition = new Vector2(Mathf.Lerp(left, right, i / (float)(currentSprites.Count - 1)), tab.anchoredPosition.y);
+            tab.sizeDelta = new Vector2(90, 90);
+        }
+    }
+
+    private void OnClickSelects(Button button, int tab)
+    {
+        for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+            button.onClick.SetPersistentListenerState(i, UnityEventCallState.Off);
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(() => HandleClick(tab));
     }
 
     private void ResetScrolling()
     {
-        cardsArea.transform.parent.GetComponent<ScrollRect>().StopMovement();
-        cardsArea.transform.position = new Vector2(cardsArea.transform.position.x, 320f);
+        ScrollRect scroll = cardsArea.transform.parent.GetComponent<ScrollRect>();
+        scroll.StopMovement();
+        scroll.verticalNormalizedPosition = 1; // back to the top, at any resolution
     }
 
     private void ManageCardsArea(string selected_row, bool resetScroll = true)
@@ -178,8 +248,9 @@ public class CollectionManager : MonoBehaviour
 
         switch (selected_row)
         {
+            case "weather":
             case "specials":
-                List<Card> specials_list = deckController.GetSpecialCards(CardsToDisplay);
+                List<Card> specials_list = deckController.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Rows.Weather) == (selected_row == "weather"));
                 specials_list.Sort((a, b) => a._id.CompareTo(b._id));
                 SetCardsArea(specials_list);
                 break;
@@ -192,14 +263,10 @@ public class CollectionManager : MonoBehaviour
                     case "all":
                         SetCardsArea(UnitMergerHelper(faction, "all"));
                         break;
-                    case "close":
-                        SetCardsArea(UnitMergerHelper(faction, "close"));
-                        break;
-                    case "range":
-                        SetCardsArea(UnitMergerHelper(faction, "range"));
-                        break;
-                    case "siege":
-                        SetCardsArea(UnitMergerHelper(faction, "siege"));
+                    case Rows.Close:
+                    case Rows.Range:
+                    case Rows.Siege:
+                        SetCardsArea(UnitMergerHelper(faction, selected_row));
                         break;
                     default:
                         Debug.LogError("ManageCardsArea: Unexpected value: " + selected_row);
@@ -246,67 +313,50 @@ public class CollectionManager : MonoBehaviour
     }
 
     //----------------------------------------------------Event Handlers---------------------------------------------------//
+    // Opens on a faction (the deck's, before the header places itself): its cards and its perk
+    public void OpenOn(string deck_faction)
+    {
+        int panel = System.Array.IndexOf(HeaderFactions, deck_faction);
+        if (panel < 0)
+            return;
+        faction = deck_faction;
+        if (factionPerk != null)
+            factionPerk.text = Perks[panel];
+        if (headerSnap != null)
+            headerSnap.startingPanel = panel;
+    }
+
     // Reference: ScrollSnap Header On Panel Changed
     public void UpdateSelectedFaction()
     {
-        switch (headerSnap.CurrentPanel)
+        int panel = headerSnap.CurrentPanel;
+        if (panel >= 0 && panel < HeaderFactions.Length)
         {
-            case 0:
-                faction = "NR";
-                factionPerk.text = "Draw a card from your deck whenever you win a round";
-                Select(selectedTab);
-                break;
-            case 1:
-                faction = "NF";
-                factionPerk.text = "Automatically win the round that ends in a draw";
-                Select(selectedTab);
-                break;
-            case 2:
-                faction = "SC";
-                factionPerk.text = "Choose who begins each round";
-                Select(selectedTab);
-                break;
-            case 3:
-                faction = "M";
-                factionPerk.text = "Keep one random unit on the board after each round";
-                Select(selectedTab);
-                break;
+            faction = HeaderFactions[panel];
+            factionPerk.text = Perks[panel];
+            Select(selectedTab);
         }
 
         // Related to Deck Cards
         if (transform.CompareTag("Player"))
         {
-            //Debug.Log("Updating deck options...");
-
-            // Update the faction of the new empty deck
-            deckController.my_deck.Faction = faction;
-
-            // Empty the deck
-            deckController.my_deck.Cards.Clear();
-
-            // Sets the deck name to empty
-            deckController.my_deck.Name = "__emptyname__";
+            // Start from a new empty deck of that faction (the loaded deck object is shared with the dropdown list)
+            deckController.my_deck = new Deck { Faction = faction, Name = DeckRules.EmptyDeckName };
 
             // Change the leader to the default of each faction
-            switch (faction)
-            {
-                case "NR":
-                    deckController.my_deck.Leader = 51;
-                    break;
-                case "NF":
-                    deckController.my_deck.Leader = 33;
-                    break;
-                case "SC":
-                    deckController.my_deck.Leader = 57;
-                    break;
-                case "M":
-                    deckController.my_deck.Leader = 40;
-                    break;
-            }
+            deckController.my_deck.Leader = LeaderIds.DefaultFor(faction);
 
             // Load the new decklists and get the first deck if not empty
             middleManager.LoadDecks();
         }
+    }
+
+    // The collection counts the copies left to add: it follows the deck (where it is scrolled to stays)
+    private void RefreshCollection()
+    {
+        foreach (CollectionManager collection in FindObjectsByType<CollectionManager>())
+            if (collection != this && collection.CardsToDisplay != null)
+                collection.Select(collection.selectedTab, false);
     }
 
     // Reference: Toggle On Value Changed
@@ -317,45 +367,41 @@ public class CollectionManager : MonoBehaviour
 
     // DECK CARDS RELATED
     // Changes my_deck and currentDeckPath in DeckController
-    public void OnDeckChange(Deck selectedDeck, string selectedPath)
+    public void OnDeckChange(Deck selectedDeck, string selectedPath, bool select_for_battle = true)
     {
         // Replace the loaded deck with the selected one
         deckController.my_deck = selectedDeck;
         deckController.currentDeckPath = selectedPath;
         LoadFromDeck();
         Select(selectedTab);
+        RefreshCollection();
 
-        // Save to prefs
-        SaveDeckToPrefs();
+        // A valid selected deck becomes the battle deck (the status line follows the deck shown either way)
+        if (select_for_battle)
+            deckController.UpdateBattleDeck();
+        else
+            deckController.UpdateBattleDeckStatus();
     }
 
     // From Double Clicking a card
     public void OnDeckEdit()
     {
+        // A preset is never changed: the edit goes to the player's own copy
+        if (deckController.ShowsPreset)
+        {
+            deckController.KeepPresetEdit();
+            return;
+        }
         LoadFromDeck();
-        Select(selectedTab);
+        Select(selectedTab, false);
+        RefreshCollection();
         middleManager.InitializeDeck();
 
         // Save to the current deck
         deckController.WriteDeckToFile(deckController.my_deck, deckController.currentDeckPath);
 
-        // Save to prefs
-        SaveDeckToPrefs();
-    }
-
-
-    public void SaveDeckToPrefs()
-    {
-        // Save deck path to playerprefs
-        if (deckController.currentDeckPath.EndsWith(".json") && deckController.my_deck.Name != "__emptyname__")
-        {
-            // Further check if deck is valid
-            if (!deckController.IsDeckValid(deckController.my_deck))
-                return;
-
-            PlayerPrefs.SetString("playerDeckPath", deckController.currentDeckPath);
-            Debug.Log("New selected deck: " + deckController.currentDeckPath);
-        }
+        // Becomes (or stops being, if now invalid) the battle deck
+        deckController.UpdateBattleDeck();
     }
 
 }

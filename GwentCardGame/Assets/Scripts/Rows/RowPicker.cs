@@ -12,6 +12,14 @@ public class RowPicker : MonoBehaviour
     public Sprite rangeSelected;
     public Sprite siegeSelected;
 
+    // The rows' emblems (sword, bow, catapult), laid over an empty row: the row art has none, so cards never show them
+    public Sprite closeEmblem;
+    public Sprite rangeEmblem;
+    public Sprite siegeEmblem;
+    public Sprite closeEmblemSelected;
+    public Sprite rangeEmblemSelected;
+    public Sprite siegeEmblemSelected;
+
     public Sprite special;
     public Sprite specialSelected;
 
@@ -19,7 +27,6 @@ public class RowPicker : MonoBehaviour
     public Sprite blueCircle;
 
     public List<GameObject> highLightedRows;
-    List<GameObject> rowFields;
 
     //--------------------------------Highlights related-----------------------------------//
 
@@ -30,8 +37,6 @@ public class RowPicker : MonoBehaviour
 
     public void StoreField(GameObject unit_field)
     {
-        //highLightedRows.Add(unit_field);
-        rowFields = highLightedRows;
-        rowFields.Add(unit_field);
+        highLightedRows.Add(unit_field);
     }
 }

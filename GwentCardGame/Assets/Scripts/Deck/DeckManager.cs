@@ -1,5 +1,3 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,30 +6,65 @@ public class DeckManager : MonoBehaviour
 {
     public GameObject CardBackObject;
 
-    // Updates the number of CardBacks on top of each other and the card number
-    public void UIUpdateDeckBase(Sprite my_sprite, int cards_number) // Pass the sprite as a parameter
-    {
-        transform.Find("DeckCount").Find("Number").GetComponent<TextMeshProUGUI>().text = cards_number.ToString();
-        //Debug.Log("Number of children card backs BEFORE deletion: " + transform.Find("DeckBase").childCount);
-        //Clean any previous cards present;
-        for (int i = 0; i < transform.Find("DeckBase").childCount; i++)
-        {
-            Destroy(transform.Find("DeckBase").GetChild(i).gameObject);
-        }
-        transform.Find("DeckBase").DetachChildren();
-        //Debug.Log("Number of children card backs AFTER deletion: " + transform.Find("DeckBase").childCount);
+    private Transform deckBase;
+    private TextMeshProUGUI deckCount;
+    private GameObject shadow;
 
-        // Add the cards based on the number of card objects in deck with a slite offset
-        float x = 0;
-        float y = 0;
-        for (int i = 0; i < cards_number; i++)
+    private void CacheReferences()
+    {
+        if (deckBase != null)
+            return;
+        deckBase = transform.Find("DeckBase");
+        deckCount = transform.Find("DeckCount").Find("Number").GetComponent<TextMeshProUGUI>();
+
+        // Soft shadow under the stack, like the cards on the board
+        Image shadow_image = UIKit.NewImage(transform, "Shadow", UITheme.Current.softShadow, new Color(0, 0, 0, 0.65f));
+        RectTransform card = (RectTransform)transform.Find("DeckHolder");
+        shadow_image.rectTransform.Place(card.anchorMin, card.anchoredPosition + new Vector2(5, -8), card.sizeDelta + new Vector2(30, 34), card.pivot);
+        shadow_image.transform.SetAsFirstSibling();
+        shadow = shadow_image.gameObject;
+    }
+
+    // Updates the card number and the stack of card backs (only adds/removes the difference)
+    public void UIUpdateDeckBase(Sprite my_sprite, int cards_number)
+    {
+        CacheReferences();
+        deckCount.text = cards_number.ToString();
+        shadow.SetActive(cards_number > 0);
+
+        // Remove extra card backs from the top of the stack
+        for (int i = deckBase.childCount - 1; i >= cards_number; i--)
         {
-            GameObject instantiatedCardBack = Instantiate(CardBackObject, new Vector2(0 + x, 0 + y), Quaternion.identity);
-            instantiatedCardBack.GetComponent<Image>().sprite = my_sprite;
-            instantiatedCardBack.name = "card_back_" + i.ToString();
-            instantiatedCardBack.transform.SetParent(transform.Find("DeckBase").transform, false);
-            x -= 0.5f;
-            y += 0.5f;
+            GameObject card_back = deckBase.GetChild(i).gameObject;
+            card_back.transform.SetParent(null, false);
+            Destroy(card_back);
         }
+
+        // Add missing ones with a slight offset each
+        for (int i = deckBase.childCount; i < cards_number; i++)
+        {
+            GameObject instantiatedCardBack = Instantiate(CardBackObject, new Vector2(-0.5f * i, 0.5f * i), Quaternion.identity);
+            instantiatedCardBack.name = "card_back_" + i;
+            instantiatedCardBack.transform.SetParent(deckBase, false);
+        }
+
+        foreach (Transform card_back in deckBase)
+        {
+            Image image = card_back.GetComponent<Image>();
+            if (image.sprite != my_sprite)
+                image.sprite = my_sprite;
+        }
+        PlaceCount();
+    }
+
+    // The count on the deck itself, along the bottom of its top card (The Witcher 3), not under it: the card on the
+    // right of the board sits just below the opponent's deck
+    private void PlaceCount()
+    {
+        Transform count = deckCount.transform.parent;
+        Transform top = deckBase.childCount > 0 ? deckBase.GetChild(deckBase.childCount - 1) : transform.Find("DeckHolder");
+        float bottom = -((RectTransform)top).rect.height / 2 + 24;
+        foreach (Transform part in count)
+            part.position = top.TransformPoint(new Vector3(0, bottom, 0));
     }
 }

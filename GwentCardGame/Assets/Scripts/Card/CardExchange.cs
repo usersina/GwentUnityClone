@@ -1,90 +1,54 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
-public class CardExchange : MonoBehaviour
+// Initial redraw: double-click (double-tap on mobile) a hand card to exchange it, up to 2 cards
+public class CardExchange : MonoBehaviour, IPointerClickHandler
 {
-    [HideInInspector]
-    public GameObject controllerObject;
     [HideInInspector]
     public SceneController controller;
     public bool isExchangeable;
 
-    private float firstClickTime = 0f;
-    private float timeBetweenClick = 0.2f;
-    private bool couroutineAllowed = true;
-    private int clickCounter = 0;
+    // A redraw rebuilds the hand under the pointer: the clicks right after it (the end of a triple or quadruple
+    // click) must not start a double-click on the card that took its place and spend the second redraw
+    private const float ClickCooldown = 0.35f;
+    private static float lastExchangeTime = float.NegativeInfinity;
 
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
-    public void OnCardClick()
+    public void OnPointerClick(PointerEventData eventData)
     {
-        // Essential for the first draw
-        // Check if the player can exchange cards (redraw two initially drawn cards)
-        if (controller.PlayerInfo.CanExchange && gameObject.CompareTag("Player") && isExchangeable)
-        {
-            if (Application.isMobilePlatform)
-            {
-                ExchangeThisCard();
-                return;
-            }
+        if (eventData.button != PointerEventData.InputButton.Left)
+            return;
+        if (controller == null)
+            controller = SceneController.Instance;
 
-            if (controller.PlayerInfo.CardsExchanged < 2)
-            {
-                if (Input.GetMouseButtonUp(0))
-                    clickCounter += 1;
-                if (clickCounter == 1 && couroutineAllowed)
-                {
-                    firstClickTime = Time.time;
-                    StartCoroutine(ExchangeDetection());
-                }
-            }
-            else
-            {
-                controller.PlayerInfo.CanExchange = false;
-            }
-        }
-    }
+        // Only during the redraw phase (it opens after the opening notices), on the player's own cards
+        if (!controller.PlayerInfo.CanExchange || !RedrawPicker.IsOpen || !gameObject.CompareTag("Player") || !isExchangeable)
+            return;
 
-    private void ExchangeThisCard()
-    {
-        if (controller.PlayerInfo.CardsExchanged >= 2)
+        // With the redraw carousel open, a click brings the card to its front first; only a double-click on the front
+        // card redraws it, so a quick double-click on a card further away never swaps it by accident
+        int card_id = GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id;
+        if (RedrawPicker.IsOpen && !RedrawPicker.IsReadyToRedraw(card_id))
         {
-            controller.PlayerInfo.CanExchange = false;
+            RedrawPicker.Bring(card_id);
+            doubleClick.Reset();
             return;
         }
-
-        controller.ExchangeCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
-        controller.PlayerInfo.CardsExchanged++;
-        if (controller.PlayerInfo.CardsExchanged == 2)
-            controller.PlayerInfo.CanExchange = false;
+        if (Time.unscaledTime - lastExchangeTime < ClickCooldown)
+            return;
+        if (doubleClick.Register())
+            Exchange();
     }
-    
-    // Couroutine Double Click Exchange Detection
-    private IEnumerator ExchangeDetection()
+
+    private void Exchange()
     {
-        couroutineAllowed = false;
-        while (Time.time < firstClickTime + timeBetweenClick)
-        {
-            if (clickCounter == 2)
-            {
-                //Debug.Log("Double Clicked: " + GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._idstr);
-                if (gameObject.CompareTag("Player"))
-                {
-                    ExchangeThisCard();
-                    clickCounter = 0;
-                    yield break;
-                }
-            }
-            yield return new WaitForEndOfFrame();
-        }
-        clickCounter = 0;
-        firstClickTime = 0f;
-        couroutineAllowed = true;
+        lastExchangeTime = Time.unscaledTime;
+        controller.RedrawPlayerCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id);
     }
 }

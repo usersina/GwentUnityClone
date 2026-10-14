@@ -9,7 +9,6 @@ public static class AppPlatformSettings
         Screen.autorotateToPortraitUpsideDown = false;
         Screen.autorotateToLandscapeLeft = true;
         Screen.autorotateToLandscapeRight = true;
-        Screen.orientation = ScreenOrientation.LandscapeLeft;
-        Input.simulateMouseWithTouches = true;
+        Screen.orientation = ScreenOrientation.AutoRotation; // either landscape side, as the phone is turned
     }
 }

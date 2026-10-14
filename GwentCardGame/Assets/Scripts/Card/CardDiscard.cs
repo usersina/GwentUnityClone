@@ -1,43 +1,40 @@
-﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+// Eredin, Destroyer of Worlds: double-click (double-tap on mobile, Enter with the keys) two hand cards to discard them,
+// then pick one from the deck
 public class CardDiscard : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public GameObject controllerObject;
-    [HideInInspector]
     public SceneController controller;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     void Start()
     {
-        controllerObject = GameObject.Find("SceneController");
-        controller = controllerObject.GetComponent<SceneController>();
+        controller = SceneController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if ((lastClick + interval) > Time.time)
-        {
-            if (controller.battleState == BattleState.PLAYERTURN && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
-            {
-                Debug.Log("Discarding");
-                controller.DiscardCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
-                controller.PlayerInfo.CardsDiscarded++;
+        if (eventData.button == PointerEventData.InputButton.Left && doubleClick.Register())
+            Discard();
+    }
 
-                // Conditions met, a card can be chosen
-                if (controller.PlayerInfo.CardsDiscarded == 2)
-                    controller.DeckCardPicker(true);
-            }
-        }
-        else
+    // Also Enter on the card the keys are on (BattleKeys)
+    public void Discard()
+    {
+        if (controller == null)
+            controller = SceneController.Instance;
+        if (controller.battleState == BattleState.PLAYERTURN && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
         {
-            //Debug.Log("Single Click! ");
-            lastClick = Time.time;
+            GameLog.Info("Discarding");
+            controller.DiscardCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
+            controller.PlayerInfo.CardsDiscarded++;
+
+            // Conditions met, a card can be chosen
+            if (controller.PlayerInfo.CardsDiscarded >= 2)
+                controller.DeckCardPicker(true);
         }
     }
 }

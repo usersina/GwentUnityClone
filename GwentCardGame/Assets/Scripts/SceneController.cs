@@ -1,34 +1,37 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 using System.Linq;
-using UnityEngine.UI;
-using System.IO;
+using Gwent.Rules;
+using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public enum BattleState { START, PLAYERTURN, ENEMYTURN, ROUNDOVER, WON, LOST, DRAW }
 
-public class SceneController : MonoBehaviour
+// A multi-step player action in progress. While one is pending the turn cannot end (pass / leader are blocked).
+public enum PendingAction { None, PanelChoice, PlacePickedCard, DiscardCards }
+
+// Runs the battle: setup, turns, rounds and playing cards (leaders and pickers: SceneController.Leaders.cs).
+// The rules themselves live in Gwent.Rules; BoardView draws the board from the model.
+public partial class SceneController : MonoBehaviour
 {
-    private const string WeatherOverlayName = "WeatherOverlay";
+    private const string DefaultDeckResource = "Decks/player_default";
+
+    public static SceneController Instance { get; private set; }
 
     public BattleState battleState;
+    public PendingAction pendingAction;
 
     public GameObject PostGame;
     public GameObject CardPrefab;
     public GameObject WeatherField;
 
     public TextAsset CardsDatabase;
-    //public TextAsset PlayerDeck;
-    public string PlayerDeck;
     public TextAsset EnemyDeck;
 
     public GameObject PlayerField;
     public GameObject EnemyField;
-
-    [HideInInspector] // List of all cards (each card has unique stats)
-    public List<Card> allCards;
 
     public MainInfo PlayerInfo;
     public MainInfo EnemyInfo;
@@ -43,559 +46,268 @@ public class SceneController : MonoBehaviour
     public List<int> weatherList;
     public bool doubleSpies;
     public bool randomMedic;
-    public bool disableLeader;
-    public bool swapActivated;
+
+    public CardDatabase Db { get; private set; }
+    public GameObject TempObject { get; private set; }
 
     private AIManager AIManager;
-    private bool enemyTurnDelayHasPlayed;
+    private BoardView board;
+    private BoardPresenter presenter;
+    private int presenting;           // plays being shown (the rules resolved them already)
+    private readonly List<BoardChange> presented = new List<BoardChange>();
+    private GameObject mulliganPrompt;
+    private Coroutine turnRoutine;
+    private int turnGeneration;
+    private bool roundOpening;      // the next turn opens a round (after "Round Start")
+    private bool? firstPlayer;      // who takes the battle's first turn
+    private bool? lastTurnWasPlayer; // whose turn was announced last in this round
+    private bool lastPasserWasPlayer; // after a drawn round, whoever passed last starts the next one
+    private string whiteFlameNotice;  // shown once the redraw is over
+
+    [Serializable]
+    public class MainInfo : PlayerState
+    {
+        public string Name;
+        public Image Avatar;
+        public Sprite DeckBSprite;
+    }
+
+    private void Awake()
+    {
+        Instance = this;
+        Db = CardLibrary.Get(CardsDatabase);
+        TempObject = GameObject.Find("Temp");
+        board = new BoardView(this);
+        presenter = new BoardPresenter(this, board, Db);
+        AIManager = GetComponent<AIManager>();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+            Time.timeScale = 1f; // the game speed is the battle's
+        }
+    }
+
+    public LeaderManager PlayerLeader { get { return View(true).Leader; } }
 
     private void Start()
     {
+        if (!GameInput.IsTouch)
+            gameObject.AddComponent<BattleKeys>();
         GameAudio.PlayGameMusic();
-
-        PlayerDeck = "Decks/player_default";
-
-        // Get Player Deck
-        if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath))
-            PlayerDeck = ApplicationModel.playerDeckPath;
-
-        Debug.Log("Deck path from scene controller: " + PlayerDeck);
+        Time.timeScale = GameSettings.GameTimeScale;
         PlayerInfo.Name = "Player";
         EnemyInfo.Name = "Opponent";
 
-        // Initialize AI
-        AIManager = GetComponent<AIManager>();
-
-        // Setup the battle
-        Debug.Log("Starting battle...");
+        GameLog.Info("Starting battle...");
         GameAudio.PlaySfx("game_start");
+        UIOverlay.SetEscapeAction(OnEscape);
         battleState = BattleState.START;
         SetupBattle();
-
-        Debug.Log("Waiting for all players de redraw cards: ");
-
-        // TODO: Replace with a proper FirstTurnPicker() method which takes Scoiatel faction in mind
-        StartCoroutine(FirstTurnPicker());
+        StartCoroutine(BattleOpening());
     }
 
-    void Update()
+    // The Witcher 3's opening: the leaders' notice (The White Flame), who goes first (a coin toss, or the Scoia'tael
+    // perk), then the redraw; the first round starts once both sides are done
+    private IEnumerator BattleOpening()
     {
-        if (battleState == BattleState.START)
+        if (whiteFlameNotice != null)
         {
-            if (ShouldSkipCardExchange())
-            {
-                Debug.Log("Player has skipped cards exchanging !");
-                PlayerInfo.CanExchange = false;
-            }
+            BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Nilfgaard), whiteFlameNotice, BattleBanner.Long);
+            whiteFlameNotice = null;
         }
 
-        // Keep the pass button available during redraw so mobile can skip it.
-        bool shouldShowPassButton = battleState == BattleState.PLAYERTURN ||
-            (battleState == BattleState.START && PlayerInfo.CanExchange);
-        if (PassBtn.activeSelf != shouldShowPassButton)
-            PassBtn.SetActive(shouldShowPassButton);
+        if (PlayerInfo.Faction == Factions.Scoiatael && EnemyInfo.Faction != Factions.Scoiatael)
+        {
+            while (BattleBanner.Busy)
+                yield return null;
+            firstPlayer = null;
+            TurnPicker.SetActive(true); // the player's choice comes back through ChooseFirstPlayer
+            while (!firstPlayer.HasValue)
+                yield return null;
+            BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
+        }
+        else if (PlayerInfo.Faction != Factions.Scoiatael && EnemyInfo.Faction == Factions.Scoiatael)
+        {
+            firstPlayer = false; // the AI's Scoia'tael goes first
+            BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Scoiatael), "Opponent used the Scoia'tael faction perk to go first.");
+        }
+        else
+        {
+            firstPlayer = Rng.Shared.Next(0, 2) != 0;
+            BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
+        }
+        while (BattleBanner.Busy)
+            yield return null;
 
-
-        // TODO: Change image, a bit lame (grass pass crown)
-        if (PlayerInfo.hasPassed)
-        {
-            if (!PlayerField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.activeSelf)
-                PlayerField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.SetActive(true);
-        }
-        if (!PlayerInfo.hasPassed)
-        {
-            if (PlayerField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.activeSelf)
-                PlayerField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.SetActive(false);
-        }
-
-        if (EnemyInfo.hasPassed)
-        {
-            if (!EnemyField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.activeSelf)
-                EnemyField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.SetActive(true);
-        }
-        if (!EnemyInfo.hasPassed)
-        {
-            if (EnemyField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.activeSelf)
-                EnemyField.transform.Find("Stats").Find("Total").Find("Pass").gameObject.SetActive(false);
-        }
-        //Detected everywhere in the game(even if there is an onclick attached to a gameobject)
-        //if (Input.GetMouseButtonDown(0))
-        //    Debug.Log("Pressed primary button
+        if (PlayerInfo.CanExchange)
+            mulliganPrompt = RedrawPicker.ShowPhase(this);
+        yield return RoundOpening(firstPlayer.Value);
     }
 
+    public Rect DeckScreenRect(bool is_player) { return board.DeckRect(is_player); }
+
+    // The Scoia'tael dialog's answer
+    public void ChooseFirstPlayer(bool player_first)
+    {
+        firstPlayer = player_first;
+    }
+
+    private void Update()
+    {
+        if (battleState == BattleState.START && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
+        {
+            GameLog.Info("Player has skipped cards exchanging !");
+            FinishCardExchange();
+        }
+
+        // The pass button only exists during the player's turn, and not in the middle of a multi-step action
+        bool can_pass = battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None && presenting == 0;
+        if (PassBtn.activeSelf != can_pass)
+            PassBtn.SetActive(can_pass);
+
+        board.UpdateMarkers();
+    }
+
+    // Right click (or a second finger) keeps the hand; Escape opens the pause menu instead
     private bool ShouldSkipCardExchange()
     {
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
-            return true;
-
-        if (Input.touchCount >= 2 && Input.GetTouch(1).phase == TouchPhase.Began)
-            return true;
-
-        return false;
+        return !UIOverlay.BlocksCancel && (GameInput.SecondaryPressed() || GameInput.SecondFingerTapped());
     }
 
-    private Deck LoadPlayerDeck()
+    //----------------------------------------------Info helpers---------------------------------------------------//
+    private MainInfo Info(bool is_player) { return is_player ? PlayerInfo : EnemyInfo; }
+    private MainInfo Opponent(bool is_player) { return is_player ? EnemyInfo : PlayerInfo; }
+    private BoardView.FieldView View(bool is_player) { return board.View(is_player); }
+
+    public bool IsPlayerActionAllowed
     {
-        if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath) && File.Exists(ApplicationModel.playerDeckPath))
-            return JsonUtility.FromJson<Deck>(File.ReadAllText(ApplicationModel.playerDeckPath));
-
-        TextAsset deckAsset = Resources.Load<TextAsset>("Decks/player_default");
-        if (deckAsset == null)
-        {
-            Debug.LogError("Missing player default deck resource.");
-            return new Deck();
-        }
-
-        return JsonUtility.FromJson<Deck>(deckAsset.text);
+        get { return battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None && presenting == 0; }
     }
 
-    //----------------------------------------------BATTLE STATES HANDLING---------------------------------------------------//
+    // A play is being shown: nothing else can be done until it ends
+    public bool IsPresenting { get { return presenting > 0; } }
+
+    //----------------------------------------------BATTLE SETUP---------------------------------------------------//
     // On Battle Start: Draw 10 cards then change two cards or not at all
     private void SetupBattle()
     {
-        // Initialize all of the card infos
-        CardsDB cards_db = JsonUtility.FromJson<CardsDB>(CardsDatabase.text);
-        allCards = cards_db.Cards;
-
-        // Setup Player Info
         Deck myDeck = LoadPlayerDeck();
-        // TODO: Name
-        // TODO: Avatar
+        // The opponent the player chose before the battle, or a random one
+        TextAsset enemy_deck = OpponentDecks.ForBattle() ?? EnemyDeck;
+        GameLog.Info("Opponent deck: " + enemy_deck.name);
+        Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(enemy_deck.text, enemy_deck.name), Db);
 
-        // Setup Enemy Info
-        Deck oppDeck = JsonUtility.FromJson<Deck>(EnemyDeck.text);
-        // TODO: Name
-        // TODO: Avatar
+        // Emhyr, The White Flame cancels the other leader's ability, passive ones included (Daisy's extra card,
+        // Invader's random medics, Treacherous' doubled spies), unless both sides play him
+        bool white_flame = myDeck.Leader != oppDeck.Leader
+            && (myDeck.Leader == LeaderIds.EmhyrTheWhiteFlame || oppDeck.Leader == LeaderIds.EmhyrTheWhiteFlame);
+        PrepareField(myDeck, PlayerInfo, true, white_flame);
+        PrepareField(oppDeck, EnemyInfo, false, white_flame);
 
-        PrepareField(myDeck, PlayerInfo.HandList, true);
-        PrepareField(oppDeck, EnemyInfo.HandList, false);
+        foreach (bool is_player in new[] { true, false })
+            if (white_flame && Info(is_player).Leader != LeaderIds.EmhyrTheWhiteFlame)
+            {
+                Info(is_player).leaderDisabled = true;
+                View(is_player).Leader.MarkCancelled();
+                whiteFlameNotice = is_player ? "Your opponent's leader cancels your leader ability" : "Your leader cancels your opponent's leader ability";
+            }
+
+        // Passive leaders that affect both players
+        bool either(int leader) { return !white_flame && (myDeck.Leader == leader || oppDeck.Leader == leader); }
+        doubleSpies = either(LeaderIds.EredinTheTreacherous);
+        randomMedic = either(LeaderIds.EmhyrInvaderOfTheNorth);
+    }
+
+    // The selected deck if it exists and is valid, else the built-in default deck
+    private Deck LoadPlayerDeck()
+    {
+        string path = ApplicationModel.playerDeckPath;
+        if (DeckStorage.Exists(path)) // a deck file, or a preset (an AI deck)
+        {
+            Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
+            List<string> errors = DeckRules.Validate(deck, Db);
+            if (errors.Count == 0)
+            {
+                return deck;
+            }
+            UIOverlay.Toast("Your selected deck can't be used (" + errors[0] + "). Playing with the default deck.", 4f);
+        }
+
+        TextAsset deckAsset = Resources.Load<TextAsset>(DefaultDeckResource);
+        return DeckRules.Sanitize(CardLibrary.ParseDeck(deckAsset.text, DefaultDeckResource), Db);
     }
 
     // Prepares the field for the first time
-    private void PrepareField(Deck deck, List<int> hand_list, bool is_player_deck)
+    private void PrepareField(Deck deck, MainInfo info, bool is_player_deck, bool white_flame)
     {
-        List<int> deck_list;
-        Sprite deck_back;
-        MainInfo info;
-
-        deck_back = Resources.Load<Sprite>("Cards/Back/" + deck.Faction);
-        deck_list = GenerateDecklist(deck);
-        deck_list = ShuffleList(deck_list);
-
-        // Set the global variables accordingly for future uses
-        if (is_player_deck)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
         info.Faction = deck.Faction;
-        info.DeckBSprite = deck_back;
-        info.DeckList = deck_list;
-        info.HandList = hand_list; // Unneeded
-
-        // Sets the stats
-        SetInitialStats(info, is_player_deck);
-
-        // Instantiate a card back for each list item and set as child to Player/Deck/DeckBase
-        SetDeckObject(deck_list, deck_back, is_player_deck);
-
-        // Sets the leader object at the start of the game
+        info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + deck.Faction);
+        info.DeckList = Rng.Shuffle(deck.Cards);
         info.Leader = deck.Leader;
+
+        View(is_player_deck).Stats.UISetGeneral(info.Faction);
+        View(is_player_deck).Stats.UISetPlayer(info.Name, SpriteCache.Load("Cards/List/591x380/" + deck.Leader));
         SetLeaderCard(deck.Leader, is_player_deck);
 
-        if (deck.Leader == 57)
-            DrawCards(1, deck_list, hand_list, deck_back, is_player_deck);
-
-        // Add the top 10 Cards to the Player hand
-        DrawCards(10, deck_list, hand_list, deck_back, is_player_deck);
-        Debug.Log("Double click on a card to redraw or right click to skip");
-        // Called from any card in hand on double click
-
-        // DEVONLY:
-        //EnemyInfo.CloseList = new List<int> { 18, 19, 20, 94, 94, 94, 126, 128, 129, 127, 125, 77, 83 };
-        //EnemyInfo.RangeList = new List<int> { 71, 96, 95, 71};
-        //EnemyInfo.SiegeList = new List<int> { 11, 11, 4, 28 };
-        //PlayerInfo.CloseList = new List<int> { 138, 29, 138 };
-        //PlayerInfo.RangeList = new List<int> { 31, 5, 13 };
+        // Francesca, Daisy of the Valley: one extra card at the beginning of the battle
+        int cards_to_draw = deck.Leader == LeaderIds.FrancescaDaisyOfTheValley && !white_flame ? 11 : 10;
+        DrawCards(cards_to_draw, info, is_player_deck);
     }
 
-    private void ManageOutcome()
+    // Sets the leader in the UI
+    public void SetLeaderCard(int leader_id, bool is_player_deck)
     {
-        battleState = BattleState.ROUNDOVER;
-        int player_total = GetTotalScore(true, "all");
-        int enemy_total = GetTotalScore(false, "all");
-        string round_winner;
-
-        PlayerInfo.RoundsScore.Add(player_total);
-        EnemyInfo.RoundsScore.Add(enemy_total);
-
-        if (player_total > enemy_total)
-        {
-            EnemyInfo.Lives--;
-            round_winner = "player";
-        }
-        else if (enemy_total > player_total)
-        {
-            PlayerInfo.Lives--;
-            round_winner = "enemy";
-        }
-        else if (enemy_total == player_total)
-        {
-            // Draw //-------------Nilfgaard: Automatically win the round that ends in a draw--------------//
-            if (PlayerInfo.Faction == "NF" && EnemyInfo.Faction != "NF")
-            {
-                EnemyInfo.Lives--;
-                round_winner = "player";
-            }
-            else if (EnemyInfo.Faction == "NF" && PlayerInfo.Faction != "NF")
-            {
-                PlayerInfo.Lives--;
-                round_winner = "enemy";
-            }
-            else // Both Nilfgaard or both are not Nilfgaard
-            {
-                PlayerInfo.Lives--;
-                EnemyInfo.Lives--;
-                round_winner = "none";
-            }
-        }
-        else
-        {
-            Debug.LogError("ManageOutcome(): Unexpected Error !");
-            round_winner = "error";
-        }
-
-        // Update UI Gems;
-        PlayerField.transform.Find("Stats").GetComponent<StatsManager>().UIUpdateGemLives(PlayerInfo.Lives);
-        EnemyField.transform.Find("Stats").GetComponent<StatsManager>().UIUpdateGemLives(EnemyInfo.Lives);
-
-        if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
-        {
-            Debug.Log("Battle Ended in a draw"); // NF already handled above, unreachable if one NF is playing
-            ConcludeBattle("DRAW");
-        }
-        else if (PlayerInfo.Lives > 0 && EnemyInfo.Lives == 0)
-        {
-            Debug.Log("Player has won the battle !");
-            ConcludeBattle("WON");
-        }
-        else if (PlayerInfo.Lives == 0 && EnemyInfo.Lives > 0)
-        {
-            Debug.Log("Enemy has won the battle !");
-            ConcludeBattle("LOST");
-        }
-        else
-        {
-            PlayRoundOutcomeAudio(round_winner);
-            PrepareNextRound(round_winner);
-        }
+        BoardView.FieldView view = View(is_player_deck);
+        view.Leader.leaderId = leader_id;
+        view.Leader.type = Db.Get(leader_id).row;
+        CreateCardObjects(view.LeaderHolder, new List<int> { leader_id }, false, is_player_deck);
+        view.Leader.UISetPassive();
     }
 
-    private void PlayRoundOutcomeAudio(string round_winner)
+    //----------------------------------------------Redraw---------------------------------------------------//
+    public void FinishCardExchange()
     {
-        switch (round_winner)
-        {
-            case "player":
-                GameAudio.PlaySfx("round_win");
-                break;
-            case "enemy":
-                GameAudio.PlaySfx("round_lose");
-                break;
-            default:
-                GameAudio.PlaySfx("round_end");
-                break;
-        }
+        PlayerInfo.CanExchange = false;
     }
 
-    private void PrepareNextRound(string round_winner)
+    // One redraw of the player's (double-click in the hand, or the redraw picker); the second one ends the phase
+    public void RedrawPlayerCard(int card_id)
     {
-        Debug.Log("Preparing next round");
-
-        List<MainInfo> infos = new List<MainInfo> { PlayerInfo, EnemyInfo };
-        // Related to Monsters Faction
-        int random_unit = -1;
-        bool recovered = false;
-        string add_to = "none";
-
-        foreach (MainInfo info in infos)
-        {
-            bool there_is_cow = false;
-
-            if (info.Faction == "M")
-            {
-                random_unit = -1;
-                List<int> all_monsters = new List<int>(info.CloseList.Count + info.RangeList.Count + info.SiegeList.Count);
-                System.Random rnd = new System.Random();
-                all_monsters.AddRange(info.CloseList);
-                all_monsters.AddRange(info.RangeList);
-                all_monsters.AddRange(info.SiegeList);
-                if (all_monsters.Count > 0)
-                    random_unit = all_monsters[rnd.Next(all_monsters.Count)];
-                Debug.Log("Chosen Random: " + random_unit);
-            }
-
-            // Clear unit fields
-            if (info.CloseList.Count > 0)
-                for (int i = 0; i < info.CloseList.Count; i++)
-                {
-                    int card_id = info.CloseList[i];
-                    if (info.Faction == "M" && !recovered)
-                    {
-                        if (random_unit == card_id)
-                        {
-                            recovered = true;
-                            add_to = "close";
-                        }
-                    }
-                    info.CloseList.Remove(card_id);
-                    info.DiscardList.Add(card_id);
-                    i--;
-                }
-
-            if (info.RangeList.Count > 0)
-                for (int i = 0; i < info.RangeList.Count; i++)
-                {
-                    int card_id = info.RangeList[i];
-                    if (card_id == 16)
-                        there_is_cow = true;
-                    if (info.Faction == "M" && !recovered)
-                    {
-                        if (random_unit == card_id)
-                        {
-                            recovered = true;
-                            add_to = "range";
-                        }
-                    }
-                    info.RangeList.Remove(card_id);
-                    info.DiscardList.Add(card_id);
-                    i--;
-                }
-
-            if (info.SiegeList.Count > 0)
-                for (int i = 0; i < info.SiegeList.Count; i++)
-                {
-                    int card_id = info.SiegeList[i];
-                    if (info.Faction == "M" && !recovered)
-                    {
-                        if (random_unit == card_id)
-                        {
-                            recovered = true;
-                            add_to = "siege";
-                        }
-                    }
-                    info.SiegeList.Remove(card_id);
-                    info.DiscardList.Add(card_id);
-                    i--;
-                }
-
-            // Clear special fields
-            if (info.SpCloseList.Count > 0)
-                for (int i = 0; i < info.SpCloseList.Count; i++)
-                {
-                    int card_id = info.SpCloseList[i];
-                    info.SpCloseList.Remove(card_id);
-                    info.DiscardList.Add(card_id);
-                    i--;
-                }
-            if (info.SpRangeList.Count > 0)
-                for (int i = 0; i < info.SpRangeList.Count; i++)
-                {
-                    int card_id = info.SpRangeList[i];
-                    info.SpRangeList.Remove(card_id);
-                    info.DiscardList.Add(card_id);
-                    i--;
-                }
-            if (info.SpSiegeList.Count > 0)
-                for (int i = 0; i < info.SpSiegeList.Count; i++)
-                {
-                    int card_id = info.SpSiegeList[i];
-                    info.SpSiegeList.Remove(card_id);
-                    info.DiscardList.Add(card_id);
-                    i--;
-                }
-
-            // Clear weather
-            if (weatherList.Count > 0)
-            {
-                for (int i = 0; i < weatherList.Count; i++)
-                {
-                    int card_id = weatherList[i];
-                    weatherList.Remove(card_id);
-                    PlayerInfo.DiscardList.Add(card_id); // Won' be used anyway so can be omited
-                }
-            }
-
-            //------Monsters: Players with this deck will keep one random unit on the board after each round-------//
-            if (random_unit != -1)
-            {
-                info.DiscardList.Remove(random_unit);
-                switch (add_to)
-                {
-                    case "none":
-                        break;
-                    case "close":
-                        info.CloseList.Add(random_unit);
-                        break;
-                    case "range":
-                        info.RangeList.Add(random_unit);
-                        break;
-                    case "siege":
-                        info.SiegeList.Add(random_unit);
-                        break;
-                }
-            }
-
-            if (there_is_cow)
-                info.CloseList.Add(9);
-        }
-
-        LogList(PlayerInfo.CloseList, "Player Close");
-        LogList(EnemyInfo.CloseList, "Enemy Close");
-
-        LogList(PlayerInfo.DiscardList, "Player Discard");
-        LogList(EnemyInfo.DiscardList, "Enemy Discard");
-
-        //------Northern Realms: Get one additional card from your deck every time you win a round-------------//
-        switch (round_winner)
-        {
-            case "none":
-                Debug.Log("Draw");
-                break;
-            case "player":
-                if (PlayerInfo.Faction == "NR")
-                    DrawCards(1, PlayerInfo.DeckList, PlayerInfo.HandList, PlayerInfo.DeckBSprite, true);
-                break;
-            case "enemy":
-                if (EnemyInfo.Faction == "NR")
-                    DrawCards(1, EnemyInfo.DeckList, EnemyInfo.HandList, EnemyInfo.DeckBSprite, true);
-                break;
-            default:
-                Debug.LogError("PrepareNextRound(): Unexpected Error: " + round_winner);
-                break;
-        }
-
-        UpdateLists();
-
-        RefreshFields(true);
-        RefreshFields(false);
-
-        UpdateUIScores(true);
-        UpdateUIScores(false);
-
-        // Play next round
-        PlayerInfo.hasPassed = false;
-        EnemyInfo.hasPassed = false;
-        StartCoroutine(FirstTurnPicker());
+        if (!PlayerInfo.CanExchange || PlayerInfo.CardsExchanged >= 2 || !PlayerInfo.HandList.Contains(card_id))
+            return;
+        ExchangeCard(card_id, true);
+        PlayerInfo.CardsExchanged++;
+        if (PlayerInfo.CardsExchanged >= 2)
+            FinishCardExchange();
     }
 
-    private void ConcludeBattle(string outcome)
+    // The menu button at the top right
+    public void OpenPauseMenu()
     {
-        Debug.Log("Drawing a conclusion !");
-        PostGame.GetComponent<PostGameManager>().ShowScores(PlayerInfo.RoundsScore, EnemyInfo.RoundsScore);
-        switch (outcome)
-        {
-            case "DRAW":
-                battleState = BattleState.DRAW;
-                PostGame.SetActive(true);
-                PostGame.GetComponent<PostGameManager>().ShowDraw();
-                break;
-            case "WON":
-                GameAudio.PlaySfx("victory");
-                battleState = BattleState.WON;
-                PostGame.SetActive(true);
-                PostGame.GetComponent<PostGameManager>().ShowWin();
-                break;
-            case "LOST":
-                GameAudio.PlaySfx("defeat");
-                battleState = BattleState.LOST;
-                PostGame.SetActive(true);
-                PostGame.GetComponent<PostGameManager>().ShowLose();
-                break;
-        }
+        PauseMenu.Open();
     }
 
-    // Creates card back prefabs from list -also updates number of cards in deck count, as well as card backs-
-    private void SetDeckObject(List<int> deck_list, Sprite deck_back, bool is_player_deck)
+    // Redraw: the deck's top card takes the card's place in the hand, the card goes to the bottom of the deck
+    public void ExchangeCard(int card_id, bool is_player_card)
     {
-        GameObject my_object;
-        if (is_player_deck)
-            my_object = PlayerField;
-        else
-            my_object = EnemyField;
-        // Updates the UI number as well as cards on top of each other
-        my_object.transform.Find("Deck").gameObject.GetComponent<DeckManager>().UIUpdateDeckBase(deck_back, deck_list.Count);
+        MainInfo info = Info(is_player_card);
+        if (RoundRules.Redraw(info, card_id) == -1)
+            return;
+
+        GameAudio.PlaySfx("card_exchange");
+
+        SetDeckObject(info, is_player_card);
+        SetHandObject(info.HandList, is_player_card);
     }
 
-    // Sets the appropirate left stats (PlayerName / DeckName / Avatar)
-    private void SetInitialStats(MainInfo info, bool is_player_deck)
-    {
-        GameObject my_object;
-        if (is_player_deck)
-            my_object = PlayerField;
-        else
-            my_object = EnemyField;
-
-        // UI
-        my_object.transform.Find("Stats").GetComponent<StatsManager>().UISetGeneral(info.Faction);
-        my_object.transform.Find("Stats").GetComponent<StatsManager>().UIUpdateHandCount(info.HandList.Count);
-        // TODO: PlayerName, avatar and shield
-    }
-
-    // Initial 10 Card Draw
-    private void DrawCards(int num, List<int> deck_list, List<int> hand_list, Sprite deck_back, bool is_player_deck)
-    {
-        if (deck_list.Count < num)
-        {
-            Debug.LogError("Cannot draw, not enough cards left in hand: " + deck_list.Count);
-        }
-        else
-        {
-            for (int i = 0; i < num; i++)
-            {
-                hand_list.Add(deck_list[i]);
-                // Debug.Log("Player hand list length: " + PlayerInfo.HandList.Count);
-                // Does this update PlayerInfo.HandList ? Yes, but how
-            }
-            deck_list.RemoveRange(0, num);
-            SetDeckObject(deck_list, deck_back, is_player_deck);
-            SetHandObject(hand_list, is_player_deck);
-            GameAudio.PlaySfx("card_draw");
-        }
-    }
-
-    // Create Hand Cards from myHandList and updates card count (in Stats/HandCount)
-    public void SetHandObject(List<int> hand_list, bool is_player_hand)
-    {
-        GameObject my_object;
-        if (is_player_hand)
-            my_object = PlayerField;
-        else
-            my_object = EnemyField;
-
-        // Clear Hand Object First
-        my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ClearHandObject();
-        // Create cards and place them in Field.Hand Gameobject as children
-        CreateCardObjects(my_object.transform.Find("Hand").gameObject, hand_list, true, is_player_hand);
-        my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ResizeHand();
-        // Updates the UI
-        my_object.transform.Find("Stats").gameObject.GetComponent<StatsManager>().UIUpdateHandCount(hand_list.Count);
-    }
-
-    // Sets the discard Object
-    private void SetDiscardObject(List<int> discard_list, bool is_player_hand)
-    {
-        GameObject my_object;
-        if (is_player_hand)
-            my_object = PlayerField;
-        else
-            my_object = EnemyField;
-
-        my_object.transform.Find("Discard").GetComponent<PileManager>().ClearDiscardPile();
-        CreateCardObjects(my_object.transform.Find("Discard").Find("Pile").gameObject, discard_list, false, is_player_hand);
-    }
-
-    // Picks the first turn
-    IEnumerator FirstTurnPicker()
+    //----------------------------------------------TURNS---------------------------------------------------//
+    // Picks who takes the first turn of a round: the given side, or for the battle's first round the Scoia'tael perk
+    // or a coin toss
+    private IEnumerator RoundOpening(bool player_starts)
     {
         if (EnemyInfo.CanExchange)
         {
@@ -604,331 +316,462 @@ public class SceneController : MonoBehaviour
             AIManager.AIExchangeCards();
         }
 
-        // Wait for all players to either redraw or skip
-        while (EnemyInfo.CanExchange || PlayerInfo.CanExchange)
-        {
+        // Wait for all players to either redraw or skip (and the last redrawn card to land), and for the end of the last
+        // round's notices
+        while (EnemyInfo.CanExchange || PlayerInfo.CanExchange || RedrawPicker.IsAnimating || BattleBanner.Busy)
             yield return null;
-        }
 
-        //------------Scoia'tel: Player with this deck chooses who begins each round-------------//
-        if (PlayerInfo.Faction == "SC" && EnemyInfo.Faction != "SC")
-        {
-            // Show the turn picker
-            TurnPicker.SetActive(true);
-        }
-        else if (PlayerInfo.Faction != "SC" && EnemyInfo.Faction == "SC")
-        {
-            // Enemy chooses who goes first
-            StartCoroutine(PlayerTurn());
-        }
-        else
-        {
-            // TODO: Rock paper scissors maybe ?
-            int picker = new System.Random().Next(0, 2);
-            if (picker == 0)
-                StartCoroutine(EnemyTurn());
-            else
-                StartCoroutine(PlayerTurn());
-        }
+        if (mulliganPrompt != null)
+            Destroy(mulliganPrompt);
+
+        BattleBanner.Show(BattleBanner.RoundStart, "Round Start");
+        while (BattleBanner.Busy)
+            yield return null;
+        roundOpening = true;
+        lastTurnWasPlayer = null;
+        // The Witcher 3: a side that starts a round with no card in hand sits it out, even with its leader unused
+        foreach (bool is_player in new[] { true, false })
+            if (Info(is_player).HandList.Count == 0 && !Info(is_player).hasPassed)
+                MarkPassed(is_player);
+        StartTurn(player_starts);
     }
 
-    public IEnumerator PlayerTurn()
+    // Only one turn coroutine at a time: a stale "player turn in 1s" must not fire during a later turn
+    // Each new turn bumps the generation: a coroutine from an older turn gives up after its wait.
+    // (A turn can start another one synchronously, e.g. when the side to play has already passed.)
+    private void StartTurn(bool is_player)
     {
+        StopTurn();
+        int generation = turnGeneration;
+        Coroutine routine = StartCoroutine(is_player ? PlayerTurn(generation) : EnemyTurn(generation));
+        if (generation == turnGeneration)
+            turnRoutine = routine;
+    }
+
+    private void StopTurn()
+    {
+        turnGeneration++;
+        if (turnRoutine != null)
+            StopCoroutine(turnRoutine);
+        turnRoutine = null;
+    }
+
+    private IEnumerator PlayerTurn(int generation)
+    {
+        if (!PlayerInfo.hasPassed && OutOfPlays(true))
+            MarkPassed(true);
         if (PlayerInfo.hasPassed)
         {
             CheckRoundEnd();
             yield break;
         }
-        yield return new WaitForSeconds(1f);
-        Debug.Log("Player Turn !");
+        AnnounceTurn(true);
+        yield return new WaitForSeconds(0.3f);
+        while (BattleBanner.Busy)
+            yield return null;
+        if (generation != turnGeneration)
+            yield break;
+        GameLog.Info("Player Turn !");
         GameAudio.PlaySfx("turn_player");
         battleState = BattleState.PLAYERTURN;
     }
 
-    public IEnumerator EnemyTurn()
+    private IEnumerator EnemyTurn(int generation)
     {
+        if (!EnemyInfo.hasPassed && OutOfPlays(false))
+            MarkPassed(false);
         if (EnemyInfo.hasPassed)
         {
             CheckRoundEnd();
             yield break;
         }
         battleState = BattleState.ENEMYTURN;
-        Debug.Log("Enemey Turn !");
+        AnnounceTurn(false);
+        GameLog.Info("Enemy Turn !");
         GameAudio.PlaySfx("turn_enemy");
-        float delay = enemyTurnDelayHasPlayed ? 2f : 0.45f;
-        enemyTurnDelayHasPlayed = true;
-        yield return new WaitForSeconds(delay); // Order of this is essential
-        AIManager.AIStartTurn();
-        //StartCoroutine(PlayerTurn()); Turn is started from directly place card (enemy)
+        AIManager.Decision decision = AIManager.AIDecide(); // Hard thinks while the turn's notice shows
+        yield return new WaitForSeconds(0.3f);
+        while (!decision.Done || BattleBanner.Busy)
+            yield return null;
+        yield return new WaitForSeconds(0.15f);
+        if (generation != turnGeneration)
+            yield break;
+
+        // The card the opponent plays (or its leader) comes in from above the board to the showcase and stays a
+        // moment there, then glides to its place
+        AiAction action = decision.Action;
+        int shown = action.Type == AiActionType.PlayCard ? action.CardId : action.Type == AiActionType.UseLeader ? EnemyInfo.Leader : -1;
+        if (shown != -1)
+        {
+            yield return CardShowcase.Opponent(Db.Get(shown), board.EntryRect(CardShowcase.ScreenSize()));
+            if (generation != turnGeneration)
+            {
+                CardShowcase.Clear();
+                yield break;
+            }
+        }
+        AIManager.AIExecute(action);
+    }
+
+    // The Witcher 3's turn notices: each change of side. Not while the other side has passed: its pass was
+    // announced already and the turns no longer alternate.
+    private void AnnounceTurn(bool is_player)
+    {
+        roundOpening = false;
+        if (lastTurnWasPlayer != is_player && !Opponent(is_player).hasPassed)
+            BattleBanner.Show(is_player ? BattleBanner.YourTurn : BattleBanner.OpponentsTurn, is_player ? "Your turn!" : "Opponent's turn");
+        lastTurnWasPlayer = is_player;
     }
 
     public void CheckRoundEnd()
     {
         if (PlayerInfo.hasPassed && EnemyInfo.hasPassed)
         {
-            // Both passed, round has ended
-            battleState = BattleState.ROUNDOVER;
-            Debug.Log("Round has ended");
-
-            // Either PrepareNextRound() or ConcludeBattle(); // Depending on Lives
-            PlayerInfo.hasPassed = false;
-            EnemyInfo.hasPassed = false;
+            GameLog.Info("Round has ended");
             ManageOutcome();
         }
-        else if (PlayerInfo.hasPassed && !EnemyInfo.hasPassed)
-        {
-            StartCoroutine(EnemyTurn());
-        }
-        else if (!PlayerInfo.hasPassed && EnemyInfo.hasPassed)
-        {
-            StartCoroutine(PlayerTurn());
-        }
+        else if (PlayerInfo.hasPassed)
+            StartTurn(false);
+        else if (EnemyInfo.hasPassed)
+            StartTurn(true);
     }
 
-    // Highlights the field based on the selected card's stats
-    // And stores the highlighted field if any in a gameobject list
-    public void HighlightField(CardStats card_stats, bool is_player_turn)
+    // Ends whatever the given side was doing and hands the turn to the other side
+    public void TurnCallBack(bool is_player_turn)
     {
-        //Debug.Log("Highlighting field of type: " + card_stats.faction + " with a row: " + card_stats.row);
-        GameObject my_object;
-        GameObject opp_object;
-        // Playerturn: Hightlight player field
-        if (is_player_turn)
-        {
-            my_object = PlayerField;
-            opp_object = EnemyField;
-        }
-        else
-        {
-            my_object = EnemyField;
-            opp_object = PlayerField;
-        }
-
-
-        // Reset any previously stored fields
-        my_object.GetComponent<RowPicker>().ResetStored();
-        WeatherField.GetComponent<WeatherManager>().isWeatherCard = false;
-
-        switch (card_stats.faction)
-        {
-            case "Special":
-                // Further check if weather card or special card
-                if (card_stats.row == "special")
-                {
-                    // Highlights all of the three specials
-                    Sprite targetSprite = my_object.GetComponent<RowPicker>().specialSelected;
-                    my_object.transform.Find("Close").Find("Special").GetComponent<Image>().sprite = targetSprite;
-                    my_object.transform.Find("Range").Find("Special").GetComponent<Image>().sprite = targetSprite;
-                    my_object.transform.Find("Siege").Find("Special").GetComponent<Image>().sprite = targetSprite;
-
-                    // Store all highlighted in the GO list from RowPicker
-                    my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Close").Find("Special").gameObject);
-                    my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Range").Find("Special").gameObject);
-                    my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Siege").Find("Special").gameObject);
-                }
-                else // A "weather" card or a "one_time" card_row effect
-                {
-                    if (card_stats._idstr == "decoy")
-                    {
-                        Sprite closeSprite = my_object.GetComponent<RowPicker>().closeSelected;
-                        Sprite rangeSprite = my_object.GetComponent<RowPicker>().rangeSelected;
-                        Sprite siegeSprite = my_object.GetComponent<RowPicker>().siegeSelected;
-                        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = closeSprite;
-                        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = rangeSprite;
-                        my_object.transform.Find("Siege").Find("Unit").GetComponent<Image>().sprite = siegeSprite;
-                    }
-                    else
-                    {
-                        Sprite closeSprite = my_object.GetComponent<RowPicker>().closeSelected;
-                        Sprite rangeSprite = my_object.GetComponent<RowPicker>().rangeSelected;
-                        Sprite siegeSprite = my_object.GetComponent<RowPicker>().siegeSelected;
-                        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = closeSprite;
-                        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = rangeSprite;
-                        my_object.transform.Find("Siege").Find("Unit").GetComponent<Image>().sprite = siegeSprite;
-
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Close").Find("Unit").gameObject);
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Range").Find("Unit").gameObject);
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Siege").Find("Unit").gameObject);
-
-                        WeatherField.GetComponent<WeatherManager>().isWeatherCard = true;
-                    }
-                }
-                break;
-            default: // other than Special, "NR", "NF"... meaning a unit card
-                if (card_stats.ability == "spy")
-                {
-                    // Spy, highlight opponent object instead !
-                    //Debug.Log("SPY DETECTED: " + card_stats.name);
-                    my_object = opp_object;
-                }
-                switch (card_stats.row)
-                {
-                    case "close":
-                        Sprite targetSprite1 = my_object.GetComponent<RowPicker>().closeSelected;
-                        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = targetSprite1;
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Close").Find("Unit").gameObject);
-                        break;
-                    case "range":
-                        Sprite targetSprite2 = my_object.GetComponent<RowPicker>().rangeSelected;
-                        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = targetSprite2;
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Range").Find("Unit").gameObject);
-                        break;
-                    case "siege":
-                        Sprite targetSprite3 = my_object.GetComponent<RowPicker>().siegeSelected;
-                        my_object.transform.Find("Siege").Find("Unit").GetComponent<Image>().sprite = targetSprite3;
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Siege").Find("Unit").gameObject);
-                        break;
-                    case "close_range":
-                        Sprite targetSprite4 = my_object.GetComponent<RowPicker>().closeSelected;
-                        Sprite targetSprite5 = my_object.GetComponent<RowPicker>().rangeSelected;
-                        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = targetSprite4;
-                        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = targetSprite5;
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Close").Find("Unit").gameObject);
-                        my_object.GetComponent<RowPicker>().StoreField(my_object.transform.Find("Range").Find("Unit").gameObject);
-                        break;
-                }
-
-                break;
-        }
+        CardShowcase.Clear();
+        pendingAction = PendingAction.None;
+        PlayerInfo.CanDiscard = false;
+        SetHider(false);
+        StartTurn(!is_player_turn);
     }
 
-    // Lights off any highlighted field (close_range)
-    public void LightoffField(bool is_player_turn) // Playdown (!Highligh) is misleading
+    // Reference: PassManager event (hold to pass button)
+    public void SkipTurn(bool is_player_turn)
     {
-        GameObject my_object;
-        if (is_player_turn)
-            my_object = PlayerField;
-        else
-            my_object = EnemyField;
-
-        // Reset any previously stored fields
-        my_object.GetComponent<RowPicker>().ResetStored();
-
-        // Restores special sprite
-        Sprite specialSprite = my_object.GetComponent<RowPicker>().special;
-        my_object.transform.Find("Close").Find("Special").GetComponent<Image>().sprite = specialSprite;
-        my_object.transform.Find("Range").Find("Special").GetComponent<Image>().sprite = specialSprite;
-        my_object.transform.Find("Siege").Find("Special").GetComponent<Image>().sprite = specialSprite;
-
-        // Restore unit sprite
-        Sprite unitSprite = my_object.GetComponent<RowPicker>().close;
-        my_object.transform.Find("Close").Find("Unit").GetComponent<Image>().sprite = unitSprite;
-        unitSprite = my_object.GetComponent<RowPicker>().range;
-        my_object.transform.Find("Range").Find("Unit").GetComponent<Image>().sprite = unitSprite;
-        unitSprite = my_object.GetComponent<RowPicker>().siege;
-        my_object.transform.Find("Siege").Find("Unit").GetComponent<Image>().sprite = unitSprite;
-
-        // Light off the weather board and deselect weather card
-        WeatherField.GetComponent<Image>().sprite = WeatherField.GetComponent<WeatherManager>().weather;
-        WeatherField.GetComponent<WeatherManager>().isWeatherCard = false;
-    }
-
-    private void PlayCardAudio(CardStats cardStats)
-    {
-        if (cardStats == null)
-            return;
-
-        string ability = cardStats.ability;
-        string id = cardStats._idstr;
-
-        if (cardStats.faction == "Special")
+        if (is_player_turn && !IsPlayerActionAllowed)
         {
-            if (cardStats.row == "weather")
-            {
-                switch (id)
-                {
-                    case "biting_frost":
-                        GameAudio.PlaySfx("ability_weather_frost");
-                        break;
-                    case "impenetrable_fog":
-                        GameAudio.PlaySfx("ability_weather_fog");
-                        break;
-                    case "torrential_rain":
-                        GameAudio.PlaySfx("ability_weather_rain");
-                        break;
-                    case "clear_weather":
-                        GameAudio.PlaySfx("ability_weather_clear");
-                        break;
-                    default:
-                        GameAudio.PlaySfx("ability_weather");
-                        break;
-                }
-                return;
-            }
-
-            if (cardStats.row == "one_time")
-            {
-                if (id == "scorch")
-                    GameAudio.PlaySfx("ability_scorch");
-                else if (id == "decoy")
-                    GameAudio.PlaySfx("ability_decoy");
-                else
-                    GameAudio.PlaySfx("card_play_special");
-                return;
-            }
-
-            if (id == "commander_horn")
-                GameAudio.PlaySfx("ability_horn");
-            else
-                GameAudio.PlaySfx("card_play_special");
+            GameAudio.PlaySfx("invalid");
             return;
         }
 
-        if (!string.IsNullOrEmpty(ability))
+        MarkPassed(is_player_turn);
+        TurnCallBack(is_player_turn);
+    }
+
+    // The Witcher 3: a side with no card in hand and no leader ability it could use right now passes automatically
+    private bool OutOfPlays(bool is_player)
+    {
+        return RoundRules.OutOfPlays(CurrentBoard(), is_player);
+    }
+
+    private void MarkPassed(bool is_player)
+    {
+        GameAudio.PlaySfx("pass");
+        // A pass that ends the round is followed by the round's result instead; at the opening of a round the
+        // other side's "Round N" notice says it all
+        if (!Opponent(is_player).hasPassed && !roundOpening)
+            BattleBanner.Show(BattleBanner.Passed, is_player ? "Turn passed" : "Your opponent has passed");
+        Info(is_player).hasPassed = true;
+        lastPasserWasPlayer = is_player;
+        if (is_player)
+            DeselectCard();
+    }
+
+    //----------------------------------------------ROUNDS---------------------------------------------------//
+    private void ManageOutcome()
+    {
+        StopTurn();
+        battleState = BattleState.ROUNDOVER;
+        RecalculateStrengths();
+        int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
+        RoundWinner winner = RoundRules.DecideRound(player_total, enemy_total, PlayerInfo.Faction, EnemyInfo.Faction);
+        int player_lives = PlayerInfo.Lives, enemy_lives = EnemyInfo.Lives;
+        RoundRules.ApplyRoundResult(PlayerInfo, EnemyInfo, winner);
+        PlayerInfo.hasPassed = false;
+        EnemyInfo.hasPassed = false;
+        bool[] lost = { PlayerInfo.Lives < player_lives, EnemyInfo.Lives < enemy_lives }; // the player's, the opponent's
+
+        // The result over the board as it ended, then the board clears; a tie Nilfgaard wins is announced first
+        if (player_total == enemy_total && winner != RoundWinner.Draw)
+            BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
+        if (winner == RoundWinner.Player)
+            BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
+        else if (winner == RoundWinner.Enemy)
+            BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long);
+        else
+            BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long);
+        PlayRoundOutcomeAudio(winner);
+        StartCoroutine(FinishRound(winner, lost));
+    }
+
+    // After the result, the gem of each side that lost a life breaks (The Witcher 3), then the battle ends or the
+    // board clears for the next round
+    private IEnumerator FinishRound(RoundWinner winner, bool[] lost)
+    {
+        while (BattleBanner.Busy)
+            yield return null;
+
+        List<Coroutine> shatters = new List<Coroutine>();
+        foreach (bool is_player in new[] { true, false })
+            if (lost[is_player ? 0 : 1])
+                shatters.Add(StartCoroutine(CardEffects.Shatter(View(is_player).Stats.LostGem(Info(is_player).Lives), View(is_player).Stats.greyRuby)));
+        foreach (Coroutine shatter in shatters)
+            yield return shatter;
+        View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
+        View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
+
+        if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
+            ConcludeBattle(BattleState.DRAW);
+        else if (EnemyInfo.Lives == 0)
+            ConcludeBattle(BattleState.WON);
+        else if (PlayerInfo.Lives == 0)
+            ConcludeBattle(BattleState.LOST);
+        else
+            PrepareNextRound(winner);
+    }
+
+    private void PlayRoundOutcomeAudio(RoundWinner winner)
+    {
+        switch (winner)
         {
-            if (ability == "spy")
-            {
-                GameAudio.PlaySfx("ability_spy");
-                return;
-            }
-            if (ability == "medic")
-            {
-                GameAudio.PlaySfx("ability_medic");
-                return;
-            }
-            if (ability == "muster")
-            {
-                GameAudio.PlaySfx("ability_muster");
-                return;
-            }
-            if (ability == "commander_horn")
-            {
-                GameAudio.PlaySfx("ability_horn");
-                return;
-            }
-            if (ability == "morale_boost")
-            {
-                GameAudio.PlaySfx("ability_morale");
-                return;
-            }
-            if (ability == "tight_bond")
-            {
-                GameAudio.PlaySfx("ability_tight_bond");
-                return;
-            }
-            if (ability.Contains("scorch"))
-            {
-                GameAudio.PlaySfx("ability_scorch");
-                return;
-            }
+            case RoundWinner.Player:
+                GameAudio.PlaySfx("round_win");
+                break;
+            case RoundWinner.Enemy:
+                GameAudio.PlaySfx("round_lose");
+                break;
+            default:
+                GameAudio.PlaySfx("round_end");
+                break;
+        }
+    }
+
+    private void PrepareNextRound(RoundWinner winner)
+    {
+        GameLog.Info("Preparing next round");
+        DeselectCard();
+        pendingAction = PendingAction.None;
+        PlayerInfo.CanDiscard = false;
+
+        // The board clears as in The Witcher 3: every card flies to its discard pile. Monsters keep a random unit;
+        // leader horns vanish; weather goes back to whoever played it
+        board.BeginChange();
+        foreach (bool is_player in new[] { true, false })
+        {
+            int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
+            if (kept != -1)
+                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
+        }
+        weatherList.Clear();
+
+        //------Northern Realms: Get one additional card from your deck every time you win a round-------------//
+        if (winner != RoundWinner.Draw && Info(winner == RoundWinner.Player).Faction == Factions.NorthernRealms)
+        {
+            bool is_player = winner == RoundWinner.Player;
+            if (DrawCards(1, Info(is_player), is_player) > 0)
+                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
         }
 
-        if (cardStats.unique)
-            GameAudio.PlaySfx("card_play_hero");
-        else
-            GameAudio.PlaySfx("card_play_unit");
+        RefreshBoard();
+        BoardChange change = board.EndChange();
+
+        // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
+        bool player_starts = winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer);
+        Present(change, presenter.Clear(change), () => StartCoroutine(RoundOpening(player_starts)));
+    }
+
+    public bool IsBattleOver
+    {
+        get
+        {
+            return battleState == BattleState.WON || battleState == BattleState.LOST || battleState == BattleState.DRAW
+                || PlayerInfo.Lives == 0 || EnemyInfo.Lives == 0; // decided: the last round's result is showing
+        }
+    }
+
+    // Giving up (pause menu): everything in progress stops and the battle is lost
+    public void GiveUp()
+    {
+        if (IsBattleOver)
+            return;
+        GameLog.Info("Player gave up");
+        StopTurn();
+        StopAllCoroutines();
+        EndPresentations();
+        BattleBanner.Clear();
+        DiscardViewer.Close();
+        if (mulliganPrompt != null)
+            Destroy(mulliganPrompt);
+        TurnPicker.SetActive(false);
+        Panel.SetActive(false);
+        pendingAction = PendingAction.None;
+        DeselectCard();
+        SetHider(false);
+        ConcludeBattle(BattleState.LOST, true);
+    }
+
+    private void ConcludeBattle(BattleState outcome, bool gave_up = false)
+    {
+        GameLog.Info("Battle ended: " + outcome);
+        battleState = outcome;
+        CardShowcase.Clear();
+        CardMotion.ClearLayer();
+        PostGame.SetActive(true);
+        PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
+        if (outcome == BattleState.WON)
+            GameAudio.PlaySfx("victory");
+        else if (outcome == BattleState.LOST)
+            GameAudio.PlaySfx("defeat");
+    }
+
+    // Draws up to num cards (fewer if the deck runs out), returns how many were drawn
+    private int DrawCards(int num, MainInfo info, bool is_player_deck)
+    {
+        int drawn = RoundRules.Draw(info, num);
+        if (drawn == 0)
+            return 0;
+        SetDeckObject(info, is_player_deck);
+        SetHandObject(info.HandList, is_player_deck);
+        GameAudio.PlaySfx("card_draw");
+        return drawn;
+    }
+
+    //----------------------------------------------PLAYING CARDS---------------------------------------------------//
+    // Directly places a specific card_go (from hand or picked from a panel) on a field_go
+    public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
+    {
+        CardStats card_stats = card_go.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        card_go.GetComponent<CardHover>().DestroyEffect();
+        string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
+
+        // Its object leaves the hand first (the showcase shows it): the refresh reuses hand objects, and with two
+        // copies in hand it could otherwise keep this very one for the copy that stays
+        card_go.transform.SetParent(null, false);
+        Destroy(card_go);
+        PlayCard(card_stats._id, field_row, is_player_turn);
+    }
+
+    // Plays a card from the hand: resolves it, shows it on the board, then passes the turn (unless a choice is
+    // pending)
+    public void PlayCard(int card_id, string field_row, bool is_player_turn)
+    {
+        MainInfo me = Info(is_player_turn);
+        me.HandList.Remove(card_id);
+        selectedCard = null;
+        pendingAction = PendingAction.None;
+        CardShowcase.Clear();
+
+        Card card = Db.Get(card_id);
+        PlayCardAudio(card);
+        int hand_before = me.HandList.Count;
+        board.BeginChange();
+        PlayOutcome outcome = PlayRules.Resolve(CurrentBoard(), card, field_row, is_player_turn, is_player_turn);
+        if (me.HandList.Count > hand_before)
+            GameAudio.PlaySfx("card_draw");
+        RefreshBoard();
+        SetHider(false);
+
+        bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
+        BoardChange change = board.EndChange();
+        Present(change, presenter.Play(change, card_id, is_player_turn, medic_choice), () =>
+        {
+            // Medic: the player picks a unit to restore from the discard panel
+            if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
+            {
+                SetHider(true);
+                return;
+            }
+            TurnCallBack(is_player_turn);
+        });
+    }
+
+    // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act
+    private void Present(BoardChange change, IEnumerator show, Action then)
+    {
+        StartCoroutine(Presenting(change, show, then));
+    }
+
+    private IEnumerator Presenting(BoardChange change, IEnumerator show, Action then)
+    {
+        presenting++;
+        presented.Add(change);
+        // Never left waiting: a presentation that fails or runs too long is cut short (game time, the pause stops it)
+        bool finished = false;
+        Coroutine running = StartCoroutine(Then(show, () => finished = true));
+        float limit = Time.time + PresentationLimit;
+        while (!finished && Time.time < limit)
+            yield return null;
+        if (!finished)
+        {
+            StopCoroutine(running);
+            Debug.LogError("A play's presentation did not end, the board shows the result at once");
+        }
+        change.Flush();
+        presented.Remove(change);
+        presenting--;
+        then();
+    }
+
+    private const float PresentationLimit = 12f;
+
+    private static IEnumerator Then(IEnumerator routine, Action done)
+    {
+        yield return routine;
+        done();
+    }
+
+    // Plays cut short (giving up): every card shows in its place at once
+    private void EndPresentations()
+    {
+        foreach (BoardChange change in presented)
+            change.Flush();
+        presented.Clear();
+        presenting = 0;
+        CardShowcase.Clear();
+        CardMotion.ClearLayer();
+    }
+
+    // A card chosen from a pile (medic, weather from the deck) comes from that pile to the showcase
+    public void ShowcasePicked(int card_id, string field, bool is_player)
+    {
+        CardShowcase.Pick(Db.Get(card_id), field == "deck_list" ? board.DeckRect(is_player) : board.PileRect(is_player));
+    }
+
+    // The rules operate directly on the battle's lists
+    private Board CurrentBoard()
+    {
+        return new Board
+        {
+            Player = PlayerInfo,
+            Enemy = EnemyInfo,
+            Weather = weatherList,
+            DoubleSpies = doubleSpies,
+            RandomMedic = randomMedic,
+            Db = Db,
+            Rnd = Rng.Shared,
+        };
+    }
+
+    private bool ShowMedicChoice()
+    {
+        List<int> units = AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db);
+        if (units.Count == 0)
+            return false;
+        OpenPanel().ShowToPlay("discard_list", units, true);
+        return true;
     }
 
     public bool TryPlaySelectedCardOnBoard()
     {
-        if (battleState != BattleState.PLAYERTURN || selectedCard == null)
+        if (!IsSelectedCardPlayable())
             return false;
 
-        CardStats selectedStats = selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        if (selectedStats.faction != "Special")
+        CardStats selectedStats = SelectedStats();
+        if (selectedStats.faction != Factions.Special)
             return false;
 
-        if (selectedStats.row != "weather" && selectedStats._idstr != "scorch")
+        if (selectedStats.row != Rows.Weather && selectedStats.ability != Abilities.Scorch)
             return false;
 
         DirectlyPlaceCard(selectedCard, WeatherField, true);
@@ -937,2260 +780,176 @@ public class SceneController : MonoBehaviour
 
     public bool TryPlaySelectedDecoyOnCard(GameObject targetCard)
     {
-        if (battleState != BattleState.PLAYERTURN || selectedCard == null)
+        if (!IsSelectedCardPlayable())
             return false;
 
-        CardStats selectedStats = selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        if (selectedStats._idstr != "decoy")
+        CardStats selectedStats = SelectedStats();
+        if (selectedStats.ability != Abilities.Decoy)
             return false;
 
         CardStats targetStats = targetCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        if (!targetCard.CompareTag("Player") || targetStats.faction == "Special" || targetStats.unique || targetStats.ability == "leader")
-        {
-            GameAudio.PlaySfx("invalid");
-            Debug.Log("Cannot Decoy !");
-            return true;
-        }
-
         string row = targetCard.transform.parent.parent.name.ToLower();
-        if (row != "close" && row != "range" && row != "siege")
+        bool valid_target = targetCard.CompareTag("Player") && targetStats.faction != Factions.Special
+            && !targetStats.unique && targetStats.ability != Abilities.Leader && Rows.IsUnitRow(row);
+        if (!valid_target)
         {
             GameAudio.PlaySfx("invalid");
-            Debug.Log("Cannot Decoy !");
+            UIOverlay.Toast("Decoy can only swap a non-hero unit on your side");
             return true;
         }
 
-        PlayCardAudio(selectedStats);
+        PlayCardAudio(Db.Get(selectedStats._id));
         selectedCard.GetComponent<CardHover>().DestroyEffect();
+        // Out of the hand first, as in DirectlyPlaceCard (a second decoy in hand keeps its own object)
+        selectedCard.transform.SetParent(null, false);
+        Destroy(selectedCard);
         selectedCard = null;
-
-        PlayerInfo.HandList.Remove(selectedStats._id);
-        ActuallyDecoy(targetStats._id, row, true, selectedStats._id);
+        PlayDecoy(targetStats._id, row, true, selectedStats._id);
         return true;
     }
 
-    // Directly places a specific card_go on a field_go
-    public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
+    // Decoy: the target goes back to the hand, the decoy takes its place on the row
+    public void PlayDecoy(int target_id, string row, bool is_player_card, int decoy_id)
     {
-        // The tests are to make sure the appropriate lists gets updated
-        // as well as the correct list is being passed to CreateCardObject()
-        // which instantiates all cards of a card_id list after clearing
-        // the previous children of the gameobject
+        Info(is_player_card).HandList.Remove(decoy_id);
+        CardShowcase.Clear();
+        GameLog.Info("Decoying: " + target_id);
+        board.BeginChange();
+        PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
+        RefreshBoard();
+        BoardChange change = board.EndChange();
+        Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => TurnCallBack(is_player_card));
+    }
 
-        MainInfo my_info;
-        MainInfo opp_info;
-
-        if (is_player_turn)
-        {
-            my_info = PlayerInfo;
-            opp_info = EnemyInfo;
-        }
+    // Escape (the back button on Android) puts a selected card (or the chosen leader) back first, as in The Witcher 3;
+    // otherwise it pauses
+    private void OnEscape()
+    {
+        if ((selectedCard != null || LeaderSelected) && IsPlayerActionAllowed)
+            PutBackSelectedCard();
         else
+            PauseMenu.Open();
+    }
+
+    public void PutBackSelectedCard(bool sound = true)
+    {
+        if (sound)
+            GameAudio.PlaySfx("card_select");
+        DeselectCard();
+    }
+
+    // A card is selected and can be placed now (from the hand, or picked from a pile by a medic or a leader)
+    public bool IsSelectedCardPlayable()
+    {
+        return battleState == BattleState.PLAYERTURN && selectedCard != null && presenting == 0
+            && (pendingAction == PendingAction.None || pendingAction == PendingAction.PlacePickedCard);
+    }
+
+    private CardStats SelectedStats()
+    {
+        return selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+    }
+
+    // The selected card (or the chosen leader) goes back to its place, gliding there from the showcase (or leaving it
+    // at once: its play takes over)
+    private void DeselectCard(bool glide = true)
+    {
+        ReleaseLeader();
+        if (selectedCard != null)
         {
-            my_info = EnemyInfo;
-            opp_info = PlayerInfo;
+            CardHover hover = selectedCard.GetComponent<CardHover>();
+            hover.isHoverable = true;
+            hover.TranslateDown();
+            hover.DestroyEffect();
         }
-
-        CardStats card_stats = card_go.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-        card_go.GetComponent<CardHover>().DestroyEffect();
-        bool waitMedic = false;
-        bool isScorch = false;
-        bool isScorchAbility = false;
-
-        string card_type;
-        if (card_stats.faction == "Special") card_type = "special"; else card_type = "unit";
-        string card_row = card_stats.row;
-        string field_row = field_go.transform.parent.name.ToLower();
-        PlayCardAudio(card_stats);
-        //Debug.Log("Card type is: " + card_type);
-        //Debug.Log("Card row is: " + card_row);
-        //Debug.Log("Field row is: " + field_row);
-        if (card_row == "close_range")
-            card_row = field_row;
-
-        // Remove From Hand
-        my_info.HandList.Remove(card_stats._id);
-
-        // Play Card
-        if (card_type == "unit")
-        {
-            // Abilities related to adding to list
-            if (card_stats.ability == "spy")
-            {
-                // my_object(spy user) draws two cards
-                DrawCards(2, my_info.DeckList, my_info.HandList, my_info.DeckBSprite, is_player_turn);
-
-                // Swap the objects
-                my_info = opp_info;
-            }
-            else if (card_stats.ability == "muster")
-            {
-                Muster(card_stats, card_row, is_player_turn);
-            }
-            else if (card_stats.ability == "medic")
-            {
-                if (randomMedic && !card_stats.unique)
-                    RndMedic(is_player_turn);
-                else
-                    waitMedic = Medic(is_player_turn);
-            }
-            else if (card_stats.ability.Contains("scorch"))
-            {
-                isScorchAbility = true;
-            }
-            switch (card_row)
-            {
-                case "close":
-                    // Updates the list
-                    my_info.CloseList.Add(card_stats._id);
-                    break;
-                case "range":
-                    my_info.RangeList.Add(card_stats._id);
-                    break;
-                case "siege":
-                    my_info.SiegeList.Add(card_stats._id);
-                    break;
-            }
-        }
-        else // card_type == "special"
-        {
-            switch (card_row)
-            {
-                case "special":
-                    switch (field_row)
-                    {
-                        case "close":
-                            if (!my_info.SpCloseList.Any(item => item == card_stats._id))
-                                my_info.SpCloseList.Add(card_stats._id); // If not exists on the list, add it
-                            else
-                                my_info.DiscardList.Add(card_stats._id); // Else add to discard
-                            break;
-                        case "range":
-                            if (!my_info.SpRangeList.Any(item => item == card_stats._id))
-                                my_info.SpRangeList.Add(card_stats._id);
-                            else
-                                my_info.DiscardList.Add(card_stats._id);
-                            break;
-                        case "siege":
-                            if (!my_info.SpSiegeList.Any(item => item == card_stats._id))
-                                my_info.SpSiegeList.Add(card_stats._id);
-                            else
-                                my_info.DiscardList.Add(card_stats._id);
-                            break;
-                    }
-                    break;
-                case "weather":
-                    // Weather card is selected and and weather field is clicked
-                    if (!weatherList.Any(item => item == card_stats._id))
-                        weatherList.Add(card_stats._id);
-                    else
-                        my_info.DiscardList.Add(card_stats._id);
-                    // Clear Weather Effect
-                    if (card_stats.ability == "clear_weather")
-                    {
-                        weatherList.Clear(); // EZ
-                        my_info.DiscardList.Add(card_stats._id);
-                    }
-                    break;
-                case "one_time":
-                    // "Not placing any cards";
-                    if (card_stats._idstr == "scorch")
-                        isScorch = true;
-                    else if (card_stats._idstr == "decoy")
-                        swapActivated = true;
-                    else
-                        Debug.LogError("Unexpected error placing card_id: " + card_stats._id);
-                    my_info.DiscardList.Add(card_stats._id);
-                    break;
-            }
-        }
-
-        // Updates the lists for both enemy and player
-        // Also apply any modifiers (morale boost / commander horn / weather )
-        UpdateLists();
-
-        // Scorch AFTER modifiers
-        if (isScorch)
-            Scorch();
-        if (isScorchAbility)
-            ScorchAbility(card_row, is_player_turn);
-
-        // Just to be sure
-        UpdateLists();
-
-        // Refresh the enemy and the player fields from the updated lists
-        RefreshFields(false, !is_player_turn);
-        RefreshFields(true, is_player_turn);
-
-        // Lights off the enemy and the player fields
+        if (glide)
+            CardShowcase.Deselect();
+        else
+            CardShowcase.Clear();
+        selectedCard = null;
         LightoffField(true);
         LightoffField(false);
+    }
 
-        // Updates the UI scores of both player and enemy
-        UpdateUIScores(true);
-        UpdateUIScores(false);
-
-        // Hider the hider to allow user to use his hand
-        // This is used incase a medic ability is activated
-        // to disable user from picking another card
-        SetHider(false);
-
-        // FIXME: WILL BREAK WITH AI USING MEDIC CARD (add a break to skip)
-        // If medic is activated, for another card's placing
-        if (waitMedic)
-        {
-            SetHider(true);
-            // TODO: AI FIX
+    private void PlayCardAudio(Card card)
+    {
+        if (card == null)
             return;
-        }
 
-        // FIXME: WILL BREAK WITH AI USING DECOY (add a break to skip)
-        // If decoy is activated, for card swapping
-        if (swapActivated && CheckDecoyable(is_player_turn))
+        if (card.IsSpecial)
         {
-            // Continue swap
-            SetHider(true);
-            // TODO: AI FIX
-            return;
-        }
-        else
-            swapActivated = false;
-
-        //Debug.Log("Card placed successfully! ");
-        if (is_player_turn)
-            StartCoroutine(EnemyTurn());
-        else
-            StartCoroutine(PlayerTurn());
-    }
-
-    // Reference: PassManager event (hold to pass button)
-    public void SkipTurn(bool is_player_turn)
-    {
-        if (battleState == BattleState.START && is_player_turn)
-        {
-            GameAudio.PlaySfx("card_exchange");
-            PlayerInfo.CanExchange = false;
-            return;
-        }
-
-        GameAudio.PlaySfx("pass");
-
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        info.hasPassed = true;
-        TurnCallBack(is_player_turn);
-    }
-
-    public void TurnCallBack(bool is_player_turn)
-    {
-        if (is_player_turn)
-            StartCoroutine(EnemyTurn());
-        else
-            StartCoroutine(PlayerTurn());
-    }
-
-    //-----------------------------------------------Classes and Json Related--------------------------------------------//
-    [Serializable] // Means the following class can be added to a list
-    public class Card
-    {
-        public string _idstr = null;
-        public string name = null;
-        public int _id = -1;
-        public string faction = null;
-        public bool unique = false;
-        public int strength = 0;
-        public string row = null;
-        public string ability = null;
-    }
-
-    public class CardsDB
-    {
-        public List<Card> Cards = new List<Card>();
-    }
-
-    private class Deck
-    {
-        // Usage Example:
-        //
-        //Deck deck = new Deck
-        //{
-        //    Faction = "NR",
-        //    Name = "My Best Deck",
-        //    Cards = { 1, 2, 3, 4 } (card ids)
-        //};
-        //string json = JsonUtility.ToJson(deck);
-        public string Faction = null;
-        public string Name = null;
-        public int Leader = 0;
-        public List<int> Cards = new List<int>();
-    }
-
-    [Serializable]
-    public class MainInfo
-    {
-        public string Name;
-        public Image Avatar;
-
-        public Sprite DeckBSprite;
-        public string Faction;
-        public int Leader;
-        public bool canLeader = true;
-        public List<int> DeckList = new List<int>();     // List of card_ids in deck
-        public List<int> HandList = new List<int>();     // List of card_ids in hand
-        public List<int> DiscardList = new List<int>();  // List of card_ids in discard
-
-        public List<int> SpCloseList = new List<int>();   // List of card_ids in Special Close Field
-        public List<int> SpRangeList = new List<int>();
-        public List<int> SpSiegeList = new List<int>();
-
-        // List of Unit Cards on the field (Length L)
-        public List<int> CloseList = new List<int>();
-        public List<int> RangeList = new List<int>();
-        public List<int> SiegeList = new List<int>();
-
-        // List of Original Strengths respectively (Length L)
-        public List<int> CloseStrengthL = new List<int>();
-        public List<int> RangeStrengthL = new List<int>();
-        public List<int> SiegeStrengthL = new List<int>();
-
-        // List of Modified Strengths respectively (Length L)
-        public List<int> MCloseStrength = new List<int>();
-        public List<int> MRangeStrength = new List<int>();
-        public List<int> MSiegeStrength = new List<int>();
-
-        public bool CanExchange = true;
-        public int CardsExchanged = 0;
-
-        public bool CanDiscard = false;
-        public int CardsDiscarded = 0;
-
-        public bool hasPassed = false;
-        public int Lives = 2;
-        public List<int> RoundsScore = new List<int>(3);
-    }
-
-    //-----------------------------------------Generate Deck, Exchange / Discard---------------------------------//
-    // Returns a List of integers containing the card ids
-    private List<int> GenerateDecklist(Deck deck)
-    {
-        List<int> newDeck = new List<int>();
-        foreach (int s in deck.Cards)
-        {
-            newDeck.Add(s);
-        }
-        return newDeck;
-    }
-
-    //Shuffles a List of a T type
-    private List<int> ShuffleList(List<int> my_list)
-    {
-        return my_list.OrderBy(x => Guid.NewGuid()).ToList();
-    }
-
-    // Exchange a card with another from deck (shuffle card back into the deck then draw)
-    public void ExchangeCard(int card_id, bool is_player_card)
-    {
-        GameAudio.PlaySfx("card_exchange");
-
-        MainInfo info;
-        if (is_player_card)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        //Debug.Log("Player exchanging: " + card_id);
-        info.DeckList.Add(card_id);
-        info.HandList.Remove(card_id);
-
-        info.DeckList = ShuffleList(info.DeckList);
-
-        info.HandList.Add(info.DeckList[0]);
-        info.DeckList.RemoveAt(0);
-
-        SetDeckObject(info.DeckList, info.DeckBSprite, is_player_card);
-        SetHandObject(info.HandList, is_player_card);
-    }
-
-    // Discard 
-    public void DiscardCard(int card_id, bool is_player_card)
-    {
-        GameAudio.PlaySfx("card_discard");
-
-        MainInfo info;
-        if (is_player_card)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        info.HandList.Remove(card_id);
-        info.DiscardList.Add(card_id);
-        SetHandObject(info.HandList, is_player_card);
-        SetDiscardObject(info.DiscardList, is_player_card);
-
-        Debug.Log("Discarding from CardDiscard");
-    }
-
-    //---------------------------------------------Helper Methods------------------------------------------------//
-    // Hides the player's hand interactability
-    public void SetHider(bool hidden)
-    {
-        if (hidden)
-            hiderObject.transform.localPosition = new Vector2(0, -461);
-        else
-            hiderObject.transform.localPosition = new Vector2(0, -618);
-    }
-
-    // Checks if the player's field permits a decoy
-    private bool CheckDecoyable(bool is_player_field)
-    {
-        bool decoyable = true;
-        MainInfo info;
-
-        if (is_player_field)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        // They use the same list
-        List<int> close_list = GetMedicList(info.CloseList);
-        List<int> range_list = GetMedicList(info.RangeList);
-        List<int> siege_list = GetMedicList(info.SiegeList);
-
-        if (close_list.Count == 0 && range_list.Count == 0 && siege_list.Count == 0)
-            decoyable = false;
-
-        return decoyable;
-    }
-
-    // Gets unit cards from a list (no hero or special cards)
-    private List<int> GetMedicList(List<int> my_list)
-    {
-        List<int> returned_list = new List<int>();
-        List<Card> card_list = GetCardsList(my_list);
-        foreach (Card card in card_list)
-        {
-            if (card.faction != "Special" && !card.unique)
-                returned_list.Add(card._id);
-        }
-        return returned_list;
-    }
-
-    // Gets weather cards from a list
-    private List<int> GetWeatherList(List<int> my_list, string row)
-    {
-        List<int> returned_list = new List<int>();
-        List<Card> card_list = GetCardsList(my_list);
-        foreach (Card card in card_list)
-        {
-            switch (row)
+            if (card.row == Rows.Weather)
             {
-                case "all":
-                    if (card.row == "weather" && card.ability != "clear_weather")
-                        returned_list.Add(card._id);
-                    break;
-                case "close":
-                    if (card.row == "weather" && card.ability == "reduce_close")
-                        returned_list.Add(card._id);
-                    break;
-                case "range":
-                    if (card.row == "weather" && card.ability == "reduce_range")
-                        returned_list.Add(card._id);
-                    break;
-                case "siege":
-                    if (card.row == "weather" && card.ability == "reduce_siege")
-                        returned_list.Add(card._id);
-                    break;
+                switch (card._idstr)
+                {
+                    case "biting_frost": GameAudio.PlaySfx("ability_weather_frost"); break;
+                    case "impenetrable_fog": GameAudio.PlaySfx("ability_weather_fog"); break;
+                    case "torrential_rain": GameAudio.PlaySfx("ability_weather_rain"); break;
+                    case "clear_weather": GameAudio.PlaySfx("ability_weather_clear"); break;
+                    default: GameAudio.PlaySfx("ability_weather"); break;
+                }
             }
+            else if (card.ability == Abilities.Scorch)
+                GameAudio.PlaySfx("ability_scorch");
+            else if (card.ability == Abilities.Decoy)
+                GameAudio.PlaySfx("ability_decoy");
+            else if (card.ability == Abilities.CommanderHorn)
+                GameAudio.PlaySfx("ability_horn");
+            else
+                GameAudio.PlaySfx("card_play_special");
+            return;
         }
-        return returned_list;
+
+        switch (card.ability)
+        {
+            case Abilities.Spy: GameAudio.PlaySfx("ability_spy"); return;
+            case Abilities.Medic: GameAudio.PlaySfx("ability_medic"); return;
+            case Abilities.Muster: GameAudio.PlaySfx("ability_muster"); return;
+            case Abilities.UnitHorn: GameAudio.PlaySfx("ability_horn"); return;
+            case Abilities.MoraleBoost: GameAudio.PlaySfx("ability_morale"); return;
+            case Abilities.TightBond: GameAudio.PlaySfx("ability_tight_bond"); return;
+        }
+        if (Abilities.IsRowScorch(card.ability))
+            GameAudio.PlaySfx("ability_scorch");
+        else
+            GameAudio.PlaySfx(card.unique ? "card_play_hero" : "card_play_unit");
     }
 
-    // Get Card Stats from a card id
+    //----------------------------------------------Board (drawn by BoardView)---------------------------------------------------//
+    private void RecalculateStrengths()
+    {
+        StrengthCalculator.Recalculate(PlayerInfo, weatherList, doubleSpies, Db);
+        StrengthCalculator.Recalculate(EnemyInfo, weatherList, doubleSpies, Db);
+    }
+
+    // Recalculates the strengths, then shows both sides from the lists
+    private void RefreshBoard()
+    {
+        RecalculateStrengths();
+        board.Refresh();
+    }
+
+    private void SetDeckObject(MainInfo info, bool is_player_deck) { board.SetDeck(info, is_player_deck); }
+    public void SetHandObject(List<int> hand_list, bool is_player_hand) { board.SetHand(hand_list, is_player_hand); }
+    private void SetDiscardObject(List<int> discard_list, bool is_player) { board.SetDiscard(discard_list, is_player); }
+    private void CreateCardObjects(GameObject my_object, List<int> card_list, bool isSelectable, bool is_player_card) { board.CreateCardObjects(my_object, card_list, isSelectable, is_player_card); }
+    public GameObject CreateCardObject(Card card, bool is_player_card) { return board.CreateCardObject(card, is_player_card); }
+    public void HighlightField(CardStats card_stats, bool is_player_turn) { board.Highlight(card_stats, is_player_turn); }
+    public void LightoffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
+    public void SetHider(bool hidden) { board.SetHider(hidden); }
+
+    //----------------------------------------------Queries---------------------------------------------------//
     public Card GetCardStats(int card_id)
     {
-        Card my_card = new Card();
-        for (int i = 0; i < allCards.Count; i++)
-        {
-            if (allCards[i]._id == card_id)
-            {
-                my_card = allCards[i];
-            }
-        }
-        return my_card;
+        return Db.Get(card_id);
     }
 
-    // Returns a list of cards from a list of card ids
-    public List<Card> GetCardsList(List<int> card_list)
-    {
-        List<Card> returned_list = new List<Card>();
-        foreach (int card_id in card_list)
-            returned_list.Add(GetCardStats(card_id));
-        return returned_list;
-    }
-
-    // "vampire_something","_" => "vampire"
-    public string TrimToChar(string my_string, char ch)
-    {
-        int index = my_string.IndexOf(ch);
-        if (index > 0)
-            my_string = my_string.Substring(0, index);
-        return my_string;
-    }
-
-    // Number of occurences of an int in a list
-    private int OccurenceNum(List<int> my_list, int num)
-    {
-        int occ = 0;
-        for (int i = 0; i < my_list.Count; i++)
-            if (my_list[i] == num)
-                occ++;
-        return occ;
-    }
-
-    // Generate Cards GameObject from cards prefab and set their parent to the passed gameobject
-    private void CreateCardObjects(GameObject my_object, List<int> card_list, bool isSelectable, bool is_player_card)
-    {
-        List<Card> my_cards = GetCardsList(card_list);
-        foreach (Card card in my_cards)
-        {
-            GameObject instantiatedCard = Instantiate(CardPrefab);
-            instantiatedCard.name = card._id.ToString();
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().name = card.name;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>()._id = card._id;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>()._idstr = card._idstr;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().faction = card.faction;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().unique = card.unique;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().strength = card.strength;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().row = card.row;
-            instantiatedCard.transform.Find("Stats").GetComponent<CardStats>().ability = card.ability;
-            if (is_player_card)
-                instantiatedCard.tag = "Player";
-            else
-                instantiatedCard.tag = "Enemy";
-
-            instantiatedCard.GetComponent<CardSelect>().isSelectable = isSelectable;
-            instantiatedCard.GetComponent<CardHover>().isHoverable = isSelectable;
-
-            if (card.ability == "leader")
-                instantiatedCard.GetComponent<CardExchange>().isExchangeable = false;
-            else
-                instantiatedCard.GetComponent<CardExchange>().isExchangeable = true;
-
-            // Set the parent to the gameObject my_object
-            instantiatedCard.transform.SetParent(my_object.transform, false);
-        }
-    }
-
-    // Updates the gameplay lists for both player and enemy
-    private void UpdateLists()
-    {
-        List<MainInfo> infos = new List<MainInfo>() { PlayerInfo, EnemyInfo };
-        foreach (MainInfo info in infos)
-        {
-            info.CloseStrengthL = GetUnitsStrength(info.CloseList);
-            info.RangeStrengthL = GetUnitsStrength(info.RangeList);
-            info.SiegeStrengthL = GetUnitsStrength(info.SiegeList);
-
-            // Update Strengths List for close, range and siege if necessary
-            // Weather Mods
-            info.MCloseStrength = ApplyWeatherMod(info, "close");
-            info.MRangeStrength = ApplyWeatherMod(info, "range");
-            info.MSiegeStrength = ApplyWeatherMod(info, "siege");
-
-            // Apply Tight Bond for any cards
-            info.MCloseStrength = ApplyTightBond(info, "close");
-            info.MRangeStrength = ApplyTightBond(info, "range");
-            info.MSiegeStrength = ApplyTightBond(info, "siege");
-
-            // Morale Boost Goes Here
-            info.MCloseStrength = ApplyMoraleBoost(info, "close");
-            info.MRangeStrength = ApplyMoraleBoost(info, "range");
-            info.MSiegeStrength = ApplyMoraleBoost(info, "siege");
-
-            // Monster Double Strength Goes here
-            info.MCloseStrength = ApplyUnitDouble(info, "close");
-            info.MRangeStrength = ApplyUnitDouble(info, "range");
-            info.MSiegeStrength = ApplyUnitDouble(info, "siege");
-
-            // Commander horn mods
-            info.MCloseStrength = ApplyCommanderHorn(info, "close");
-            info.MRangeStrength = ApplyCommanderHorn(info, "range");
-            info.MSiegeStrength = ApplyCommanderHorn(info, "siege");
-
-            // Apply Eredin Double Spy (leader)
-            if (doubleSpies)
-            {
-                info.MCloseStrength = ApplyDoubleSpy(info, "close");
-                info.MRangeStrength = ApplyDoubleSpy(info, "range");
-                info.MSiegeStrength = ApplyDoubleSpy(info, "siege");
-            }
-        }
-    }
-
-    // Regenerate objects from the lists
-    // TODO: TEST THOUROUGHLY
-    private void RefreshFields(bool is_player_field, bool refreshHand = true)
-    {
-        MainInfo my_info;
-        GameObject my_object;
-        if (is_player_field)
-        {
-            my_info = PlayerInfo;
-            my_object = PlayerField;
-        }
-
-        else
-        {
-            my_info = EnemyInfo;
-            my_object = EnemyField;
-        }
-
-        // Refresh Hand Object (or simply SetHandObject(my_info.HandList, is_player_field);)
-        if (refreshHand)
-        {
-            my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ClearHandObject();
-            CreateCardObjects(my_object.transform.Find("Hand").gameObject, my_info.HandList, true, is_player_field);
-            my_object.transform.Find("Hand").gameObject.GetComponent<HandManager>().ResizeHand();
-        }
-
-        //------------------------Refresh Units Objects
-        // Refresh Close
-        my_object.transform.Find("Close").GetComponent<RowManager>().ClearUnitObject();
-        CreateCardObjects(my_object.transform.Find("Close").Find("Unit").gameObject, my_info.CloseList, false, is_player_field);
-        my_object.transform.Find("Close").GetComponent<RowManager>().UpdateRowScore(my_info.CloseStrengthL);
-        my_object.transform.Find("Close").GetComponent<RowManager>().ResizeUnitObject(my_info.CloseList.Count);
-        // Refresh Range
-        my_object.transform.Find("Range").GetComponent<RowManager>().ClearUnitObject();
-        CreateCardObjects(my_object.transform.Find("Range").Find("Unit").gameObject, my_info.RangeList, false, is_player_field);
-        my_object.transform.Find("Range").GetComponent<RowManager>().UpdateRowScore(my_info.RangeStrengthL);
-        my_object.transform.Find("Range").GetComponent<RowManager>().ResizeUnitObject(my_info.RangeList.Count);
-        // Refresh Siege
-        my_object.transform.Find("Siege").GetComponent<RowManager>().ClearUnitObject();
-        CreateCardObjects(my_object.transform.Find("Siege").Find("Unit").gameObject, my_info.SiegeList, false, is_player_field);
-        my_object.transform.Find("Siege").GetComponent<RowManager>().UpdateRowScore(my_info.SiegeStrengthL);
-        my_object.transform.Find("Siege").GetComponent<RowManager>().ResizeUnitObject(my_info.SiegeList.Count);
-
-        //-----------------------Refresh Special Objects
-        // Refresh Close
-        my_object.transform.Find("Close").GetComponent<RowManager>().ClearSpecialObject();
-        CreateCardObjects(my_object.transform.Find("Close").Find("Special").gameObject, my_info.SpCloseList, false, is_player_field);
-        // Refresh Close
-        my_object.transform.Find("Range").GetComponent<RowManager>().ClearSpecialObject();
-        CreateCardObjects(my_object.transform.Find("Range").Find("Special").gameObject, my_info.SpRangeList, false, is_player_field);
-        // Refresh Close
-        my_object.transform.Find("Siege").GetComponent<RowManager>().ClearSpecialObject();
-        CreateCardObjects(my_object.transform.Find("Siege").Find("Special").gameObject, my_info.SpSiegeList, false, is_player_field);
-
-        //-----------------------Refresh Discard Object
-        my_object.transform.Find("Discard").GetComponent<PileManager>().ClearDiscardPile();
-        CreateCardObjects(my_object.transform.Find("Discard").Find("Pile").gameObject, my_info.DiscardList, false, is_player_field);
-
-        //-----------------------Refresh Weather Field
-        WeatherField.GetComponent<WeatherManager>().ClearWeatherObject();
-        CreateCardObjects(WeatherField, weatherList, false, is_player_field);
-        RefreshWeatherOverlays(my_object);
-
-    }
-
-    private void RefreshWeatherOverlays(GameObject field)
-    {
-        SetWeatherOverlay(field.transform.Find("Close"), weatherList.Contains(200), "Cards/EffectBox/overlay_frost", new Color32(108, 198, 255, 78));
-        SetWeatherOverlay(field.transform.Find("Range"), weatherList.Contains(204), "Cards/EffectBox/overlay_fog", new Color32(185, 190, 188, 86));
-        SetWeatherOverlay(field.transform.Find("Siege"), weatherList.Contains(206), "Cards/EffectBox/overlay_rain", new Color32(61, 111, 184, 86));
-    }
-
-    private void SetWeatherOverlay(Transform row, bool isActive, string spriteResourcePath, Color fallbackColor)
-    {
-        if (row == null)
-            return;
-
-        Transform unitRow = row.Find("Unit");
-        if (unitRow == null)
-            return;
-
-        Transform existingOverlay = unitRow.Find(WeatherOverlayName);
-        if (!isActive)
-        {
-            if (existingOverlay != null)
-                Destroy(existingOverlay.gameObject);
-            return;
-        }
-
-        GameObject overlayObject;
-        if (existingOverlay == null)
-        {
-            overlayObject = new GameObject(WeatherOverlayName, typeof(RectTransform));
-            overlayObject.transform.SetParent(unitRow, false);
-
-            LayoutElement layoutElement = overlayObject.AddComponent<LayoutElement>();
-            layoutElement.ignoreLayout = true;
-
-            Image image = overlayObject.AddComponent<Image>();
-            image.raycastTarget = false;
-            image.preserveAspect = false;
-
-            RectTransform rectTransform = overlayObject.GetComponent<RectTransform>();
-            rectTransform.anchorMin = Vector2.zero;
-            rectTransform.anchorMax = Vector2.one;
-            rectTransform.offsetMin = Vector2.zero;
-            rectTransform.offsetMax = Vector2.zero;
-        }
-        else
-        {
-            overlayObject = existingOverlay.gameObject;
-        }
-
-        overlayObject.transform.SetAsLastSibling();
-
-        Image overlayImage = overlayObject.GetComponent<Image>();
-        Sprite overlaySprite = Resources.Load<Sprite>(spriteResourcePath);
-        overlayImage.sprite = overlaySprite;
-        overlayImage.color = overlaySprite != null ? new Color(1f, 1f, 1f, 0.82f) : fallbackColor;
-    }
-
-    // Updates the UI scores
-    private void UpdateUIScores(bool is_player_field)
-    {
-        MainInfo my_info;
-        GameObject my_object;
-        if (is_player_field)
-        {
-            my_info = PlayerInfo;
-            my_object = PlayerField;
-        }
-
-        else
-        {
-            my_info = EnemyInfo;
-            my_object = EnemyField;
-        }
-
-        // Updates the individual score of each card item under the unit
-        // IMPORTANT: Others UI elements don't need a coroutine because
-        // their respective gameobjects are not being destroyed
-        StartCoroutine(my_object.transform.Find("Close").GetComponent<RowManager>().UIUpdateUnitsStrength(my_info.CloseStrengthL, my_info.MCloseStrength));
-        StartCoroutine(my_object.transform.Find("Range").GetComponent<RowManager>().UIUpdateUnitsStrength(my_info.RangeStrengthL, my_info.MRangeStrength));
-        StartCoroutine(my_object.transform.Find("Siege").GetComponent<RowManager>().UIUpdateUnitsStrength(my_info.SiegeStrengthL, my_info.MSiegeStrength));
-
-        // Updates the unit row score
-        my_object.transform.Find("Close").GetComponent<RowManager>().UpdateRowScore(my_info.MCloseStrength);
-        my_object.transform.Find("Range").GetComponent<RowManager>().UpdateRowScore(my_info.MRangeStrength);
-        my_object.transform.Find("Siege").GetComponent<RowManager>().UpdateRowScore(my_info.MSiegeStrength);
-
-        // Updates the total score
-        my_object.transform.Find("Stats").GetComponent<StatsManager>().UIUpdateTotalScore(my_info.MCloseStrength, my_info.MRangeStrength, my_info.MSiegeStrength);
-
-        // Updates the deck count
-        SetDeckObject(my_info.DeckList, my_info.DeckBSprite, is_player_field);
-
-        // Update the left stats
-        // Hand Counter
-        my_object.transform.Find("Stats").gameObject.GetComponent<StatsManager>().UIUpdateHandCount(my_info.HandList.Count);
-    }
-
-    // Gets the row total or the field total of a player
-    public int GetTotalScore(bool is_player, string row)
-    {
-        MainInfo info;
-        int total = 0;
-
-        if (is_player)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        switch (row)
-        {
-            case "all":
-                foreach (int score in info.MCloseStrength)
-                    total += score;
-                foreach (int score in info.MRangeStrength)
-                    total += score;
-                foreach (int score in info.MSiegeStrength)
-                    total += score;
-                break;
-            case "close":
-                foreach (int score in info.MCloseStrength)
-                    total += score;
-                break;
-            case "range":
-                foreach (int score in info.MRangeStrength)
-                    total += score;
-                break;
-            case "siege":
-                foreach (int score in info.MSiegeStrength)
-                    total += score;
-                break;
-        }
-        return total;
-    }
-
-    //---------------------------------------------------Modifiers and card effects handlers---------------------------------------------//
-    //--------------------Strength Modifiers--------------------------//
-    // Returns a list of unit strengths from a list of unit
-    // FOR PLACED CARDS ONLY (unit_row is where a card is placed "close","range","siege")
-    private List<int> GetUnitsStrength(List<int> units_list)
-    {// For unit cards exclusively
-        List<int> strength_list = new List<int>();
-        List<Card> cards_list = GetCardsList(units_list);
-        foreach (Card card in cards_list)
-        {
-            strength_list.Add(card.strength);
-        }
-        return strength_list;
-    }
-
-    // Applies any weather modifications if any
-    private List<int> ApplyWeatherMod(MainInfo info, string units_row)
-    {
-        List<int> modified_strengths = new List<int>();
-        List<Card> card_list;
-        int i;
-        switch (units_row)
-        {
-            case "close":
-                i = 0;
-                card_list = GetCardsList(info.CloseList);
-                foreach (Card card in card_list)
-                {
-                    if (weatherList.Contains(200)) // Biting Frost
-                    {
-                        if (card.unique | info.CloseStrengthL[i] <= 1)
-                            modified_strengths.Add(info.CloseStrengthL[i]);
-                        else
-                            modified_strengths.Add(1);
-                    }
-                    else
-                        modified_strengths.Add(info.CloseStrengthL[i]);
-                    i++;
-                }
-                break;
-            case "range":
-                i = 0;
-                card_list = GetCardsList(info.RangeList);
-                foreach (Card card in card_list)
-                {
-                    if (weatherList.Contains(204)) // Impenetrable Fog
-                    {
-                        if (card.unique | info.RangeStrengthL[i] <= 1)
-                            modified_strengths.Add(info.RangeStrengthL[i]);
-                        else
-                            modified_strengths.Add(1);
-                    }
-                    else
-                        modified_strengths.Add(info.RangeStrengthL[i]);
-                    i++;
-                }
-                break;
-            case "siege":
-                i = 0;
-                card_list = GetCardsList(info.SiegeList);
-                foreach (Card card in card_list)
-                {
-                    if (weatherList.Contains(206)) // Torrential Rain
-                    {
-                        if (card.unique | info.SiegeStrengthL[i] <= 1)
-                            modified_strengths.Add(info.SiegeStrengthL[i]);
-                        else
-                            modified_strengths.Add(1);
-                    }
-                    else
-                        modified_strengths.Add(info.SiegeStrengthL[i]);
-                    i++;
-                }
-                break;
-        }
-        return modified_strengths;
-    }
-
-    // Doubles the strength of rows if not unique
-    private List<int> ApplyCommanderHorn(MainInfo my_info, string units_row)
-    {
-        List<int> modified_strengths = new List<int>();
-        List<Card> card_list;
-        int i;
-        switch (units_row)
-        {
-            case "close":
-                i = 0;
-                card_list = GetCardsList(my_info.CloseList);
-                foreach (Card card in card_list)
-                {
-                    if (my_info.SpCloseList.Contains(202)) // Close list contains Commander Horn
-                    {
-                        if (card.unique)
-                            modified_strengths.Add(my_info.MCloseStrength[i]);
-                        else
-                            modified_strengths.Add(my_info.MCloseStrength[i] * 2);
-                    }
-                    else
-                        modified_strengths.Add(my_info.MCloseStrength[i]);
-                    i++;
-                }
-                break;
-            case "range":
-                i = 0;
-                card_list = GetCardsList(my_info.RangeList);
-                foreach (Card card in card_list)
-                {
-                    if (my_info.SpRangeList.Contains(202)) // Range list contains Commander Horn
-                    {
-                        if (card.unique)
-                            modified_strengths.Add(my_info.MRangeStrength[i]);
-                        else
-                            modified_strengths.Add(my_info.MRangeStrength[i] * 2);
-                    }
-                    else
-                        modified_strengths.Add(my_info.MRangeStrength[i]);
-                    i++;
-                }
-                break;
-            case "siege":
-                i = 0;
-                card_list = GetCardsList(my_info.SiegeList);
-                foreach (Card card in card_list)
-                {
-                    if (my_info.SpSiegeList.Contains(202)) // Siege list contains Commander Horn
-                    {
-                        if (card.unique)
-                            modified_strengths.Add(my_info.MSiegeStrength[i]);
-                        else
-                            modified_strengths.Add(my_info.MSiegeStrength[i] * 2);
-                    }
-                    else
-                        modified_strengths.Add(my_info.MSiegeStrength[i]);
-                    i++;
-                }
-                break;
-        }
-        return modified_strengths;
-    }
-
-    // Doens't need a return method due to list assignment:
-    // modified_strengths = info.MCloseStrength;
-    private List<int> ApplyMoraleBoost(MainInfo info, string units_row)
-    {
-        List<int> modified_strengths = new List<int>();
-        List<int> morales = new List<int>();
-        List<Card> card_list;
-        int i;
-        switch (units_row)
-        {
-            case "close":
-                // 1: Look for morale boost cards an put their indexes in a list
-                card_list = GetCardsList(info.CloseList);
-                morales.Clear();
-                i = 0;
-                foreach (Card card in card_list)
-                {
-                    if (card.ability == "morale_boost")
-                    {
-                        morales.Add(i);
-                    }
-                    i++;
-                }
-
-                // 2: Set the strengths appropriately
-                modified_strengths = info.MCloseStrength;
-                if (morales.Count != 0)
-                {
-                    foreach (int index in morales)
-                    {
-                        i = 0;
-                        foreach (Card card in card_list)
-                        {
-                            // Only change the indexes where conditions are met
-                            if ((i != index) & !(card.unique))
-                                modified_strengths[i] = info.MCloseStrength[i] + 1;
-                            i++;
-                        }
-                    }
-                }
-                break;
-            case "range":
-                // 1: Look for morale boost cards an put their indexes in a list
-                card_list = GetCardsList(info.RangeList);
-                morales.Clear();
-                i = 0;
-                foreach (Card card in card_list)
-                {
-                    if (card.ability == "morale_boost")
-                    {
-                        morales.Add(i);
-                    }
-                    i++;
-                }
-
-                // 2: Set the strengths appropriately
-                modified_strengths = info.MRangeStrength;
-                if (morales.Count != 0)
-                {
-                    foreach (int index in morales)
-                    {
-                        i = 0;
-                        foreach (Card card in card_list)
-                        {
-                            // Only change the indexes where conditions are met
-                            if ((i != index) & !(card.unique))
-                                modified_strengths[i] = info.MRangeStrength[i] + 1;
-                            i++;
-                        }
-                    }
-                }
-                break;
-            case "siege":
-                // 1: Look for morale boost cards an put their indexes in a list
-                card_list = GetCardsList(info.SiegeList);
-                morales.Clear();
-                i = 0;
-                foreach (Card card in card_list)
-                {
-                    if (card.ability == "morale_boost")
-                    {
-                        morales.Add(i);
-                    }
-                    i++;
-                }
-
-                // 2: Set the strengths appropriately
-                modified_strengths = info.MSiegeStrength;
-                if (morales.Count != 0)
-                {
-                    foreach (int index in morales)
-                    {
-                        i = 0;
-                        foreach (Card card in card_list)
-                        {
-                            // Only change the indexes where conditions are met
-                            if ((i != index) & !(card.unique))
-                                modified_strengths[i] = info.MSiegeStrength[i] + 1;
-                            i++;
-                        }
-                    }
-                }
-                break;
-        }
-        return modified_strengths;
-    }
-
-    // TODO: Tight Bond (Double Strength of both cards)
-    private List<int> ApplyTightBond(MainInfo info, string units_row)
-    {//private List<int>
-        List<int> modified_strengths = new List<int>();
-        List<int> bonds = new List<int>();
-        List<Card> card_list;
-        switch (units_row)
-        {
-            case "close":
-                // 1: Look for tight bond cards an put their indexes in a list
-                card_list = GetCardsList(info.CloseList);
-                bonds.Clear();
-                foreach (Card card in card_list)
-                {
-                    if (card.ability == "tight_bond")
-                    {
-                        bonds.Add(card._id);
-                    }
-                }
-                // 2: Set the strengths appropriately
-                for (int i = 0; i < info.CloseList.Count; i++)
-                {
-                    if (card_list[i].ability == "tight_bond")
-                        modified_strengths.Add(info.MCloseStrength[i] * OccurenceNum(bonds, card_list[i]._id));
-                    else
-                        modified_strengths.Add(info.MCloseStrength[i]);
-                }
-                break;
-            case "range":
-                // 1: Look for tight bond cards an put their indexes in a list
-                card_list = GetCardsList(info.RangeList);
-                bonds.Clear();
-                foreach (Card card in card_list)
-                {
-                    if (card.ability == "tight_bond")
-                    {
-                        bonds.Add(card._id);
-                    }
-                }
-                // 2: Set the strengths appropriately
-                for (int i = 0; i < info.RangeList.Count; i++)
-                {
-                    if (card_list[i].ability == "tight_bond")
-                        modified_strengths.Add(info.MRangeStrength[i] * OccurenceNum(bonds, card_list[i]._id));
-                    else
-                        modified_strengths.Add(info.MRangeStrength[i]);
-                }
-                break;
-            case "siege":
-                // 1: Look for tight bond cards an put their indexes in a list
-                card_list = GetCardsList(info.SiegeList);
-                bonds.Clear();
-                foreach (Card card in card_list)
-                {
-                    if (card.ability == "tight_bond")
-                    {
-                        bonds.Add(card._id);
-                    }
-                }
-                // 2: Set the strengths appropriately
-                for (int i = 0; i < info.SiegeList.Count; i++)
-                {
-                    if (card_list[i].ability == "tight_bond")
-                        modified_strengths.Add(info.MSiegeStrength[i] * OccurenceNum(bonds, card_list[i]._id));
-                    else
-                        modified_strengths.Add(info.MSiegeStrength[i]);
-                }
-                break;
-        }
-        return modified_strengths;
-    }
-
-    // Monster ability's commander horn 
-    // Work only once for each monster
-    // Even for doublers themselves
-    private List<int> ApplyUnitDouble(MainInfo info, string units_row)
-    {
-        List<int> modified_strengths = new List<int>();
-        List<int> doublers = new List<int>();
-        List<int> doublers_id = new List<int>();
-        List<Card> card_list;
-        int i;
-        bool isDoubled; // Checks if the unit's strength has been doubled
-        bool isUnitDb;
-        switch (units_row)
-        {
-            case "close":
-                isDoubled = false;
-                if (info.SpCloseList.Contains(202))
-                    isDoubled = true;
-                // 1: Look for double strength cards an put their indexes in a list
-                card_list = GetCardsList(info.CloseList);
-                doublers.Clear();
-                doublers_id.Clear();
-                i = 0;
-                foreach (Card card in card_list)
-                {
-                    // Used indexes instead of ids in case 2 of the same card were on the field
-                    if (card.ability == "commander_horn")
-                    {
-                        doublers.Add(i);
-                        doublers_id.Add(card._id);
-                    }
-                    i++;
-                }
-
-                // 2: Set the strengths appropriately
-                isUnitDb = false;
-                modified_strengths = info.MCloseStrength;
-                if (doublers.Count != 0)
-                {
-                    foreach (int index in doublers)
-                    {
-                        i = 0;
-                        foreach (Card card in card_list)
-                        {
-                            // Doubles Different Units (only once)
-                            if ((i != index) && !(card.unique) && !isDoubled && !isUnitDb && !doublers_id.Contains(card._id))
-                                modified_strengths[i] = info.MCloseStrength[i] * 2;
-
-                            // Double Other Doublers (only once)
-                            if (doublers_id.Contains(card._id) && !isDoubled && !isUnitDb)
-                                if (doublers.Count == 1)
-                                    modified_strengths[i] = info.MCloseStrength[i];
-                                else
-                                    modified_strengths[i] = info.MCloseStrength[i] * 2;
-                            i++;
-                        }
-                        isUnitDb = true;
-                    }
-                }
-                break;
-            case "range":
-                isDoubled = false;
-                if (info.SpRangeList.Contains(202))
-                    isDoubled = true;
-                // 1: Look for double strength cards an put their indexes in a list
-                card_list = GetCardsList(info.RangeList);
-                doublers.Clear();
-                doublers_id.Clear();
-                i = 0;
-                foreach (Card card in card_list)
-                {
-                    // Used indexes instead of ids in case 2 of the same card were on the field
-                    if (card.ability == "commander_horn")
-                    {
-                        doublers.Add(i);
-                        doublers_id.Add(card._id);
-                    }
-                    i++;
-                }
-
-                // 2: Set the strengths appropriately
-                isUnitDb = false;
-                modified_strengths = info.MRangeStrength;
-                if (doublers.Count != 0)
-                {
-                    foreach (int index in doublers)
-                    {
-                        i = 0;
-                        foreach (Card card in card_list)
-                        {
-                            // Doubles Different Units (only once)
-                            if ((i != index) && !(card.unique) && !isDoubled && !isUnitDb && !doublers_id.Contains(card._id))
-                                modified_strengths[i] = info.MRangeStrength[i] * 2;
-
-                            // Double Other Doublers (only once)
-                            if (doublers_id.Contains(card._id) && !isDoubled && !isUnitDb)
-                                if (doublers.Count == 1)
-                                    modified_strengths[i] = info.MRangeStrength[i];
-                                else
-                                    modified_strengths[i] = info.MRangeStrength[i] * 2;
-                            i++;
-                        }
-                        isUnitDb = true;
-                    }
-                }
-                break;
-            case "siege":
-                isDoubled = false;
-                if (info.SpSiegeList.Contains(202))
-                    isDoubled = true;
-                // 1: Look for double strength cards an put their indexes in a list
-                card_list = GetCardsList(info.SiegeList);
-                doublers.Clear();
-                doublers_id.Clear();
-                i = 0;
-                foreach (Card card in card_list)
-                {
-                    // Used indexes instead of ids in case 2 of the same card were on the field
-                    if (card.ability == "commander_horn")
-                    {
-                        doublers.Add(i);
-                        doublers_id.Add(card._id);
-                    }
-                    i++;
-                }
-
-                // 2: Set the strengths appropriately
-                isUnitDb = false;
-                modified_strengths = info.MSiegeStrength;
-                if (doublers.Count != 0)
-                {
-                    foreach (int index in doublers)
-                    {
-                        i = 0;
-                        foreach (Card card in card_list)
-                        {
-                            // Doubles Different Units (only once)
-                            if ((i != index) && !(card.unique) && !isDoubled && !isUnitDb && !doublers_id.Contains(card._id))
-                                modified_strengths[i] = info.MSiegeStrength[i] * 2;
-
-                            // Double Other Doublers (only once)
-                            if (doublers_id.Contains(card._id) && !isDoubled && !isUnitDb)
-                                if (doublers.Count == 1)
-                                    modified_strengths[i] = info.MSiegeStrength[i];
-                                else
-                                    modified_strengths[i] = info.MSiegeStrength[i] * 2;
-                            i++;
-                        }
-                        isUnitDb = true;
-                    }
-                }
-                break;
-        }
-        return modified_strengths;
-    }
-
-    private List<int> ApplyDoubleSpy(MainInfo info, string units_row)
-    {
-        List<int> modified_strengths = new List<int>();
-        List<Card> card_list;
-        switch (units_row)
-        {
-            case "close":
-                card_list = GetCardsList(info.CloseList);
-                for (int i = 0; i < info.CloseList.Count; i++)
-                {
-                    if (card_list[i].ability == "spy" && !card_list[i].unique)
-                        modified_strengths.Add(info.MCloseStrength[i] * 2);
-                    else
-                        modified_strengths.Add(info.MCloseStrength[i]);
-                }
-                break;
-            case "range":
-                card_list = GetCardsList(info.RangeList);
-                for (int i = 0; i < info.RangeList.Count; i++)
-                {
-                    if (card_list[i].ability == "spy" && !card_list[i].unique)
-                        modified_strengths.Add(info.MRangeStrength[i] * 2);
-                    else
-                        modified_strengths.Add(info.MRangeStrength[i]);
-                }
-                break;
-            case "siege":
-                card_list = GetCardsList(info.SiegeList);
-                for (int i = 0; i < info.SiegeList.Count; i++)
-                {
-                    if (card_list[i].ability == "spy" && !card_list[i].unique)
-                        modified_strengths.Add(info.MSiegeStrength[i] * 2);
-                    else
-                        modified_strengths.Add(info.MSiegeStrength[i]);
-                }
-                break;
-        }
-        return modified_strengths;
-    }
-
-    //-------------List manipulation effetc---( scorch / decoy )-------------------//
-    // Destroy strongest if not unique
-    private void Scorch() //"close", "range", "siege" or "all" for global scorch
-    {
-        List<MainInfo> infos = new List<MainInfo>() { PlayerInfo, EnemyInfo };
-        int top_strength = -1;
-        List<Card> card_list;
-
-        // Get the top strength on the field
-        foreach (MainInfo info in infos)
-        {
-            card_list = GetCardsList(info.CloseList);
-            for (int i = 0; i < info.CloseList.Count; i++)
-            {
-                if (info.MCloseStrength[i] >= top_strength & !card_list[i].unique)
-                {
-                    top_strength = info.MCloseStrength[i];
-                }
-            }
-            card_list = GetCardsList(info.RangeList);
-            for (int i = 0; i < info.RangeList.Count; i++)
-            {
-                if (info.MRangeStrength[i] >= top_strength & !card_list[i].unique)
-                {
-                    top_strength = info.MRangeStrength[i];
-                }
-            }
-            card_list = GetCardsList(info.SiegeList);
-            for (int i = 0; i < info.SiegeList.Count; i++)
-            {
-                if (info.MSiegeStrength[i] >= top_strength & !card_list[i].unique)
-                {
-                    top_strength = info.MSiegeStrength[i];
-                }
-            }
-        }
-        Debug.Log("Strongest number is: " + top_strength);
-
-        int initial_count;
-        // TODO: TEST THOUROUGHLY
-        // Remove the card with the strongest strength from the list
-        foreach (MainInfo info in infos)
-        {
-            // Close
-            card_list = GetCardsList(info.CloseList);
-            initial_count = info.CloseList.Count;
-            for (int i = 0; i < info.CloseList.Count; i++)
-            {
-                Debug.Log("i: " + i + " | Close_Count: " + info.CloseList.Count);
-                if (info.MCloseStrength[i] == top_strength & !card_list[i].unique)
-                {
-                    Debug.Log("Scorching: " + card_list[i].name + " | Strength: " + info.MCloseStrength[i]);
-                    info.DiscardList.Add(card_list[i]._id);
-                    card_list.RemoveAt(i); // Joker 1
-                    info.CloseList.RemoveAt(i);
-                    info.CloseStrengthL.RemoveAt(i);
-                    info.MCloseStrength.RemoveAt(i);
-                    if (initial_count > 0) // Joker 2
-                        i--;
-                }
-            }
-
-            // Range
-            card_list = GetCardsList(info.RangeList);
-            initial_count = info.RangeList.Count;
-            for (int i = 0; i < info.RangeList.Count; i++)
-            {
-                Debug.Log("i: " + i + " | Range_Count: " + info.RangeList.Count);
-                if (info.MRangeStrength[i] == top_strength & !card_list[i].unique)
-                {
-                    Debug.Log("Scorching: " + card_list[i].name + " | Strength: " + info.MRangeStrength[i]);
-                    info.DiscardList.Add(card_list[i]._id);
-                    card_list.RemoveAt(i);
-                    info.RangeList.RemoveAt(i);
-                    info.RangeStrengthL.RemoveAt(i);
-                    info.MRangeStrength.RemoveAt(i);
-                    if (initial_count > 0)
-                        i--;
-                }
-            }
-
-            // Siege
-            card_list = GetCardsList(info.SiegeList);
-            initial_count = info.SiegeList.Count;
-            for (int i = 0; i < info.SiegeList.Count; i++)
-            {
-                Debug.Log("i: " + i + " | Siege_Count: " + info.SiegeList.Count);
-                if (info.MSiegeStrength[i] == top_strength & !card_list[i].unique)
-                {
-                    Debug.Log("Scorching: " + card_list[i].name + " | Strength: " + info.MSiegeStrength[i]);
-                    info.DiscardList.Add(card_list[i]._id);
-                    card_list.RemoveAt(i);
-                    info.SiegeList.RemoveAt(i);
-                    info.SiegeStrengthL.RemoveAt(i);
-                    info.MSiegeStrength.RemoveAt(i);
-                    if (initial_count > 0)
-                        i--;
-                }
-            }
-        }
-    }
-
-    // Destroy strongest if combined strengths is 10 or more
-    private void ScorchAbility(string units_row, bool is_player_played)
-    {
-        int combined;
-        int initial_count;
-        int top_strength = -1;
-        List<Card> card_list;
-        MainInfo info;
-
-        if (is_player_played) // Destroy from the enemy's field
-            info = EnemyInfo;
-        else
-            info = PlayerInfo;
-
-        switch (units_row)
-        {
-            case "close":
-                combined = 0;
-                foreach (int strength in info.MCloseStrength)
-                    combined += strength;
-                if (combined >= 10)
-                {
-                    // Look for strongest
-                    card_list = GetCardsList(info.CloseList);
-                    for (int i = 0; i < info.CloseList.Count; i++)
-                    {
-                        if (info.MCloseStrength[i] >= top_strength & !card_list[i].unique)
-                        {
-                            top_strength = info.MCloseStrength[i];
-                        }
-                    }
-                    // Destroy strongest(s)
-                    card_list = GetCardsList(info.CloseList);
-                    initial_count = info.CloseList.Count;
-                    for (int i = 0; i < info.CloseList.Count; i++)
-                    {
-                        Debug.Log("i: " + i + " | Close_Count: " + info.CloseList.Count);
-                        if (info.MCloseStrength[i] == top_strength & !card_list[i].unique)
-                        {
-                            Debug.Log("Scorching: " + card_list[i].name + " | Strength: " + info.MCloseStrength[i]);
-                            info.DiscardList.Add(card_list[i]._id);
-                            card_list.RemoveAt(i); // Joker 1
-                            info.CloseList.RemoveAt(i);
-                            info.CloseStrengthL.RemoveAt(i);
-                            info.MCloseStrength.RemoveAt(i);
-                            if (initial_count > 0) // Joker 2
-                                i--;
-                        }
-                    }
-                }
-                break;
-            case "range":
-                combined = 0;
-                foreach (int strength in info.MRangeStrength)
-                    combined += strength;
-                if (combined >= 10)
-                {
-                    // Look for strongest
-                    card_list = GetCardsList(info.RangeList);
-                    for (int i = 0; i < info.RangeList.Count; i++)
-                    {
-                        if (info.MRangeStrength[i] >= top_strength & !card_list[i].unique)
-                        {
-                            top_strength = info.MRangeStrength[i];
-                        }
-                    }
-                    // Destroy strongest(s)
-                    card_list = GetCardsList(info.RangeList);
-                    initial_count = info.RangeList.Count;
-                    for (int i = 0; i < info.RangeList.Count; i++)
-                    {
-                        Debug.Log("i: " + i + " | Range_Count: " + info.RangeList.Count);
-                        if (info.MRangeStrength[i] == top_strength & !card_list[i].unique)
-                        {
-                            Debug.Log("Scorching: " + card_list[i].name + " | Strength: " + info.MRangeStrength[i]);
-                            info.DiscardList.Add(card_list[i]._id);
-                            card_list.RemoveAt(i); // Joker 1
-                            info.RangeList.RemoveAt(i);
-                            info.RangeStrengthL.RemoveAt(i);
-                            info.MRangeStrength.RemoveAt(i);
-                            if (initial_count > 0) // Joker 2
-                                i--;
-                        }
-                    }
-                }
-                break;
-            case "siege":
-                combined = 0;
-                foreach (int strength in info.MSiegeStrength)
-                    combined += strength;
-                if (combined >= 10)
-                {
-                    // Look for strongest
-                    card_list = GetCardsList(info.SiegeList);
-                    for (int i = 0; i < info.SiegeList.Count; i++)
-                    {
-                        if (info.MSiegeStrength[i] >= top_strength & !card_list[i].unique)
-                        {
-                            top_strength = info.MSiegeStrength[i];
-                        }
-                    }
-                    // Destroy strongest(s)
-                    card_list = GetCardsList(info.SiegeList);
-                    initial_count = info.SiegeList.Count;
-                    for (int i = 0; i < info.SiegeList.Count; i++)
-                    {
-                        Debug.Log("i: " + i + " | Siege_Count: " + info.SiegeList.Count);
-                        if (info.MSiegeStrength[i] == top_strength & !card_list[i].unique)
-                        {
-                            Debug.Log("Scorching: " + card_list[i].name + " | Strength: " + info.MSiegeStrength[i]);
-                            info.DiscardList.Add(card_list[i]._id);
-                            card_list.RemoveAt(i); // Joker 1
-                            info.SiegeList.RemoveAt(i);
-                            info.SiegeStrengthL.RemoveAt(i);
-                            info.MSiegeStrength.RemoveAt(i);
-                            if (initial_count > 0) // Joker 2
-                                i--;
-                        }
-                    }
-                }
-                break;
-        }
-    }
-
-    // Swap with a non unique card from your field
-    // Called from double clicking a card while swapActivated == true
-    public void Decoy(int card_id, string tag, string row)
-    {
-        Debug.Log("Initiation decoy");
-        if (battleState == BattleState.PLAYERTURN && (tag.ToLower() == "player"))
-            ActuallyDecoy(card_id, row.ToLower(), true);
-        else if (battleState == BattleState.ENEMYTURN && (tag.ToLower() == "enemy"))
-            ActuallyDecoy(card_id, row.ToLower(), false);
-        else
-            Debug.Log("Invalid Move");
-    }
-
-    private void ActuallyDecoy(int card_id, string row, bool is_player_card, int decoy_id = -1)
-    {
-        MainInfo info;
-        if (is_player_card)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        Debug.Log("Decoying: " + card_id);
-        switch (row)
-        {
-            case "close":
-                info.CloseList.Remove(card_id);
-                info.HandList.Add(card_id);
-                if (decoy_id != -1)
-                    info.CloseList.Add(decoy_id);
-                break;
-            case "range":
-                info.RangeList.Remove(card_id);
-                info.HandList.Add(card_id);
-                if (decoy_id != -1)
-                    info.RangeList.Add(decoy_id);
-                break;
-            case "siege":
-                info.SiegeList.Remove(card_id);
-                info.HandList.Add(card_id);
-                if (decoy_id != -1)
-                    info.SiegeList.Add(decoy_id);
-                break;
-        }
-
-        UpdateLists();
-        RefreshFields(is_player_card);
-        LightoffField(true);
-        LightoffField(false);
-        UpdateUIScores(is_player_card);
-
-        swapActivated = false;
-        SetHider(false);
-
-        if (is_player_card)
-            StartCoroutine(EnemyTurn());
-        else
-            StartCoroutine(PlayerTurn());
-    }
-
-    //------------------------------List manipulation abilities---( muster / medic )------------------------------//
-    // Add all cards with the same name to the field
-    // close_range not INCLUDED ! (no muster close range in game)
-    private void Muster(CardStats card_stats, string row, bool is_player_turn)
-    {
-        Debug.Log("Mustering: " + card_stats.name);
-        int amounts;
-
-        MainInfo my_info;
-        if (is_player_turn)
-            my_info = PlayerInfo;
-        else
-            my_info = EnemyInfo;
-
-        switch (row)
-        {
-            case "close":
-                // 1: Add all of the same ID from deck
-                amounts = 0;
-                foreach (int id in my_info.DeckList)
-                {
-                    if (card_stats._id == id)
-                    {
-                        my_info.CloseList.Add(id);
-                        amounts++;
-                    }
-                }
-                for (int i = 0; i < amounts; i++)
-                    my_info.DeckList.Remove(card_stats._id);
-
-                // 2: Add all of the same ID from hand
-                amounts = 0;
-                foreach (int id in my_info.HandList)
-                {
-                    if (card_stats._id == id)
-                    {
-                        my_info.CloseList.Add(id);
-                        amounts++;
-                    }
-                }
-                for (int i = 0; i < amounts; i++)
-                    my_info.HandList.Remove(card_stats._id);
-                break;
-            case "range":
-                // 1: Add all of the same ID from deck
-                amounts = 0;
-                foreach (int id in my_info.DeckList)
-                {
-                    if (card_stats._id == id)
-                    {
-                        my_info.RangeList.Add(id);
-                        amounts++;
-                    }
-                }
-                for (int i = 0; i < amounts; i++)
-                    my_info.DeckList.Remove(card_stats._id);
-
-                // 2: Add all of the same ID from hand
-                amounts = 0;
-                foreach (int id in my_info.HandList)
-                {
-                    if (card_stats._id == id)
-                    {
-                        my_info.RangeList.Add(id);
-                        amounts++;
-                    }
-                }
-                for (int i = 0; i < amounts; i++)
-                    my_info.HandList.Remove(card_stats._id);
-                break;
-            case "siege":
-                // 1: Add all of the same ID from deck
-                amounts = 0;
-                foreach (int id in my_info.DeckList)
-                {
-                    if (card_stats._id == id)
-                    {
-                        my_info.SiegeList.Add(id);
-                        amounts++;
-                    }
-                }
-                for (int i = 0; i < amounts; i++)
-                    my_info.DeckList.Remove(card_stats._id);
-
-                // 2: Add all of the same ID from hand
-                amounts = 0;
-                foreach (int id in my_info.HandList)
-                {
-                    if (card_stats._id == id)
-                    {
-                        my_info.SiegeList.Add(id);
-                        amounts++;
-                    }
-                }
-                for (int i = 0; i < amounts; i++)
-                    my_info.HandList.Remove(card_stats._id);
-                break;
-        }
-
-        // 3: Add all with a similar name from deck
-        string name = TrimToChar(card_stats._idstr, '_');
-        Debug.Log("Name: " + name);
-        List<Card> cards_list = GetCardsList(my_info.DeckList);
-        List<int> to_remove = new List<int>();
-
-        foreach (Card card in cards_list)
-        {
-            if (card._idstr.Contains(name))
-            {
-                switch (card.row)
-                {
-                    case "close":
-                        my_info.CloseList.Add(card._id);
-                        break;
-                    case "range":
-                        my_info.RangeList.Add(card._id);
-                        break;
-                    case "siege":
-                        my_info.SiegeList.Add(card._id);
-                        break;
-                }
-                to_remove.Add(card._id);
-            }
-        }
-        for (int i = 0; i < to_remove.Count; i++)
-            my_info.DeckList.Remove(to_remove[i]);
-
-        // 4: Add all with a similar name from hand
-        cards_list = GetCardsList(my_info.HandList);
-        to_remove.Clear();
-
-        foreach (Card card in cards_list)
-        {
-            if (card._idstr.Contains(name))
-            {
-                switch (card.row)
-                {
-                    case "close":
-                        my_info.CloseList.Add(card._id);
-                        break;
-                    case "range":
-                        my_info.RangeList.Add(card._id);
-                        break;
-                    case "siege":
-                        my_info.SiegeList.Add(card._id);
-                        break;
-                }
-                to_remove.Add(card._id);
-            }
-        }
-        for (int i = 0; i < to_remove.Count; i++)
-            my_info.HandList.Remove(to_remove[i]);
-    }
-
-    // Add a chosen card from discard pile to field
-    private bool Medic(bool is_player_turn)
-    {
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        // Crop info.DiscardList: Only leave unit cards (no hero or special)
-        List<int> units = GetMedicList(info.DiscardList);
-
-        if (units.Count > 0)
-        {
-            Panel.SetActive(true);
-            Panel.GetComponent<PanelManager>().ShowToPlay("discard_list", units, is_player_turn);
-            return true; // Medic ability activated
-        }
-        return false; // Medic ability not activated
-    }
-
-    // Restore random unit from discard
-    private void RndMedic(bool is_player_turn)
-    {
-        Debug.Log("Restoring randomely");
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        List<int> units = GetMedicList(info.DiscardList);
-
-        if (units.Count > 0)
-        {
-            System.Random rnd = new System.Random();
-            int r = rnd.Next(units.Count);
-            //Debug.Log("Reviving: " + units[r]);
-            Card card = GetCardStats(units[r]);
-            info.DiscardList.RemoveAt(r);
-
-            switch (card.row)
-            {
-                case "close":
-                    info.CloseList.Add(units[r]);
-                    break;
-                case "range":
-                    info.RangeList.Add(units[r]);
-                    break;
-                case "siege":
-                    info.SiegeList.Add(units[r]);
-                    break;
-                case "close_range": // Restore randomly to close or range
-                    if (rnd.Next(0, 2) == 0)
-                        info.CloseList.Add(units[r]);
-                    else
-                        info.RangeList.Add(units[r]);
-                    break;
-            }
-        }
-    }
-
-    public void PlayBtnCleanUp(string field, int card_id, bool is_player_turn)
-    {
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        Debug.Log("Playing from: " + field);
-        switch (field)
-        {
-            case "deck_list":
-                info.DeckList.Remove(card_id);
-                SetDeckObject(info.DeckList, info.DeckBSprite, is_player_turn);
-                break;
-            case "discard_list":
-                info.DiscardList.Remove(card_id);
-                SetDiscardObject(info.DiscardList, is_player_turn);
-                break;
-        }
-
-        // To be removed later from directly place
-        info.HandList.Add(card_id);
-    }
-
-    //-------------------------------------------Leader Related------------------------------------------------//
-    // Sets the leader in the UI 
-    public void SetLeaderCard(int leader_id, bool is_player_deck)
-    {
-        GameObject my_object;
-        List<int> one_card = new List<int>() { leader_id };
-
-        if (is_player_deck)
-            my_object = PlayerField;
-        else
-            my_object = EnemyField;
-
-        Card my_card = GetCardStats(leader_id);
-        my_object.transform.Find("Leader").GetComponent<LeaderManager>().leaderId = leader_id;
-        my_object.transform.Find("Leader").GetComponent<LeaderManager>().type = my_card.row;
-        CreateCardObjects(my_object.transform.Find("Leader").Find("Holder").gameObject, one_card, false, is_player_deck);
-
-        // Set leader card ability here if passive
-        my_object.transform.Find("Leader").GetComponent<LeaderManager>().UISetPassive();
-
-        // Sets passive bools to active
-        if (leader_id == 35)
-            randomMedic = true;
-        if (leader_id == 37)
-            disableLeader = true;
-        // if (leader_id == 57): Activated in the calling function
-    }
-
-    // Activate the leader's ACTIVE ability
-    public void ActivateLeader(int leader_id, bool is_player_turn)
-    {
-        GameAudio.PlaySfx("leader");
-
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        //Debug.Log("Leader ability activated! ID: " + leader_id);
-        switch (leader_id)
-        {
-            //-------------Monsters: Eredin--------------//
-            case 40:
-                doubleSpies = true;
-                if (is_player_turn)
-                    StartCoroutine(EnemyTurn());
-                break;
-            case 41:
-                if (info.HandList.Count >= 2)
-                    info.CanDiscard = true;
-                break;
-            case 42:
-                PickWeatherCard("all", is_player_turn);
-                break;
-            case 43:
-                PickDiscardCard(is_player_turn);
-                break;
-            case 44:
-                PlaceCommanderHorn("close", is_player_turn);
-                break;
-            //------------Nilfgaard: Emhyr-------------//
-            case 33:
-                LookHandRandom(3, is_player_turn);
-                break;
-            case 34:
-                PickWeatherCard("siege", is_player_turn);
-                break;
-            // 35 is randomMedic
-            case 36:
-                PickOppDiscard(is_player_turn);
-                break;
-            // 37 is disabling opponent leader
-            //----------Northern Realms: Foltest---------//
-            case 51:
-                PickWeatherCard("range", is_player_turn);
-                break;
-            case 52: // TODO: Update for skellige
-                weatherList.Clear();
-                break;
-            case 53:
-                ScorchAbility("range", is_player_turn);
-                break;
-            case 54:
-                PlaceCommanderHorn("siege", is_player_turn);
-                break;
-            case 55:
-                ScorchAbility("siege", is_player_turn);
-                break;
-            //---------Scoia'tel: Francesca--------------//
-            // 57 is passive (draw extra card at battle start)
-            case 58:
-                OptimizeAgile(is_player_turn);
-                break;
-            case 59:
-                PickWeatherCard("close", is_player_turn);
-                break;
-            case 60:
-                ScorchAbility("close", is_player_turn);
-                break;
-            case 61:
-                PlaceCommanderHorn("range", is_player_turn);
-                break;
-        }
-
-        info.canLeader = false;
-
-        // Update gameplay lists and ui
-        UpdateLists();
-        RefreshFields(true);
-        RefreshFields(false);
-        UpdateUIScores(false);
-        UpdateUIScores(true);
-    }
-
-    // Initialize the Deck List on screen
-    public void DeckCardPicker(bool is_player_turn)
-    {
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        if (info.DeckList.Count > 0)
-        {
-            Panel.SetActive(true);
-            Panel.GetComponent<PanelManager>().ShowToDraw("deck_list", info.DeckList, is_player_turn);
-        }
-        else
-        {
-            TurnCallBack(is_player_turn);
-        }
-    }
-
-    // Actually pick a card (gameplay)
-    public void ActuallyPickCard(string field, int card_id, bool is_player_turn)
-    {
-        MainInfo info, opp_info;
-        if (is_player_turn)
-        {
-            info = PlayerInfo;
-            opp_info = EnemyInfo;
-        }
-        else
-        {
-            info = EnemyInfo;
-            opp_info = PlayerInfo;
-        }
-
-        Debug.Log("Picking from: " + field);
-        switch (field)
-        {
-            case "deck_list":
-                info.DeckList.Remove(card_id);
-                SetDeckObject(info.DeckList, info.DeckBSprite, is_player_turn);
-                break;
-            case "discard_list":
-                info.DiscardList.Remove(card_id);
-                SetDiscardObject(info.DiscardList, is_player_turn);
-                break;
-            case "opp_discard_list":
-                opp_info.DiscardList.Remove(card_id);
-                SetDiscardObject(opp_info.DiscardList, !is_player_turn);
-                break;
-        }
-
-        info.HandList.Add(card_id);
-        info.CanDiscard = false;
-        SetHandObject(info.HandList, true);
-
-        TurnCallBack(is_player_turn);
-    }
-
-    // Plays any weather card from deck (except clear weather)
-    public void PickWeatherCard(string row, bool is_player_turn)
-    {
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        // Crop info.DeckList: Only leave weather cards
-        List<int> weather_cards = GetWeatherList(info.DeckList, row);
-
-        if (weather_cards.Count > 0)
-        {
-            Panel.SetActive(true);
-            Panel.GetComponent<PanelManager>().ShowToPlay("deck_list", weather_cards, is_player_turn);
-        }
-    }
-
-    // Draw card from own discard pile (no heroes or special cards)
-    public void PickDiscardCard(bool is_player_card)
-    {
-        MainInfo info;
-        if (is_player_card)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        List<int> units_list = GetMedicList(info.DiscardList);
-
-        if (info.DiscardList.Count > 0)
-        {
-            Panel.SetActive(true);
-            Panel.GetComponent<PanelManager>().ShowToDraw("discard_list", units_list, is_player_card);
-        }
-    }
-
-    // Draw card from opponent's discard (no heroes or special cards)
-    public void PickOppDiscard(bool is_player_turn)
-    {
-        MainInfo opp_info;
-        if (is_player_turn)
-            opp_info = EnemyInfo;
-        else
-            opp_info = PlayerInfo;
-
-        List<int> units_list = GetMedicList(opp_info.DiscardList);
-
-        if (opp_info.DiscardList.Count > 0)
-        {
-            Panel.SetActive(true);
-            Panel.GetComponent<PanelManager>().ShowToDraw("opp_discard_list", units_list, is_player_turn);
-        }
-    }
-
-    // View cards from opponent's hand
-    public void LookHandRandom(int cards_num, bool is_player_turn)
-    {
-        MainInfo opp_info;
-        if (is_player_turn)
-            opp_info = EnemyInfo;
-        else
-            opp_info = PlayerInfo;
-
-        if (opp_info.HandList.Count < 1) // Empty hand
-        {
-            TurnCallBack(is_player_turn);
-            return;
-        }
-        else // Full hand
-        {
-            List<int> random_list;
-            if (opp_info.HandList.Count <= cards_num)
-                random_list = opp_info.HandList; // List count is 3, show all
-            else
-            {
-                // Random List if count is 4 or more
-                System.Random rnd = new System.Random();
-                random_list = opp_info.HandList.OrderBy(r => rnd.Next()).Take(cards_num).ToList();
-            }
-            Panel.SetActive(true);
-            Panel.GetComponent<PanelManager>().ShowToView(random_list, is_player_turn);
-        }
-    }
-
-    // Place Commander Horn Leader ability
-    public void PlaceCommanderHorn(string row, bool is_player_turn)
-    {
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        switch (row)
-        {
-            case "close":
-                if (!info.SpCloseList.Any(item => item == 202))
-                    info.SpCloseList.Add(202);
-                break;
-            case "range":
-                if (!info.SpRangeList.Any(item => item == 202))
-                    info.SpRangeList.Add(202);
-                break;
-            case "siege":
-                if (!info.SpSiegeList.Any(item => item == 202))
-                    info.SpSiegeList.Add(202);
-                break;
-        }
-
-        if (is_player_turn)
-            StartCoroutine(EnemyTurn());
-        else
-            StartCoroutine(PlayerTurn());
-    }
-
-    // Moves agiles to the row that maximizes their strengths
-    public void OptimizeAgile(bool is_player_turn)
-    {
-        Debug.Log("Optimizing agile !");
-
-        MainInfo info;
-        if (is_player_turn)
-            info = PlayerInfo;
-        else
-            info = EnemyInfo;
-
-        //------------Optimize "close_range" cards in Close-----------//
-        // 1: Get strengths in close row
-        List<int> cr_list = new List<int>();        // Length L  close_list
-        List<int> orig_strength = new List<int>();  // Length L
-        List<int> mod_strength = new List<int>();   // Length L
-
-        List<Card> close_cards = GetCardsList(info.CloseList);
-        for (int i = 0; i < close_cards.Count; i++)
-        {
-            if (close_cards[i].row == "close_range" && !close_cards[i].unique)
-            {
-                cr_list.Add(info.CloseList[i]);
-                orig_strength.Add(info.CloseStrengthL[i]);
-                mod_strength.Add(info.MCloseStrength[i]);
-            }
-        }
-
-        // 2: Get virtual strengths in range row (from original list after updating)
-        List<int> added_indexes = new List<int>();
-        for (int i = 0; i < cr_list.Count; i++)
-        {
-            added_indexes.Add(info.RangeList.Count);
-            info.RangeList.Add(cr_list[i]);
-        }
-        UpdateLists();
-        List<int> vr_mod_strength = new List<int>();
-        foreach (int index in added_indexes)
-        {
-            for (int i = 0; i < info.MRangeStrength.Count; i++)
-            {
-                if (i == index)
-                    vr_mod_strength.Add(info.MRangeStrength[i]);
-            }
-        }
-
-        // 3: Choose, either remove from close list or from range list
-        for (int j = 0; j < cr_list.Count; j++)
-        {
-            if (vr_mod_strength[j] > mod_strength[j])
-            {
-                // Remove from close
-                foreach (int card_id in cr_list)
-                    info.CloseList.Remove(card_id);
-            }
-            else
-            {
-                // Remove from range
-                foreach (int card_id in cr_list)
-                    info.RangeList.Remove(card_id);
-            }
-        }
-        UpdateLists();
-
-        //------------Optimize "close_range" cards in Range-----------//
-        // 1: Get strengths in range row
-        cr_list.Clear();
-        orig_strength.Clear();
-        mod_strength.Clear();
-
-        List<Card> range_cards = GetCardsList(info.RangeList);
-        for (int i = 0; i < range_cards.Count; i++)
-        {
-            if (range_cards[i].row == "close_range" && !range_cards[i].unique)
-            {
-                cr_list.Add(info.RangeList[i]);
-                orig_strength.Add(info.RangeStrengthL[i]);
-                mod_strength.Add(info.MRangeStrength[i]);
-            }
-        }
-
-        // 2: Get virtual strengths in close row (from original list after updating)
-        added_indexes.Clear();
-        for (int i = 0; i < cr_list.Count; i++)
-        {
-            added_indexes.Add(info.CloseList.Count);
-            info.CloseList.Add(cr_list[i]);
-        }
-        UpdateLists();
-        vr_mod_strength.Clear();
-        foreach (int index in added_indexes)
-        {
-            for (int i = 0; i < info.MCloseStrength.Count; i++)
-            {
-                if (i == index)
-                    vr_mod_strength.Add(info.MCloseStrength[i]);
-            }
-        }
-
-        // 3: Choose, either remove from close list or from range list
-        for (int j = 0; j < cr_list.Count; j++)
-        {
-            if (vr_mod_strength[j] > mod_strength[j])
-            {
-                // Remove from range
-                foreach (int card_id in cr_list)
-                    info.RangeList.Remove(card_id);
-            }
-            else
-            {
-                // Remove from close
-                foreach (int card_id in cr_list)
-                    info.CloseList.Remove(card_id);
-            }
-        }
-        //UpdateLists(); not necessary, being called from parent function
-        TurnCallBack(is_player_turn);
-    }
-
-    //-------------Debugging Methods
-    public void LogList(List<int> my_list, string title = "List")
-    {
-        Debug.Log(title + ": " + string.Join(",", my_list.ConvertAll(i => i.ToString()).ToArray()));
-    }
 
 
     //--------------ToMainMenu
     public void ToMainMenu()
     {
         GameAudio.PlaySfx("ui_click");
-        SceneManager.LoadScene(0);
+        SceneManager.LoadScene(SceneNames.Menu);
     }
 }

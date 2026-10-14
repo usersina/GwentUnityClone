@@ -1,10 +1,9 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using System.IO;
+using Gwent.Rules;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using static DeckController;
 
 public class MiddleManager : MonoBehaviour
 {
@@ -21,22 +20,21 @@ public class MiddleManager : MonoBehaviour
 
     IEnumerator Start()
     {
-        yield return new WaitForSeconds(0.3f);
+        // Long names ("Siege Engines of Temeria (preset)") shrink to fit rather than lose their end
+        foreach (TMP_Text text in new[] { deckPicker.captionText, deckPicker.itemText })
+            if (text != null)
+            {
+                text.enableAutoSizing = true;
+                text.fontSizeMax = text.fontSize;
+                text.fontSizeMin = 14;
+            }
+        // DeckController loads everything in Awake; this only guards against a disabled controller
+        yield return new WaitUntil(() => deckController.IsReady);
+        string selected_path = deckController.currentDeckPath;
         InitializeDeck();
-        LoadDecks();
-
-        //yield return new WaitForSeconds(0.2f);
-        //Deck first_timer = deckController.first_timer;
-        //Debug.Log("Deck to select: " + first_timer.Name);
-        ////Switch to the panel of the selected deck(first time only)
-        //int index = -1;
-        //for (int i = 0; i < deckPicker.options.Count; i++)
-        //{
-        //    string name = deckPicker.options[i].text;
-        //    if (first_timer.Name == name)
-        //        index = i;
-        //}
-        //deckPicker.value = index;
+        LoadDecks(false);
+        // Keep the deck that was selected last time instead of jumping to the first one
+        SelectDeckPath(selected_path);
     }
 
     // Updates the deck UI and Leader from deckController.my_deck
@@ -48,59 +46,61 @@ public class MiddleManager : MonoBehaviour
         UIUpdateLeader();
     }
 
-    // Load Decks in the DropDown
-    public void LoadDecks()
+    // Load Decks in the DropDown and show the first one.
+    // select_for_battle: the shown deck becomes the battle deck (if valid). False when another deck gets selected right after.
+    public void LoadDecks(bool select_for_battle = true)
     {
         // Clear Dropdown
         deckPicker.ClearOptions();
 
         List<TMP_Dropdown.OptionData> decks_list_drop = new List<TMP_Dropdown.OptionData>();
-        List<string> deck_paths_list;
-
-        switch (deckController.my_deck.Faction)
-        {
-            case "NR":
-                deck_paths_list = deckController.NRDecks;
-                break;
-            case "NF":
-                deck_paths_list = deckController.NFDecks;
-                break;
-            case "SC":
-                deck_paths_list = deckController.SCDecks;
-                break;
-            case "M":
-                deck_paths_list = deckController.MDecks;
-                break;
-            default:
-                deck_paths_list = deckController.NRDecks;
-                break;
-        }
+        // The player's decks, then the faction's presets (the AI's decks)
+        List<string> deck_paths_list = new List<string>(deckController.DeckPathsOf(deckController.my_deck.Faction));
+        deck_paths_list.AddRange(OpponentDecks.PresetPaths(deckController.my_deck.Faction));
 
         myDecks.Clear();
         myPaths.Clear();
 
-        // Add decks to options and to global deck list
+        // Add decks to options and to global deck list (unreadable files are skipped)
+        int skipped = 0;
         foreach (string path in deck_paths_list)
         {
             Deck auxdeck = deckController.LoadDeckFromPath(path);
-            TMP_Dropdown.OptionData dropItem = new TMP_Dropdown.OptionData(auxdeck.Name);
+            if (auxdeck == null)
+            {
+                skipped++;
+                continue;
+            }
             myDecks.Add(auxdeck);
             myPaths.Add(path);
-            decks_list_drop.Add(dropItem);
+            decks_list_drop.Add(new TMP_Dropdown.OptionData(OpponentDecks.IsPreset(path) ? auxdeck.Name + " (preset)" : auxdeck.Name));
         }
         deckPicker.AddOptions(decks_list_drop);
+        if (skipped > 0)
+            UIOverlay.Toast(skipped + " deck file(s) could not be read and were skipped");
 
         // Reload the first deck just in case
-        if (deck_paths_list.Count > 0)
-            deckCollection.OnDeckChange(myDecks[0], myPaths[0]);
+        if (myDecks.Count > 0)
+            deckCollection.OnDeckChange(myDecks[0], myPaths[0], select_for_battle);
         else
         {
             // Clear the collection (my_deck is empty at this point: Cleared from UpdateSelectedFaction)
-            deckCollection.OnDeckChange(deckController.my_deck, DeckController.EmptyDeckResourcePath);
+            deckCollection.OnDeckChange(deckController.my_deck, DeckController.EmptyDeckResourcePath, select_for_battle);
         }
         InitializeDeck();
     }
 
+
+    // Selects a deck of the dropdown by file path (after adding/renaming/deleting)
+    public void SelectDeckPath(string path)
+    {
+        int index = myPaths.FindIndex(p => DeckStorage.SamePath(p, path));
+        if (index < 0)
+            return;
+        deckPicker.SetValueWithoutNotify(index);
+        deckCollection.OnDeckChange(myDecks[index], myPaths[index]);
+        InitializeDeck();
+    }
 
     public void OnOptionChanged(int index)
     {
@@ -108,7 +108,6 @@ public class MiddleManager : MonoBehaviour
             return;
 
         GameAudio.PlaySfx("deck_select");
-        //Debug.Log("Option Changed to: " + myDecks[index].Name);
         deckCollection.OnDeckChange(myDecks[index], myPaths[index]);
         InitializeDeck();
     }
@@ -117,16 +116,17 @@ public class MiddleManager : MonoBehaviour
     public void UIUpdateLeader()
     {
         Card leader_card = deckController.GetCardStats(loadedDeck.Leader);
-        leaderGo.GetComponent<CardStats>().name = leader_card.name;
-        leaderGo.GetComponent<CardStats>()._id = leader_card._id;
-        leaderGo.GetComponent<CardStats>()._idstr = leader_card._idstr;
-        leaderGo.GetComponent<CardStats>().faction = leader_card.faction;
-        leaderGo.GetComponent<CardStats>().unique = leader_card.unique;
-        leaderGo.GetComponent<CardStats>().strength = leader_card.strength;
-        leaderGo.GetComponent<CardStats>().row = leader_card.row;
-        leaderGo.GetComponent<CardStats>().ability = leader_card.ability;
+        CardStats stats = leaderGo.GetComponent<CardStats>();
+        stats.name = leader_card.name;
+        stats._id = leader_card._id;
+        stats._idstr = leader_card._idstr;
+        stats.faction = leader_card.faction;
+        stats.unique = leader_card.unique;
+        stats.strength = leader_card.strength;
+        stats.row = leader_card.row;
+        stats.ability = leader_card.ability;
 
-        leaderGo.GetComponent<Image>().sprite = Resources.Load<Sprite>("Cards/List/591x380/" + loadedDeck.Leader);
+        leaderGo.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + loadedDeck.Leader);
         leaderGo.transform.Find("Name").GetComponent<TextMeshProUGUI>().text = leader_card.name;
     }
 
@@ -140,20 +140,20 @@ public class MiddleManager : MonoBehaviour
 
         // Unit Cards number (Minimum: 22)
         helperNumber = deckController.GetUnitCards(deckCards, "all", "all", false).Count;
-        if (helperNumber < 22)
+        if (helperNumber < DeckRules.MinUnits)
         {
-            deckInfo[1].color = new Color32(245, 2, 0, 255); // Red
-            deckInfo[1].text = helperNumber.ToString() + "/22";
+            deckInfo[1].color = UITheme.Current.danger;
+            deckInfo[1].text = helperNumber.ToString() + "/" + DeckRules.MinUnits;
         }
         else
         {
-            deckInfo[1].color = new Color32(255, 188, 0, 255); // Golden Orange
+            deckInfo[1].color = UITheme.Current.gold;
             deckInfo[1].text = helperNumber.ToString();
         }
 
         // Special Cards number (Maximum: 10)
         helperNumber = deckController.GetSpecialCards(deckCards).Count;
-        deckInfo[2].text = helperNumber.ToString() + "/10";
+        deckInfo[2].text = helperNumber.ToString() + "/" + DeckRules.MaxSpecials;
 
         // Total Strengths
         deckInfo[3].text = deckController.GetUnitsStrength(deckController.GetUnitCards(deckCards, "all", "all", false)).ToString();

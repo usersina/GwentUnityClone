@@ -7,20 +7,14 @@ public class LeaderWindow : MonoBehaviour, IPointerClickHandler
 {
     public int leaderId;
 
-    float lastClick = 0f;
-    float interval = 0.4f;
+    private readonly DoubleClick doubleClick = new DoubleClick();
 
     public void OnPointerClick(PointerEventData eventData)
     {
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (Application.isMobilePlatform || (lastClick + interval) > Time.time)
+            if (GameInput.IsTouch || doubleClick.Register())
                 SelectLeader();
-            else
-            {
-                // Single Click
-            }
-            lastClick = Time.time;
         }
     }
 

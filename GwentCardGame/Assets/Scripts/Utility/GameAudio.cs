@@ -5,6 +5,8 @@ public class GameAudio : MonoBehaviour
 {
     private const string MusicPath = "Audio/Music";
     private const string SfxPath = "Audio/Sfx";
+    private const float MusicBaseVolume = 0.45f;
+    private const float SfxBaseVolume = 0.9f;
 
     private static GameAudio instance;
     private static readonly Dictionary<string, string[]> SfxAliases = new Dictionary<string, string[]>
@@ -51,6 +53,10 @@ public class GameAudio : MonoBehaviour
     private AudioClip[] musicClips;
     private AudioSource musicSource;
     private AudioSource sfxSource;
+    private bool hasFocus = true;
+    private bool musicWanted;
+    private bool appPaused;
+    private float lastTrackStart = float.NegativeInfinity;
 
     public static GameAudio Instance
     {
@@ -89,6 +95,33 @@ public class GameAudio : MonoBehaviour
         instance = this;
         DontDestroyOnLoad(gameObject);
         ConfigureSources();
+        GameSettings.Changed += ApplyVolumes;
+    }
+
+    private void OnDestroy()
+    {
+        GameSettings.Changed -= ApplyVolumes;
+    }
+
+    private void OnApplicationFocus(bool focus)
+    {
+        hasFocus = focus;
+        ApplyVolumes();
+    }
+
+    // Phones suspend the app (and its audio): a stopped track then is not a finished one
+    private void OnApplicationPause(bool paused)
+    {
+        appPaused = paused;
+    }
+
+    // A playlist: when a track ends, another one starts
+    private void Update()
+    {
+        // (at most once a second, in case a track cannot be read)
+        if (musicWanted && !appPaused && musicSource != null && (musicSource.clip == null || !musicSource.isPlaying)
+            && Time.unscaledTime - lastTrackStart > 1f)
+            PlayNextTrack();
     }
 
     private void ConfigureSources()
@@ -96,9 +129,8 @@ public class GameAudio : MonoBehaviour
         if (musicSource == null)
         {
             musicSource = gameObject.AddComponent<AudioSource>();
-            musicSource.loop = true;
+            musicSource.loop = false; // the next track starts when this one ends
             musicSource.playOnAwake = false;
-            musicSource.volume = 0.45f;
         }
 
         if (sfxSource == null)
@@ -106,8 +138,19 @@ public class GameAudio : MonoBehaviour
             sfxSource = gameObject.AddComponent<AudioSource>();
             sfxSource.loop = false;
             sfxSource.playOnAwake = false;
-            sfxSource.volume = 0.9f;
         }
+        ApplyVolumes();
+    }
+
+    //----------------------------------------Volumes (GameSettings)----------------------------------------//
+    private void ApplyVolumes()
+    {
+        if (musicSource != null)
+            musicSource.volume = MusicBaseVolume * GameSettings.MusicVolume;
+        if (sfxSource != null)
+            sfxSource.volume = SfxBaseVolume * GameSettings.SfxVolume;
+        bool muted = !hasFocus && GameSettings.MuteInBackground && !Application.isMobilePlatform;
+        AudioListener.volume = muted ? 0f : GameSettings.MasterVolume;
     }
 
     public static void PlayMenuMusic()
@@ -138,24 +181,36 @@ public class GameAudio : MonoBehaviour
     private void PlayAnyMusic()
     {
         ConfigureSources();
+        musicWanted = true;
+        // isPlaying can read true on the very first frame although no track was ever set: check the clip too
+        if (musicSource.clip == null || !musicSource.isPlaying)
+            PlayNextTrack();
+    }
 
-        if (musicSource.isPlaying)
-            return;
-
+    // A random track other than the one that just played. The tracks stream from disk (import settings), so
+    // loading them all only creates their small handles
+    private void PlayNextTrack()
+    {
         if (musicClips == null)
             musicClips = Resources.LoadAll<AudioClip>(MusicPath);
-
         if (musicClips == null || musicClips.Length == 0)
             return;
 
+        AudioClip previous = musicSource.clip;
         AudioClip clip = musicClips[Random.Range(0, musicClips.Length)];
+        if (clip == previous && musicClips.Length > 1)
+            clip = musicClips[(System.Array.IndexOf(musicClips, clip) + 1 + Random.Range(0, musicClips.Length - 1)) % musicClips.Length];
         musicSource.clip = clip;
         musicSource.Play();
+        lastTrackStart = Time.unscaledTime;
     }
 
     private void PlaySoundEffect(string clipName, float volumeScale)
     {
         ConfigureSources();
+
+        if (GameSettings.SfxVolume <= 0f || GameSettings.MasterVolume <= 0f)
+            return;
 
         AudioClip clip = LoadSfxClip(clipName);
         if (clip == null)
