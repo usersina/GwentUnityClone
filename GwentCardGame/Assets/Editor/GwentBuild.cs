@@ -212,9 +212,7 @@ public static class GwentBuild
     // build support, and a machine without it (a CI image for another platform) must still compile this script
     private static void SetMacArchitecture(OSArchitecture architecture)
     {
-        Type settings = AppDomain.CurrentDomain.GetAssemblies()
-            .Select(assembly => assembly.GetType("UnityEditor.OSXStandalone.UserBuildSettings"))
-            .FirstOrDefault(type => type != null);
+        Type settings = Type.GetType("UnityEditor.OSXStandalone.UserBuildSettings, UnityEditor.OSXStandalone.Extensions");
         System.Reflection.PropertyInfo property = settings != null ? settings.GetProperty("architecture") : null;
         if (property == null)
             throw new Exception("No macOS build support: cannot choose the app's architecture");
