@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Gwent.Rules;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 public class CollectionManager : MonoBehaviour
@@ -40,8 +41,13 @@ public class CollectionManager : MonoBehaviour
 
     public MiddleManager middleManager;
 
+    // The Witcher 3's filters: all cards, close, ranged, siege, heroes, weather, special cards
+    public const int WeatherTab = 5;
+    public const int SpecialTab = 6;
+
     IEnumerator Start()
     {
+        AddWeatherTab();
         ClearCardsArea();
         // DeckController loads everything in Awake; this only guards against a disabled controller
         yield return new WaitUntil(() => deckController.IsReady);
@@ -99,7 +105,11 @@ public class CollectionManager : MonoBehaviour
                 subtitle.text = "Heroes";
                 selected_row = "heroes";
                 break;
-            case 5:
+            case WeatherTab:
+                subtitle.text = "Weather";
+                selected_row = "weather";
+                break;
+            case SpecialTab:
                 subtitle.text = "Specials";
                 selected_row = "specials";
                 break;
@@ -131,13 +141,24 @@ public class CollectionManager : MonoBehaviour
         cardsArea.transform.DetachChildren();
     }
 
+    // The Witcher 3 shows each card once, with its count: the copies in the deck, or in the collection the copies
+    // left to add (a card whose copies are all in the deck leaves the collection)
     private void SetCardsArea(List<Card> cards_list)
     {
         ClearCardsArea();
+        bool deck = transform.CompareTag("Player");
+        Dictionary<int, int> in_deck = new Dictionary<int, int>();
+        foreach (int id in deckController.my_deck.Cards)
+            in_deck[id] = in_deck.TryGetValue(id, out int copies) ? copies + 1 : 1;
+        HashSet<int> shown = new HashSet<int>();
         foreach (Card card in cards_list)
         {
             // Bovine defense force cannot be added to a deck (it is summoned by the Cow)
-            if (card._id == CardIds.BovineDefenseForce)
+            if (card._id == CardIds.BovineDefenseForce || !shown.Add(card._id))
+                continue;
+            in_deck.TryGetValue(card._id, out int used);
+            int count = deck ? used : DeckRules.MaxCopies(card) - used;
+            if (count <= 0)
                 continue;
 
             GameObject instantiatedCard = Instantiate(CCardPrefab);
@@ -154,7 +175,63 @@ public class CollectionManager : MonoBehaviour
 
             instantiatedCard.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + card._id);
             instantiatedCard.transform.SetParent(cardsArea.transform, false);
+            AddCountBadge(instantiatedCard.transform, count);
         }
+    }
+
+    // "x2" near the bottom of the card, as in The Witcher 3: at the right of the art, just above the name strip
+    // (which it would cover on the left)
+    public const string CountBadge = "Count";
+
+    private static void AddCountBadge(Transform card, int count)
+    {
+        UITheme theme = UITheme.Current;
+        RectTransform badge = UIKit.Rect(CountBadge, card).Place(new Vector2(1, 0), new Vector2(-8, 70), new Vector2(50, 28), new Vector2(1, 0));
+        Image back = badge.gameObject.AddComponent<Image>();
+        back.sprite = theme.pill;
+        back.type = Image.Type.Sliced;
+        back.color = new Color(0.07f, 0.05f, 0.03f, 0.88f);
+        back.raycastTarget = false;
+        TextMeshProUGUI text = UIKit.Text(badge, "x" + count, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+        text.rectTransform.Stretch(0, 0, 0, 1);
+        text.fontSize = 21;
+        text.color = theme.goldBright;
+        text.raycastTarget = false;
+    }
+
+    // The scene has six tabs, the specials last; The Witcher 3 gives the weather cards a tab of their own, before
+    // the specials. The specials' tab is copied for it, and the seven tabs share the menu's width.
+    private void AddWeatherTab()
+    {
+        if (currentSprites.Count > SpecialTab)
+            return;
+        Image special = currentSprites[WeatherTab];
+        Image weather = Instantiate(special.gameObject, special.transform.parent).GetComponent<Image>();
+        weather.name = "weatherBtn";
+        weather.transform.SetSiblingIndex(special.transform.GetSiblingIndex());
+        currentSprites.Insert(WeatherTab, weather);
+        idleSprites.Insert(WeatherTab, SpriteCache.Load("DeckEdit/CardsView/Menu/idle/weather"));
+        selectedSprites.Insert(WeatherTab, SpriteCache.Load("DeckEdit/CardsView/Menu/selected/weather"));
+        weather.sprite = idleSprites[WeatherTab];
+        OnClickSelects(weather.GetComponent<Button>(), WeatherTab);
+        OnClickSelects(special.GetComponent<Button>(), SpecialTab);
+
+        RectTransform first = (RectTransform)currentSprites[0].transform;
+        float left = first.anchoredPosition.x, right = ((RectTransform)special.transform).anchoredPosition.x;
+        for (int i = 0; i < currentSprites.Count; i++)
+        {
+            RectTransform tab = (RectTransform)currentSprites[i].transform;
+            tab.anchoredPosition = new Vector2(Mathf.Lerp(left, right, i / (float)(currentSprites.Count - 1)), tab.anchoredPosition.y);
+            tab.sizeDelta = new Vector2(90, 90);
+        }
+    }
+
+    private void OnClickSelects(Button button, int tab)
+    {
+        for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+            button.onClick.SetPersistentListenerState(i, UnityEventCallState.Off);
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(() => HandleClick(tab));
     }
 
     private void ResetScrolling()
@@ -171,8 +248,9 @@ public class CollectionManager : MonoBehaviour
 
         switch (selected_row)
         {
+            case "weather":
             case "specials":
-                List<Card> specials_list = deckController.GetSpecialCards(CardsToDisplay);
+                List<Card> specials_list = deckController.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Rows.Weather) == (selected_row == "weather"));
                 specials_list.Sort((a, b) => a._id.CompareTo(b._id));
                 SetCardsArea(specials_list);
                 break;
@@ -273,6 +351,14 @@ public class CollectionManager : MonoBehaviour
         }
     }
 
+    // The collection counts the copies left to add: it follows the deck (where it is scrolled to stays)
+    private void RefreshCollection()
+    {
+        foreach (CollectionManager collection in FindObjectsByType<CollectionManager>())
+            if (collection != this && collection.CardsToDisplay != null)
+                collection.Select(collection.selectedTab, false);
+    }
+
     // Reference: Toggle On Value Changed
     public void ToggleNeutrals()
     {
@@ -288,6 +374,7 @@ public class CollectionManager : MonoBehaviour
         deckController.currentDeckPath = selectedPath;
         LoadFromDeck();
         Select(selectedTab);
+        RefreshCollection();
 
         // A valid selected deck becomes the battle deck
         if (select_for_battle)
@@ -298,7 +385,8 @@ public class CollectionManager : MonoBehaviour
     public void OnDeckEdit()
     {
         LoadFromDeck();
-        Select(selectedTab);
+        Select(selectedTab, false);
+        RefreshCollection();
         middleManager.InitializeDeck();
 
         // Save to the current deck

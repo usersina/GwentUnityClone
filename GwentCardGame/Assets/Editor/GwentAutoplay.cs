@@ -703,19 +703,17 @@ public static class GwentAutoplay
         }
 
         // A valid Monsters deck in the deck folder, the battle deck while the builder is checked: every hero it can
-        // hold (a second copy of the first hero shown is refused), the strongest other units (the weakest ones stay in
-        // the collection, to be added), and 10 specials with room left for the first one (it is refused for the
-        // 10-special limit, not for its copies)
+        // hold (the collection then offers none), the strongest other units (the weakest ones stay in the collection,
+        // to be added), and 10 specials, in the order of their ids, as many copies of each as exist (an 11th is
+        // refused for the 10-special limit)
         private string CreateTestDeck(CardDatabase db)
         {
             string faction = Factions.Monsters;
             List<Card> units = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce && (card.faction == faction || card.faction == Factions.Neutral)).ToList();
             List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
             cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
-            List<Card> specials = db.All.Where(card => card.IsSpecial).OrderBy(card => card._id).ToList();
-            int special_count = 1;
-            cards.Add(specials[0]._id);
-            foreach (Card special in specials.Skip(1))
+            int special_count = 0;
+            foreach (Card special in db.All.Where(card => card.IsSpecial).OrderBy(card => card._id))
                 for (int i = 0; i < DeckRules.MaxCopies(special) && special_count < DeckRules.MaxSpecials; i++, special_count++)
                     cards.Add(special._id);
 
@@ -1435,17 +1433,37 @@ public static class GwentAutoplay
             Func<int> saved = () => { Deck deck = DeckStorage.Load(deck_path); return deck != null ? deck.Cards.Count : -1; };
             int before = 0;
 
-            // Add, then two refusals: a second copy of a hero, an 11th special
-            At(0.1, () => before = count());
-            DoubleClickAt(0.4, AddableCard);
-            At(1.0, () => check(count() == before + 1 && saved() == before + 1, "double-clicking a card in the collection adds it to the deck (and saves it)"));
+            // Each card once, with its count (The Witcher 3): the copies in the deck, the copies left in the collection
+            int added = -1;
+            At(0.1, () =>
+            {
+                before = count();
+                int kinds = dc.my_deck.Cards.Distinct().Count(id => dc.deckCollection.toggleBtn.isOn || dc.Db.Get(id).faction != Factions.Neutral);
+                check(Shown(dc.deckCollection).Count == kinds && BadgeOf(dc.deckCollection, CardIds.BitingFrost) == 3,
+                    "the deck shows each card once with its count (Biting Frost x" + BadgeOf(dc.deckCollection, CardIds.BitingFrost) + ")");
+            });
+            // Add, then two cards that cannot be added: a hero already in the deck (not offered), an 11th special
+            DoubleClickAt(0.4, () =>
+            {
+                Vector2 at = AddableCard();
+                added = addTarget != null ? addTarget.GetComponent<CardStats>()._id : -1;
+                return at;
+            });
+            At(1.0, () =>
+            {
+                check(count() == before + 1 && saved() == before + 1, "double-clicking a card in the collection adds it to the deck (and saves it)");
+                int left = added >= 0 ? DeckRules.MaxCopies(dc.Db.Get(added)) - 1 : -1;
+                check(added >= 0 && (left == 0 ? !Shown(browse).Contains(added) : BadgeOf(browse, added) == left), "the collection then counts one copy fewer (" + left + " left)");
+            });
             Click(1.3, () => ScreenPoint(browse.currentSprites[4].transform));
-            DoubleClickAt(1.8, FirstCardOf(browse));
-            At(2.4, () => check(count() == before + 1 && ToastText().Contains("only one copy"), "a hero already in the deck is refused (\"" + ToastText() + "\")"));
-            Click(2.7, () => ScreenPoint(browse.currentSprites[5].transform));
-            DoubleClickAt(3.2, FirstCardOf(browse));
-            At(3.8, () => check(count() == before + 1 && ToastText().Contains("special cards"), "an 11th special card is refused (\"" + ToastText() + "\")"));
-            Click(4.1, () => ScreenPoint(browse.currentSprites[0].transform));
+            At(1.8, () => check(Shown(browse).Count == 0, "with every hero in the deck, the collection offers none (" + Shown(browse).Count + " shown)"));
+            Click(2.1, () => ScreenPoint(browse.currentSprites[CollectionManager.WeatherTab].transform));
+            At(2.6, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => dc.Db.Get(id).row == Rows.Weather), "the Weather tab lists the weather cards only"));
+            Click(2.9, () => ScreenPoint(browse.currentSprites[CollectionManager.SpecialTab].transform));
+            DoubleClickAt(3.4, FirstCardOf(browse));
+            At(4.0, () => check(count() == before + 1 && ToastText().Contains("special cards") && Shown(browse).All(id => dc.Db.Get(id).IsSpecial && dc.Db.Get(id).row != Rows.Weather),
+                "the Specials tab lists the other special cards, and an 11th special card is refused (\"" + ToastText() + "\")"));
+            Click(4.3, () => ScreenPoint(browse.currentSprites[0].transform));
 
             // Remove from the deck's list
             DoubleClickAt(4.6, FirstCardOf(dc.deckCollection));
@@ -1526,6 +1544,29 @@ public static class GwentAutoplay
                 && dc.middleManager.myPaths.All(p => DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
         }
 
+        // The card ids a card list shows, and the count on one of them (-1 when not shown)
+        private static List<int> Shown(CollectionManager collection)
+        {
+            List<int> ids = new List<int>();
+            foreach (Transform card in collection.cardsArea.transform)
+                ids.Add(card.GetComponent<CardStats>()._id);
+            return ids;
+        }
+
+        private static int BadgeOf(CollectionManager collection, int id)
+        {
+            foreach (Transform card in collection.cardsArea.transform)
+                if (card.GetComponent<CardStats>()._id == id)
+                {
+                    Transform badge = card.Find(CollectionManager.CountBadge);
+                    int count;
+                    return badge != null && int.TryParse(badge.GetComponentInChildren<TextMeshProUGUI>().text.TrimStart('x'), out count) ? count : -1;
+                }
+            return -1;
+        }
+
+        private Transform addTarget;
+
         // One of the collection's first cards the deck has room for (not a special: their limit is checked apart)
         private Vector2 AddableCard()
         {
@@ -1540,6 +1581,7 @@ public static class GwentAutoplay
                     target = t;
             }
             check(target != null, "the collection's first cards include one the deck has room for");
+            addTarget = target;
             return target != null ? ScreenPoint(target) : Vector2.zero;
         }
 
