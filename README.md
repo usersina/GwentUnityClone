@@ -145,6 +145,27 @@ Saved decks live in `Application.persistentDataPath/Decks/<faction>/<file name>.
 with anything unsafe removed (`My Deck!` is `my_deck.json`); settings are saved in `PlayerPrefs`.
 Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or with the `GWENT_VERBOSE_LOGS` define).
 
+### Release builds
+
+Menu **Gwent > Build > All platforms** (or one platform) builds the game for Linux, Windows, macOS (Intel and Apple Silicon),
+Android and the web, each from the same editor, into `GwentCardGame/Builds/<version>/` with archives ready to hand out
+(`GwentLegacy-<version>-linux.tar.gz`, `-windows.zip`, `-macos.zip`, `.apk`, `-web.zip`) and `build-report.txt`. A platform
+whose build support is not installed (Unity Hub > Installs > Add modules) is skipped. From the command line, with the editor closed:
+
+```bash
+Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBatch -buildTargets linux,windows
+```
+
+- The Android build is a 64-bit (ARM64) `.apk` to install directly. It is signed with a release key when the environment has
+  `GWENT_KEYSTORE` (the keystore file), `GWENT_KEYSTORE_PASS`, `GWENT_KEY_ALIAS` and `GWENT_KEY_PASS`; otherwise with Unity's
+  debug key, and a build from another machine then only installs after the old one is removed (which deletes its decks).
+- The macOS app is ad-hoc signed by Unity, not notarized: macOS asks once to allow it (System Settings > Privacy & Security >
+  Open Anyway). Windows shows "Windows protected your PC" once (More info > Run anyway).
+- The web build is compressed with a fallback, so any static host serves it. In a browser Hard thinks a few milliseconds a frame
+  (there is no other thread), Quit is gone, the display settings are a Fullscreen switch, and decks are stored in the browser.
+- Images are kept to sizes that are multiples of 4 so they compress on every platform (a card at 380x591 would ship uncompressed,
+  four times larger).
+
 ## Tests
 
 - **Rules unit tests**: Window > General > Test Runner > EditMode > Run All. They include a fuzz test (`RulesFuzzTests`, the harness
