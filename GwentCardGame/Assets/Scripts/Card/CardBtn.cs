@@ -24,7 +24,7 @@ public class CardBtn : MonoBehaviour, IPointerClickHandler
     {
         if (eventData.button != PointerEventData.InputButton.Left)
             return;
-        if (Application.isMobilePlatform || doubleClick.Register())
+        if (GameInput.IsTouch || doubleClick.Register())
             Choose();
     }
 

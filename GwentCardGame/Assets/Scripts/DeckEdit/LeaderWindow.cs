@@ -13,7 +13,7 @@ public class LeaderWindow : MonoBehaviour, IPointerClickHandler
     {
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (Application.isMobilePlatform || doubleClick.Register())
+            if (GameInput.IsTouch || doubleClick.Register())
                 SelectLeader();
         }
     }

@@ -15,7 +15,7 @@ public class CLeaderManager : MonoBehaviour, IPointerClickHandler
         // Double-click (tap on mobile) opens the leader picker
         if (eventData.button == PointerEventData.InputButton.Left)
         {
-            if (Application.isMobilePlatform || doubleClick.Register())
+            if (GameInput.IsTouch || doubleClick.Register())
                 OpenLeaderPicker();
         }
     }

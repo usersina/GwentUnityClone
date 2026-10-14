@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-// A small themed hint above a control while the pointer rests on it (desktop; phones have no hover)
+// A small themed hint above a control while the pointer rests on it (with touch controls: while a finger is held on it)
 public class UITooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
     private const float Delay = 0.3f;
@@ -16,9 +16,16 @@ public class UITooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     private float enteredAt = -1;
     private GameObject shown;
 
+    private void Awake()
+    {
+        LongPress.On(gameObject, () => { Show(); return shown != null; }, Hide);
+    }
+
     public void OnPointerEnter(PointerEventData eventData)
     {
-        enteredAt = Time.unscaledTime;
+        // A finger also "enters" what it touches: its tooltip waits for the long press, which is no tap
+        if (!GameInput.IsTouch)
+            enteredAt = Time.unscaledTime;
     }
 
     public void OnPointerExit(PointerEventData eventData)
@@ -47,7 +54,7 @@ public class UITooltip : MonoBehaviour, IPointerEnterHandler, IPointerExitHandle
     private void Show()
     {
         string message = text != null ? text() : null;
-        if (string.IsNullOrEmpty(message) || Application.isMobilePlatform)
+        if (string.IsNullOrEmpty(message) || shown != null)
             return;
 
         RectTransform root = (RectTransform)UIOverlay.Root;

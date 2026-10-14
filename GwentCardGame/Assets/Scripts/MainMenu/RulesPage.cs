@@ -120,9 +120,9 @@ public class RulesPage : MonoBehaviour
             Entries = Application.isMobilePlatform ? new[]
             {
                 new Entry(null, "Play a card", "Tap it in your hand (it shows large on the right), then tap where it lights up."),
-                new Entry(null, "Leader", "Tap the leader's button."),
+                new Entry(null, "Leader", "Tap the leader's button; hold a finger on it to see whether it can still be used."),
                 new Entry(null, "Pass", "Hold the Hold to pass button."),
-                new Entry(null, "Look", "Tap a card in your hand to see it large; tap a discard pile to look through it."),
+                new Entry(null, "Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large until you lift it; tap a discard pile to look through it."),
                 new Entry(null, "Pause", "The back button or the menu button: resume, settings, or give up the battle."),
             } : new[]
             {

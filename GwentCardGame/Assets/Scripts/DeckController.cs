@@ -87,7 +87,7 @@ public class DeckController : MonoBehaviour
 
     private void ConfigureMobileDeckBuilder()
     {
-        if (!Application.isMobilePlatform)
+        if (!GameInput.IsTouch)
             return;
 
         if (EventSystem.current != null)

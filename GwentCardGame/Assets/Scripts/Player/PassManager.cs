@@ -47,7 +47,7 @@ public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     private void Start()
     {
         // The Witcher 3's "[SPACE] [HOLD] Pass" hint, on keyboards
-        if (Application.isMobilePlatform)
+        if (GameInput.IsTouch)
             return;
         TMPro.TextMeshProUGUI label = GetComponentInChildren<TMPro.TextMeshProUGUI>();
         if (label != null)

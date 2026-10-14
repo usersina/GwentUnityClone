@@ -26,6 +26,14 @@ public class CardHover : MonoBehaviour
         if (mainCanvas == null)
             mainCanvas = GameObject.Find("Main Canvas");
         Canvas = mainCanvas;
+        // Touch controls: a finger held on the card shows it on the right, as hovering does
+        LongPress.On(gameObject, ShowHeldPreview, DestroyEffect);
+    }
+
+    private bool ShowHeldPreview()
+    {
+        ShowPreview();
+        return previewing == this;
     }
 
     private void OnDestroy()
@@ -35,7 +43,7 @@ public class CardHover : MonoBehaviour
 
     public void OnHoverEnter()
     {
-        if (Application.isMobilePlatform)
+        if (GameInput.IsTouch)
             return;
 
         ShowPreview();
@@ -46,7 +54,7 @@ public class CardHover : MonoBehaviour
 
     public void OnHoverExit()
     {
-        if (Application.isMobilePlatform)
+        if (GameInput.IsTouch)
             return;
 
         DestroyEffect();

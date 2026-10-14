@@ -27,6 +27,8 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         deckCollection = deckController.deckCollection;
 
         UpdateCardGUI();
+        // Touch controls have no right click: a finger held on the card shows it large until it lifts
+        LongPress.On(gameObject, () => { ShowBigCard(); return true; }, () => Details().SetActive(false));
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -47,7 +49,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
     private bool UseSingleTapActions()
     {
-        return Application.isMobilePlatform;
+        return GameInput.IsTouch;
     }
 
     private void EditDeckWithThisCard()
@@ -132,9 +134,14 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
         patch.sprite = stats.unique ? uniquePatch[variant] : normalPatch[variant];
     }
 
+    private GameObject Details()
+    {
+        return transform.parent.parent.parent.GetComponent<CollectionManager>().cardDetails;
+    }
+
     private void ShowBigCard()
     {
-        GameObject cardDetails = transform.parent.parent.parent.GetComponent<CollectionManager>().cardDetails;
+        GameObject cardDetails = Details();
         CardStats cardStats = GetComponent<CardStats>();
 
         cardDetails.SetActive(true);

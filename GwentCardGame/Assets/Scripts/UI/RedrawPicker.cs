@@ -99,7 +99,7 @@ public class RedrawPicker : MonoBehaviour
         counter.fontSize = 36;
         counter.color = theme.text;
         counter.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -38), new Vector2(1100, 50));
-        string how = Application.isMobilePlatform
+        string how = GameInput.IsTouch
             ? "Tap a card to bring it forward, tap it again to redraw it"
             : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click keeps your hand";
         TextMeshProUGUI hint = UIKit.Text(band, how, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);

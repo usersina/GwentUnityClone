@@ -96,7 +96,7 @@ public partial class SceneController : MonoBehaviour
 
     private void Start()
     {
-        if (!Application.isMobilePlatform)
+        if (!GameInput.IsTouch)
             gameObject.AddComponent<BattleKeys>();
         GameAudio.PlayGameMusic();
         Time.timeScale = GameSettings.GameTimeScale;

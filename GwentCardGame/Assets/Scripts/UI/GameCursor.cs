@@ -20,7 +20,7 @@ public class GameCursor : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
-        if (instance != null || Application.isMobilePlatform)
+        if (instance != null || GameInput.IsTouch)
             return;
         GameObject go = new GameObject("GameCursor");
         instance = go.AddComponent<GameCursor>();

@@ -93,7 +93,7 @@ public class LeaderManager : MonoBehaviour
             return whose + ": passive, always in effect";
         if (used)
             return whose + ": used";
-        return IsPlayers ? "Leader ability: click to use" : whose + ": not used yet";
+        return IsPlayers ? (GameInput.IsTouch ? "Leader ability: tap to use" : "Leader ability: click to use") : whose + ": not used yet";
     }
 
     // Reference: Activate button. The controller marks the button used once the ability really happened.

@@ -195,7 +195,7 @@ public partial class SceneController
                 info.CanDiscard = true;
                 info.CardsDiscarded = 0;
                 pendingAction = PendingAction.DiscardCards;
-                UIOverlay.Toast((Application.isMobilePlatform ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
+                UIOverlay.Toast((GameInput.IsTouch ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
                 return LeaderOutcome.Pending;
             case LeaderIds.EredinDestroyerOfWorlds:
                 return RestoreToHand("discard_list", info.DiscardList, is_player_turn, out reason);
