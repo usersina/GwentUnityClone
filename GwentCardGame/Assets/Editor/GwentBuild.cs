@@ -181,7 +181,7 @@ public static class GwentBuild
         switch (target.Build)
         {
             case BuildTarget.StandaloneOSX:
-                UnityEditor.OSXStandalone.UserBuildSettings.architecture = OSArchitecture.x64ARM64; // Intel and Apple Silicon
+                SetMacArchitecture(OSArchitecture.x64ARM64); // Intel and Apple Silicon
                 break;
             case BuildTarget.Android:
                 EditorUserBuildSettings.buildAppBundle = false; // an .apk, to install directly
@@ -206,6 +206,19 @@ public static class GwentBuild
                 }
                 break;
         }
+    }
+
+    // UnityEditor.OSXStandalone.UserBuildSettings.architecture, through reflection: the class comes with the macOS
+    // build support, and a machine without it (a CI image for another platform) must still compile this script
+    private static void SetMacArchitecture(OSArchitecture architecture)
+    {
+        Type settings = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(assembly => assembly.GetType("UnityEditor.OSXStandalone.UserBuildSettings"))
+            .FirstOrDefault(type => type != null);
+        System.Reflection.PropertyInfo property = settings != null ? settings.GetProperty("architecture") : null;
+        if (property == null)
+            throw new Exception("No macOS build support: cannot choose the app's architecture");
+        property.SetValue(null, architecture);
     }
 
     // The project's settings as they were: the keystore path and the version code are saved in ProjectSettings (the
