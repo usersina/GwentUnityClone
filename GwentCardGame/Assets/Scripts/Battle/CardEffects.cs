@@ -354,7 +354,9 @@ public static class CardEffects
     }
 
     //----------------------------------------Particles----------------------------------------//
-    // Sparks, embers and wisps: small glowing images on the overlay, moved by the effect that throws them
+    // Sparks, embers and wisps: small glowing images on the overlay, moved by the effect that throws them. There are
+    // many (a hero's fire throws about 250): their images are put away and used again rather than made and destroyed
+    // each time, which would leave garbage for the collector to stutter over on phones.
     private class Particle
     {
         public Image Image;
@@ -363,13 +365,46 @@ public static class CardEffects
         public Color From, To;
     }
 
+    private const int MaxSpare = 400;
+    private static readonly Stack<Image> spare = new Stack<Image>();
+
     private static Particle Emit(Sprite sprite, Vector2 at, Vector2 velocity, float size, float life, Color from, Color to, float growth = 0)
     {
         return new Particle
         {
-            Image = LayerImage("Spark", sprite, from, at, Vector2.one * size),
+            Image = SparkImage(sprite, from, at, size),
             Velocity = velocity, Life = life, Size = size, Growth = growth, From = from, To = to,
         };
+    }
+
+    private static Image SparkImage(Sprite sprite, Color color, Vector2 at, float size)
+    {
+        Image image = null;
+        while (image == null && spare.Count > 0)
+            image = spare.Pop(); // gone if the layer was cleared since (a battle cut short)
+        if (image == null)
+            return LayerImage("Spark", sprite, color, at, Vector2.one * size);
+        image.sprite = sprite;
+        image.type = sprite != null && sprite.border != Vector4.zero ? Image.Type.Sliced : Image.Type.Simple; // as made new
+        image.color = color;
+        image.rectTransform.anchoredPosition = at;
+        image.rectTransform.sizeDelta = Vector2.one * size;
+        image.transform.SetAsLastSibling(); // drawn over the effect, as a new image would be
+        image.gameObject.SetActive(true);
+        return image;
+    }
+
+    private static void PutAway(Image image)
+    {
+        if (image == null)
+            return;
+        if (spare.Count >= MaxSpare)
+        {
+            Object.Destroy(image.gameObject);
+            return;
+        }
+        image.gameObject.SetActive(false);
+        spare.Push(image);
     }
 
     // One frame: each particle moves (gravity pulls it down, a negative one lifts it), changes color and fades
@@ -381,8 +416,7 @@ public static class CardEffects
             particle.Age += dt;
             if (particle.Age >= particle.Life || particle.Image == null)
             {
-                if (particle.Image != null)
-                    Object.Destroy(particle.Image.gameObject);
+                PutAway(particle.Image);
                 particles.RemoveAt(i);
                 continue;
             }
@@ -400,8 +434,7 @@ public static class CardEffects
     private static void Clear(List<Particle> particles)
     {
         foreach (Particle particle in particles)
-            if (particle.Image != null)
-                Object.Destroy(particle.Image.gameObject);
+            PutAway(particle.Image);
         particles.Clear();
     }
 
