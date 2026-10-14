@@ -55,12 +55,8 @@ jobs:
       - uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
+      # No Library cache (see the builds)
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: ${{ env.PROJECT }}/Library
-          key: Library-tests-${{ hashFiles('GwentCardGame/Assets/**', 'GwentCardGame/Packages/**', 'GwentCardGame/ProjectSettings/**') }}
-          restore-keys: Library-tests-
       - uses: game-ci/unity-test-runner@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -90,8 +86,9 @@ jobs:
       - uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
-      # No Library cache for the builds: from a restored Library the editor was killed (exit code 137) a second into the
-      # build, in 3 builds out of 4 that got that far; from an empty one all five built (10 to 20 minutes each)
+      # No Library cache, here or for the tests: started on a Library restored from an earlier run, the editor was killed
+      # (exit code 137) within its first seconds, 4 times out of 6; started on an empty one, every build and test run
+      # went through. A release then takes about half an hour (each build 10 to 20 minutes).
       - uses: actions/checkout@v4
       - uses: game-ci/unity-builder@v4
         env:
