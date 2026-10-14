@@ -119,8 +119,18 @@ Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or w
 
 ## Tests
 
-- **Rules unit tests**: Window > General > Test Runner > EditMode > Run All.
+- **Rules unit tests**: Window > General > Test Runner > EditMode > Run All. They include a fuzz test (`RulesFuzzTests`, the harness
+  is `RulesFuzzer`): 400 battles between random and absurd decks (all spies, all medics, musters, weather spam, decoys, a handful of
+  cards...) making random moves the way the battle does, with every unit's strength checked against an independent copy of The
+  Witcher 3's strength formula, and card conservation, scores, horn slots, the weather board, round ends and round winners checked
+  after every move.
 - **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI (cycling through the AI's 9 decks), and fails on errors in the log, on a game that stops progressing, on cards appearing or disappearing, or on a board that shows other cards than the game. Parts of it go through real input (a virtual mouse and keyboard at human speed): the redraw (clicks, keys, Space), card selection, holding Space to pass, the pause menu, playing a card with the keyboard, the touch controls (long presses on the leader, its button and a hand card; taps), the game speed setting, the card picker's keys, a discard pile opened in the carousel, and choosing then using the leader. Then the deck builder opens on a test deck it made: real clicks add and remove cards (the counts follow, a hero already in the deck is no longer offered, an 11th special is refused), go through the weather and specials tabs, change the leader, switch factions and pick the deck in the dropdown, and its API is checked (presets: picked, never renamed, deleted or changed, an edit saved as a copy; renaming, deleting decks, invalid and corrupt files). Last, the main menu: its settings and How to play, then **Play**, the opponent picker and a battle with the deck chosen in the builder, the fallback to the default deck when the battle deck is invalid, and a preset as the battle deck. The run restores the battle deck, the opponent and the settings it changes. The report is written to `Logs/autoplay-report.txt`.
+- **Monkey test**: menu **Gwent > Run Monkey Test** (10 minutes). Battles between random AI decks played under a storm of random input:
+  a virtual mouse and keyboard click, double-click, right-click, hold, drag and scroll on whatever the screen offers and mash the
+  game's keys and others at any moment (during plays, banners, the redraw, pickers, the pause menu, the end screen), switching the
+  touch controls and the game speed now and then; when nothing moves for a while, a random legal move or an Escape keeps it going.
+  Fails on errors in the log, cards appearing or disappearing, a board that shows other cards than the game when idle, and a game
+  that stops progressing. It restores every setting and deck file it may change. The report is written to `Logs/monkey-report.txt`.
 - **Touch controls in the editor**: menu **Gwent > Simulate Touch Controls** plays with the phone's controls using the mouse (a click is a tap, a held click is a finger held on a card).
 
 From the command line (close the project in the editor first), with the [Unity CLI](https://docs.unity.com) signed in (`unity auth`):
