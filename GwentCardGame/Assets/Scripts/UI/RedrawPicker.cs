@@ -179,7 +179,8 @@ public class RedrawPicker : MonoBehaviour
         if (id == detailsFor)
             return;
         detailsFor = id;
-        Sprite sprite = id >= 0 ? SpriteCache.Load(CardHover.EffectBoxPath(controller.Db.Get(id))) : null;
+        string description = id >= 0 ? CardHover.EffectBoxPath(controller.Db.Get(id)) : null; // none for a plain unit
+        Sprite sprite = description != null ? SpriteCache.Load(description) : null;
         details.sprite = sprite;
         details.enabled = sprite != null;
     }

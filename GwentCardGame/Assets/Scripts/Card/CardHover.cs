@@ -174,21 +174,25 @@ public class CardHover : MonoBehaviour
 
         CardStats cardStats = GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
         bigImage = Instantiate(BigImage);
-        bigEffect = Instantiate(BigEffect);
-
         bigImage.transform.SetParent(Canvas.transform, false);
-        bigEffect.transform.SetParent(Canvas.transform, false);
-
         bigImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
-        bigEffect.GetComponent<Image>().sprite = SpriteCache.Load(EffectBoxPath(cardStats));
+        // A plain unit has no description (The Witcher 3)
+        string description = EffectBoxPath(cardStats);
+        if (description != null)
+        {
+            bigEffect = Instantiate(BigEffect);
+            bigEffect.transform.SetParent(Canvas.transform, false);
+            bigEffect.GetComponent<Image>().sprite = SpriteCache.Load(description);
+        }
         // Only a preview: it must never catch clicks meant for what is under it
-        foreach (Graphic graphic in bigImage.GetComponentsInChildren<Graphic>())
-            graphic.raycastTarget = false;
-        foreach (Graphic graphic in bigEffect.GetComponentsInChildren<Graphic>())
-            graphic.raycastTarget = false;
+        foreach (GameObject part in new[] { bigImage, bigEffect })
+            if (part != null)
+                foreach (Graphic graphic in part.GetComponentsInChildren<Graphic>())
+                    graphic.raycastTarget = false;
     }
 
-    // Description box shown next to the big card (also used by the deck builder and the redraw carousel)
+    // Description box shown next to the big card (also used by the deck builder and the redraw carousel); null for a
+    // plain unit, which has none in The Witcher 3 (only abilities, heroes, agile units, special cards and leaders do)
     public static string EffectBoxPath(CardStats cardStats)
     {
         return EffectBoxPath(cardStats.faction, cardStats._idstr, cardStats.ability, cardStats._id, cardStats.unique, cardStats.row);
@@ -211,6 +215,6 @@ public class CardHover : MonoBehaviour
             return "Cards/EffectBox/hero";
         if (row == Rows.Agile)
             return "Cards/EffectBox/agile";
-        return "Cards/EffectBox/normal_unit";
+        return null;
     }
 }

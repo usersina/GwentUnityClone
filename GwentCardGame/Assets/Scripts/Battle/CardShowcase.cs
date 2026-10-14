@@ -119,11 +119,12 @@ public static class CardShowcase
         RectTransform showcase = shown;
         go.AddComponent<OverlayGlide>().To(() => LayoutToScreen(target), GlideSeconds, () =>
         {
-            if (shown != showcase)
+            // Its description, under it (a plain unit has none)
+            string description = CardHover.EffectBoxPath(card);
+            if (shown != showcase || description == null)
                 return;
-            // Its description, under it
             RectTransform layout = Layout(false);
-            Image text = UIKit.NewImage(CardMotion.Layer, "CardShowcaseText", SpriteCache.Load(CardHover.EffectBoxPath(card)), Color.white);
+            Image text = UIKit.NewImage(CardMotion.Layer, "CardShowcaseText", SpriteCache.Load(description), Color.white);
             text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             text.rectTransform.anchoredPosition = layout.anchoredPosition;
             text.rectTransform.sizeDelta = layout.sizeDelta;
