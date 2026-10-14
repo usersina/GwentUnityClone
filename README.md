@@ -150,7 +150,10 @@ Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or w
 Menu **Gwent > Build > All platforms** (or one platform) builds the game for Linux, Windows, macOS (Intel and Apple Silicon),
 Android and the web, each from the same editor, into `GwentCardGame/Builds/<version>/` with archives ready to hand out
 (`GwentLegacy-<version>-linux.tar.gz`, `-windows.zip`, `-macos.zip`, `.apk`, `-web.zip`) and `build-report.txt`. A platform
-whose build support is not installed (Unity Hub > Installs > Add modules) is skipped. From the command line, with the editor closed:
+whose build support is not installed (Unity Hub > Installs > Add modules) is skipped. The run goes on with the editor in the
+background, starts with the platform the editor is on and switches back to it at the end (each platform's imports are cached,
+so a switch takes seconds); all five take about 4 minutes once they have been built once. From the command line, with the
+editor closed:
 
 ```bash
 Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBatch -buildTargets linux,windows
@@ -165,6 +168,8 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBa
   (there is no other thread), Quit is gone, the display settings are a Fullscreen switch, and decks are stored in the browser.
 - Images are kept to sizes that are multiples of 4 so they compress on every platform (a card at 380x591 would ship uncompressed,
   four times larger).
+- One graphics API per platform (Windows Direct3D 11, Linux OpenGL Core, macOS Metal, Android OpenGL ES 3, the web WebGL 2) and no
+  post-processing in the renderer (the game uses none): shaders are compiled once per platform, not for every effect and API.
 
 ## Tests
 
