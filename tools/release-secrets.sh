@@ -19,7 +19,13 @@ alias_name=gwentlegacy
 for tool in gh keytool base64; do
   command -v "$tool" >/dev/null || { echo "Missing: $tool" >&2; exit 1; }
 done
-[ -f "$license" ] || { echo "No Unity license at $license: activate a Personal license in Unity Hub first." >&2; exit 1; }
+if [ ! -f "$license" ]; then
+  # A license shown in Unity Hub is not always this file (newer Hubs keep an entitlement license elsewhere); adding one
+  # writes it
+  echo "No Unity license file at $license." >&2
+  echo "In Unity Hub: Preferences > Licenses > Add > Get a free personal license, then run this again." >&2
+  exit 1
+fi
 
 echo "Unity license -> UNITY_LICENSE"
 gh secret set UNITY_LICENSE -R "$repo" < "$license"
