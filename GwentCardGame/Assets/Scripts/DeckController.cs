@@ -38,6 +38,9 @@ public class DeckController : MonoBehaviour
 
     private TextMeshProUGUI battleDeckStatus;
 
+    // The line telling which deck is used in battle (and why the edited one isn't)
+    public string BattleDeckStatus { get { return battleDeckStatus != null ? battleDeckStatus.text : ""; } }
+
     // Loads card data and the selected deck before any other deck builder script starts
     private void Awake()
     {

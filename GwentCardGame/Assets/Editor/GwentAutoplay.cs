@@ -16,12 +16,16 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 // End-to-end smoke test: plays whole battles in the real Game scene with a random "player" against the AI.
-// The first two battles start with the redraw played through real input (a virtual mouse and keyboard at human speed),
-// the player's first turn checks card selection and the pause menu the same way, and so does the main menu at the end.
+// The first battles start with the redraw played through real input (a virtual mouse and keyboard at human speed),
+// and the player's first turns check the same way card selection, the pause menu, passing, the keyboard controls,
+// the touch controls (simulated), the game speed setting and the card picker's keys.
 // Every leader of every faction gets a generated deck. Fails on exceptions/errors in the log, on a game that
 // stops progressing (softlock), and on cards appearing or disappearing (card conservation).
-// Then exercises the deck builder (add, duplicate names, rename, battle deck, corrupt files, delete) in the Deck scene;
-// it only touches its own "Autoplay ..." decks and restores the saved battle deck afterwards. Finally loads the main menu.
+// Then the deck builder opens on a test Monsters deck: real clicks add and remove cards (and are refused past the
+// copy and special limits), change the leader, switch factions and pick the deck in the dropdown; then its API
+// (duplicate names, rename, battle deck, corrupt files, delete). The main menu follows (settings, How to play), then
+// Play, the opponent picker and the battle with the deck the builder chose, and the fallback for an invalid deck.
+// It only touches its own "Autoplay ..." decks, and restores the battle deck, the opponent and the settings it changes.
 //
 //  Editor:  menu Gwent > Run Autoplay Smoke Test (Ctrl+Shift+Alt+G)
 //  Batch:   Unity -batchmode -projectPath <path> -executeMethod GwentAutoplay.RunBatch
@@ -96,6 +100,14 @@ public static class GwentAutoplay
         runner.Start();
     }
 
+    // The notice showing at the top of the screen, if any
+    private static string ToastText()
+    {
+        GameObject toast = GameObject.Find("Toast");
+        TextMeshProUGUI label = toast != null ? toast.GetComponentInChildren<TextMeshProUGUI>() : null;
+        return label != null ? label.text : "";
+    }
+
     private static int IntArg(string[] args, string name, int fallback)
     {
         int index = Array.IndexOf(args, name);
@@ -140,11 +152,31 @@ public static class GwentAutoplay
         private bool selectionChecked;
         private bool pauseChecked;
         private bool passKeyChecked;
+        private bool keyboardChecked;
+        private bool touchChecked;
+        private bool speedChecked;
+        private bool pickerChecked;
         private bool endScreenChecked;
         private int roundEndChecked;
         private readonly HashSet<int> turnsChecked = new HashSet<int>();
         private int boardMismatchMatch = -1;
-        private bool menuInputStarted;
+        private int deckStage;
+        private int menuStage;
+        private bool roundTripPhase;
+        private int roundTripStage;
+        private double phaseStart;
+        private SceneController previousBattle;
+
+        // Restored at the end: what the run changes in the player's settings
+        private string savedBattleDeck;
+        private string savedOpponent;
+        private bool savedTouch;
+        private readonly List<string> testFiles = new List<string>();
+
+        // The deck builder's test deck (a valid Monsters deck in the deck folder) and the opponent chosen in the menu
+        private string testDeckPath;
+        private string testDeckName;
+        private TextAsset chosenOpponent;
 
         public Runner(int total_matches, int seed, bool batch, string report_path)
         {
@@ -166,6 +198,10 @@ public static class GwentAutoplay
         public void Start()
         {
             Running = true;
+            savedBattleDeck = PlayerPrefs.GetString("playerDeckPath", "");
+            savedOpponent = OpponentDecks.Chosen;
+            savedTouch = GameInput.SimulateTouch;
+            GameInput.SimulateTouch = false;
             Application.logMessageReceived += OnLog;
             EditorApplication.update += Tick;
             Time.timeScale = TimeScale;
@@ -207,7 +243,9 @@ public static class GwentAutoplay
             OpponentDecks.Override = opponents.Count > 0 ? opponents[match % opponents.Count].name : null;
             if (match >= totalMatches)
             {
-                // Battles done: on to the deck builder
+                // Battles done: on to the deck builder, which opens on the battle deck (a test Monsters deck)
+                OpponentDecks.Override = null;
+                ApplicationModel.playerDeckPath = CreateTestDeck(CardLibrary.Get());
                 deckPhase = true;
                 deckPhaseFrames = 0;
                 lastProgress = EditorApplication.timeSinceStartup;
@@ -244,18 +282,31 @@ public static class GwentAutoplay
         {
             if (!EditorApplication.isPlaying)
                 return;
-            // Real-time input runs at normal speed, like a person playing
-            if (!PauseMenu.IsOpen)
+            // Real-time input runs at normal speed, like a person playing (the game speed check sets its own)
+            if (!PauseMenu.IsOpen && (inputCheck == null || !inputCheck.OwnsTimeScale))
                 Time.timeScale = inputCheck != null ? 1f : TimeScale;
 
-            if (menuPhase)
+            try
             {
-                MenuStep();
-                return;
+                if (roundTripPhase)
+                {
+                    RoundTripStep();
+                    return;
+                }
+                if (menuPhase)
+                {
+                    MenuStep();
+                    return;
+                }
+                if (deckPhase)
+                {
+                    DeckBuilderStep();
+                    return;
+                }
             }
-            if (deckPhase)
+            catch (Exception e)
             {
-                DeckBuilderStep();
+                Abort("autoplay exception in the " + currentDeck + ": " + e);
                 return;
             }
 
@@ -371,9 +422,10 @@ public static class GwentAutoplay
                 // The redraw opens once the coin toss has been announced
                 if (!RedrawPicker.IsOpen)
                     return;
-                if (redrawChecks < 3)
+                InputScenario[] redraws = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace };
+                if (redrawChecks < redraws.Length)
                 {
-                    InputScenario scenario = new[] { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel }[redrawChecks++];
+                    InputScenario scenario = redraws[redrawChecks++];
                     inputCheck = new InputCheck(c, scenario, (ok, what) => Check(ok, what, "redraw input"));
                     return;
                 }
@@ -397,6 +449,13 @@ public static class GwentAutoplay
             if (c.Panel.activeInHierarchy)
             {
                 CardBtn[] buttons = c.Panel.GetComponentsInChildren<CardBtn>();
+                // The first picker with a choice to make: through its keys
+                if (!pickerChecked && buttons.Length >= 2 && c.pendingAction == PendingAction.PanelChoice)
+                {
+                    pickerChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.PickerKeys, (ok, what) => Check(ok, what, "picker keys"));
+                    return;
+                }
                 if (buttons.Length == 0 || rnd.Next(10) == 0)
                 {
                     c.CancelPanel();
@@ -453,6 +512,24 @@ public static class GwentAutoplay
             {
                 passKeyChecked = true;
                 inputCheck = new InputCheck(c, InputScenario.PassWithSpace, (ok, what) => Check(ok, what, "pass input"));
+                return;
+            }
+            if (!keyboardChecked && c.PlayerInfo.HandList.Count > 0)
+            {
+                keyboardChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.KeyboardPlay, (ok, what) => Check(ok, what, "keyboard play"));
+                return;
+            }
+            if (!touchChecked && c.PlayerInfo.HandList.Count > 0)
+            {
+                touchChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.TouchControls, (ok, what) => Check(ok, what, "touch controls"));
+                return;
+            }
+            if (!speedChecked)
+            {
+                speedChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.GameSpeed, (ok, what) => Check(ok, what, "game speed"));
                 return;
             }
 
@@ -542,18 +619,28 @@ public static class GwentAutoplay
         }
 
         //----------------------------------------Deck builder----------------------------------------//
+        // Opens on the test deck: checks the screen, real clicks (InputScenario.DeckBuilder), then the API checks. The
+        // test deck ends up the battle deck, picked in the builder, for the round trip through the main menu.
         private void DeckBuilderStep()
         {
             DeckController dc = DeckController.Instance;
-            if (dc == null || !dc.IsReady || ++deckPhaseFrames < 30)
+            if (deckStage == 0)
             {
-                // let every Start() of the scene run first, but not forever (the scene failed to load)
-                if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
-                    Abort("the deck builder did not start");
+                if (dc == null || !dc.IsReady || ++deckPhaseFrames < 30)
+                {
+                    // let every Start() of the scene run first, but not forever (the scene failed to load)
+                    if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
+                        Abort("the deck builder did not start");
+                    return;
+                }
+                CheckBuilderOpensOnDeck(dc);
+                deckStage = 1;
+                inputCheck = new InputCheck(null, InputScenario.DeckBuilder, (ok, what) => Check(ok, what, "deck builder input"), testDeckPath);
                 return;
             }
+            if (TickInputCheck())
+                return;
 
-            string saved_battle_deck = PlayerPrefs.GetString("playerDeckPath", null);
             List<string> created = new List<string>();
             try
             {
@@ -568,39 +655,137 @@ public static class GwentAutoplay
                 foreach (string path in created)
                     if (File.Exists(path))
                         File.Delete(path);
-                if (string.IsNullOrEmpty(saved_battle_deck))
-                    PlayerPrefs.DeleteKey("playerDeckPath");
-                else
-                    PlayerPrefs.SetString("playerDeckPath", saved_battle_deck);
-                PlayerPrefs.Save();
             }
 
-            // Last: the main menu (its scene and audio buttons) must load and run without errors
+            dc.middleManager.SelectDeckPath(testDeckPath);
+            Check(PlayerPrefs.GetString("playerDeckPath", "") == testDeckPath, "the deck picked in the builder is saved as the battle deck");
+            ApplicationModel.playerDeckPath = null; // the main menu reads it back from the saved settings
+
+            // Then the main menu: its scene, settings and rules, and Play
             deckPhase = false;
             menuPhase = true;
             currentDeck = "main menu";
             SceneManager.LoadScene(SceneNames.Menu);
         }
 
+        // The builder opened on the battle deck's faction: its header panel and perk, both card lists, the dropdown
+        // and the status line
+        private void CheckBuilderOpensOnDeck(DeckController dc)
+        {
+            CollectionManager browse = UnityEngine.Object.FindObjectsByType<CollectionManager>().FirstOrDefault(m => !m.CompareTag("Player"));
+            Check(dc.currentDeckPath == testDeckPath && dc.my_deck.Name == testDeckName, "the deck builder opens on the battle deck");
+            Check(dc.deckCollection.faction == Factions.Monsters && browse != null && browse.faction == Factions.Monsters
+                && dc.deckCollection.headerSnap.CurrentPanel == Array.IndexOf(CollectionManager.HeaderFactions, Factions.Monsters)
+                && dc.deckCollection.factionPerk.text.Contains("random unit"),
+                "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.headerSnap.CurrentPanel + ")");
+            TMP_Dropdown picker = dc.middleManager.deckPicker;
+            Check(picker.options.Count > picker.value && picker.options[picker.value].text == testDeckName, "the deck dropdown shows the deck");
+            Check(dc.BattleDeckStatus == "Battle deck: " + testDeckName, "the status line names the battle deck (\"" + dc.BattleDeckStatus + "\")");
+        }
+
+        // Ticks the input check running in a phase; false when there is none
+        private bool TickInputCheck()
+        {
+            if (inputCheck == null)
+                return false;
+            inputCheck.Tick();
+            if (inputCheck.Done)
+                EndInputCheck();
+            return true;
+        }
+
+        // A valid Monsters deck in the deck folder, the battle deck while the builder is checked: every hero it can
+        // hold (a second copy of the first hero shown is refused), the strongest other units (the weakest ones stay in
+        // the collection, to be added), and 10 specials with room left for the first one (it is refused for the
+        // 10-special limit, not for its copies)
+        private string CreateTestDeck(CardDatabase db)
+        {
+            string faction = Factions.Monsters;
+            List<Card> units = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce && (card.faction == faction || card.faction == Factions.Neutral)).ToList();
+            List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
+            cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
+            List<Card> specials = db.All.Where(card => card.IsSpecial).OrderBy(card => card._id).ToList();
+            int special_count = 1;
+            cards.Add(specials[0]._id);
+            foreach (Card special in specials.Skip(1))
+                for (int i = 0; i < DeckRules.MaxCopies(special) && special_count < DeckRules.MaxSpecials; i++, special_count++)
+                    cards.Add(special._id);
+
+            testDeckName = "Autoplay " + seed + " Monsters";
+            testDeckPath = DeckStorage.PathFor(faction, DeckRules.ToFileName(testDeckName));
+            testFiles.Add(testDeckPath);
+            Deck deck = new Deck { Faction = faction, Name = testDeckName, Leader = LeaderIds.ByFaction[faction][0], Cards = cards };
+            DeckStorage.EnsureDirectories();
+            Check(DeckRules.IsValid(deck, db) && DeckStorage.Save(deck, testDeckPath), "the test deck is valid and saved (" + string.Join("; ", DeckRules.Validate(deck, db)) + ")");
+            return testDeckPath;
+        }
+
+        //----------------------------------------Main menu, then a battle from it----------------------------------------//
         private void MenuStep()
         {
-            if (++menuPhaseFrames < 60)
+            if (TickInputCheck())
                 return;
-            if (!menuInputStarted)
+            if (menuStage == 0)
             {
-                menuInputStarted = true;
+                if (++menuPhaseFrames < 60)
+                    return;
                 MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
                 Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
+                Check(ApplicationModel.playerDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
                 inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
+                menuStage = 1;
                 return;
             }
-            if (inputCheck != null)
+            if (menuStage == 1)
             {
-                inputCheck.Tick();
-                if (inputCheck.Done)
-                    EndInputCheck();
+                // Play: the opponent picker, then the battle against the one chosen (not the first, to tell them apart)
+                List<TextAsset> opponents = OpponentDecks.All();
+                chosenOpponent = opponents.Count > 1 ? opponents[1] : opponents.FirstOrDefault();
+                inputCheck = new InputCheck(null, InputScenario.MenuPlay, (ok, what) => Check(ok, what, "main menu input"), null, chosenOpponent);
+                menuStage = 2;
                 return;
             }
+            menuPhase = false;
+            roundTripPhase = true;
+            phaseStart = EditorApplication.timeSinceStartup;
+            currentDeck = "battle started from the menu";
+        }
+
+        // The battle started from the menu uses the builder's deck against the chosen opponent; then a battle deck that
+        // is no longer valid gives way to the default deck, with a notice
+        private void RoundTripStep()
+        {
+            SceneController battle = SceneController.Instance;
+            if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0)
+            {
+                if (EditorApplication.timeSinceStartup - phaseStart > SoftlockSeconds * 3)
+                    Abort("the " + currentDeck + " did not start");
+                return;
+            }
+            if (roundTripStage == 0)
+            {
+                Deck mine = DeckStorage.Load(testDeckPath);
+                Deck theirs = chosenOpponent != null ? CardLibrary.ParseDeck(chosenOpponent.text, chosenOpponent.name) : null;
+                Check(mine != null && battle.PlayerInfo.Faction == mine.Faction && battle.PlayerInfo.Leader == mine.Leader,
+                    "the battle uses the deck chosen in the deck builder, with the leader picked there", "battle from the menu");
+                Check(theirs != null && battle.EnemyInfo.Faction == theirs.Faction && battle.EnemyInfo.Leader == theirs.Leader,
+                    "... against the opponent chosen in the menu", "battle from the menu");
+
+                string invalid = Path.Combine(Application.temporaryCachePath, "autoplay_invalid.json");
+                File.WriteAllText(invalid, JsonUtility.ToJson(new Deck { Faction = Factions.Monsters, Name = "Autoplay invalid", Leader = LeaderIds.ByFaction[Factions.Monsters][0], Cards = new List<int>(mine != null ? mine.Cards.Take(5) : new int[0]) }));
+                ApplicationModel.playerDeckPath = invalid;
+                previousBattle = battle;
+                roundTripStage = 1;
+                phaseStart = EditorApplication.timeSinceStartup;
+                currentDeck = "battle with an invalid deck";
+                SceneManager.LoadScene(SceneNames.Game);
+                return;
+            }
+            TextAsset fallback = Resources.Load<TextAsset>("Decks/player_default");
+            Deck standard = fallback != null ? CardLibrary.ParseDeck(fallback.text, fallback.name) : null;
+            Check(standard != null && battle.PlayerInfo.Faction == standard.Faction && battle.PlayerInfo.Leader == standard.Leader,
+                "an invalid battle deck gives way to the default deck", "battle from the menu");
+            Check(ToastText().Contains("can't be used"), "... and the battle says so (\"" + ToastText() + "\")", "battle from the menu");
             Finish();
         }
 
@@ -767,10 +952,21 @@ public static class GwentAutoplay
                 return;
             Running = false;
             EndInputCheck();
-            // The generated battle decks were temporary files
+            // The generated battle decks were temporary files, and so was the deck builder's test deck
             foreach (string temp in Directory.GetFiles(Application.temporaryCachePath, "autoplay_*.json"))
                 File.Delete(temp);
+            foreach (string file in testFiles)
+                if (File.Exists(file))
+                    File.Delete(file);
             OpponentDecks.Override = null;
+            // What the run changed in the player's settings: the battle deck, the opponent, the touch controls switch
+            if (string.IsNullOrEmpty(savedBattleDeck))
+                PlayerPrefs.DeleteKey("playerDeckPath");
+            else
+                PlayerPrefs.SetString("playerDeckPath", savedBattleDeck);
+            OpponentDecks.Chosen = savedOpponent;
+            ApplicationModel.playerDeckPath = null;
+            GameInput.SimulateTouch = savedTouch;
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
             Time.timeScale = 1f;
@@ -844,11 +1040,22 @@ public static class GwentAutoplay
         RedrawTwice,              // a burst of four clicks on the front card (one redraw only), then the carousel's front
                                   // card (ends it)
         RedrawCarousel,           // carousel: Right arrow, click a side card, Enter redraws it, right-click keeps the hand
+        RedrawSpace,              // the Done button shows Space, and Space keeps the hand
         SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
                                   // click deselects it, right-click does nothing
         PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
         PassWithSpace,            // a short press of Space does not pass, holding it does
+        KeyboardPlay,             // Right raises a hand card (shown on the right), Right again moves on, Enter takes it,
+                                  // Down chooses a place, Enter plays it there (Escape puts back a card with no place)
+        TouchControls,            // touch (simulated): a held press on the leader, its button and a hand card shows them
+                                  // and is no tap; a tap selects a card, another puts it back
+        GameSpeed,                // pause menu > Settings > Game: Fast, and after Resume the battle runs faster
+        PickerKeys,               // the card picker: Right frames a card, Down goes to Skip, Up comes back, Enter chooses
+        DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
+                                  // a held press (touch) shows a card, the leader picker, the header's faction arrows,
+                                  // the deck dropdown
         MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
+        MenuPlay,                 // Play opens the opponent picker; choosing one remembers it and starts the battle
     }
 
     // Plays part of the game like a person would: a virtual mouse and keyboard at human speed, going through the
@@ -870,18 +1077,27 @@ public static class GwentAutoplay
         private InputSettings.EditorInputBehaviorInPlayMode savedEditorBehavior;
         private InputSettings.BackgroundBehavior savedBackgroundBehavior;
         private Transform card;
+        private bool savedTouch;
+        private bool touchChanged;
+        private int savedSpeed = -1;
 
         public bool Done { get { return next >= steps.Count; } }
 
-        // The times are when the button goes down, in seconds
-        public InputCheck(SceneController controller, InputScenario scenario, Action<bool, string> check)
+        // The check sets the game's time scale itself (the runner leaves it alone)
+        public bool OwnsTimeScale { get; private set; }
+
+        // The times are when the button goes down, in seconds. deck_path: the deck builder's test deck; opponent: the
+        // one to choose in the opponent picker.
+        public InputCheck(SceneController controller, InputScenario scenario, Action<bool, string> check, string deck_path = null, TextAsset opponent = null)
         {
             c = controller;
             this.check = check;
             start = EditorApplication.timeSinceStartup;
 
             At(0, Setup);
-            if (c != null && scenario != InputScenario.PauseMenu)
+            InputScenario[] with_hand = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace,
+                InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls };
+            if (c != null && with_hand.Contains(scenario))
                 At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
             if (scenario == InputScenario.RedrawSlowClicksThenDone)
             {
@@ -941,6 +1157,35 @@ public static class GwentAutoplay
                 At(2.4, () => check(c.PlayerInfo.CardsExchanged == 1, "Enter redraws the front card"));
                 Click(2.7, CardPosition, MouseButton.Right);
                 At(3.2, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 1, "right-click keeps the rest of the hand"));
+            }
+            else if (scenario == InputScenario.RedrawSpace)
+            {
+                At(0.3, () =>
+                {
+                    GameObject done = GameObject.Find("Button Done");
+                    check(done != null && done.GetComponentInChildren<TextMeshProUGUI>().text.Contains("[Space]"), "the Done button shows its key, Space");
+                });
+                Key(0.5, UnityEngine.InputSystem.Key.Space);
+                At(1.0, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 0, "Space keeps the hand"));
+            }
+            else if (scenario == InputScenario.KeyboardPlay)
+                KeyboardPlay();
+            else if (scenario == InputScenario.TouchControls)
+                TouchControls();
+            else if (scenario == InputScenario.GameSpeed)
+                GameSpeed();
+            else if (scenario == InputScenario.PickerKeys)
+                PickerKeys();
+            else if (scenario == InputScenario.DeckBuilder)
+                DeckBuilder(deck_path);
+            else if (scenario == InputScenario.MenuPlay)
+            {
+                string entry = opponent != null ? "Opponent " + CardLibrary.ParseDeck(opponent.text, opponent.name).Name : "(no opponent deck)";
+                Click(0.3, Named("Item Play"));
+                At(0.8, () => check(GameObject.Find("OpponentPicker") != null, "Play opens the opponent picker"));
+                Click(1.1, NamedUnder("OpponentPicker", entry));
+                At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && SceneManager.GetActiveScene().name == SceneNames.Game,
+                    "choosing an opponent remembers it and starts the battle"));
             }
             else if (scenario == InputScenario.PauseMenu)
             {
@@ -1007,6 +1252,262 @@ public static class GwentAutoplay
             }
         }
 
+        //----------------------------------------Scenarios----------------------------------------//
+        private void KeyboardPlay()
+        {
+            BattleKeys keys = c.GetComponent<BattleKeys>();
+            GameObject first = null;
+            int id = -1, copies = 0, places = 0;
+            At(0.1, () => check(keys != null, "the battle has its keyboard controls"));
+            if (keys == null)
+                return;
+            Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
+            At(0.7, () =>
+            {
+                first = keys.Focused;
+                CardHover hover = first != null ? first.GetComponent<CardHover>() : null;
+                check(hover != null && hover.isCardUp && hover.bigImage != null, "the Right arrow raises a hand card and shows it on the right");
+            });
+            Key(1.0, UnityEngine.InputSystem.Key.RightArrow);
+            At(1.4, () => check(c.PlayerInfo.HandList.Count < 2 || (first != null && keys.Focused != null && keys.Focused != first && !first.GetComponent<CardHover>().isCardUp),
+                "Right again moves on to the next card, and the first one goes down"));
+            Key(1.7, UnityEngine.InputSystem.Key.Enter);
+            At(2.1, () =>
+            {
+                check(keys.Focused != null && c.selectedCard == keys.Focused && CardShowcase.IsShown, "Enter takes the card: it goes to the showcase");
+                id = c.selectedCard != null ? int.Parse(c.selectedCard.name) : -1;
+            });
+            Key(2.4, UnityEngine.InputSystem.Key.DownArrow);
+            At(2.8, () =>
+            {
+                places = c.selectedCard == null ? 0 : c.PlayerField.GetComponent<RowPicker>().highLightedRows.Count + c.EnemyField.GetComponent<RowPicker>().highLightedRows.Count
+                    + (c.WeatherField.GetComponent<WeatherManager>().isWeatherCard ? 1 : 0)
+                    + c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == BoardView.DecoyFrame);
+                check(places == 0 || (keys.Place != null && keys.Place.transform.Find("KeyPlace") != null), "Down chooses a place for it, framed (" + places + " places)");
+                copies = c.PlayerInfo.HandList.Count(h => h == id);
+            });
+            KeyAt(3.1, () => keys.Place != null ? UnityEngine.InputSystem.Key.Enter : UnityEngine.InputSystem.Key.Escape);
+            At(3.6, () =>
+            {
+                if (places > 0)
+                    check(c.selectedCard == null && (c.PlayerInfo.HandList.Count(h => h == id) == copies - 1 || c.IsPresenting), "Enter plays it there");
+                else
+                    check(c.selectedCard == null, "Escape puts back a card that has nowhere to go");
+            });
+        }
+
+        private void TouchControls()
+        {
+            bool leader_usable = false;
+            CardHover leader = null;
+            At(0.1, () =>
+            {
+                savedTouch = GameInput.SimulateTouch;
+                touchChanged = true;
+                GameInput.SimulateTouch = true;
+                leader_usable = c.CanUseLeader(true);
+                Transform holder = c.PlayerField.transform.Find("Leader/Holder");
+                leader = holder != null ? holder.GetComponentInChildren<CardHover>() : null;
+                check(leader != null, "the leader card is on the board");
+            });
+            Hold(0.4, () => leader != null ? ScreenPoint(leader.transform) : Vector2.zero, 0.8);
+            At(1.0, () => check(leader != null && leader.bigImage != null, "a finger held on the leader card shows it on the right (" + PressState(leader) + ")"));
+            At(1.5, () => check(leader != null && leader.bigImage == null && c.CanUseLeader(true) == leader_usable, "lifting the finger closes it, and the leader is not used"));
+            Hold(1.8, () => ScreenPoint(c.PlayerLeader.Button.transform), 0.8);
+            At(2.4, () => check(GameObject.Find("Tooltip") != null, "a finger held on the leader's button shows its state"));
+            At(2.9, () => check(GameObject.Find("Tooltip") == null && c.CanUseLeader(true) == leader_usable, "lifting the finger hides it, and the leader is not used"));
+            Hold(3.2, CardPosition, 0.8);
+            At(3.8, () => check(card != null && card.GetComponent<CardHover>().bigImage != null, "a finger held on a hand card shows it on the right (" + PressState(card) + ")"));
+            At(4.3, () => check(card != null && card.GetComponent<CardHover>().bigImage == null && c.selectedCard == null, "lifting the finger closes it, and the card is not selected"));
+            Click(4.6, CardPosition);
+            At(5.1, () => check(card != null && c.selectedCard == card.gameObject, "a tap selects a card"));
+            Click(5.4, CardPosition);
+            At(5.9, () => check(c.selectedCard == null, "a second tap puts it back"));
+        }
+
+        private void GameSpeed()
+        {
+            OwnsTimeScale = true;
+            At(0.1, () =>
+            {
+                savedSpeed = GameSettings.GameSpeed;
+                GameSettings.GameSpeed = 1;
+                Time.timeScale = GameSettings.GameTimeScale;
+            });
+            Key(0.3, UnityEngine.InputSystem.Key.Escape);
+            Click(0.9, Named("Item Settings"));
+            Click(1.5, Named("Button Game"));
+            Click(2.0, () =>
+            {
+                GameObject row = GameObject.Find("Row Game speed");
+                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
+                check(stepper != null, "the settings' Game tab shows the game speed");
+                return stepper != null ? ScreenPoint(stepper.right.transform) : Vector2.zero;
+            });
+            At(2.5, () =>
+            {
+                GameObject row = GameObject.Find("Row Game speed");
+                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
+                check(GameSettings.GameSpeed == 2, "its right arrow sets it to " + GameSettings.GameSpeedNames[2] + " (speed " + GameSettings.GameSpeed
+                    + ", stepper " + (stepper != null ? stepper.index.ToString() : "gone") + ", over " + Hovered() + ")");
+            });
+            Key(2.8, UnityEngine.InputSystem.Key.Escape);
+            Click(3.3, Named("Item Resume"));
+            At(3.8, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
+                "after Resume the battle runs at that speed (time scale " + Time.timeScale + ")"));
+        }
+
+        private void PickerKeys()
+        {
+            PanelManager panel = c.Panel.GetComponent<PanelManager>();
+            Func<int, bool> framed = i => i >= 0 && i < panel.container.transform.childCount && panel.container.transform.GetChild(i).Find("KeyFocus") != null;
+            Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
+            At(0.6, () => check(panel.Focus == 0 && framed(0), "the Right arrow frames the first card"));
+            Key(0.9, UnityEngine.InputSystem.Key.RightArrow);
+            At(1.2, () => check(panel.Focus == 1 && framed(1) && !framed(0), "Right again frames the next one"));
+            Key(1.5, UnityEngine.InputSystem.Key.DownArrow);
+            At(1.8, () =>
+            {
+                GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+                check(panel.Focus == -1 && selected != null && selected.name == "SkipButton", "Down goes to the Skip button");
+            });
+            Key(2.1, UnityEngine.InputSystem.Key.UpArrow);
+            At(2.4, () => check(panel.Focus == 0, "Up comes back to the cards"));
+            Key(2.7, UnityEngine.InputSystem.Key.Enter);
+            At(3.2, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter chooses the framed card"));
+        }
+
+        // The test deck is shown; the collection lists the deck's faction (and neutrals)
+        private void DeckBuilder(string deck_path)
+        {
+            DeckController dc = DeckController.Instance;
+            CollectionManager browse = UnityEngine.Object.FindObjectsByType<CollectionManager>().FirstOrDefault(m => !m.CompareTag("Player"));
+            At(0, () => check(dc != null && browse != null, "the deck builder shows the deck and the collection"));
+            if (dc == null || browse == null)
+                return;
+            Func<int> count = () => dc.my_deck.Cards.Count;
+            Func<int> saved = () => { Deck deck = DeckStorage.Load(deck_path); return deck != null ? deck.Cards.Count : -1; };
+            int before = 0;
+
+            // Add, then two refusals: a second copy of a hero, an 11th special
+            At(0.1, () => before = count());
+            DoubleClickAt(0.4, AddableCard);
+            At(1.0, () => check(count() == before + 1 && saved() == before + 1, "double-clicking a card in the collection adds it to the deck (and saves it)"));
+            Click(1.3, () => ScreenPoint(browse.currentSprites[4].transform));
+            DoubleClickAt(1.8, FirstCardOf(browse));
+            At(2.4, () => check(count() == before + 1 && ToastText().Contains("only one copy"), "a hero already in the deck is refused (\"" + ToastText() + "\")"));
+            Click(2.7, () => ScreenPoint(browse.currentSprites[5].transform));
+            DoubleClickAt(3.2, FirstCardOf(browse));
+            At(3.8, () => check(count() == before + 1 && ToastText().Contains("special cards"), "an 11th special card is refused (\"" + ToastText() + "\")"));
+            Click(4.1, () => ScreenPoint(browse.currentSprites[0].transform));
+
+            // Remove from the deck's list
+            DoubleClickAt(4.6, FirstCardOf(dc.deckCollection));
+            At(5.2, () => check(count() == before && saved() == before, "double-clicking a card of the deck takes it out (and saves it)"));
+
+            // Touch (simulated): a finger held on a card shows it large, and adds nothing
+            At(5.4, () =>
+            {
+                savedTouch = GameInput.SimulateTouch;
+                touchChanged = true;
+                GameInput.SimulateTouch = true;
+            });
+            Hold(5.7, FirstCardOf(browse), 0.8);
+            At(6.3, () => check(browse.cardDetails.activeSelf, "(touch) a finger held on a card shows it large (" + (browse.cardsArea.transform.childCount > 0 ? PressState(browse.cardsArea.transform.GetChild(0)) : "no card") + ")"));
+            At(6.8, () => check(!browse.cardDetails.activeSelf && count() == before, "(touch) lifting the finger puts it away, and the card is not added"));
+            At(6.9, () => GameInput.SimulateTouch = savedTouch);
+
+            // The leader picker
+            GameObject picker = dc.middleManager.leaderGo.GetComponent<CLeaderManager>().LeaderPicker;
+            int leader = -1;
+            DoubleClickAt(7.2, () => ScreenPoint(dc.middleManager.leaderGo.transform));
+            At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Factions.Monsters].Length,
+                "double-clicking the leader opens the faction's leaders"));
+            DoubleClickAt(8.1, () =>
+            {
+                Transform content = picker.GetComponent<LeaderPicker>().contentGO.transform;
+                Transform second = content.childCount > 1 ? content.GetChild(1) : null;
+                leader = second != null ? second.GetComponent<LeaderWindow>().leaderId : -1;
+                return second != null ? ScreenPoint(second) : Vector2.zero;
+            });
+            At(8.7, () =>
+            {
+                Deck deck = DeckStorage.Load(deck_path);
+                check(leader >= 0 && dc.my_deck.Leader == leader && deck != null && deck.Leader == leader && !picker.activeSelf, "double-clicking a leader makes it the deck's leader (saved)");
+            });
+
+            // The header's arrows: the previous faction (its cards, its perk, its decks), then back
+            Click(9.0, () => ScreenPoint(dc.deckCollection.headerSnap.previousButton.transform));
+            At(10.3, () => check(ShowsFaction(dc, browse, Factions.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
+            Click(10.6, () => ScreenPoint(dc.deckCollection.headerSnap.nextButton.transform));
+            At(11.9, () => check(ShowsFaction(dc, browse, Factions.Monsters, "random unit"), "the right arrow switches back"));
+
+            // The deck dropdown
+            Click(12.2, () => ScreenPoint(dc.middleManager.deckPicker.transform));
+            Click(12.8, () =>
+            {
+                GameObject list = GameObject.Find("Dropdown List");
+                string wanted = DeckStorage.Load(deck_path).Name;
+                Toggle item = list != null ? list.GetComponentsInChildren<Toggle>().FirstOrDefault(t => t.name.EndsWith(": " + wanted)) : null;
+                check(item != null, "the deck dropdown lists the test deck");
+                return item != null ? ScreenPoint(item.transform) : Vector2.zero;
+            });
+            At(13.4, () =>
+            {
+                string wanted = DeckStorage.Load(deck_path).Name;
+                check(DeckStorage.SamePath(dc.currentDeckPath, deck_path) && dc.my_deck.Name == wanted, "picking the deck in the dropdown shows it");
+                check(DeckStorage.SamePath(PlayerPrefs.GetString("playerDeckPath", ""), deck_path) && dc.BattleDeckStatus == "Battle deck: " + wanted,
+                    "the valid deck picked becomes the battle deck, as the status line says (\"" + dc.BattleDeckStatus + "\")");
+            });
+        }
+
+        // What the pointer is on, and the long press of an element (for failure messages)
+        private string PressState(Component target)
+        {
+            LongPress press = target != null ? target.GetComponent<LongPress>() : null;
+            if (press == null)
+                return "no long press on it, over " + Hovered();
+            System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            object data = typeof(LongPress).GetField("press", flags).GetValue(press);
+            return "pressed " + (data != null) + ", showing " + typeof(LongPress).GetField("showing", flags).GetValue(press) + ", touch " + GameInput.IsTouch
+                + ", showcase " + CardShowcase.IsShown + ", over " + Hovered() + (c != null ? ", " + c.battleState : "");
+        }
+
+        private static bool ShowsFaction(DeckController dc, CollectionManager browse, string faction, string perk)
+        {
+            return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
+                && dc.deckCollection.factionPerk.text.Contains(perk)
+                && dc.middleManager.myPaths.All(p => DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
+        }
+
+        // One of the collection's first cards the deck has room for (not a special: their limit is checked apart)
+        private Vector2 AddableCard()
+        {
+            DeckController dc = DeckController.Instance;
+            CollectionManager browse = UnityEngine.Object.FindObjectsByType<CollectionManager>().FirstOrDefault(m => !m.CompareTag("Player"));
+            Transform target = null;
+            for (int i = 0; browse != null && i < Mathf.Min(4, browse.cardsArea.transform.childCount) && target == null; i++)
+            {
+                Transform t = browse.cardsArea.transform.GetChild(i);
+                Card shown = dc.Db.Get(t.GetComponent<CardStats>()._id);
+                if (!shown.IsSpecial && dc.my_deck.Cards.Count(x => x == shown._id) < DeckRules.MaxCopies(shown))
+                    target = t;
+            }
+            check(target != null, "the collection's first cards include one the deck has room for");
+            return target != null ? ScreenPoint(target) : Vector2.zero;
+        }
+
+        // The first card of a card list (the deck's or the collection's), where it is when the click happens
+        private Func<Vector2> FirstCardOf(CollectionManager collection)
+        {
+            return () =>
+            {
+                Transform area = collection.cardsArea.transform;
+                check(area.childCount > 0, "the " + (collection.CompareTag("Player") ? "deck" : "collection") + " shows cards");
+                return area.childCount > 0 ? ScreenPoint(area.GetChild(0)) : Vector2.zero;
+            };
+        }
+
         public void Tick()
         {
             double elapsed = EditorApplication.timeSinceStartup - start;
@@ -1029,6 +1530,10 @@ public static class GwentAutoplay
             }
             if (savedMasterVolume >= 0 && !Mathf.Approximately(GameSettings.MasterVolume, savedMasterVolume))
                 GameSettings.MasterVolume = savedMasterVolume;
+            if (touchChanged)
+                GameInput.SimulateTouch = savedTouch;
+            if (savedSpeed >= 0)
+                GameSettings.GameSpeed = savedSpeed;
             if (settingsChanged)
             {
                 InputSystem.settings.editorInputBehaviorInPlayMode = savedEditorBehavior;
@@ -1037,9 +1542,11 @@ public static class GwentAutoplay
             }
         }
 
+        // Steps run in time order (a check during a hold comes before its release), same times in the order given
         private void At(double time, Action action)
         {
-            steps.Add(new KeyValuePair<double, Action>(time, action));
+            int index = steps.FindIndex(step => step.Key > time);
+            steps.Insert(index < 0 ? steps.Count : index, new KeyValuePair<double, Action>(time, action));
         }
 
         // Moves onto the target first (where it is at that moment), then presses and releases the button
@@ -1049,6 +1556,27 @@ public static class GwentAutoplay
             At(time - 0.05, () => { at = position(); Send(at, button, false); });
             At(time, () => Send(at, button, true));
             At(time + PressDuration, () => { Send(at, button, false); releases.Add(EditorApplication.timeSinceStartup); });
+        }
+
+        // Holds the left button down (a finger held on the screen, with touch controls)
+        private void Hold(double time, Func<Vector2> position, double duration)
+        {
+            Vector2 at = Vector2.zero;
+            At(time - 0.05, () => { at = position(); Send(at, MouseButton.Left, false); });
+            At(time, () => Send(at, MouseButton.Left, true));
+            At(time + duration, () => Send(at, MouseButton.Left, false));
+        }
+
+        // Two clicks on the same spot, as quick as a person's double-click
+        private void DoubleClickAt(double time, Func<Vector2> position)
+        {
+            Vector2 at = Vector2.zero;
+            At(time - 0.05, () => { at = position(); Send(at, MouseButton.Left, false); });
+            foreach (double press in new[] { time, time + 0.2 })
+            {
+                At(press, () => Send(at, MouseButton.Left, true));
+                At(press + PressDuration, () => Send(at, MouseButton.Left, false));
+            }
         }
 
         // Real time between two clicks of this check (counted from 0), as they were sent
@@ -1066,6 +1594,13 @@ public static class GwentAutoplay
         {
             At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
             At(time + duration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
+        }
+
+        // A key chosen when it is pressed
+        private void KeyAt(double time, Func<Key> key)
+        {
+            At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key())));
+            At(time + PressDuration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
         }
 
         private void Key(double time, Key key)
@@ -1220,6 +1755,18 @@ public static class GwentAutoplay
                 GameObject target = GameObject.Find(name);
                 check(target != null, "\"" + name + "\" is on screen");
                 return target != null ? ScreenPoint(target.transform) : Vector2.zero;
+            };
+        }
+
+        // An object by name under an active root object (a name with a slash would be a path for GameObject.Find)
+        private Func<Vector2> NamedUnder(string root, string name)
+        {
+            return () =>
+            {
+                GameObject parent = GameObject.Find(root);
+                Transform target = parent != null ? parent.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name == name) : null;
+                check(target != null, "\"" + name + "\" is on screen");
+                return target != null ? ScreenPoint(target) : Vector2.zero;
             };
         }
 

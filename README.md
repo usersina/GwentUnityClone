@@ -36,18 +36,19 @@ Sorry, no multiplayer :/ (yet)
 | Action | Desktop | Android |
 |---|---|---|
 | Start a battle | **Play**, then choose your opponent (one of 9 decks across the four factions) or **Random opponent**; the choice is remembered | Same, with taps |
-| Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. In your hand, a click brings a card forward and a double-click on the front card redraws it (a quick double-click on another card only brings it forward). **Done** or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
-| Select a card from your hand | Click it: it goes to the showcase on the right, with its description, while you choose its place (click its empty slot in the hand to put it back) | Tap it |
-| Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand. Enter plays it when only one place fits | Same, with taps (the warning sound, no cursor) |
-| Use your leader | Click the leader card or its button, or press X twice | Tap |
+| Redraw a card at the start (up to 2) | Click a card in the redraw carousel to bring it forward, click it again (or Enter) to redraw it; arrow keys or the mouse wheel browse. In your hand, a click brings a card forward and a double-click on the front card redraws it (a quick double-click on another card only brings it forward). **Done**, Space or right-click keeps your hand | Tap a card to bring it forward, tap it again to redraw it, then **Done** |
+| Select a card from your hand | Click it: it goes to the showcase on the right, with its description, while you choose its place (click its empty slot in the hand to put it back). Keyboard: Left/Right (or A/D) go through the hand, Enter takes the card | Tap it |
+| Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand. Keyboard: Up/Down (or W/S) choose among the places it fits, Enter plays it there (or where it fits, when only one place does); Esc or right-click puts it back | Same, with taps (the warning sound, no cursor) |
+| Use your leader | Click the leader card or its button, or press X twice. Hover the button to see whether it can still be used | Tap. Hold a finger on the button to see whether it can still be used |
 | Browse a discard pile (either side) | Click it (Esc closes) | Tap it |
 | Pass (for the rest of the round) | Hold Space, or hold the **Hold to pass** button | Hold the button |
 | Scoia'tael: choose who starts | **Go first** or **Go second** in the dialog at the start of the battle | Tap |
 | After the battle | The end screen shows every round's score; **Play again** or **Main menu** | Tap |
 | Pause (resume, settings, give up) | Esc or the menu button at the top right. **Give up** counts as a loss | Back button or the menu button |
-| Preview a card | Hover it | Selecting it shows the preview |
+| Choose a card in a picker (medic, leaders) | Double-click it. Keyboard: Left/Right frame a card, Enter chooses it, Down goes to **Skip** | Tap it |
+| Preview a card (board, hand, weather, discard pile, leaders) | Hover it | Hold a finger on it: it shows on the right until you lift the finger (a hand card: tap it to select it) |
 | Deck builder: add/remove a card | Double-click it | Tap it |
-| Deck builder: card details | Right-click | - |
+| Deck builder: card details | Right-click | Hold a finger on it |
 | Settings (audio, display, game speed) | Main menu or pause menu > **Settings**. **Game > Game speed** (Slow, Normal, Fast) sets how fast cards move, notices pass and the opponent plays | Same |
 | Rules of the game | Main menu > **How to play** (the battle, the board, cards, abilities, special cards, factions, controls) | Same |
 
@@ -111,7 +112,8 @@ Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or w
 ## Tests
 
 - **Rules unit tests**: Window > General > Test Runner > EditMode > Run All.
-- **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI (cycling through the AI's 9 decks), and fails on errors in the log, on a game that stops progressing, on cards appearing or disappearing, or on a board that shows other cards than the game. Parts of it go through real input (a virtual mouse and keyboard at human speed): the redraw, card selection, holding Space to pass, the pause menu, and the main menu's settings and How to play. It then checks the deck builder (adding, renaming, deleting decks, invalid and corrupt files). The report is written to `Logs/autoplay-report.txt`.
+- **Autoplay smoke test**: menu **Gwent > Run Autoplay Smoke Test** (or Ctrl+Shift+Alt+G). It plays one battle with the default deck and one with a generated deck for every leader, with a random player against the AI (cycling through the AI's 9 decks), and fails on errors in the log, on a game that stops progressing, on cards appearing or disappearing, or on a board that shows other cards than the game. Parts of it go through real input (a virtual mouse and keyboard at human speed): the redraw (clicks, keys, Space), card selection, holding Space to pass, the pause menu, playing a card with the keyboard, the touch controls (long presses on the leader, its button and a hand card; taps), the game speed setting and the card picker's keys. Then the deck builder opens on a test deck it made: real clicks add and remove cards (and are refused past the copy and special limits), change the leader, switch factions and pick the deck in the dropdown, and its API is checked (renaming, deleting decks, invalid and corrupt files). Last, the main menu: its settings and How to play, then **Play**, the opponent picker and a battle with the deck chosen in the builder, and the fallback to the default deck when the battle deck is invalid. The run restores the battle deck, the opponent and the settings it changes. The report is written to `Logs/autoplay-report.txt`.
+- **Touch controls in the editor**: menu **Gwent > Simulate Touch Controls** plays with the phone's controls using the mouse (a click is a tap, a held click is a finger held on a card).
 
 From the command line (close the project in the editor first), with the [Unity CLI](https://docs.unity.com) signed in (`unity auth`):
 
