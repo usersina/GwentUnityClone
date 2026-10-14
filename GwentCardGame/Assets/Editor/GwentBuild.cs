@@ -15,8 +15,10 @@ using Debug = UnityEngine.Debug;
 // Builds/<version>/ holds GwentLegacy-<version>-linux.tar.gz, -windows.zip, -macos.zip, .apk and -web.zip, with
 // build-report.txt. Menu Gwent > Build, or from the command line (the editor closed):
 //   Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBatch
-// Switching platform can reload the scripts, so the targets left to build are kept in SessionState (as the autoplay
-// does) and the run picks up again after a reload.
+// The run starts at once, the editor focused or not (in the background it may not update for a long time), and goes
+// through every platform in one go: script reloads (a platform switch asks for one) wait until it is over. The current
+// platform is built first, the others after it, and the editor is switched back to it at the end. The targets left
+// are also kept in SessionState, should a reload come anyway: the run then picks up again after it.
 //
 // Android: signed with a release key when GWENT_KEYSTORE (the .keystore file), GWENT_KEYSTORE_PASS, GWENT_KEY_ALIAS and
 // GWENT_KEY_PASS are set in the environment (the passwords never go into the project); otherwise with Unity's debug
@@ -26,6 +28,7 @@ public static class GwentBuild
     private const string QueueKey = "GwentBuild.Queue";
     private const string ReportKey = "GwentBuild.Report";
     private const string BatchKey = "GwentBuild.Batch";
+    private const string HomeKey = "GwentBuild.Home"; // the platform the editor was on
     private const string ProductFile = "GwentLegacy";
 
     private class Target
@@ -79,15 +82,27 @@ public static class GwentBuild
 
     private static void Start(IEnumerable<string> names, bool batch)
     {
-        List<string> queue = names.Select(n => n.Trim().ToLowerInvariant()).Where(n => Targets.Any(t => t.Name == n)).ToList();
+        // The current platform first, then the others of its group (no switch between them), then the rest in order
+        BuildTarget home = EditorUserBuildSettings.activeBuildTarget;
+        BuildTargetGroup home_group = BuildPipeline.GetBuildTargetGroup(home);
+        List<string> queue = names.Select(n => n.Trim().ToLowerInvariant()).Distinct().Where(n => Targets.Any(t => t.Name == n))
+            .OrderBy(n => Targets.First(t => t.Name == n).Build == home ? 0 : Targets.First(t => t.Name == n).Group == home_group ? 1 : 2)
+            .ThenBy(n => Array.FindIndex(Targets, t => t.Name == n)).ToList();
         Directory.CreateDirectory(Root);
         SessionState.SetString(QueueKey, string.Join(",", queue));
         SessionState.SetString(ReportKey, "Gwent Legacy " + Version + ", built " + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + " with Unity " + Application.unityVersion + "\n");
         SessionState.SetBool(BatchKey, batch);
-        if (batch)
+        SessionState.SetInt(HomeKey, (int)home);
+
+        EditorApplication.LockReloadAssemblies();
+        try
+        {
             Continue();
-        else
-            EditorApplication.delayCall += Continue;
+        }
+        finally
+        {
+            EditorApplication.UnlockReloadAssemblies();
+        }
     }
 
     // After a domain reload in the middle of a run
@@ -240,6 +255,10 @@ public static class GwentBuild
 
     private static void Finish()
     {
+        // Back to the platform the editor was on (its imports are cached: a matter of seconds)
+        BuildTarget home = (BuildTarget)SessionState.GetInt(HomeKey, (int)EditorUserBuildSettings.activeBuildTarget);
+        if (EditorUserBuildSettings.activeBuildTarget != home)
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildPipeline.GetBuildTargetGroup(home), home);
         string report = SessionState.GetString(ReportKey, "");
         File.WriteAllText(Path.Combine(Root, "build-report.txt"), report);
         SessionState.EraseString(QueueKey);
