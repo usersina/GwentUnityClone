@@ -12,6 +12,7 @@ public class CardLane : MonoBehaviour
     public float spacing = 6;
     public float margin;           // kept free at the ends before the gap starts shrinking
     public float hoverLift = 14;
+    public GameObject emptyMark;   // shown while the line has no card (a row's emblem)
     private const float Glide = 14f; // how quickly a card closes in on its place (exponential, per second)
 
     private readonly HashSet<RectTransform> placed = new HashSet<RectTransform>();
@@ -77,6 +78,8 @@ public class CardLane : MonoBehaviour
     private void LateUpdate()
     {
         Collect();
+        if (emptyMark != null && emptyMark.activeSelf != (cards.Count == 0))
+            emptyMark.SetActive(cards.Count == 0);
         float blend = 1 - Mathf.Exp(-Glide * Time.deltaTime);
         for (int i = 0; i < cards.Count; i++)
         {

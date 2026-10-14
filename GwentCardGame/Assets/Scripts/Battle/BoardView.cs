@@ -20,6 +20,15 @@ public class BoardView
         public GameObject Special;
         public Image UnitImage;
         public Image SpecialImage;
+        public Image Emblem;     // sword, bow or catapult, engraved in the middle of the row while it has no card
+        public Sprite Idle, Lit, IdleEmblem, LitEmblem;
+
+        // Lights the row (a card can go there) or lights it off
+        public void Light(bool lit)
+        {
+            UnitImage.sprite = lit ? Lit : Idle;
+            Emblem.sprite = lit ? LitEmblem : IdleEmblem;
+        }
     }
 
     public class FieldView
@@ -54,7 +63,7 @@ public class BoardView
             foreach (string row in Gwent.Rules.Rows.Units)
             {
                 Transform row_t = t.Find(char.ToUpper(row[0]) + row.Substring(1));
-                Rows[row] = new RowView
+                RowView view = new RowView
                 {
                     Manager = row_t.GetComponent<RowManager>(),
                     Unit = row_t.Find("Unit").gameObject,
@@ -62,7 +71,37 @@ public class BoardView
                     UnitImage = row_t.Find("Unit").GetComponent<Image>(),
                     SpecialImage = row_t.Find("Special").GetComponent<Image>(),
                 };
+                switch (row)
+                {
+                    case Gwent.Rules.Rows.Close:
+                        view.Idle = Picker.close; view.Lit = Picker.closeSelected;
+                        view.IdleEmblem = Picker.closeEmblem; view.LitEmblem = Picker.closeEmblemSelected;
+                        break;
+                    case Gwent.Rules.Rows.Range:
+                        view.Idle = Picker.range; view.Lit = Picker.rangeSelected;
+                        view.IdleEmblem = Picker.rangeEmblem; view.LitEmblem = Picker.rangeEmblemSelected;
+                        break;
+                    default:
+                        view.Idle = Picker.siege; view.Lit = Picker.siegeSelected;
+                        view.IdleEmblem = Picker.siegeEmblem; view.LitEmblem = Picker.siegeEmblemSelected;
+                        break;
+                }
+                view.Emblem = AddEmblem(view);
+                Rows[row] = view;
             }
+        }
+
+        // In the middle of the row, at the size the row art is shown at (under the cards)
+        private static Image AddEmblem(RowView row)
+        {
+            Image emblem = UIKit.NewImage(row.Unit.transform, "Emblem", row.IdleEmblem, Color.white);
+            RectTransform rect = emblem.rectTransform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            Vector2 shown = row.UnitImage.rectTransform.rect.size;
+            Vector2 art = row.Idle.rect.size;
+            rect.sizeDelta = Vector2.Scale(row.IdleEmblem.rect.size, new Vector2(shown.x / art.x, shown.y / art.y));
+            rect.SetAsFirstSibling();
+            return emblem;
         }
     }
 
@@ -93,7 +132,7 @@ public class BoardView
             CardLane.Install(view.Hand.gameObject, 50);
             foreach (RowView row in view.Rows.Values)
             {
-                CardLane.Install(row.Unit, 100);
+                CardLane.Install(row.Unit, 100).emptyMark = row.Emblem.gameObject;
                 CardLane.Install(row.Special, 0);
             }
         }
@@ -513,28 +552,8 @@ public class BoardView
         string[] rows = card_stats.row == Rows.Agile ? new[] { Rows.Close, Rows.Range } : new[] { card_stats.row };
         foreach (string row in rows.Where(Rows.IsUnitRow))
         {
-            target.Rows[row].UnitImage.sprite = SelectedSprite(target.Picker, row);
+            target.Rows[row].Light(true);
             target.Picker.StoreField(target.Rows[row].Unit);
-        }
-    }
-
-    private static Sprite SelectedSprite(RowPicker picker, string row)
-    {
-        switch (row)
-        {
-            case Rows.Close: return picker.closeSelected;
-            case Rows.Range: return picker.rangeSelected;
-            default: return picker.siegeSelected;
-        }
-    }
-
-    private static Sprite IdleSprite(RowPicker picker, string row)
-    {
-        switch (row)
-        {
-            case Rows.Close: return picker.close;
-            case Rows.Range: return picker.range;
-            default: return picker.siege;
         }
     }
 
@@ -546,7 +565,7 @@ public class BoardView
         foreach (KeyValuePair<string, RowView> row in view.Rows)
         {
             row.Value.SpecialImage.sprite = view.Picker.special;
-            row.Value.UnitImage.sprite = IdleSprite(view.Picker, row.Key);
+            row.Value.Light(false);
         }
 
         // Light off the weather board and deselect weather card
@@ -579,14 +598,14 @@ public class BoardView
         }
         else if (scorch != null)
         {
-            opp.Rows[scorch].UnitImage.sprite = SelectedSprite(opp.Picker, scorch);
+            opp.Rows[scorch].Light(true);
             targets.Add(opp.Rows[scorch].Unit);
         }
         else if (leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe)
         {
             foreach (string row in new[] { Rows.Close, Rows.Range })
             {
-                mine.Rows[row].UnitImage.sprite = SelectedSprite(mine.Picker, row);
+                mine.Rows[row].Light(true);
                 targets.Add(mine.Rows[row].Unit);
             }
         }

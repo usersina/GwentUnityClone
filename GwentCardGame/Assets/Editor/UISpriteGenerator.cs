@@ -141,8 +141,8 @@ public static class UISpriteGenerator
 
         foreach (string row in new[] { "close_combat", "range_combat", "siege_combat" })
         {
-            Reframe("Assets/Resources/UnitsRows/" + row + ".png", "Row_" + row, RowStyle.Recessed);
-            Reframe("Assets/Resources/UnitsRows/" + row + "_selected.png", "Row_" + row + "_selected", RowStyle.Highlighted);
+            Reframe("Assets/Resources/UnitsRows/" + row + ".png", "Row_" + row, RowStyle.Recessed, "RowEmblem_" + row);
+            Reframe("Assets/Resources/UnitsRows/" + row + "_selected.png", "Row_" + row + "_selected", RowStyle.Highlighted, "RowEmblem_" + row + "_selected");
         }
         Reframe("Assets/Resources/UnitsRows/hand_row.png", "Row_hand", RowStyle.Tray);
         Reframe("Assets/Resources/PowerRows/special.png", "Row_special", RowStyle.Recessed);
@@ -245,8 +245,8 @@ public static class UISpriteGenerator
 
     // Row art: the wood is extended over the old border and darkened so the row sits recessed in the table, then
     // a dark frame with a bronze line is drawn (a gold edge and a soft glow when highlighted; a warm golden frame
-    // for the hand tray)
-    private static void Reframe(string source, string name, RowStyle style)
+    // for the hand tray). A unit row's emblem is written on its own (see TakeOutEmblem).
+    private static void Reframe(string source, string name, RowStyle style, string emblem = null)
     {
         bool highlighted = style == RowStyle.Highlighted;
         float tone = style == RowStyle.Recessed ? 0.66f : style == RowStyle.Tray ? 0.74f : 0.9f;
@@ -274,7 +274,50 @@ public static class UISpriteGenerator
                 color.a = 1;
                 pixels[y * w + x] = color;
             }
+        if (emblem != null)
+            TakeOutEmblem(pixels, w, h, emblem);
         Save(name, new Texture2D(w, h, TextureFormat.RGBA32, false), pixels, Vector4.zero, BoardFolder);
+    }
+
+    // The engraved emblem in the middle of a unit row (a circle around a sword, a bow or a catapult) is written on its
+    // own, to lay over an empty row, and the row gets plain wood in its place: the same line of wood further along the
+    // grain, its tone matched to the wood on both sides. Cards never show the circle around them.
+    private const float EmblemRadius = 58, EmblemFeather = 4;
+
+    private static void TakeOutEmblem(Color32[] pixels, int w, int h, string emblem)
+    {
+        int size = Mathf.CeilToInt(2 * (EmblemRadius + EmblemFeather));
+        int left = (w - size) / 2, bottom = (h - size) / 2;
+        const int sample = 6;
+        int along = size + 8;
+        Color32[] source = (Color32[])pixels.Clone();
+        Func<int, int, Color> mean = (from, row) =>
+        {
+            Color sum = Color.clear;
+            for (int x = from; x < from + sample; x++)
+                sum += source[row * w + x];
+            return sum / sample;
+        };
+        Color32[] cut = new Color32[size * size];
+        for (int y = 0; y < size; y++)
+        {
+            int row = bottom + y;
+            // How much lighter or darker the borrowed line is than the wood it continues, at each end
+            Color before = mean(left - sample, row) - mean(left - sample + along, row);
+            Color after = mean(left + size, row) - mean(left + size + along, row);
+            for (int x = 0; x < size; x++)
+            {
+                int at = row * w + left + x;
+                float r = new Vector2(x + 0.5f - size / 2f, y + 0.5f - size / 2f).magnitude;
+                float inside = 1 - Smooth((r - EmblemRadius) / EmblemFeather);
+                Color original = source[at];
+                Color wood = (Color)source[at + along] + Color.Lerp(before, after, (float)x / size);
+                wood.a = 1;
+                cut[y * size + x] = new Color32(source[at].r, source[at].g, source[at].b, (byte)Mathf.RoundToInt(inside * 255));
+                pixels[at] = Color.Lerp(original, wood, inside);
+            }
+        }
+        Save(emblem, new Texture2D(size, size, TextureFormat.RGBA32, false), cut, Vector4.zero, BoardFolder);
     }
 
     // Leader ability button: a beveled gold ring around a dark face with a gold crown, a soft shadow below.
