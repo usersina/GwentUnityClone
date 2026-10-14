@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
@@ -368,6 +369,92 @@ public static class UISpriteGenerator
         WireTheme();
     }
 
+    //----------------------------------------The rules page (How to play)----------------------------------------//
+    // Each ability's and special card's icon as the game shows it in its description box (Cards/EffectBox: a white disc
+    // with a black glyph), set in a bevelled gold ring over a soft shadow, as The Witcher 3's rule cards show them
+    public const string RulesFolder = "Assets/Resources/UI/Rules";
+    public static readonly string[] RuleMedallions = { "spy", "medic", "muster", "tight_bond", "morale_boost", "commander_horn", "scorch", "agile",
+        "biting_frost", "impenetrable_fog", "torrential_rain", "clear_weather", "decoy" };
+
+    [MenuItem("Gwent/UI/Regenerate Rules Page Art")]
+    public static void GenerateRulesArt()
+    {
+        Directory.CreateDirectory(RulesFolder);
+        foreach (string name in RuleMedallions)
+            RuleMedallion(name);
+        RuleBanner();
+        AssetDatabase.Refresh();
+        foreach (string name in RuleMedallions)
+            ConfigureImporter(RulesFolder + "/" + name + ".png", 100);
+        ConfigureImporter(RulesFolder + "/Banner.png", 100);
+        WireTheme();
+    }
+
+    // A faction's hanging banner, white (tinted by the faction's colour): a long cloth with a swallowtail, a lighter
+    // hem along both sides and the fold's shade towards the tail
+    private static void RuleBanner()
+    {
+        const int w = 96, h = 256;
+        Vector2[] cloth = { new Vector2(4, 0), new Vector2(w - 4, 0), new Vector2(w - 4, h - 4), new Vector2(w / 2f, h - 46), new Vector2(4, h - 4) };
+        Color32[] pixels = new Color32[w * h];
+        for (int py = 0; py < h; py++)
+            for (int px = 0; px < w; px++)
+            {
+                float x = px + 0.5f, y = h - py - 0.5f; // y from the top, as the shape is described
+                float d = Polygon(x, y, cloth);
+                float coverage = Mathf.Clamp01(0.5f - d);
+                float shade = 1 - 0.35f * Smooth((y - h * 0.55f) / (h * 0.45f));      // darker towards the tail
+                shade *= 1 - 0.18f * Mathf.Pow(Mathf.Abs(x - w / 2f) / (w / 2f), 2); // rounded across
+                Color color = new Color(shade, shade, shade, 1);
+                if (Mathf.Abs(x - 14) < 1.6f || Mathf.Abs(x - (w - 14)) < 1.6f)
+                    color = Color.Lerp(color, new Color(1, 0.96f, 0.85f, 1), 0.75f); // the hems
+                if (d > -2.2f)
+                    color = Shade(color, 0.45f); // the cloth's edge
+                color.a = coverage;
+                pixels[py * w + px] = color;
+            }
+        Save("Banner", new Texture2D(w, h, TextureFormat.RGBA32, false), pixels, Vector4.zero, RulesFolder);
+    }
+
+    private static void RuleMedallion(string name)
+    {
+        Texture2D source = new Texture2D(2, 2);
+        source.LoadImage(File.ReadAllBytes("Assets/Resources/Cards/EffectBox/" + name + ".png"));
+        // The icon's disc in a description box: centred 52.5, 49.5 px from the top left, its white 29 px in radius;
+        // sampled a little inside its edge so none of the box's dark shows
+        const float icon_x = 52.5f, icon_y = 49.5f, icon_radius = 27.5f;
+        const int size = 160;
+        const float c = size / 2f, disc = 52, outer = 66;
+        Color ring_gold = new Color32(0xD8, 0x96, 0x3C, 0xFF);
+        Color32[] pixels = new Color32[size * size];
+        for (int py = 0; py < size; py++)
+            for (int px = 0; px < size; px++)
+            {
+                // Texture rows go bottom-up: p is measured with y up, the source sampled the same way
+                Vector2 p = new Vector2(px + 0.5f - c, py + 0.5f - c);
+                float r = p.magnitude;
+                float light = r > 0.001f ? Vector2.Dot(p / r, new Vector2(-0.6f, 0.8f)) : 0; // from the top left
+                Color color;
+                if (r <= disc)
+                {
+                    float scale = icon_radius / disc;
+                    color = source.GetPixelBilinear((icon_x + p.x * scale) / source.width, (source.height - icon_y + p.y * scale) / source.height);
+                    color = Shade(color, 1 - 0.18f * Smooth((r - (disc - 8)) / 8)); // the rim's shadow on the disc
+                }
+                else
+                {
+                    float t = (r - disc) / (outer - disc);
+                    color = Shade(ring_gold, 0.86f + 0.34f * (t < 0.5f ? -light : light));
+                }
+                if (Mathf.Abs(r - disc) < 1.2f || r > outer - 1.6f)
+                    color = Shade(color, 0.42f); // the groove and the outer edge
+                color.a = 1;
+                pixels[py * size + px] = OverShadow(color, Mathf.Clamp01(outer + 0.5f - r), (new Vector2(p.x - 2, p.y + 4).magnitude - outer) / 7f);
+            }
+        UnityEngine.Object.DestroyImmediate(source);
+        Save(name, new Texture2D(size, size, TextureFormat.RGBA32, false), pixels, Vector4.zero, RulesFolder);
+    }
+
     private static Color AbilityButtonReady(float x, float y)
     {
         const float c = 96, outer = 82, ring_in = 72;
@@ -653,6 +740,11 @@ public static class UISpriteGenerator
         theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
         theme.glowRing = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GlowRing.png");
         theme.leaderReady = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/AbilityButtonReady.png");
+        theme.table = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/Table_dark_wood.jpg");
+        theme.rowEmblems = new[] { "close_combat", "range_combat", "siege_combat" }.Select(row => AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/RowEmblem_" + row + ".png")).ToArray();
+        theme.gem = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GemRed.png");
+        theme.scoreDisc = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/ScorePlayer.png");
+        theme.scoreTotal = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/ScoreTotal.png");
         theme.cursorDefault = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorDefault.png");
         theme.cursorInteract = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInteract.png");
         theme.cursorInvalid = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInvalid.png");

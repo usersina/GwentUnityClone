@@ -78,7 +78,7 @@ Sorry, no multiplayer :/ (yet)
 | Deck builder: card details | Right-click | Hold a finger on it |
 | Deck builder: presets | Each faction's AI decks are listed after your own decks, marked "(preset)". Pick one to play with it as it is; your first change saves your own copy ("The Monster Horde (copy)") and the preset stays as it was. Presets can't be renamed or deleted | Same, with taps |
 | Settings (audio, display, game speed) | Main menu or pause menu > **Settings**. **Game > Game speed** (Slow, Normal, Fast) sets how fast cards move, notices pass and the opponent plays | Same |
-| Rules of the game | Main menu > **How to play** (the battle, the board, cards, abilities, special cards, factions, controls) | Same |
+| Rules of the game | Main menu > **How to play**: the rules on wooden rule cards with the game's own pieces (the battle, the board, cards, abilities, special cards, the factions with their perks and leaders, controls); hover a leader to read its ability | Same; hold a finger on a leader |
 
 The deck you last selected in the deck builder (one of yours or a preset) is used in battle, as long as it is valid (at least 22 unit cards, at most 10 special cards,
 and each card at most as many times as The Witcher 3 has copies of it: heroes and most cards once, up to 5 Mahakaman Defenders). The line
@@ -131,7 +131,7 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 | `Assets/Scripts/DeckController.cs`, `DeckEdit/` | The deck builder |
 | `Assets/Scripts/Utility` | Audio, settings, deck files, card database, runtime UI layer (toasts, dialogs, Escape handling), logging |
 | `Assets/Scripts/UI` | The menus' look: theme (`Resources/UITheme.asset`: fonts, colors, sprites), UI kit (buttons, menu entries, sliders, switches, steppers), settings screen, pause menu |
-| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`) and the board pieces (`Assets/UI/Board`: portrait frame, card shadow, the glow ring of the battle's highlights, row frames, the rows' emblems shown on empty rows, the table; the gems and score discs are The Witcher 3's art): **Gwent > UI > Regenerate Sprites and Theme** |
+| `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`) and the board pieces (`Assets/UI/Board`: portrait frame, card shadow, the glow ring of the battle's highlights, row frames, the rows' emblems shown on empty rows, the table; and `Assets/Resources/UI/Rules`: the How to play page's ability medallions and faction banner, **Gwent > UI > Regenerate Rules Page Art**; the gems and score discs are The Witcher 3's art): **Gwent > UI > Regenerate Sprites and Theme** |
 | `Assets/Resources/Cards` | `cards_db.json` (every card's stats, including how many copies The Witcher 3 has of it) and the card images |
 | `Assets/Resources/Decks` | `player_default.json` (the built-in deck), `__empty__.json`, and the AI's 9 decks in `AI/` |
 | `Assets/Resources/W3` | The Witcher 3's interface art: notices' emblems, ability effects, the end of battle emblems (see `CREDITS.md`) |

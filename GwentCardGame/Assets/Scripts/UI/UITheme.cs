@@ -52,6 +52,13 @@ public class UITheme : ScriptableObject
     public Sprite glowRing;   // a glow around a rectangle, clear inside (nine-sliced, reaching 32 px out)
     public Sprite leaderReady; // the leader ability's crown, lit: the ability can still be used this round
 
+    [Header("Board pieces (shown on the rules page)")]
+    public Sprite table;          // the wood under the board
+    public Sprite[] rowEmblems;   // close combat, ranged, siege
+    public Sprite gem;            // a life
+    public Sprite scoreDisc;      // a row's score
+    public Sprite scoreTotal;     // a side's total
+
     [Header("Cursors (tip at 5, 4)")]
     public Texture2D cursorDefault;
     public Texture2D cursorInteract;
