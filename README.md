@@ -43,7 +43,7 @@ Sorry, no multiplayer :/ (yet)
 | Browse a discard pile (either side) | Click it: it opens in the card carousel, its top card in front (arrow keys or the wheel browse, Esc or **Close** puts it away) | Tap it |
 | Pass (for the rest of the round) | Hold Space, or hold the **Hold to pass** button | Hold the button |
 | Scoia'tael: choose who starts | **Go first** or **Go second** in the dialog at the start of the battle | Tap |
-| After the battle | The end screen shows every round's score; **Play again** or **Main menu** | Tap |
+| After the battle | The end screen shows The Witcher 3's emblem of the outcome and every round's score; **Play again** or **Main menu** | Tap |
 | Pause (resume, settings, give up) | Esc or the menu button at the top right. **Give up** counts as a loss | Back button or the menu button |
 | Choose a card in a picker (medic, leaders, Emhyr's look at the opponent's hand) | The cards show in the carousel under a title, as in the redraw: click a card to bring it forward, click it again (or Enter) to choose it; arrow keys or the wheel browse; Down goes to **Skip** (**Close** for a look) | Tap a card to bring it forward, tap it again to choose it |
 | Preview a card (board, hand, weather, discard pile, leaders) | Hover it | Hold a finger on it: it shows on the right until you lift the finger (a hand card: tap it to select it) |
@@ -102,7 +102,7 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 | `Assets/Editor/UISpriteGenerator.cs` | Draws the UI sprites (`Assets/UI/Sprites`) and the board pieces (`Assets/UI/Board`: portrait frame, card shadow, row frames, the rows' emblems shown on empty rows, the table; the gems and score discs are The Witcher 3's art): **Gwent > UI > Regenerate Sprites and Theme** |
 | `Assets/Resources/Cards` | `cards_db.json` (every card's stats, including how many copies The Witcher 3 has of it) and the card images |
 | `Assets/Resources/Decks` | `player_default.json` (the built-in deck), `__empty__.json`, and the AI's 9 decks in `AI/` |
-| `Assets/Resources/W3` | The Witcher 3's interface art: notices' emblems, ability effects (see `CREDITS.md`) |
+| `Assets/Resources/W3` | The Witcher 3's interface art: notices' emblems, ability effects, the end of battle emblems (see `CREDITS.md`) |
 | `Assets/Tests/EditMode` | Unit tests for the rules |
 | `Assets/Editor/GwentAutoplay.cs` | End-to-end smoke test that plays full battles |
 
@@ -148,5 +148,5 @@ The source code is released under the [MIT License](LICENSE).
 The license does not cover the Gwent/Witcher card art, names and other CD PROJEKT RED material, which remain the property of their owners.
 The fonts keep their own licenses: Cinzel and Alegreya Sans (SIL Open Font License 1.1), Roboto (Apache 2.0); see `GwentCardGame/Assets/Fonts/FONTS-LICENSE.md`.
 The opponent decks (`Resources/Decks/AI`) are adapted from the default decks of [gwent-classic](https://github.com/asundr/gwent-classic) by Arun Sundaram (MIT with the Commons Clause), as kept in [gwent-classic-v3.1](https://github.com/RandomPianist/gwent-classic-v3.1).
-The battle's notification emblems, ability flares, gems and row-score circles are The Witcher 3's own interface art, as extracted by gwent-classic (see `GwentCardGame/Assets/Resources/W3/CREDITS.md`).
+The battle's notification emblems, ability flares, end of battle emblems, gems and row-score circles are The Witcher 3's own interface art, as extracted by gwent-classic (see `GwentCardGame/Assets/Resources/W3/CREDITS.md`).
 The table under the board is "Dark Wood" from [Poly Haven](https://polyhaven.com/a/dark_wood) (CC0); see `GwentCardGame/Assets/UI/Board/Sources/CREDITS.md`.

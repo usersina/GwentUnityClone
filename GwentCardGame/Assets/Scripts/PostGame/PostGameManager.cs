@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// The end of the battle: the outcome in large letters, the round tally, a scoreboard with both sides (leader
+// The end of the battle: The Witcher 3's emblem of the outcome, the round tally, a scoreboard with both sides (leader
 // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on.
 // Built when the battle ends, over the dimmed board.
 public class PostGameManager : MonoBehaviour
@@ -24,8 +24,7 @@ public class PostGameManager : MonoBehaviour
         RectTransform content = UIKit.Rect("Content", transform).Stretch();
         content.gameObject.AddComponent<UIAppear>();
 
-        Color color = outcome == BattleState.WON ? theme.goldBright : outcome == BattleState.LOST ? theme.danger : theme.textSecondary;
-        string title = outcome == BattleState.WON ? "Victory" : outcome == BattleState.LOST ? "Defeat" : "Draw";
+        string emblem = outcome == BattleState.WON ? "win" : outcome == BattleState.LOST ? "lose" : "draw";
         // Rounds as they were won (a drawn round counts for nobody, a Nilfgaard tie for Nilfgaard)
         int player_rounds = player.RoundsWon.Count(won => won), opponent_rounds = opponent.RoundsWon.Count(won => won);
         int drawn = player.RoundsScore.Count - player_rounds - opponent_rounds;
@@ -36,24 +35,23 @@ public class PostGameManager : MonoBehaviour
         if (gave_up)
             tally = "You gave up the battle";
 
-        Image glow = UIKit.NewImage(content, "Glow", theme.radial, UITheme.WithAlpha(color, 0.22f));
-        glow.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 250), new Vector2(1500, 700));
-        TextMeshProUGUI heading = UIKit.Text(content, title, UIKit.TextStyle.Title, TextAlignmentOptions.Center);
-        heading.fontSize = 120;
-        heading.characterSpacing = 10;
-        heading.color = color;
-        heading.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 300), new Vector2(1200, 150));
-        UIKit.Ornament(content, new Vector2(0.5f, 0.5f), new Vector2(0, 222), 620);
+        // A faint light behind the emblem lifts it off the dimmed board (the emblem brings its own colour)
+        Image glow = UIKit.NewImage(content, "Glow", theme.radial, UITheme.WithAlpha(theme.textBright, 0.1f));
+        glow.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 340), new Vector2(1100, 560));
+        // The crown over crossed swords, the skull over broken blades, the scales: its plaque names the outcome
+        Image crest = UIKit.NewImage(content, "Emblem", SpriteCache.Load("W3/End/" + emblem), Color.white);
+        crest.preserveAspect = true;
+        crest.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 345), new Vector2(525, 333));
         TextMeshProUGUI subtitle = UIKit.Text(content, tally, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
         subtitle.color = theme.textSecondary;
-        subtitle.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 176), new Vector2(1200, 44));
+        subtitle.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(1200, 44));
 
         BuildScoreboard(content, player, opponent);
 
         Button again = UIKit.Button(content, "Play again", UIKit.ButtonStyle.Primary, PlayAgain, new Vector2(300, 72));
-        ((RectTransform)again.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -330), new Vector2(300, 72));
+        ((RectTransform)again.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
         Button menu = UIKit.Button(content, "Main menu", UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
-        ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(170, -330), new Vector2(300, 72));
+        ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(170, -350), new Vector2(300, 72));
         UIKit.Focus(again);
     }
 
@@ -62,7 +60,7 @@ public class PostGameManager : MonoBehaviour
     {
         UITheme theme = UITheme.Current;
         float width = SideColumn + 3 * RoundColumn + 60;
-        RectTransform board = UIKit.Panel(content, "Scoreboard").Place(new Vector2(0.5f, 0.5f), new Vector2(0, -60), new Vector2(width, 70 + 2 * RowHeight + 20));
+        RectTransform board = UIKit.Panel(content, "Scoreboard").Place(new Vector2(0.5f, 0.5f), new Vector2(0, -85), new Vector2(width, 70 + 2 * RowHeight + 20));
 
         for (int round = 0; round < 3; round++)
         {

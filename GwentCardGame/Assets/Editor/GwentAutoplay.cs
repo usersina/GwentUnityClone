@@ -368,9 +368,10 @@ public static class GwentAutoplay
                 if (!endScreenChecked)
                 {
                     endScreenChecked = true;
-                    string expected = c.battleState == BattleState.WON ? "Victory" : c.battleState == BattleState.LOST ? "Defeat" : "Draw";
-                    TMPro.TextMeshProUGUI[] texts = c.PostGame.GetComponentsInChildren<TMPro.TextMeshProUGUI>();
-                    Check(c.PostGame.activeInHierarchy && texts.Any(t => t.text == expected), "the end screen shows \"" + expected + "\"", "end screen");
+                    // The Witcher 3's emblem of the outcome (its plaque names it)
+                    string expected = c.battleState == BattleState.WON ? "win" : c.battleState == BattleState.LOST ? "lose" : "draw";
+                    Image emblem = c.PostGame.GetComponentsInChildren<Image>().FirstOrDefault(i => i.name == "Emblem");
+                    Check(c.PostGame.activeInHierarchy && emblem != null && emblem.sprite != null && emblem.sprite.name == expected, "the end screen shows the \"" + expected + "\" emblem", "end screen");
                     Check(GameObject.Find("Button Play again") != null && GameObject.Find("Button Main menu") != null, "the end screen offers Play again and Main menu", "end screen");
                 }
                 results.Add(Label() + ": " + c.battleState + " " + string.Join("-", c.PlayerInfo.RoundsScore) + " vs " + string.Join("-", c.EnemyInfo.RoundsScore));
