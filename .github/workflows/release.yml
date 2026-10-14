@@ -111,11 +111,12 @@ jobs:
       - name: Build report
         if: always()
         run: cat ${{ env.PROJECT }}/Builds/*/build-report.txt || true
-      # The archive on its own, without the Builds/<version>/ folders it was made in: the release lists them flat
+      # The archive on its own, without the Builds/<version>/ folders it was made in: the release lists them flat.
+      # Copied, not moved: the build ran as root in its container, and the runner may read its files but not move them.
       - name: Collect the archive
         run: |
           mkdir dist
-          mv ${{ env.PROJECT }}/Builds/*/GwentLegacy-* dist/
+          cp ${{ env.PROJECT }}/Builds/*/GwentLegacy-* dist/
           ls -l dist
       - uses: actions/upload-artifact@v4
         with:
