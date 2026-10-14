@@ -126,7 +126,7 @@ public class BoardView
             // the band, clear of the laurel and of the rows' score coins
             RectTransform passed = (RectTransform)view.PassedLabel.transform;
             RectTransform total = (RectTransform)passed.parent.Find("Total");
-            float gap = ((RectTransform)view.LeadMarker.transform).rect.height / 2 + passed.rect.height / 3;
+            float gap = ((RectTransform)view.LeadMarker.transform).rect.height / 2 + passed.rect.height / 2;
             passed.anchoredPosition = total.anchoredPosition + new Vector2(-6, is_player ? gap : -gap);
             // The Witcher 3's lines of cards: centred, gliding into place (the grids snapped)
             CardLane.Install(view.Hand.gameObject, 50);

@@ -24,12 +24,16 @@ public class StatsManager : MonoBehaviour
     private Image border;         // the silver ring around it
     private Image passedVeil;
     private Image[] edges;        // the band's top and bottom lines
+    private Image[] edgeGlows;    // their glow out of the band
+    private Sprite edgeSprite;
     private Color edgeColor;
     private float edgeHeight;
     private int shownTurnState = -1;
 
     private const float TurnEdgeHeight = 3;
-    private static readonly Color TurnEdgeGold = new Color(1f, 0.74f, 0.3f);
+    private const float TurnGlowHeight = 12;
+    private static readonly Color TurnEdgeGold = new Color(1f, 0.8f, 0.42f);
+    private static readonly Color TurnGlowGold = new Color(1f, 0.6f, 0.16f, 0.75f);
     private static readonly Color PassedGrey = new Color(0.55f, 0.55f, 0.55f);
 
     // Looked up once instead of on every board refresh
@@ -107,8 +111,8 @@ public class StatsManager : MonoBehaviour
         handCountText.text = cards_number.ToString();
     }
 
-    // Whose turn it is shows as in The Witcher 3: gold lines along the top and bottom of that side's band. A side that
-    // has passed is greyed out until the round ends.
+    // Whose turn it is shows as in The Witcher 3: that side's band is edged with glowing gold lines, top and bottom,
+    // all along. A side that has passed is greyed out until the round ends.
     public void UISetTurnState(bool active, bool passed)
     {
         CacheReferences();
@@ -118,10 +122,13 @@ public class StatsManager : MonoBehaviour
         if (state == shownTurnState)
             return;
         shownTurnState = state;
-        foreach (Image edge in edges)
+        for (int i = 0; i < edges.Length; i++)
         {
+            Image edge = edges[i];
+            edge.sprite = state == 1 ? null : edgeSprite; // even all along, not fading out to the right
             edge.color = state == 1 ? TurnEdgeGold : edgeColor;
             edge.rectTransform.sizeDelta = new Vector2(edge.rectTransform.sizeDelta.x, state == 1 ? TurnEdgeHeight : edgeHeight);
+            edgeGlows[i].enabled = state == 1;
         }
         passedVeil.enabled = state == 2;
         Color picture = state == 2 ? PassedGrey : Color.white;
@@ -135,8 +142,27 @@ public class StatsManager : MonoBehaviour
     {
         Transform cover = transform.Find("Cover");
         edges = new[] { cover.Find("EdgeTop").GetComponent<Image>(), cover.Find("EdgeBottom").GetComponent<Image>() };
+        edgeSprite = edges[0].sprite;
         edgeColor = edges[0].color;
         edgeHeight = edges[0].rectTransform.sizeDelta.y;
+        // The glow spreads out of the band, up from the top line and down from the bottom one, under the lines
+        edgeGlows = new Image[edges.Length];
+        for (int i = 0; i < edges.Length; i++)
+        {
+            Image glow = UIKit.NewImage(cover, "EdgeGlow", UITheme.Current.gradientV, TurnGlowGold);
+            RectTransform rect = glow.rectTransform;
+            float edge_y = i == 0 ? 1 : 0;
+            rect.anchorMin = new Vector2(0, edge_y);
+            rect.anchorMax = new Vector2(1, edge_y);
+            rect.pivot = new Vector2(0.5f, 0);
+            rect.sizeDelta = new Vector2(0, TurnGlowHeight);
+            rect.anchoredPosition = Vector2.zero;
+            if (i == 1)
+                rect.localEulerAngles = new Vector3(0, 0, 180); // fades out downwards
+            glow.transform.SetAsFirstSibling();
+            glow.enabled = false;
+            edgeGlows[i] = glow;
+        }
 
         // A grey veil over the picture of a side that has passed (inside its round mask)
         RectTransform circle = portraitCircle.rectTransform;
