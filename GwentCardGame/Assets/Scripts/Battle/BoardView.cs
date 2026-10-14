@@ -34,7 +34,7 @@ public class BoardView
         public LeaderManager Leader;
         public GameObject LeaderHolder;
         public GameObject LeadMarker;   // the laurel around the total of the side that is ahead (as in The Witcher 3)
-        public GameObject PassedLabel;  // "Passed" under the panel of a side that has passed
+        public GameObject PassedLabel;  // "Passed" by the total score of a side that has passed
         public readonly Dictionary<string, RowView> Rows = new Dictionary<string, RowView>();
 
         public FieldView(GameObject root)
@@ -83,6 +83,12 @@ public class BoardView
             FieldView view = View(is_player);
             // A click on either discard pile shows it card by card
             view.DiscardPile.transform.parent.gameObject.AddComponent<DiscardPileBrowser>().isPlayer = is_player;
+            // "Passed" right by the total score, between the two panels (The Witcher 3): under the opponent's, above
+            // the player's, ending before the rows' score coins (they are drawn over it)
+            RectTransform passed = (RectTransform)view.PassedLabel.transform;
+            RectTransform total = (RectTransform)passed.parent.Find("Total");
+            float gap = total.rect.height / 2 + passed.rect.height / 2;
+            passed.anchoredPosition = total.anchoredPosition + new Vector2(-44, is_player ? gap : -gap);
             // The Witcher 3's lines of cards: centred, gliding into place (the grids snapped)
             CardLane.Install(view.Hand.gameObject, 50);
             foreach (RowView row in view.Rows.Values)
