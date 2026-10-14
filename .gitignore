@@ -63,3 +63,6 @@ crashlytics-build.properties
 *.slnx
 .vscode/
 [Uu]serSettings/
+
+# Left in the project by every web build (Burst output)
+/GwentCardGame/Data/
