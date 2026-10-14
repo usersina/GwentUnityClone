@@ -15,6 +15,7 @@ MonoBehaviour:
   headingFont: {fileID: 11400000, guid: c0a3c0f12519ebef3b67a346c81c103d, type: 2}
   bodyFont: {fileID: 11400000, guid: 634ce8f8061774bb79705b8fa141b9c0, type: 2}
   bodyMediumFont: {fileID: 11400000, guid: 9e750905be9e813db82b0b457ee903f1, type: 2}
+  headingShadow: {fileID: 2100000, guid: 5a798721709ee190aaeddc3b1a8e05a1, type: 2}
   background: {r: 0.08627451, g: 0.07058824, b: 0.05490196, a: 1}
   panel: {r: 0.1254902, g: 0.101960786, b: 0.08235294, a: 0.9607843}
   panelRaised: {r: 0.16470589, g: 0.13333334, b: 0.09803922, a: 1}

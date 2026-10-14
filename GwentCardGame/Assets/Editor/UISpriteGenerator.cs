@@ -686,6 +686,7 @@ public static class UISpriteGenerator
         theme.headingFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/Cinzel SDF.asset");
         theme.bodyFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/AlegreyaSans-Regular SDF.asset");
         theme.bodyMediumFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/Fonts/AlegreyaSans-Medium SDF.asset");
+        theme.headingShadow = AssetDatabase.LoadAssetAtPath<Material>("Assets/Fonts/Cinzel SDF - Shadow.mat");
 
         Func<string, Sprite> sprite = name => AssetDatabase.LoadAssetAtPath<Sprite>(SpriteFolder + "/" + name + ".png");
         theme.panelSprite = sprite("Panel");

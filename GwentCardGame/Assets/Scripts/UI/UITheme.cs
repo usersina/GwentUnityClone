@@ -10,6 +10,7 @@ public class UITheme : ScriptableObject
     public TMP_FontAsset headingFont;
     public TMP_FontAsset bodyFont;
     public TMP_FontAsset bodyMediumFont;
+    public Material headingShadow; // the heading font with a dark outline and a soft shadow under the letters
 
     [Header("Colors")]
     public Color background = new Color32(0x16, 0x12, 0x0E, 0xFF);

@@ -39,6 +39,11 @@ public class MainMenu : MonoBehaviour
         AddItem(list, "Settings", OpenSettings);
         AddItem(list, "Quit", QuitGame);
 
+        // "Legacy" under the key art's logo
+        Transform background = transform.parent != null ? transform.parent.Find("Background") : null;
+        if (background != null)
+            LegacyTitle.Create((RectTransform)background);
+
         TextMeshProUGUI note = UIKit.Text(root, "Fan project, not affiliated with CD PROJEKT RED", UIKit.TextStyle.Caption);
         note.rectTransform.Place(new Vector2(0, 0), new Vector2(156, 48), new Vector2(800, 36), new Vector2(0, 0));
 
