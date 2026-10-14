@@ -66,3 +66,6 @@ crashlytics-build.properties
 
 # Left in the project by every web build (Burst output)
 /GwentCardGame/Data/
+
+# Claude browser pane: a local server for the current web build (personal, version-specific path)
+.claude/launch.json
