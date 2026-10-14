@@ -193,7 +193,7 @@ public partial class SceneController
         GameObject card = LeaderCard();
         if (card != null)
             card.GetComponent<CardHover>().TranslateDown();
-        board.UnmarkLeaderTargets(leaderTargets);
+        board.UnmarkLeaderTargets();
         leaderTargets.Clear();
         LightoffField(true);
         LightoffField(false);
