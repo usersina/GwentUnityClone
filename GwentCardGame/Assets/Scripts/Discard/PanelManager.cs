@@ -1,27 +1,38 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// Full-screen card picker (medic, leader abilities). Always has a Skip button so it can never trap the player.
-// Keys: Left/Right (A/D) go through the cards, Enter chooses one; Down goes to Skip (Enter presses it), Up comes back.
+// The battle's card pickers (a medic's revival, the leaders' picks, Emhyr's look at the opponent's hand), shown as The
+// Witcher 3 does: the carousel under a title band (CardPicker). Skip (Close for a look) gives up the choice, so a picker
+// can never trap the player. The panel itself only keeps the board from taking clicks while it is open.
 public class PanelManager : MonoBehaviour
 {
-    private const string FocusMark = "KeyFocus";
+    private CardPicker picker;
+    private readonly List<int> cards = new List<int>();
+    private string field;
+    private string type;
+    private bool isPlayerCard;
 
-    public GameObject container;
-    public GameObject cardBtn;
+    // The cards on offer, and the carousel showing them
+    public IList<int> Cards { get { return cards.AsReadOnly(); } }
+    public CardPicker Picker { get { return picker; } }
 
-    private Button skipButton;
-    private int focus = -1;
-    private static int keyFrame = -1;
+    private void Awake()
+    {
+        // The scene's scroll view and dark backdrop gave way to the carousel; the panel still catches the board's clicks
+        Transform legacy = transform.Find("ScrollView");
+        if (legacy != null)
+            legacy.gameObject.SetActive(false);
+        Image backdrop = GetComponent<Image>();
+        if (backdrop != null)
+            backdrop.color = Color.clear;
+    }
 
-    // Enter chose a card this frame: the battle's own keys leave it alone (the picked card waits for its place)
-    public static bool UsedKeyThisFrame { get { return keyFrame == Time.frameCount; } }
-
-    // The card the keys are on (-1: none)
-    public int Focus { get { return focus; } }
+    private void OnDisable()
+    {
+        ClosePicker();
+    }
 
     public void ShowToPlay(string field, List<int> discard_list, bool is_player_card)
     {
@@ -42,112 +53,79 @@ public class PanelManager : MonoBehaviour
 
     private void Show(string field, List<int> card_ids, string type, bool is_player_card)
     {
-        ClearContainer();
-        focus = -1;
-        foreach (int card_id in card_ids)
-        {
-            GameObject instantiatedCardbtn = Instantiate(cardBtn);
-            CardBtn btn = instantiatedCardbtn.GetComponent<CardBtn>();
-            btn.cardId = card_id;
-            btn.type = type;
-            btn.field = field;
-            btn.isPlayerCard = is_player_card;
-            instantiatedCardbtn.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + card_id);
-            instantiatedCardbtn.transform.SetParent(container.transform, false);
-        }
-
-        ResizeContainer(card_ids.Count);
-        EnsureSkipButton(type == "view" ? "Close" : "Skip");
+        ClosePicker();
+        this.field = field;
+        this.type = type;
+        isPlayerCard = is_player_card;
+        cards.Clear();
+        cards.AddRange(card_ids);
+        bool look = type == "view";
+        picker = CardPicker.Open(UIOverlay.Root, Title(type, field), cards, look ? (Action<int>)null : Choose, look ? "Close" : "Skip", OnSkip);
     }
 
-    private void ClearContainer()
+    private static string Title(string type, string field)
     {
-        for (int i = 0; i < container.transform.childCount; i++)
-            Destroy(container.transform.GetChild(i).gameObject);
-        // Do not remove this, otherwise count will still get the previous frame's count (NOT 0);
-        container.transform.DetachChildren();
+        switch (type)
+        {
+            case "play":
+                return field == "deck_list" ? "Choose a weather card to play from your deck" : "Choose a unit to bring back from your discard pile";
+            case "draw":
+                if (field == "opp_discard_list")
+                    return "Choose a unit to take from your opponent's discard pile";
+                return field == "discard_list" ? "Choose a unit to take back from your discard pile" : "Choose a card to take from your deck";
+            default:
+                return "Randomly selected cards from your opponent's hand"; // The Witcher 3's words
+        }
     }
 
-    private void EnsureSkipButton(string label)
+    private void ClosePicker()
     {
-        if (skipButton == null)
-        {
-            skipButton = UIOverlay.CreateButton(transform, label, new Vector2(0.5f, 0f), new Vector2(0, 70), new Vector2(240, 70), OnSkip);
-            skipButton.gameObject.name = "SkipButton";
-            skipButton.navigation = new Navigation { mode = Navigation.Mode.None }; // the arrows are the picker's
-        }
-        skipButton.GetComponentInChildren<TMPro.TextMeshProUGUI>().text = label;
-        skipButton.transform.SetAsLastSibling();
+        if (picker != null)
+            Destroy(picker.transform.parent.gameObject);
+        picker = null;
     }
 
-    private void Update()
-    {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null || UIOverlay.HasModal || container.transform.childCount == 0)
-            return;
-        bool on_skip = skipButton != null && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == skipButton.gameObject;
-        if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
-            SetFocus(focus < 0 ? 0 : focus - 1);
-        if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
-            SetFocus(focus < 0 ? 0 : focus + 1);
-        if ((keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame) && !on_skip)
-        {
-            SetFocus(-1);
-            UIKit.Focus(skipButton);
-        }
-        if ((keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame) && on_skip)
-            SetFocus(0);
-        // Enter on Skip is the button's
-        if ((keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) && !on_skip && focus >= 0)
-        {
-            keyFrame = Time.frameCount;
-            CardBtn chosen = container.transform.GetChild(focus).GetComponent<CardBtn>();
-            SetFocus(-1);
-            chosen.Choose();
-        }
-    }
-
-    // Frames the card the keys are on (-1: none) and scrolls it into view
-    private void SetFocus(int index)
-    {
-        int count = container.transform.childCount;
-        int next = index < 0 || count == 0 ? -1 : Mathf.Clamp(index, 0, count - 1);
-        if (next == focus)
-            return;
-        if (focus >= 0 && focus < count)
-        {
-            Transform mark = container.transform.GetChild(focus).Find(FocusMark);
-            if (mark != null)
-            {
-                mark.SetParent(null, false);
-                Destroy(mark.gameObject);
-            }
-        }
-        focus = next;
-        if (focus < 0)
-            return;
-        if (EventSystem.current != null)
-            EventSystem.current.SetSelectedGameObject(null);
-        GameAudio.PlaySfx("card_select");
-        UIKit.Frame(container.transform.GetChild(focus), FocusMark, UITheme.Current.goldBright, 5, 4);
-        ScrollRect scroll = container.GetComponentInParent<ScrollRect>();
-        if (scroll != null && count > 3)
-            scroll.horizontalNormalizedPosition = (float)focus / (count - 1);
-    }
-
+    // Skip / Close: give up the choice and end the turn
     private void OnSkip()
     {
         SceneController.Instance.CancelPanel();
     }
 
-    public void ResizeContainer(int cardsNum)
+    // A card was picked
+    public void Choose(int card_id)
     {
-        RectTransform containerTr = container.GetComponent<RectTransform>();
-        // Up to 3 cards fit the view: they are centred in it; more scroll sideways
-        container.GetComponent<UnityEngine.UI.GridLayoutGroup>().childAlignment = cardsNum <= 3 ? TextAnchor.MiddleCenter : TextAnchor.MiddleLeft;
-        cardsNum -= 3;                                           // 3 Cards already have space
-        float width = Mathf.Max(0, (cardsNum * 380) + (cardsNum - 1) * 25);   // Card width: 380, Spacing: 25
-        containerTr.offsetMin = new Vector2(0, 0);
-        containerTr.offsetMax = new Vector2(width, 0);
+        SceneController controller = SceneController.Instance;
+        switch (type)
+        {
+            // A medic or a weather leader: the card is placed on the board next
+            case "play":
+                GameAudio.PlaySfx("ability_medic");
+                GameLog.Info("Choosing card to play: " + card_id);
+                controller.PlayBtnCleanUp(field, card_id, isPlayerCard);
+                GameObject card = controller.CreateCardObject(controller.GetCardStats(card_id), isPlayerCard);
+                card.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
+                controller.selectedCard = card;
+                controller.HighlightField(card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), isPlayerCard);
+                controller.ShowcasePicked(card_id, field, isPlayerCard);
+                controller.SetHider(true);
+                gameObject.SetActive(false);
+                UIOverlay.Toast("Now choose where to play " + controller.GetCardStats(card_id).name);
+                break;
+
+            // A leader's pick: the card goes to the hand and the turn ends
+            case "draw":
+                GameAudio.PlaySfx("card_draw");
+                GameLog.Info("Choosing on: " + card_id);
+                gameObject.SetActive(false);
+                controller.ActuallyPickCard(field, card_id, isPlayerCard);
+                break;
+
+            // Emhyr's look at the opponent's hand
+            default:
+                GameAudio.PlaySfx("card_select");
+                gameObject.SetActive(false);
+                controller.TurnCallBack(isPlayerCard);
+                break;
+        }
     }
 }

@@ -181,6 +181,13 @@ public static class UIOverlay
         modals.Add(modal);
     }
 
+    // This dialog is the one on top (keys and clicks are its own)
+    public static bool IsTopModal(GameObject root)
+    {
+        Prune();
+        return modals.Count > 0 && modals[modals.Count - 1].root == root;
+    }
+
     public static void CloseModal(GameObject root)
     {
         int index = modals.FindIndex(m => m.root == root);

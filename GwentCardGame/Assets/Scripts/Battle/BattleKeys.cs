@@ -56,7 +56,7 @@ public class BattleKeys : MonoBehaviour
             LeaderKey(battle);
 
         // The redraw, the card picker and the Scoia'tael choice have their own keys
-        if (RedrawPicker.IsOpen || battle.Panel.activeInHierarchy || battle.TurnPicker.activeInHierarchy || PanelManager.UsedKeyThisFrame)
+        if (RedrawPicker.IsOpen || battle.Panel.activeInHierarchy || battle.TurnPicker.activeInHierarchy || CardCarousel.UsedKeyThisFrame)
             return;
         if (Pressed(keyboard.leftArrowKey, keyboard.aKey))
             StepHand(battle, -1);

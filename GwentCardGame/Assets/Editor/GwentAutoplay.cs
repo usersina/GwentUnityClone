@@ -157,6 +157,7 @@ public static class GwentAutoplay
         private bool speedChecked;
         private bool pickerChecked;
         private bool leaderChecked;
+        private bool pileChecked;
         private bool endScreenChecked;
         private int roundEndChecked;
         private readonly HashSet<int> turnsChecked = new HashSet<int>();
@@ -237,8 +238,8 @@ public static class GwentAutoplay
 
         private void NextMatch(bool first = false)
         {
-            match++;
             EndInputCheck(); // a check never carries over into another battle
+            match++;
             turnsChecked.Clear();
             // Every opponent deck in turn, so the AI plays every faction
             List<TextAsset> opponents = OpponentDecks.All();
@@ -284,8 +285,9 @@ public static class GwentAutoplay
         {
             if (!EditorApplication.isPlaying)
                 return;
-            // Real-time input runs at normal speed, like a person playing (the game speed check sets its own)
-            if (!PauseMenu.IsOpen && (inputCheck == null || !inputCheck.OwnsTimeScale))
+            // Real-time input runs at normal speed, like a person playing (the game speed check sets its own; the pause
+            // menu and a discard pile stop time)
+            if (!PauseMenu.IsOpen && !DiscardViewer.IsOpen && (inputCheck == null || !inputCheck.OwnsTimeScale))
                 Time.timeScale = inputCheck != null ? 1f : TimeScale;
 
             try
@@ -404,9 +406,9 @@ public static class GwentAutoplay
                 return;
             inputCheck.Teardown();
             inputCheck = null;
+            lastProgress = EditorApplication.timeSinceStartup; // the time it took was no lack of progress
         }
 
-            lastProgress = EditorApplication.timeSinceStartup; // the time it took was no lack of progress
         //----------------------------------------The random player----------------------------------------//
         private void PlayerStep(SceneController c)
         {
@@ -451,22 +453,23 @@ public static class GwentAutoplay
 
             if (c.Panel.activeInHierarchy)
             {
-                CardBtn[] buttons = c.Panel.GetComponentsInChildren<CardBtn>();
+                PanelManager panel = c.Panel.GetComponent<PanelManager>();
+                IList<int> offered = panel.Cards;
                 // The first picker with a choice to make: through its keys
-                if (!pickerChecked && buttons.Length >= 2 && c.pendingAction == PendingAction.PanelChoice)
+                if (!pickerChecked && offered.Count >= 2 && c.pendingAction == PendingAction.PanelChoice)
                 {
                     pickerChecked = true;
                     inputCheck = new InputCheck(c, InputScenario.PickerKeys, (ok, what) => Check(ok, what, "picker keys"));
                     return;
                 }
-                if (buttons.Length == 0 || rnd.Next(10) == 0)
+                if (offered.Count == 0 || rnd.Next(10) == 0)
                 {
                     c.CancelPanel();
                     Count("panel skip");
                 }
                 else
                 {
-                    buttons[rnd.Next(buttons.Length)].Choose();
+                    panel.Choose(offered[rnd.Next(offered.Count)]);
                     Count("panel choose");
                 }
                 return;
@@ -533,6 +536,12 @@ public static class GwentAutoplay
             {
                 speedChecked = true;
                 inputCheck = new InputCheck(c, InputScenario.GameSpeed, (ok, what) => Check(ok, what, "game speed"));
+                return;
+            }
+            if (!pileChecked && (c.PlayerInfo.DiscardList.Count >= 2 || c.EnemyInfo.DiscardList.Count >= 2))
+            {
+                pileChecked = true;
+                inputCheck = new InputCheck(c, InputScenario.DiscardPile, (ok, what) => Check(ok, what, "discard pile"));
                 return;
             }
             // The first turn with a leader ability that would act
@@ -1058,7 +1067,9 @@ public static class GwentAutoplay
         TouchControls,            // touch (simulated): a held press on the leader, its button and a hand card shows them
                                   // and is no tap; a tap selects a card, another puts it back
         GameSpeed,                // pause menu > Settings > Game: Fast, and after Resume the battle runs faster
-        PickerKeys,               // the card picker: Right frames a card, Down goes to Skip, Up comes back, Enter chooses
+        PickerKeys,               // the card picker (the carousel): Right and Left move, Down goes to Skip, Up comes back,
+                                  // Enter picks the front card
+        DiscardPile,              // a click opens a discard pile in the carousel, Left goes down it, Escape closes it
         LeaderTwoClicks,          // a click on the leader chooses it (shown on the right, its places lit), Escape puts it
                                   // back, its button chooses it too, a hand card takes its place; then a click on a lit
                                   // place (or the leader again) uses it
@@ -1187,6 +1198,8 @@ public static class GwentAutoplay
                 GameSpeed();
             else if (scenario == InputScenario.PickerKeys)
                 PickerKeys();
+            else if (scenario == InputScenario.DiscardPile)
+                DiscardPile();
             else if (scenario == InputScenario.LeaderTwoClicks)
                 LeaderTwoClicks();
             else if (scenario == InputScenario.DeckBuilder)
@@ -1403,24 +1416,50 @@ public static class GwentAutoplay
                 (targets > 0 ? "a click on the place it lit" : "a second click on it") + " uses the ability"));
         }
 
+        // The picker is The Witcher 3's carousel under a title band
         private void PickerKeys()
         {
             PanelManager panel = c.Panel.GetComponent<PanelManager>();
-            Func<int, bool> framed = i => i >= 0 && i < panel.container.transform.childCount && panel.container.transform.GetChild(i).Find("KeyFocus") != null;
-            Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
-            At(0.6, () => check(panel.Focus == 0 && framed(0), "the Right arrow frames the first card"));
-            Key(0.9, UnityEngine.InputSystem.Key.RightArrow);
-            At(1.2, () => check(panel.Focus == 1 && framed(1) && !framed(0), "Right again frames the next one"));
-            Key(1.5, UnityEngine.InputSystem.Key.DownArrow);
-            At(1.8, () =>
+            Func<GameObject> selected = () => EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+            At(0.1, () =>
             {
-                GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-                check(panel.Focus == -1 && selected != null && selected.name == "SkipButton", "Down goes to the Skip button");
+                TextMeshProUGUI title = panel.Picker != null ? panel.Picker.transform.parent.Find("Band").GetComponentInChildren<TextMeshProUGUI>() : null;
+                check(panel.Picker != null && panel.Picker.CardCount == panel.Cards.Count && title != null && title.text.Length > 0,
+                    "the picker shows its cards in the carousel, under a title (\"" + (title != null ? title.text : "") + "\")");
             });
-            Key(2.1, UnityEngine.InputSystem.Key.UpArrow);
-            At(2.4, () => check(panel.Focus == 0, "Up comes back to the cards"));
-            Key(2.7, UnityEngine.InputSystem.Key.Enter);
-            At(3.2, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter chooses the framed card"));
+            Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
+            At(0.7, () => check(panel.Picker != null && panel.Picker.FocusIndex == 1, "the Right arrow brings the next card to the front"));
+            Key(1.0, UnityEngine.InputSystem.Key.LeftArrow);
+            At(1.4, () => check(panel.Picker != null && panel.Picker.FocusIndex == 0, "Left brings back the first"));
+            Key(1.7, UnityEngine.InputSystem.Key.DownArrow);
+            At(2.0, () => check(panel.Picker != null && selected() == panel.Picker.BandButton.gameObject, "Down goes to the band's button (Skip or Close)"));
+            Key(2.3, UnityEngine.InputSystem.Key.UpArrow);
+            At(2.6, () => check(panel.Picker != null && selected() != panel.Picker.BandButton.gameObject, "Up comes back to the cards"));
+            Key(2.9, UnityEngine.InputSystem.Key.Enter);
+            At(3.4, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter picks the front card (a look at the opponent's hand closes)"));
+        }
+
+        // A discard pile, opened by a click, in the carousel with its top card in front; the battle waits
+        private void DiscardPile()
+        {
+            bool mine = c.PlayerInfo.DiscardList.Count >= 2;
+            List<int> pile = mine ? c.PlayerInfo.DiscardList : c.EnemyInfo.DiscardList;
+            int count = pile.Count;
+            Click(0.3, () => ScreenPoint((mine ? c.PlayerField : c.EnemyField).transform.Find("Discard")));
+            At(0.8, () =>
+            {
+                CardPicker picker = UnityEngine.Object.FindAnyObjectByType<CardPicker>();
+                check(DiscardViewer.IsOpen && Time.timeScale == 0 && picker != null && picker.CardCount == count && picker.FocusIndex == count - 1,
+                    "a click on a discard pile shows it in the carousel, its top card in front, and the battle waits");
+            });
+            Key(1.1, UnityEngine.InputSystem.Key.LeftArrow);
+            At(1.5, () =>
+            {
+                CardPicker picker = UnityEngine.Object.FindAnyObjectByType<CardPicker>();
+                check(picker != null && picker.FocusIndex == count - 2, "the Left arrow goes down the pile");
+            });
+            Key(1.8, UnityEngine.InputSystem.Key.Escape);
+            At(2.3, () => check(!DiscardViewer.IsOpen && Time.timeScale > 0 && !PauseMenu.IsOpen, "Escape puts it away, and the battle goes on"));
         }
 
         // The test deck is shown; the collection lists the deck's faction (and neutrals)
