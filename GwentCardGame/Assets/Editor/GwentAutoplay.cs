@@ -238,6 +238,7 @@ public static class GwentAutoplay
         private void NextMatch(bool first = false)
         {
             match++;
+            EndInputCheck(); // a check never carries over into another battle
             turnsChecked.Clear();
             // Every opponent deck in turn, so the AI plays every faction
             List<TextAsset> opponents = OpponentDecks.All();
@@ -353,7 +354,7 @@ public static class GwentAutoplay
                 lastProgress = now;
                 CheckConservation(c);
             }
-            else if (now - lastProgress > SoftlockSeconds)
+            else if (inputCheck == null && now - lastProgress > SoftlockSeconds) // an input check waits on purpose
             {
                 failures.Add("[" + Label() + "] SOFTLOCK: no progress for " + SoftlockSeconds + "s, state " + signature);
                 NextMatch();
@@ -405,6 +406,7 @@ public static class GwentAutoplay
             inputCheck = null;
         }
 
+            lastProgress = EditorApplication.timeSinceStartup; // the time it took was no lack of progress
         //----------------------------------------The random player----------------------------------------//
         private void PlayerStep(SceneController c)
         {
