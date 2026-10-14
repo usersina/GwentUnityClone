@@ -53,7 +53,6 @@ public class UITheme : ScriptableObject
     public Sprite leaderReady; // the leader ability's crown, lit: the ability can still be used this round
 
     [Header("Board pieces (shown on the rules page)")]
-    public Sprite table;          // the wood under the board
     public Sprite[] rowEmblems;   // close combat, ranged, siege
     public Sprite gem;            // a life
     public Sprite scoreDisc;      // a row's score

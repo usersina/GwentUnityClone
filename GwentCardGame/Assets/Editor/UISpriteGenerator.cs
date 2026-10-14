@@ -382,38 +382,10 @@ public static class UISpriteGenerator
         Directory.CreateDirectory(RulesFolder);
         foreach (string name in RuleMedallions)
             RuleMedallion(name);
-        RuleBanner();
         AssetDatabase.Refresh();
         foreach (string name in RuleMedallions)
             ConfigureImporter(RulesFolder + "/" + name + ".png", 100);
-        ConfigureImporter(RulesFolder + "/Banner.png", 100);
         WireTheme();
-    }
-
-    // A faction's hanging banner, white (tinted by the faction's colour): a long cloth with a swallowtail, a lighter
-    // hem along both sides and the fold's shade towards the tail
-    private static void RuleBanner()
-    {
-        const int w = 96, h = 256;
-        Vector2[] cloth = { new Vector2(4, 0), new Vector2(w - 4, 0), new Vector2(w - 4, h - 4), new Vector2(w / 2f, h - 46), new Vector2(4, h - 4) };
-        Color32[] pixels = new Color32[w * h];
-        for (int py = 0; py < h; py++)
-            for (int px = 0; px < w; px++)
-            {
-                float x = px + 0.5f, y = h - py - 0.5f; // y from the top, as the shape is described
-                float d = Polygon(x, y, cloth);
-                float coverage = Mathf.Clamp01(0.5f - d);
-                float shade = 1 - 0.35f * Smooth((y - h * 0.55f) / (h * 0.45f));      // darker towards the tail
-                shade *= 1 - 0.18f * Mathf.Pow(Mathf.Abs(x - w / 2f) / (w / 2f), 2); // rounded across
-                Color color = new Color(shade, shade, shade, 1);
-                if (Mathf.Abs(x - 14) < 1.6f || Mathf.Abs(x - (w - 14)) < 1.6f)
-                    color = Color.Lerp(color, new Color(1, 0.96f, 0.85f, 1), 0.75f); // the hems
-                if (d > -2.2f)
-                    color = Shade(color, 0.45f); // the cloth's edge
-                color.a = coverage;
-                pixels[py * w + px] = color;
-            }
-        Save("Banner", new Texture2D(w, h, TextureFormat.RGBA32, false), pixels, Vector4.zero, RulesFolder);
     }
 
     private static void RuleMedallion(string name)
@@ -740,7 +712,6 @@ public static class UISpriteGenerator
         theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
         theme.glowRing = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GlowRing.png");
         theme.leaderReady = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/AbilityButtonReady.png");
-        theme.table = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/Table_dark_wood.jpg");
         theme.rowEmblems = new[] { "close_combat", "range_combat", "siege_combat" }.Select(row => AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/RowEmblem_" + row + ".png")).ToArray();
         theme.gem = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GemRed.png");
         theme.scoreDisc = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/ScorePlayer.png");
