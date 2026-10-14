@@ -115,10 +115,16 @@ jobs:
       - name: Build report
         if: always()
         run: cat ${{ env.PROJECT }}/Builds/*/build-report.txt || true
+      # The archive on its own, without the Builds/<version>/ folders it was made in: the release lists them flat
+      - name: Collect the archive
+        run: |
+          mkdir dist
+          mv ${{ env.PROJECT }}/Builds/*/GwentLegacy-* dist/
+          ls -l dist
       - uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.name }}
-          path: ${{ env.PROJECT }}/Builds/*/GwentLegacy-*
+          path: dist/*
           if-no-files-found: error
           retention-days: 3
 
