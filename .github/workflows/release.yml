@@ -90,12 +90,9 @@ jobs:
       - uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: false
+      # No Library cache for the builds: from a restored Library the editor was killed (exit code 137) a second into the
+      # build, in 3 builds out of 4 that got that far; from an empty one all five built (10 to 20 minutes each)
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: ${{ env.PROJECT }}/Library
-          key: Library-${{ matrix.target }}-${{ hashFiles('GwentCardGame/Assets/**', 'GwentCardGame/Packages/**', 'GwentCardGame/ProjectSettings/**') }}
-          restore-keys: Library-${{ matrix.target }}-
       - uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
