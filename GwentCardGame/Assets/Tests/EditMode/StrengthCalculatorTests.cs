@@ -74,6 +74,35 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void BondAndMoraleComeBeforeTheRowsOneDoubling()
+        {
+            // The Witcher 3: (4 x 2 bonds + 1 morale) x 2 = 18 for each Blue Stripes, one doubling only (the horn and
+            // Dandelion do not stack); Dandelion gets the horn himself; the hero takes nothing
+            PlayerState p = TestBoard.Player();
+            p.CloseList.AddRange(new[] { BlueStripes, BlueStripes, Olgierd, CardIds.Dandelion, Geralt });
+            p.SpCloseList.Add(CardIds.CommanderHorn);
+            TestBoard.Recalc(null, p);
+            CollectionAssert.AreEqual(new[] { 18, 18, 12, 6, 15 }, Close(p));
+        }
+
+        [Test]
+        public void ALeaderHornIsTheRowsOneHorn()
+        {
+            // Eredin, King of the Wild Hunt: doubles the close row like a horn, never on top of one, never a hero
+            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinKingOfTheWildHunt);
+            p.CloseList.AddRange(new[] { Fiend, CardIds.Dandelion, Geralt });
+            Assert.IsTrue(AbilityRules.PlaceLeaderHorn(p, Rows.Close));
+            TestBoard.Recalc(null, p);
+            CollectionAssert.AreEqual(new[] { 12, 4, 15 }, Close(p));
+
+            Board board = new Board { Player = p, Enemy = TestBoard.Player(), Weather = new List<int>(), Db = TestBoard.Db, Rnd = new System.Random(0) };
+            p.HandList.Add(CardIds.CommanderHorn);
+            PlayRules.Resolve(board, TestBoard.Db.Get(CardIds.CommanderHorn), Rows.Close, true, false);
+            TestBoard.Recalc(null, p);
+            CollectionAssert.AreEqual(new[] { 12, 4, 15 }, Close(p), "a horn card on that row does not double it again");
+        }
+
+        [Test]
         public void EredinDoublesSpies()
         {
             PlayerState p = TestBoard.Player();
