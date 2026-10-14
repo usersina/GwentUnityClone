@@ -798,11 +798,27 @@ public static class GwentAutoplay
                 SceneManager.LoadScene(SceneNames.Game);
                 return;
             }
-            TextAsset fallback = Resources.Load<TextAsset>("Decks/player_default");
-            Deck standard = fallback != null ? CardLibrary.ParseDeck(fallback.text, fallback.name) : null;
-            Check(standard != null && battle.PlayerInfo.Faction == standard.Faction && battle.PlayerInfo.Leader == standard.Leader,
-                "an invalid battle deck gives way to the default deck", "battle from the menu");
-            Check(ToastText().Contains("can't be used"), "... and the battle says so (\"" + ToastText() + "\")", "battle from the menu");
+            if (roundTripStage == 1)
+            {
+                TextAsset fallback = Resources.Load<TextAsset>("Decks/player_default");
+                Deck standard = fallback != null ? CardLibrary.ParseDeck(fallback.text, fallback.name) : null;
+                Check(standard != null && battle.PlayerInfo.Faction == standard.Faction && battle.PlayerInfo.Leader == standard.Leader,
+                    "an invalid battle deck gives way to the default deck", "battle from the menu");
+                Check(ToastText().Contains("can't be used"), "... and the battle says so (\"" + ToastText() + "\")", "battle from the menu");
+
+                // A preset (an AI deck) as the battle deck
+                List<TextAsset> presets = OpponentDecks.All();
+                ApplicationModel.playerDeckPath = presets.Count > 0 ? OpponentDecks.PresetPath(presets[presets.Count - 1]) : null;
+                previousBattle = battle;
+                roundTripStage = 2;
+                phaseStart = EditorApplication.timeSinceStartup;
+                currentDeck = "battle with a preset";
+                SceneManager.LoadScene(SceneNames.Game);
+                return;
+            }
+            Deck preset = DeckStorage.Load(ApplicationModel.playerDeckPath);
+            Check(preset != null && battle.PlayerInfo.Faction == preset.Faction && battle.PlayerInfo.Leader == preset.Leader,
+                "a preset picked as the battle deck is the one played", "battle from the menu");
             Finish();
         }
 
@@ -821,6 +837,34 @@ public static class GwentAutoplay
             string tag = "Autoplay " + seed;
             Func<int> deck_count = () => DeckStorage.DeckPaths(faction).Count;
             int before = deck_count();
+
+            // Presets: the faction's AI decks, picked as they are (as the battle deck too), never renamed or deleted;
+            // an edit is saved as the player's own copy and the preset stays as it was
+            List<string> presets = OpponentDecks.PresetPaths(faction);
+            Check(presets.Count > 0 && presets.All(p => dc.middleManager.myPaths.Contains(p)), "the faction's AI decks are offered as presets");
+            if (presets.Count > 0)
+            {
+                string preset = presets[0];
+                Deck original = DeckStorage.Load(preset);
+                dc.middleManager.SelectDeckPath(preset);
+                Check(dc.currentDeckPath == preset && PlayerPrefs.GetString("playerDeckPath", "") == preset && dc.BattleDeckStatus.Contains(original.Name + " (preset)"),
+                    "a preset picked in the builder is the battle deck (\"" + dc.BattleDeckStatus + "\")");
+                input.text = tag + " Preset";
+                dc.RenameDeck(input);
+                Check(dc.currentDeckPath == preset && deck_count() == before, "a preset cannot be renamed");
+                dc.DeleteDeck();
+                Check(GameObject.Find("ConfirmDialog") == null && dc.currentDeckPath == preset, "a preset cannot be deleted");
+                dc.my_deck.Cards.RemoveAt(0);
+                dc.deckCollection.OnDeckEdit();
+                string copy = dc.currentDeckPath;
+                created.Add(copy);
+                Deck saved_copy = DeckStorage.Load(copy);
+                Check(!OpponentDecks.IsPreset(copy) && File.Exists(copy) && saved_copy != null && saved_copy.Name.StartsWith(original.Name + " (copy")
+                    && saved_copy.Cards.Count == original.Cards.Count - 1 && DeckStorage.Load(preset).Cards.Count == original.Cards.Count,
+                    "editing a preset saves the change in the player's own copy (" + (saved_copy != null ? saved_copy.Name : "none") + "); the preset stays as it was");
+                dc.ConfirmDelete(copy);
+                before = deck_count();
+            }
 
             // Add a deck
             input.text = "  " + tag + "  Deck ";
@@ -882,7 +926,7 @@ public static class GwentAutoplay
             File.WriteAllText(corrupt, "{ this is not json");
             dc.PopulateDeckAssets();
             dc.middleManager.LoadDecks();
-            Check(dc.middleManager.myPaths.Count == deck_count() - 1, "a corrupt deck file is skipped");
+            Check(dc.middleManager.myPaths.Count(p => !OpponentDecks.IsPreset(p)) == deck_count() - 1, "a corrupt deck file is skipped");
 
             // Delete (the confirmation dialog's "Delete" button calls ConfirmDelete)
             dc.middleManager.SelectDeckPath(other);
@@ -1582,7 +1626,9 @@ public static class GwentAutoplay
         {
             return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
                 && dc.deckCollection.factionPerk.text.Contains(perk)
-                && dc.middleManager.myPaths.All(p => DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
+                && dc.middleManager.myPaths.All(p => OpponentDecks.IsPreset(p)
+                    ? DeckStorage.Load(p).Faction == faction // the faction's presets
+                    : DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
         }
 
         // The card ids a card list shows, and the count on one of them (-1 when not shown)

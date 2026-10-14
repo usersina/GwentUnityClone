@@ -20,6 +20,14 @@ public class MiddleManager : MonoBehaviour
 
     IEnumerator Start()
     {
+        // Long names ("Siege Engines of Temeria (preset)") shrink to fit rather than lose their end
+        foreach (TMP_Text text in new[] { deckPicker.captionText, deckPicker.itemText })
+            if (text != null)
+            {
+                text.enableAutoSizing = true;
+                text.fontSizeMax = text.fontSize;
+                text.fontSizeMin = 14;
+            }
         // DeckController loads everything in Awake; this only guards against a disabled controller
         yield return new WaitUntil(() => deckController.IsReady);
         string selected_path = deckController.currentDeckPath;
@@ -46,7 +54,9 @@ public class MiddleManager : MonoBehaviour
         deckPicker.ClearOptions();
 
         List<TMP_Dropdown.OptionData> decks_list_drop = new List<TMP_Dropdown.OptionData>();
-        List<string> deck_paths_list = deckController.DeckPathsOf(deckController.my_deck.Faction);
+        // The player's decks, then the faction's presets (the AI's decks)
+        List<string> deck_paths_list = new List<string>(deckController.DeckPathsOf(deckController.my_deck.Faction));
+        deck_paths_list.AddRange(OpponentDecks.PresetPaths(deckController.my_deck.Faction));
 
         myDecks.Clear();
         myPaths.Clear();
@@ -63,7 +73,7 @@ public class MiddleManager : MonoBehaviour
             }
             myDecks.Add(auxdeck);
             myPaths.Add(path);
-            decks_list_drop.Add(new TMP_Dropdown.OptionData(auxdeck.Name));
+            decks_list_drop.Add(new TMP_Dropdown.OptionData(OpponentDecks.IsPreset(path) ? auxdeck.Name + " (preset)" : auxdeck.Name));
         }
         deckPicker.AddOptions(decks_list_drop);
         if (skipped > 0)

@@ -52,7 +52,7 @@ public class DeckController : MonoBehaviour
 
         // Get Player Deck
         currentDeckPath = EmptyDeckResourcePath;
-        if (!string.IsNullOrEmpty(ApplicationModel.playerDeckPath) && File.Exists(ApplicationModel.playerDeckPath))
+        if (DeckStorage.Exists(ApplicationModel.playerDeckPath)) // a deck file, or a preset
             currentDeckPath = ApplicationModel.playerDeckPath;
         GameLog.Info("DeckController: Current deck path is: " + currentDeckPath);
 
@@ -124,6 +124,9 @@ public class DeckController : MonoBehaviour
     }
 
     //-----------------------------------------------Decks----------------------------------------------------//
+    // The deck shown is a preset (an AI deck): picked as it is, never renamed, deleted or changed
+    public bool ShowsPreset { get { return OpponentDecks.IsPreset(currentDeckPath); } }
+
     // Null when the file cannot be read; unknown card ids are dropped
     public Deck LoadDeckFromPath(string path)
     {
@@ -260,6 +263,11 @@ public class DeckController : MonoBehaviour
             RejectName("Select a deck to rename first");
             return;
         }
+        if (ShowsPreset)
+        {
+            RejectName("A preset keeps its name: change it, and it becomes your own deck to rename");
+            return;
+        }
         string name = DeckRules.NormalizeDisplayName(input.text);
         string file_name = DeckRules.ToFileName(name);
         if (file_name == null)
@@ -305,6 +313,12 @@ public class DeckController : MonoBehaviour
     {
         if (middleManager.deckPicker.options.Count <= 0 || currentDeckPath == EmptyDeckResourcePath)
             return;
+        if (ShowsPreset)
+        {
+            GameAudio.PlaySfx("invalid");
+            UIOverlay.Toast("Presets can't be deleted");
+            return;
+        }
 
         string filePath = currentDeckPath;
         UIOverlay.Confirm("Delete the deck \"" + my_deck.Name + "\"?\nThis cannot be undone.", "Delete", "Cancel", () => ConfirmDelete(filePath));
@@ -325,6 +339,32 @@ public class DeckController : MonoBehaviour
         PopulateDeckAssets();
         // To make sure deck list is cleared as well
         deckCollection.UpdateSelectedFaction();
+    }
+
+    // A preset is never changed: its first edit (already made to the deck shown) is saved as the player's own copy,
+    // "The Monster Horde (copy)", which is the deck shown and edited from then on
+    public void KeepPresetEdit()
+    {
+        if (!ShowsPreset)
+            return;
+        string name = DeckRules.NormalizeDisplayName(my_deck.Name + " (copy)");
+        for (int n = 2; NameTaken(name, null); n++)
+            name = DeckRules.NormalizeDisplayName(my_deck.Name + " (copy " + n + ")");
+        Deck copy = new Deck { Faction = my_deck.Faction, Name = name, Leader = my_deck.Leader, Cards = new List<int>(my_deck.Cards) };
+        string path = DeckStorage.PathFor(copy.Faction, DeckRules.ToFileName(name));
+        if (!DeckStorage.Save(copy, path))
+        {
+            RejectName("Could not save the deck");
+            return;
+        }
+        GameLog.Info("Preset edited, saved as: " + path);
+        GameAudio.PlaySfx("deck_save");
+        my_deck = copy;
+        currentDeckPath = path;
+        PopulateDeckAssets();
+        middleManager.LoadDecks(false);
+        middleManager.SelectDeckPath(path);
+        UIOverlay.Toast("Presets stay as they are: your changes are saved in your own deck, \"" + name + "\"", 4f);
     }
 
     // Same display name (ignoring case/spaces) or same file name as another deck of the faction
@@ -374,7 +414,7 @@ public class DeckController : MonoBehaviour
     }
 
     // Line at the bottom of the screen telling which deck will be used in battle
-    private void UpdateBattleDeckStatus()
+    public void UpdateBattleDeckStatus()
     {
         if (battleDeckStatus == null)
         {
@@ -387,8 +427,8 @@ public class DeckController : MonoBehaviour
         }
 
         string battle_path = ApplicationModel.playerDeckPath;
-        Deck battle_deck = !string.IsNullOrEmpty(battle_path) && File.Exists(battle_path) ? DeckStorage.Load(battle_path) : null;
-        string battle_name = battle_deck != null ? battle_deck.Name : "default (Northern Realms)";
+        Deck battle_deck = DeckStorage.Exists(battle_path) ? DeckStorage.Load(battle_path) : null;
+        string battle_name = battle_deck == null ? "default (Northern Realms)" : battle_deck.Name + (OpponentDecks.IsPreset(battle_path) ? " (preset)" : "");
 
         bool editing_real_deck = currentDeckPath != EmptyDeckResourcePath && my_deck.Name != DeckRules.EmptyDeckName;
         if (editing_real_deck && !IsDeckValid(my_deck))
@@ -402,14 +442,23 @@ public class DeckController : MonoBehaviour
             battleDeckStatus.text = "Battle deck: " + battle_name;
             battleDeckStatus.color = UIOverlay.Gold;
         }
+        if (ShowsPreset)
+            battleDeckStatus.text += "\nA preset: changing it makes your own copy";
+        // A preset is never renamed or deleted: those buttons dim
+        foreach (string control in new[] { "RenameBtn", "DeleteBtn" })
+        {
+            GameObject button = GameObject.Find(control);
+            if (button != null && button.GetComponent<UnityEngine.UI.Button>() != null)
+                button.GetComponent<UnityEngine.UI.Button>().interactable = !ShowsPreset;
+        }
     }
 
     //----------------------Helper Methods---------------------//
     public void WriteDeckToFile(Deck deck, string file_path)
     {
-        if (file_path == EmptyDeckResourcePath)
+        if (DeckStorage.IsResource(file_path))
         {
-            Debug.LogWarning("Skipping write to built-in empty deck resource.");
+            Debug.LogWarning("Skipping write to a deck of the game's own: " + file_path);
             return;
         }
 

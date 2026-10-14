@@ -1,4 +1,3 @@
-using System.IO;
 using UnityEngine;
 
 // Lives in the Menu scene: prepares the deck folders and remembers the deck used in battle
@@ -19,7 +18,7 @@ public class ApplicationModel : MonoBehaviour
     {
         playerDeckPath = null;
         string path = PlayerPrefs.GetString("playerDeckPath", "");
-        if (path.EndsWith(".json") && File.Exists(path))
+        if ((path.EndsWith(".json") || OpponentDecks.IsPreset(path)) && DeckStorage.Exists(path))
             playerDeckPath = path;
     }
 }

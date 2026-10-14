@@ -3,9 +3,25 @@ using System.IO;
 using Gwent.Rules;
 using UnityEngine;
 
-// Deck files on disk: <persistentDataPath>/Decks/<faction>/<name>.json
+// Deck files on disk: <persistentDataPath>/Decks/<faction>/<name>.json. Decks that ship with the game (the AI's,
+// offered as presets) are read from Resources, by a "resource://<path>" path.
 public static class DeckStorage
 {
+    public const string ResourcePrefix = "resource://";
+
+    public static bool IsResource(string path)
+    {
+        return path != null && path.StartsWith(ResourcePrefix);
+    }
+
+    // The deck file is there (or the deck ships with the game)
+    public static bool Exists(string path)
+    {
+        if (IsResource(path))
+            return Resources.Load<TextAsset>(path.Substring(ResourcePrefix.Length)) != null;
+        return !string.IsNullOrEmpty(path) && File.Exists(path);
+    }
+
     public static string Root
     {
         get { return Path.Combine(Application.persistentDataPath, "Decks"); }
@@ -38,6 +54,11 @@ public static class DeckStorage
     // Null if the file is missing or not a deck
     public static Deck Load(string path)
     {
+        if (IsResource(path))
+        {
+            TextAsset asset = Resources.Load<TextAsset>(path.Substring(ResourcePrefix.Length));
+            return asset != null ? CardLibrary.ParseDeck(asset.text, path) : null;
+        }
         try
         {
             return CardLibrary.ParseDeck(File.ReadAllText(path), path);
@@ -84,11 +105,15 @@ public static class DeckStorage
         }
     }
 
-    // Same file, whatever the separators / case (Windows paths saved by older versions)
+    // Same file, whatever the separators / case (Windows paths saved by older versions); a deck of the game's own by
+    // its exact path (a "resource://" path is no file path: Windows refuses its colon)
     public static bool SamePath(string a, string b)
     {
-        return !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b)
-            && string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), System.StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+            return false;
+        if (IsResource(a) || IsResource(b))
+            return a == b;
+        return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), System.StringComparison.OrdinalIgnoreCase);
     }
 
     public static string PathFor(string faction, string file_name)

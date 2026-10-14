@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Gwent.Rules;
 using UnityEngine;
@@ -227,7 +226,7 @@ public partial class SceneController : MonoBehaviour
     private Deck LoadPlayerDeck()
     {
         string path = ApplicationModel.playerDeckPath;
-        if (!string.IsNullOrEmpty(path) && File.Exists(path))
+        if (DeckStorage.Exists(path)) // a deck file, or a preset (an AI deck)
         {
             Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
             List<string> errors = DeckRules.Validate(deck, Db);

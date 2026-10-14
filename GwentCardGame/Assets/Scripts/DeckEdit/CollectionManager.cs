@@ -376,14 +376,22 @@ public class CollectionManager : MonoBehaviour
         Select(selectedTab);
         RefreshCollection();
 
-        // A valid selected deck becomes the battle deck
+        // A valid selected deck becomes the battle deck (the status line follows the deck shown either way)
         if (select_for_battle)
             deckController.UpdateBattleDeck();
+        else
+            deckController.UpdateBattleDeckStatus();
     }
 
     // From Double Clicking a card
     public void OnDeckEdit()
     {
+        // A preset is never changed: the edit goes to the player's own copy
+        if (deckController.ShowsPreset)
+        {
+            deckController.KeepPresetEdit();
+            return;
+        }
         LoadFromDeck();
         Select(selectedTab, false);
         RefreshCollection();
