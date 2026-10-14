@@ -76,7 +76,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
-      fail-fast: true
+      # A build that fails leaves the others running: re-running the failed jobs then rebuilds only that one, and the
+      # release still waits for all five
+      fail-fast: false
       matrix:
         include:
           - { name: linux, target: StandaloneLinux64 }
