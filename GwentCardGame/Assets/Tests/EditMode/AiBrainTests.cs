@@ -134,6 +134,49 @@ namespace Gwent.Rules.Tests
             }
         }
 
+        // Where there is no other thread (a browser), Hard thinks a few milliseconds a frame: the same move as at once
+        [Test]
+        public void HardDecidesTheSameInSmallSteps()
+        {
+            int limit = AiSearch.TimeLimitMs;
+            AiSearch.TimeLimitMs = int.MaxValue;
+            try
+            {
+                for (int seed = 0; seed < 4; seed++)
+                {
+                    AiAction[] moves = new AiAction[2];
+                    int steps = 0;
+                    for (int way = 0; way < 2; way++)
+                    {
+                        PlayerState me = Ai(Fiend, EarthElemental, Nekker, PrinceStennis, Leshen);
+                        me.DeckList.AddRange(new[] { 47, 30, 22, 135 });
+                        PlayerState opp = TestBoard.Player();
+                        opp.CloseList.AddRange(new[] { 7, 7 });
+                        opp.HandList.AddRange(new[] { 4, 4, 28, 99, 11 });
+                        opp.DeckList.AddRange(new[] { 11, 7, 205, 200 });
+                        AiContext ctx = Context(me, opp);
+                        ctx.Difficulty = AiDifficulty.Hard;
+                        ctx.Seed = seed;
+                        if (way == 0)
+                            moves[way] = AiBrain.Decide(ctx);
+                        else
+                        {
+                            AiSearch.Thinking thinking = AiSearch.Begin(ctx, int.MaxValue);
+                            while (!thinking.Step(0))
+                                steps++;
+                            moves[way] = thinking.Result;
+                        }
+                    }
+                    Assert.AreEqual(moves[0].ToString(), moves[1].ToString(), "seed " + seed);
+                    Assert.Greater(steps, 10, "thought in many steps");
+                }
+            }
+            finally
+            {
+                AiSearch.TimeLimitMs = limit;
+            }
+        }
+
         // The AI's simulations copy a side into the same object again and again (PlayerState.CopyFrom): every field
         // must come across, into lists of its own, whatever was there before
         [Test]

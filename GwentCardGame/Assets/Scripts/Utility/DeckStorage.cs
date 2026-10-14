@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using Gwent.Rules;
 using UnityEngine;
 
 // Deck files on disk: <persistentDataPath>/Decks/<faction>/<name>.json. Decks that ship with the game (the AI's,
-// offered as presets) are read from Resources, by a "resource://<path>" path.
+// offered as presets) are read from Resources, by a "resource://<path>" path. In a browser the files are stored in
+// the browser's storage after every change (Plugins/WebGL/GwentStorage.jslib).
 public static class DeckStorage
 {
     public const string ResourcePrefix = "resource://";
@@ -82,6 +84,7 @@ public static class DeckStorage
                 File.Replace(temp, path, null); // one step: the deck is never missing, even if the game dies here
             else
                 File.Move(temp, path);
+            Stored();
             return true;
         }
         catch (System.Exception e) when (e is IOException || e is System.UnauthorizedAccessException || e is System.ArgumentException)
@@ -96,6 +99,7 @@ public static class DeckStorage
         try
         {
             File.Delete(path);
+            Stored();
             return true;
         }
         catch (System.Exception e) when (e is IOException || e is System.UnauthorizedAccessException || e is System.ArgumentException)
@@ -103,6 +107,19 @@ public static class DeckStorage
             Debug.LogError("Could not delete deck " + path + ": " + e.Message);
             return false;
         }
+    }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void GwentSyncFiles();
+#endif
+
+    // The files written reach the browser's storage (elsewhere they are on disk already)
+    private static void Stored()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        GwentSyncFiles();
+#endif
     }
 
     // Same file, whatever the separators / case (Windows paths saved by older versions); a deck of the game's own by

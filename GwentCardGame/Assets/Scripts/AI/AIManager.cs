@@ -9,13 +9,15 @@ using UnityEngine;
 // only executes them, and always ends the AI's turn (falls back to passing if an action cannot be carried out).
 public class AIManager : MonoBehaviour
 {
-    // A move being decided. Easy and Normal decide at once; Hard plays battles out on another thread, on its own copy
-    // of the board, while the turn's notice shows.
+    // A move being decided. Easy and Normal decide at once; Hard plays battles out on its own copy of the board while
+    // the turn's notice shows: on another thread, or in a browser (no other thread) a few milliseconds every frame.
     public class Decision
     {
         private Task<AiAction> thinking;
+        private AiSearch.Thinking slices;
         private readonly Func<AiAction> fallback;
         private AiAction action;
+        private bool failed;
 
         public Decision(AiAction decided)
         {
@@ -28,7 +30,29 @@ public class AIManager : MonoBehaviour
             fallback = if_it_fails;
         }
 
-        public bool Done { get { return thinking == null || thinking.IsCompleted; } }
+        public Decision(AiSearch.Thinking stepped, Func<AiAction> if_it_fails)
+        {
+            slices = stepped;
+            fallback = if_it_fails;
+        }
+
+        public bool Done { get { return thinking != null ? thinking.IsCompleted : slices == null || slices.Done || failed; } }
+
+        // A slice of the thinking (every frame, by AIManager.Update)
+        public void Advance()
+        {
+            if (slices == null || slices.Done || failed)
+                return;
+            try
+            {
+                slices.Step(SliceMs);
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("AI decision failed, playing as on Normal: " + e);
+                failed = true;
+            }
+        }
 
         // Once Done
         public AiAction Action
@@ -46,9 +70,27 @@ public class AIManager : MonoBehaviour
                     }
                     thinking = null;
                 }
+                else if (slices != null)
+                {
+                    action = failed ? fallback() : slices.Result;
+                    slices = null;
+                }
                 return action;
             }
         }
+    }
+
+    // In a browser: Hard thinks 10 ms a frame, 0.7 s of thinking at most (a few battles fewer per move than elsewhere)
+    private const int SliceMs = 10;
+    private const int SlicedTimeLimitMs = 700;
+    private Decision pending;
+
+    private static bool NoThreads { get { return Application.platform == RuntimePlatform.WebGLPlayer; } }
+
+    private void Update()
+    {
+        if (pending != null)
+            pending.Advance();
     }
 
     private SceneController controller;
@@ -117,17 +159,26 @@ public class AIManager : MonoBehaviour
         if (controller == null)
             AIInitialize();
         AiContext ctx = BuildContext();
-        if (ctx.Difficulty == AiDifficulty.Hard && Application.platform != RuntimePlatform.WebGLPlayer)
+        if (ctx.Difficulty != AiDifficulty.Hard)
+            return pending = new Decision(Decide(ctx));
+        AiContext copy = Snapshot(ctx);
+        Func<AiAction> as_normal = () =>
         {
-            AiContext copy = Snapshot(ctx);
-            return new Decision(Task.Run(() => AiBrain.Decide(copy)), () =>
-            {
-                AiContext normal = BuildContext();
-                normal.Difficulty = AiDifficulty.Normal;
-                return Decide(normal);
-            });
+            AiContext normal = BuildContext();
+            normal.Difficulty = AiDifficulty.Normal;
+            return Decide(normal);
+        };
+        if (!NoThreads)
+            return pending = new Decision(Task.Run(() => AiBrain.Decide(copy)), as_normal);
+        try
+        {
+            return pending = new Decision(AiSearch.Begin(copy, SlicedTimeLimitMs), as_normal);
         }
-        return new Decision(Decide(ctx));
+        catch (Exception e)
+        {
+            Debug.LogError("AI decision failed, playing as on Normal: " + e);
+            return pending = new Decision(as_normal());
+        }
     }
 
     private static AiAction Decide(AiContext ctx)

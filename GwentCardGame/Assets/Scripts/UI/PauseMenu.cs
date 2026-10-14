@@ -34,7 +34,7 @@ public class PauseMenu : MonoBehaviour
 
     private void Build(RectTransform dimmer)
     {
-        bool can_quit = !GameSettings.IsMobile;
+        bool can_quit = !GameSettings.IsMobile && !GameSettings.IsWeb;
         float height = can_quit ? 560 : 472;
         RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640, height));
 

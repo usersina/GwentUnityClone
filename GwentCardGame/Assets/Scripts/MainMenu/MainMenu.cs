@@ -37,7 +37,8 @@ public class MainMenu : MonoBehaviour
         AddItem(list, "Deck builder", EditDeck);
         AddItem(list, "How to play", OpenRules);
         AddItem(list, "Settings", OpenSettings);
-        AddItem(list, "Quit", QuitGame);
+        if (!GameSettings.IsWeb) // a browser tab is closed, not quit
+            AddItem(list, "Quit", QuitGame);
 
         // The key art covers the screen whatever its shape (its edges are cropped rather than bars shown), "Legacy" under
         // its logo

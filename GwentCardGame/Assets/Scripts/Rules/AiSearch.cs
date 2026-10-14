@@ -22,6 +22,15 @@ namespace Gwent.Rules
 
         public static AiAction Decide(AiContext ctx)
         {
+            Thinking thinking = Begin(ctx, TimeLimitMs);
+            thinking.Step(int.MaxValue);
+            return thinking.Result;
+        }
+
+        // The decision taken in steps (where there is no other thread to think on, a browser: the battle goes on between
+        // steps of a few milliseconds). time_limit_ms counts the time spent in the steps only.
+        public static Thinking Begin(AiContext ctx, int time_limit_ms)
+        {
             AiAction normal = AiBrain.DecideNormal(ctx);
             Board root = new Board
             {
@@ -35,34 +44,95 @@ namespace Gwent.Rules
             };
             // Ahead after the opponent has passed: passing wins the round, nothing beats it
             if (normal.Type == AiActionType.Pass && root.Enemy.hasPassed && Margin(root) >= Needed(root))
-                return normal;
+                return new Thinking(normal);
             List<AiAction> moves = Shortlist(root, normal);
             if (moves.Count < 2)
-                return normal;
+                return new Thinking(normal);
+            return new Thinking(normal, moves, root, new Random(ctx.Seed), time_limit_ms);
+        }
 
-            Random rnd = new Random(ctx.Seed);
-            double[] wins = new double[moves.Count];
-            Func<Board, bool, AiAction> normal_policy = (board, is_player) => AiBrain.DecideNormal(board.AiContextFor(is_player));
-            Stopwatch watch = Stopwatch.StartNew();
-            for (int i = 0; i < Rollouts && (i < MinRollouts || watch.ElapsedMilliseconds < TimeLimitMs); i++)
+        public class Thinking
+        {
+            private readonly AiAction normal;
+            private readonly List<AiAction> moves;
+            private readonly double[] wins;
+            private readonly Board root;
+            private readonly Random rnd;
+            private readonly int timeLimitMs;
+            private readonly Stopwatch busy = new Stopwatch();
+            private readonly Func<Board, bool, AiAction> normalPolicy = (board, is_player) => AiBrain.DecideNormal(board.AiContextFor(is_player));
+            private int round, move, deal;
+
+            public bool Done { get; private set; }
+            public AiAction Result { get; private set; }
+
+            internal Thinking(AiAction decided)
             {
-                int deal = rnd.Next();
-                for (int m = 0; m < moves.Count; m++)
-                {
-                    // Every move faces the same guessed hands and draws: the moves are compared, not the luck
-                    Board board = Guess(root, new Random(deal));
-                    BattleSim.Apply(board, moves[m], true);
-                    RoundWinner winner = BattleSim.PlayOut(board, false, board.Player.hasPassed, normal_policy);
-                    wins[m] += winner == RoundWinner.Player ? 1 : winner == RoundWinner.Draw ? 0.5 : 0;
-                }
+                Result = decided;
+                Done = true;
             }
 
-            int best = moves.FindIndex(m => Same(m, normal));
-            wins[best] += NormalBonus;
-            for (int m = 0; m < moves.Count; m++)
-                if (wins[m] > wins[best])
-                    best = m;
-            return moves[best];
+            internal Thinking(AiAction normal, List<AiAction> moves, Board root, Random rnd, int time_limit_ms)
+            {
+                this.normal = normal;
+                this.moves = moves;
+                this.root = root;
+                this.rnd = rnd;
+                timeLimitMs = time_limit_ms;
+                wins = new double[moves.Count];
+            }
+
+            // Plays battles out for about budget_ms (a battle at least); true once the move is chosen
+            public bool Step(int budget_ms)
+            {
+                if (Done)
+                    return true;
+                Stopwatch step = Stopwatch.StartNew();
+                busy.Start();
+                try
+                {
+                    do
+                    {
+                        if (move == 0)
+                        {
+                            // A round: one battle per move, while there are rounds left and time for them
+                            if (round >= Rollouts || round >= MinRollouts && busy.ElapsedMilliseconds >= timeLimitMs)
+                            {
+                                Choose();
+                                return true;
+                            }
+                            deal = rnd.Next();
+                        }
+                        // Every move faces the same guessed hands and draws: the moves are compared, not the luck
+                        Board board = Guess(root, new Random(deal));
+                        BattleSim.Apply(board, moves[move], true);
+                        RoundWinner winner = BattleSim.PlayOut(board, false, board.Player.hasPassed, normalPolicy);
+                        wins[move] += winner == RoundWinner.Player ? 1 : winner == RoundWinner.Draw ? 0.5 : 0;
+                        if (++move == moves.Count)
+                        {
+                            move = 0;
+                            round++;
+                        }
+                    }
+                    while (step.ElapsedMilliseconds < budget_ms);
+                }
+                finally
+                {
+                    busy.Stop();
+                }
+                return false;
+            }
+
+            private void Choose()
+            {
+                int best = moves.FindIndex(m => Same(m, normal));
+                wins[best] += NormalBonus;
+                for (int m = 0; m < moves.Count; m++)
+                    if (wins[m] > wins[best])
+                        best = m;
+                Result = moves[best];
+                Done = true;
+            }
         }
 
         //----------------------------------------The moves considered----------------------------------------//

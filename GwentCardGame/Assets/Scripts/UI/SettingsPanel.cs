@@ -199,7 +199,15 @@ public class SettingsPanel : MonoBehaviour
         int row = 0;
         Selectable first = null;
 
-        if (!GameSettings.IsMobile)
+        if (GameSettings.IsWeb)
+        {
+            // The browser decides the rest; fullscreen follows a click (browsers allow it only then)
+            RectTransform control = Row(page, row++, "Fullscreen", "Esc leaves it");
+            Toggle fullscreen = UIKit.Switch(control, Screen.fullScreen, v => Screen.fullScreen = v);
+            ((RectTransform)fullscreen.transform).Place(new Vector2(1, 0.5f), Vector2.zero, new Vector2(76, 40), new Vector2(1, 0.5f));
+            first = fullscreen;
+        }
+        else if (!GameSettings.IsMobile)
         {
             UIStepper window = StepperRow(page, row++, "Window", new[] { "Fullscreen", "Windowed" }, GameSettings.Fullscreen ? 0 : 1,
                 i => GameSettings.Fullscreen = i == 0);
@@ -211,12 +219,15 @@ public class SettingsPanel : MonoBehaviour
                 i => GameSettings.Resolution = sizes[i]);
         }
 
-        int[] rates = GameSettings.FrameRates;
-        UIStepper frame_rate = StepperRow(page, row++, "Frame rate", rates.Select(GameSettings.FrameRateLabel).ToArray(),
-            Mathf.Max(0, Array.IndexOf(rates, GameSettings.FrameRate)), i => GameSettings.FrameRate = rates[i],
-            GameSettings.IsMobile ? "Lower values save battery" : "VSync follows your screen");
-        if (first == null)
-            first = frame_rate.left;
+        if (!GameSettings.IsWeb)
+        {
+            int[] rates = GameSettings.FrameRates;
+            UIStepper frame_rate = StepperRow(page, row++, "Frame rate", rates.Select(GameSettings.FrameRateLabel).ToArray(),
+                Mathf.Max(0, Array.IndexOf(rates, GameSettings.FrameRate)), i => GameSettings.FrameRate = rates[i],
+                GameSettings.IsMobile ? "Lower values save battery" : "VSync follows your screen");
+            if (first == null)
+                first = frame_rate.left;
+        }
 
         float[] scales = GameSettings.MenuScales;
         int scale_index = Array.FindIndex(scales, s => Mathf.Approximately(s, GameSettings.MenuScale));

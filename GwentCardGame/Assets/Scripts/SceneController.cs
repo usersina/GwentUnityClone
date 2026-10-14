@@ -391,7 +391,7 @@ public partial class SceneController : MonoBehaviour
         GameAudio.PlaySfx("turn_enemy");
         AIManager.Decision decision = AIManager.AIDecide(); // Hard thinks while the turn's notice shows
         yield return new WaitForSeconds(0.3f);
-        while (BattleBanner.Busy || !decision.Done)
+        while (!decision.Done || BattleBanner.Busy)
             yield return null;
         yield return new WaitForSeconds(0.15f);
         if (generation != turnGeneration)

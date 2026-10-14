@@ -35,6 +35,9 @@ public static class GameSettings
 
     public static bool IsMobile { get { return Application.isMobilePlatform; } }
 
+    // In a browser: no window to size, no frame rate to choose (the browser paces the frames), nothing to quit
+    public static bool IsWeb { get { return Application.platform == RuntimePlatform.WebGLPlayer; } }
+
     //----------------------------------------Audio (0..1)----------------------------------------//
     public static float MasterVolume
     {
@@ -168,10 +171,15 @@ public static class GameSettings
     private static bool WindowSet { get { return PlayerPrefs.HasKey(FullscreenKey) || PlayerPrefs.HasKey(ResolutionWidthKey); } }
 
     // The editor's Game view and phones have no window to resize
-    private static bool CanResizeWindow { get { return !IsMobile && !Application.isEditor; } }
+    private static bool CanResizeWindow { get { return !IsMobile && !IsWeb && !Application.isEditor; } }
 
     private static void ApplyFrameRate()
     {
+        if (IsWeb)
+        {
+            Application.targetFrameRate = -1;
+            return;
+        }
         int frame_rate = FrameRate;
         QualitySettings.vSyncCount = frame_rate == VSync && !IsMobile ? 1 : 0;
         Application.targetFrameRate = frame_rate > 0 ? frame_rate : -1;
