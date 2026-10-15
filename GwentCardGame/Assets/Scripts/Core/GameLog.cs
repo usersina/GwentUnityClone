@@ -42,6 +42,7 @@ namespace Gwent.Core
         private static readonly Stopwatch clock = new Stopwatch();
         private static readonly List<KeyValuePair<string, object>> context = new List<KeyValuePair<string, object>>();
         private static StreamWriter writer;
+        private static bool ended; // the session is over: what comes after (objects torn down on leaving Play mode) is not written
         private static volatile int frame;
         private static volatile string scene = "";
 
@@ -71,6 +72,7 @@ namespace Gwent.Core
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Begin()
         {
+            ended = false;
             Open();
             scene = SceneManager.GetActiveScene().name ?? "";
             Application.logMessageReceivedThreaded -= Captured;
@@ -122,6 +124,7 @@ namespace Gwent.Core
                 if (writer != null)
                     writer.Dispose();
                 writer = null;
+                ended = true;
             }
         }
 
@@ -165,7 +168,8 @@ namespace Gwent.Core
         {
             if (main_thread)
             {
-                if (writer == null)
+                // A file per Play session: none is opened after the session ends or outside Play mode
+                if (writer == null && !ended && Application.isPlaying)
                     Open();
                 frame = Time.frameCount;
             }
