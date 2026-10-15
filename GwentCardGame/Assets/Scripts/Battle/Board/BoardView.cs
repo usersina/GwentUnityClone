@@ -669,7 +669,7 @@ namespace Gwent.Battle
             }
         }
 
-        // A gold frame around each unit of this side a decoy can take back (non-hero units on the rows)
+        // A gold frame around each unit of this side a decoy can take back (PlayRules.IsDecoyTarget: no hero, no token)
         public const string DecoyFrame = "DecoyTarget";
 
         private void MarkDecoyTargets(FieldView view, bool on)
@@ -682,7 +682,7 @@ namespace Gwent.Battle
                         continue;
                     Transform frame = card.Find(DecoyFrame);
                     Card stats = display.Card;
-                    bool target = on && !stats.unique && stats.faction != Faction.Special;
+                    bool target = on && PlayRules.IsDecoyTarget(stats);
                     if (target && frame == null)
                     {
                         // Square, as the card is, and pulsing like the leader's targets

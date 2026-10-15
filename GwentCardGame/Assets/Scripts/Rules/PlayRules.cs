@@ -113,11 +113,18 @@ namespace Gwent.Rules
             return outcome;
         }
 
+        // What a decoy can take back to the hand: a unit, not a hero, nor a token (CardIds.IsSummoned: it only exists on the
+        // board)
+        public static bool IsDecoyTarget(Card card)
+        {
+            return card.IsUnit && !card.unique && !CardIds.IsSummoned(card._id);
+        }
+
         // Decoy: the target goes back to the hand and the decoy takes its place (decoy already out of the hand)
         public static void Decoy(Board board, int target_id, Row row, bool is_player, int decoy_id)
         {
             PlayerState info = board.Side(is_player);
-            if (Rows.IsUnitRow(row) && info.UnitRow(row).Remove(target_id))
+            if (Rows.IsUnitRow(row) && IsDecoyTarget(board.Db.Get(target_id)) && info.UnitRow(row).Remove(target_id))
             {
                 info.HandList.Add(target_id);
                 info.UnitRow(row).Add(decoy_id);

@@ -271,7 +271,7 @@ public static class RulesFuzzer
                 foreach (int id in me.UnitRow(row))
                 {
                     Card t = Db.Get(id);
-                    if (!t.unique && !t.IsSpecial && t.ability != Ability.Leader) targets.Add(new KeyValuePair<Row, int>(row, id));
+                    if (PlayRules.IsDecoyTarget(t)) targets.Add(new KeyValuePair<Row, int>(row, id));
                 }
             if (targets.Count == 0) { me.hasPassed = true; return "passes (decoy, no target)"; }
             var pick = targets[rnd.Next(targets.Count)];
@@ -341,7 +341,7 @@ public static class RulesFuzzer
                 if (c.ability == Ability.Decoy)
                 {
                     if (!Rows.IsUnitRow(a.Row) || !me.UnitRow(a.Row).Contains(a.TargetId)) Fail("AI decoys a missing target " + a.TargetId + " on " + a.Row);
-                    else if (Db.Get(a.TargetId).unique) Fail("AI decoys a hero " + a.TargetId);
+                    else if (!PlayRules.IsDecoyTarget(Db.Get(a.TargetId))) Fail("AI decoys a hero or a token " + a.TargetId);
                     me.HandList.Remove(a.CardId);
                     PlayRules.Decoy(board, a.TargetId, a.Row, p, a.CardId);
                     Count("AI decoy");
@@ -484,7 +484,7 @@ public static class RulesFuzzer
             if (side.Lives < 0 || side.Lives > 2) Fail("lives out of range " + side.Lives);
             if (side.LeaderHornRows.Any(r => !side.HasHorn(r))) Fail("leader horn row without a horn");
             if (side.HandList.Any(id => !Db.Contains(id))) Fail("unknown id in hand");
-            if (side.DiscardList.Concat(side.DeckList).Any(CardIds.IsSummoned)) Fail("a summoned card (avenger, bear) in a discard pile or deck");
+            if (side.DiscardList.Concat(side.DeckList).Concat(side.HandList).Any(CardIds.IsSummoned)) Fail("a token (avenger, bear) in a hand, deck or discard pile");
         }
     }
 

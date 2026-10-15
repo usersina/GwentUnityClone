@@ -456,7 +456,7 @@ namespace Gwent.Rules
 
         //----------------------------------------Choices made for the AI----------------------------------------//
         // Medic: a spy (two cards) while the deck has cards, then a medic (it chains), then a unit that scorches a
-        // row, otherwise the strongest unit
+        // row, otherwise the strongest unit (a Berserker headed for a Mardroeme's row as strong as its bear)
         public static int ChooseMedicTarget(PlayerState me, CardDatabase db)
         {
             return ChooseRestoreTarget(AbilityRules.MedicCandidates(me.DiscardList, db), me, db);
@@ -470,14 +470,23 @@ namespace Gwent.Rules
             {
                 Card card = db.Get(card_id);
                 int priority = RestorePriority(card, me);
-                if (best == -1 || priority > best_priority || priority == best_priority && card.strength > best_strength)
+                int strength = RestoreStrength(card, me, db);
+                if (best == -1 || priority > best_priority || priority == best_priority && strength > best_strength)
                 {
                     best = card_id;
                     best_priority = priority;
-                    best_strength = card.strength;
+                    best_strength = strength;
                 }
             }
             return best;
+        }
+
+        // What a restored unit is worth: its strength, or a Berserker's bear's when its row has a Mardroeme (it turns as it
+        // lands, and goes back to the discard pile for the next medic)
+        private static int RestoreStrength(Card card, PlayerState me, CardDatabase db)
+        {
+            int bear = CardIds.TransformedOf(card._id);
+            return bear != -1 && Rows.IsUnitRow(card.row) && AbilityRules.HasMardroeme(me, card.row, db) ? db.Get(bear).strength : card.strength;
         }
 
         private static int RestorePriority(Card card, PlayerState me)
@@ -504,7 +513,7 @@ namespace Gwent.Rules
                     foreach (int card_id in me.UnitRow(unit_row))
                     {
                         Card card = db.Get(card_id);
-                        if (want(card) && card.IsUnit && !card.unique)
+                        if (want(card) && PlayRules.IsDecoyTarget(card))
                         {
                             row = unit_row;
                             return card_id;

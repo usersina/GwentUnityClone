@@ -38,7 +38,6 @@ namespace Gwent.Rules
         public List<int> WeatherPlayed = new List<int>();     // Weather cards this side put on the board
         public List<Row> LeaderHornRows = new List<Row>(); // Rows whose horn comes from the leader (no physical card)
         public List<int> PendingSummons = new List<int>();    // Cards summoned when the board clears (a discarded Cow's defenders)
-        public List<int> Transformed = new List<int>();       // Berserkers turned into bears: set aside until their bears leave
 
         public bool CanExchange = true;
         public int CardsExchanged = 0;
@@ -139,7 +138,7 @@ namespace Gwent.Rules
         // Every physical card this side currently holds (used for card-conservation checks)
         public IEnumerable<int> AllCards()
         {
-            foreach (List<int> list in new[] { DeckList, HandList, DiscardList, SpCloseList, SpRangeList, SpSiegeList, CloseList, RangeList, SiegeList, WeatherPlayed, Transformed })
+            foreach (List<int> list in new[] { DeckList, HandList, DiscardList, SpCloseList, SpRangeList, SpSiegeList, CloseList, RangeList, SiegeList, WeatherPlayed })
                 foreach (int card_id in list)
                     yield return card_id;
         }
@@ -170,7 +169,6 @@ namespace Gwent.Rules
             Copy(other.WeatherPlayed, ref WeatherPlayed);
             Copy(other.LeaderHornRows, ref LeaderHornRows);
             Copy(other.PendingSummons, ref PendingSummons);
-            Copy(other.Transformed, ref Transformed);
             CanExchange = other.CanExchange;
             CardsExchanged = other.CardsExchanged;
             CanDiscard = other.CanDiscard;
@@ -215,7 +213,6 @@ namespace Gwent.Rules
             copy.WeatherPlayed = new List<int>(WeatherPlayed);
             copy.LeaderHornRows = new List<Row>(LeaderHornRows);
             copy.PendingSummons = new List<int>(PendingSummons);
-            copy.Transformed = new List<int>(Transformed);
             copy.RoundsScore = new List<int>(RoundsScore);
             copy.RoundsWon = new List<bool>(RoundsWon);
             return copy;

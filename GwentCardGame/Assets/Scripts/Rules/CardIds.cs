@@ -43,9 +43,10 @@ namespace Gwent.Rules
             return weather_id == WeatherFor(row) || weather_id == SkelligeStorm && (row == Row.Range || row == Row.Siege);
         }
 
-        // Cards no deck holds, which only a card's ability brings: the Cow's Bovine Defense Force, Kambi's Hemdall and the
-        // Berserkers' bears. They leave the game instead of going to a discard pile (no medic or leader brings them back);
-        // a bear's Berserker goes there instead.
+        // Tokens: the cards no deck holds, which only a card's ability brings onto the board: the Cow's Bovine Defense Force,
+        // Kambi's Hemdall and the Berserkers' bears. They only exist there: they never go to a hand or a discard pile, and
+        // vanish when they leave the board (no medic, decoy or leader brings them back). The card that brought one is in
+        // the discard pile by then (a killed Cow or Kambi, a Berserker that turned).
         public static bool IsSummoned(int card_id)
         {
             return card_id == BovineDefenseForce || card_id == Hemdall || card_id == TransformedVildkaarl || card_id == TransformedYoungVildkaarl;
@@ -55,17 +56,6 @@ namespace Gwent.Rules
         public static bool IsAvenger(int card_id)
         {
             return card_id == BovineDefenseForce || card_id == Hemdall;
-        }
-
-        // The Berserker a bear was (-1 for any other card)
-        public static int BerserkerOf(int card_id)
-        {
-            switch (card_id)
-            {
-                case TransformedVildkaarl: return Berserker;
-                case TransformedYoungVildkaarl: return YoungBerserker;
-                default: return -1;
-            }
         }
 
         // The bear a Berserker turns into on a row with a Mardroeme (-1 for any other card)

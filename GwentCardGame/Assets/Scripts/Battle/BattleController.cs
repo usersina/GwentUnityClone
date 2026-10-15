@@ -771,7 +771,7 @@ namespace Gwent.Battle
         }
 
         // Berserkers that met a Mardroeme (the special card, or Ermion) turn into their bears once the play that brought
-        // them together has shown, in their places, to the Mardroeme's growl
+        // them together has shown: the bears in their places, to the Mardroeme's growl, the Berserkers to the discard pile
         private void TransformBerserkers(Action then)
         {
             if (!AbilityRules.CanTransform(PlayerInfo, Db) && !AbilityRules.CanTransform(EnemyInfo, Db))
@@ -916,12 +916,13 @@ namespace Gwent.Battle
 
             Card targetStats = targetCard.GetComponent<CardFace>().Card;
             Row row = RowNamed(targetCard.transform.parent.parent.name);
-            bool valid_target = targetCard.CompareTag("Player") && targetStats.faction != Faction.Special
-                && !targetStats.unique && targetStats.ability != Ability.Leader && Rows.IsUnitRow(row);
+            bool valid_target = targetCard.CompareTag("Player") && PlayRules.IsDecoyTarget(targetStats) && Rows.IsUnitRow(row);
             if (!valid_target)
             {
                 GameAudio.PlaySfx("invalid");
-                UIOverlay.Toast("Decoy can only swap a non-hero unit on your side");
+                UIOverlay.Toast(CardIds.IsSummoned(targetStats._id) && targetCard.CompareTag("Player")
+                    ? targetStats.DisplayName + " only exists on the board: a decoy can't take it back"
+                    : "Decoy can only swap a non-hero unit on your side");
                 return true;
             }
 

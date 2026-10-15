@@ -166,8 +166,7 @@ namespace Gwent.UI
                 if (card == null || card.isSelectable)
                     return row != null || weather != null ? State.Invalid : State.Default;
                 Card target = card.GetComponent<CardFace>().Card;
-                bool swappable = card.CompareTag("Player") && row != null && !target.unique
-                    && target.faction != Gwent.Rules.Faction.Special && target.ability != Gwent.Rules.Ability.Leader;
+                bool swappable = card.CompareTag("Player") && row != null && Gwent.Rules.PlayRules.IsDecoyTarget(target);
                 return swappable ? State.Interact : State.Invalid;
             }
             if (weather != null)

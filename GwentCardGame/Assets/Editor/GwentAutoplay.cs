@@ -621,10 +621,10 @@ namespace Gwent.EditorTools
                 if (stats.ability == Ability.Decoy)
                 {
                     int frames = c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == "DecoyTarget");
-                    int swappable = Rows.Units.Sum(row => c.PlayerInfo.UnitRow(row).Count(id => !c.Db.Get(id).unique && !c.Db.Get(id).IsSpecial));
+                    int swappable = Rows.Units.Sum(row => c.PlayerInfo.UnitRow(row).Count(id => PlayRules.IsDecoyTarget(c.Db.Get(id))));
                     Check(lit.Count == 0 && !weather_lit && frames == swappable, "a decoy frames its " + swappable + " targets and lights no row (" + frames + " frames, " + lit.Count + " rows)", "highlight");
                 }
-                else if (stats.row == Row.Weather || stats.ability == Ability.Scorch)
+                else if (stats.row == Row.Weather || stats.IsSpecial && stats.ability == Ability.Scorch)
                     Check(lit.Count == 0 && weather_lit, "a weather card lights only the weather board", "highlight");
 
                 if (stats.ability == Ability.Decoy)
@@ -645,7 +645,7 @@ namespace Gwent.EditorTools
                     return;
                 }
 
-                if (stats.row == Row.Weather || stats.ability == Ability.Scorch)
+                if (stats.row == Row.Weather || stats.IsSpecial && stats.ability == Ability.Scorch)
                 {
                     c.WeatherField.GetComponent<WeatherSlot>().OnWeatherClick();
                     return;

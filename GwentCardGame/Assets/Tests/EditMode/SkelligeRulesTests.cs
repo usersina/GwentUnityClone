@@ -92,7 +92,7 @@ namespace Gwent.Rules.Tests
             CollectionAssert.AreEqual(new[] { CardIds.TransformedVildkaarl, Madman }, p.CloseList, "in the Berserker's place");
             CollectionAssert.AreEqual(new[] { YoungBerserker }, p.RangeList, "another row's stays");
             CollectionAssert.AreEqual(new[] { CardIds.Mardroeme }, p.SpCloseList, "in the horn slot");
-            CollectionAssert.AreEqual(new[] { Berserker }, p.Transformed, "the Berserker leaves the game");
+            CollectionAssert.AreEqual(new[] { Berserker }, p.DiscardList, "the Berserker goes to the discard pile: its bear is a token");
             CollectionAssert.AreEqual(new[] { 14, 7 }, p.MCloseStrength, "the bear's morale boost");
         }
 
@@ -144,7 +144,7 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
-        public void AtTheRoundsEndABearLeavesTheGameAndItsBerserkerIsDiscarded()
+        public void AtTheRoundsEndABearVanishes()
         {
             Board board = NewBoard();
             PlayerState p = board.Player;
@@ -155,14 +155,13 @@ namespace Gwent.Rules.Tests
             RoundRules.CleanupBoard(p, new Random(0), Db);
 
             Assert.IsEmpty(p.CloseList);
-            CollectionAssert.AreEquivalent(new[] { Berserker, CardIds.Mardroeme }, p.DiscardList, "the Berserker and the Mardroeme are discarded");
-            Assert.IsEmpty(p.Transformed);
+            CollectionAssert.AreEquivalent(new[] { Berserker, CardIds.Mardroeme }, p.DiscardList, "the Berserker (since it turned) and the Mardroeme");
             Assert.AreEqual(cards, p.AllCards().Count(id => !CardIds.IsSummoned(id)), "no real card lost");
             CollectionAssert.AreEqual(new[] { Berserker }, AbilityRules.MedicCandidates(p.DiscardList, Db), "a medic can bring the Berserker back, never the bear");
         }
 
         [Test]
-        public void AScorchedBearLeavesTheGameAndItsBerserkerIsDiscarded()
+        public void AScorchedBearVanishes()
         {
             Board board = NewBoard();
             PlayerState p = board.Player, e = board.Enemy;
@@ -173,10 +172,52 @@ namespace Gwent.Rules.Tests
             e.CloseList.Add(Fiend);
             board.Recalculate();
 
+            CollectionAssert.AreEqual(new[] { YoungBerserker }, p.DiscardList, "discarded as it turned");
             Assert.AreEqual(1, AbilityRules.Scorch(p, e, Db), "the bear (8) is the strongest");
             Assert.IsEmpty(p.RangeList);
-            CollectionAssert.AreEqual(new[] { YoungBerserker }, p.DiscardList);
-            Assert.IsEmpty(p.Transformed);
+            CollectionAssert.AreEqual(new[] { YoungBerserker }, p.DiscardList, "the bear is gone, nothing more in the pile");
+        }
+
+        [Test]
+        public void AMedicBringsABerserkerBackToTurnAgain()
+        {
+            Board board = NewBoard();
+            PlayerState p = board.Player;
+            p.CloseList.Add(Berserker);
+            Play(board, CardIds.Mardroeme, Row.Close);
+            CollectionAssert.AreEqual(new[] { Berserker }, p.DiscardList);
+
+            Play(board, Birna, Row.Close); // the AI's choice of target, the Berserker the only unit in the pile
+            CollectionAssert.AreEquivalent(new[] { CardIds.TransformedVildkaarl, Birna, CardIds.TransformedVildkaarl }, p.CloseList, "a second bear");
+            CollectionAssert.AreEqual(new[] { Berserker }, p.DiscardList, "and the Berserker back in the pile");
+        }
+
+        [Test]
+        public void TheAIsMedicPicksABerserkerThatWouldTurn()
+        {
+            PlayerState p = TestBoard.Player(Faction.Skellige, LeaderIds.KingBran);
+            p.DiscardList.AddRange(new[] { Madman, Berserker });
+            Assert.AreEqual(Madman, AiBrain.ChooseMedicTarget(p, Db), "without a Mardroeme, the stronger unit");
+            p.SpCloseList.Add(CardIds.Mardroeme);
+            Assert.AreEqual(Berserker, AiBrain.ChooseMedicTarget(p, Db), "a bear of 14 is worth more");
+        }
+
+        [Test]
+        public void ADecoyCantTakeAToken()
+        {
+            foreach (int token in new[] { CardIds.BovineDefenseForce, CardIds.Hemdall, CardIds.TransformedVildkaarl, CardIds.TransformedYoungVildkaarl })
+                Assert.IsFalse(PlayRules.IsDecoyTarget(Db.Get(token)), Db.Get(token).name);
+            foreach (int card in new[] { CardIds.Cow, CardIds.Kambi, Berserker, Madman })
+                Assert.IsTrue(PlayRules.IsDecoyTarget(Db.Get(card)), Db.Get(card).name);
+            Assert.IsFalse(PlayRules.IsDecoyTarget(Db.Get(Hjalmar)), "a hero");
+
+            Board board = NewBoard();
+            PlayerState p = board.Player;
+            p.CloseList.Add(CardIds.TransformedVildkaarl);
+            PlayRules.Decoy(board, CardIds.TransformedVildkaarl, Row.Close, true, CardIds.Decoy);
+            CollectionAssert.AreEqual(new[] { CardIds.TransformedVildkaarl }, p.CloseList, "the bear stays");
+            Assert.IsEmpty(p.HandList);
+            CollectionAssert.AreEqual(new[] { CardIds.Decoy }, p.DiscardList);
         }
 
         //----------------------------------------Skellige Storm and King Bran----------------------------------------//

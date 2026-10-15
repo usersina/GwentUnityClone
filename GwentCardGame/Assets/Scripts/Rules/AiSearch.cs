@@ -190,7 +190,7 @@ namespace Gwent.Rules
                         foreach (int target in me.UnitRow(row).Distinct())
                         {
                             Card target_card = board.Db.Get(target);
-                            if (target_card.IsUnit && !target_card.unique)
+                            if (PlayRules.IsDecoyTarget(target_card))
                                 moves.Add(AiAction.Play(card_id, row, target));
                         }
                 }

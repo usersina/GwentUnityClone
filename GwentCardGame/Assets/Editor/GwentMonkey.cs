@@ -348,15 +348,14 @@ namespace Gwent.EditorTools
                 Card stats = c.selectedCard.GetComponent<CardFace>().Card;
                 if (stats.ability == Ability.Decoy)
                 {
-                    // What a decoy can swap (BattleController.TryPlaySelectedDecoyOnCard): a unit, not a hero, not a
-                    // special card such as another decoy
+                    // What a decoy can swap (PlayRules.IsDecoyTarget): a unit, not a hero, not a token, not a special
+                    // card such as another decoy
                     List<GameObject> targets = new List<GameObject>();
                     foreach (Row row in Rows.Units)
                         foreach (Transform t in c.PlayerField.transform.Find(row.ToString()).Find("Unit"))
                         {
                             CardFace face = t.GetComponent<CardFace>();
-                            if (t.GetComponent<CardSelect>() != null && face != null && face.Card.faction != Faction.Special && !face.Card.unique
-                                && face.Card.ability != Ability.Leader)
+                            if (t.GetComponent<CardSelect>() != null && face != null && PlayRules.IsDecoyTarget(face.Card))
                                 targets.Add(t.gameObject);
                         }
                     if (targets.Count == 0)
@@ -368,7 +367,7 @@ namespace Gwent.EditorTools
                     targets[rnd.Next(targets.Count)].GetComponent<CardSelect>().OnCardSelect();
                     return;
                 }
-                if (stats.row == Row.Weather || stats.ability == Ability.Scorch)
+                if (stats.row == Row.Weather || stats.IsSpecial && stats.ability == Ability.Scorch)
                 {
                     c.WeatherField.GetComponent<WeatherSlot>().OnWeatherClick();
                     return;

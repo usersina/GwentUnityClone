@@ -89,8 +89,8 @@ namespace Gwent.Battle
             await UniTask.WhenAll(rest);
         }
 
-        // Berserkers turning into their bears: each Berserker fades where it stands as its bear appears in its place, in
-        // white wisps
+        // Berserkers turning into their bears: each Berserker flies to its discard pile as its bear (a token) appears in its
+        // place, in white wisps
         public async UniTask Transform(BoardChange change, CancellationToken ct)
         {
             List<UniTask> all = new List<UniTask>();
