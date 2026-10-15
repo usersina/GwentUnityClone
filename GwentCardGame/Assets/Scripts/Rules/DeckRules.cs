@@ -116,6 +116,17 @@ namespace Gwent.Rules
             return name.Length > MaxNameLength ? name.Substring(0, MaxNameLength).TrimEnd() : name;
         }
 
+        // The name of a deck's nth copy ("The Monster Horde (copy)", then "(copy 2)"...): the deck's own name is shortened,
+        // never the suffix, so the whole fits MaxNameLength and the copies' names (and files) stay apart
+        public static string CopyName(string name, int n)
+        {
+            string suffix = n <= 1 ? " (copy)" : " (copy " + n + ")";
+            string own = NormalizeDisplayName(name);
+            if (own.Length + suffix.Length > MaxNameLength)
+                own = own.Substring(0, Math.Max(0, MaxNameLength - suffix.Length)).TrimEnd();
+            return own + suffix;
+        }
+
         // Display name => safe file name without extension ("My Deck!" => "my_deck"), null if nothing usable remains
         public static string ToFileName(string display_name)
         {

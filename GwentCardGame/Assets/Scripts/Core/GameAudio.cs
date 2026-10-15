@@ -216,8 +216,19 @@ namespace Gwent.Core
                 if (tracks == null)
                 {
                     AsyncOperationHandle<IList<IResourceLocation>> found = Addressables.LoadResourceLocationsAsync(MusicLabel, typeof(AudioClip));
-                    tracks = new List<IResourceLocation>(await found.ToUniTask(cancellationToken: ct));
-                    Addressables.Release(found);
+                    try
+                    {
+                        tracks = new List<IResourceLocation>(await found.ToUniTask(cancellationToken: ct));
+                    }
+                    catch (System.Exception e) when (!(e is System.OperationCanceledException))
+                    {
+                        tracks = new List<IResourceLocation>(); // the content's catalog cannot be read: no music, not asked again each second
+                    }
+                    finally
+                    {
+                        if (found.IsValid())
+                            Addressables.Release(found);
+                    }
                 }
                 if (tracks.Count == 0)
                     return;

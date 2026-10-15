@@ -24,8 +24,6 @@ namespace Gwent.DeckBuilding
 
         public string currentDeckPath;
 
-        // The deck folders path in the local disk
-
         // A list of deck paths for each faction
         public List<string> NRDecks;
         public List<string> NFDecks;
@@ -345,15 +343,25 @@ namespace Gwent.DeckBuilding
             deckCollection.UpdateSelectedFaction();
         }
 
+        private const int MaxPresetCopies = 99;
+
         // A preset is never changed: its first edit (already made to the deck shown) is saved as the player's own copy,
         // "The Monster Horde (copy)", which is the deck shown and edited from then on
         public void KeepPresetEdit()
         {
             if (!ShowsPreset)
                 return;
-            string name = DeckRules.NormalizeDisplayName(my_deck.Name + " (copy)");
-            for (int n = 2; NameTaken(name, null); n++)
-                name = DeckRules.NormalizeDisplayName(my_deck.Name + " (copy " + n + ")");
+            int n = 1;
+            string name = DeckRules.CopyName(my_deck.Name, n);
+            while (NameTaken(name, null))
+            {
+                if (++n > MaxPresetCopies)
+                {
+                    RejectName("Too many copies of this preset: delete some first");
+                    return;
+                }
+                name = DeckRules.CopyName(my_deck.Name, n);
+            }
             Deck copy = new Deck { Faction = my_deck.Faction, Name = name, Leader = my_deck.Leader, Cards = new List<int>(my_deck.Cards) };
             string path = DeckStorage.PathFor(copy.Faction, DeckRules.ToFileName(name));
             if (!DeckStorage.Save(copy, path))
@@ -408,6 +416,9 @@ namespace Gwent.DeckBuilding
 
         private void SetBattleDeck(string path)
         {
+            string current = DeckStorage.BattleDeckPath;
+            if (string.IsNullOrEmpty(path) ? current == null : DeckStorage.SamePath(current, path))
+                return; // already it: no settings write (a whole file on Android, the browser's storage on the web) per edit
             DeckStorage.SaveBattleDeck(path);
             GameLog.Event(LogCategory.Deck, "battle_deck_chosen", "path", path ?? "default");
         }
@@ -462,7 +473,7 @@ namespace Gwent.DeckBuilding
             }
 
             if (DeckStorage.Save(deck, file_path))
-                GameLog.Event(LogCategory.Deck, "deck_saved", "path", file_path, "cards", my_deck.Cards.Count, "leader", Db.Get(my_deck.Leader).name);
+                GameLog.Event(LogCategory.Deck, "deck_saved", "path", file_path, "cards", deck.Cards.Count, "leader", Db.Get(deck.Leader).name);
             else
                 UIOverlay.Toast("Could not save the deck");
         }

@@ -214,6 +214,23 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void CopiesOfALongNamedPresetKeepTheirNumbers()
+        {
+            // A preset's copies: its own name gives way, never "(copy n)", so each copy has a name (and a file) of its own
+            const string preset = "Riders of the Wild Hunt";
+            Assert.AreEqual("Riders of the Wild Hunt (copy)", DeckRules.CopyName(preset, 1));
+            HashSet<string> files = new HashSet<string>();
+            for (int n = 1; n <= 99; n++)
+            {
+                string name = DeckRules.CopyName(preset, n);
+                Assert.LessOrEqual(name.Length, DeckRules.MaxNameLength, name);
+                Assert.AreEqual(name, DeckRules.NormalizeDisplayName(name), "kept as it is when saved");
+                StringAssert.EndsWith(n == 1 ? "(copy)" : "(copy " + n + ")", name);
+                Assert.IsTrue(files.Add(DeckRules.ToFileName(name)), name + " shares its file with an earlier copy");
+            }
+        }
+
+        [Test]
         public void DefaultDeckIsValid()
         {
             CollectionAssert.IsEmpty(DeckRules.Validate(DefaultDeck(), TestBoard.Db));

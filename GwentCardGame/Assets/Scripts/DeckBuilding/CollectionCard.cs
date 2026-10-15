@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Gwent.Battle;
@@ -86,7 +85,7 @@ namespace Gwent.DeckBuilding
             int occurences = deckBuilder.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
 
             // Only the deck's faction, neutral and special cards
-            Gwent.Rules.Card card = deckBuilder.Db.Get(cardStats._id);
+            Gwent.Rules.Card card = cardStats;
             if (!card.IsSpecial && card.faction != Gwent.Rules.Faction.Neutral && card.faction != deckBuilder.my_deck.Faction)
             {
                 GameAudio.PlaySfx("invalid");
@@ -102,7 +101,7 @@ namespace Gwent.DeckBuilding
                 return;
             }
 
-            // If Special occurences is less than 3, check total specials count
+            // At most 10 special cards in a deck
             if (cardStats.faction == Faction.Special)
             {
                 int specialsOcc = deckBuilder.GetSpecialsOccurence(deckBuilder.my_deck);

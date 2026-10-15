@@ -25,14 +25,14 @@ namespace Gwent.Core
                 cache.Clear();
         }
 
+        // null for a path with no sprite, remembered as such (not looked for again each time)
         public static Sprite Load(string path)
         {
             Sprite sprite;
-            if (!cache.TryGetValue(path, out sprite) || sprite == null)
-            {
-                sprite = Resources.Load<Sprite>(path);
-                cache[path] = sprite;
-            }
+            if (cache.TryGetValue(path, out sprite) && (ReferenceEquals(sprite, null) || sprite != null))
+                return sprite; // known, or known to be missing (a sprite destroyed since is loaded again)
+            sprite = Resources.Load<Sprite>(path);
+            cache[path] = sprite;
             return sprite;
         }
     }

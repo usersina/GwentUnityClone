@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
@@ -8,7 +6,7 @@ namespace Gwent.DeckBuilding
 {
     public class CloseOnCancel : MonoBehaviour
     {
-        // Update is called once per frame
+        // Closed by a right click or Escape (unless a dialog over it takes them)
         void Update()
         {
             if (GameInput.CancelPressed() && !UIOverlay.BlocksCancel)

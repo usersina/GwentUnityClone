@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace Gwent.Core
 {
-    // The player's settings, saved in PlayerPrefs and applied as soon as they change: audio (applied by GameAudio)
-    // and display. Window mode and resolution are only applied once the player has changed them, so Unity's own
+    // The player's settings, saved in PlayerPrefs and applied as soon as they change: audio (applied by GameAudio),
+    // display, game speed and the AI's difficulty. Window mode and resolution are only applied once the player has changed them, so Unity's own
     // window handling stays in charge until then.
     public static class GameSettings
     {

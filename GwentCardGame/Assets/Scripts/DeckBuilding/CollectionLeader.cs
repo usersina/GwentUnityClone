@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.UI;

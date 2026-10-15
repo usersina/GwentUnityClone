@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
@@ -18,7 +17,7 @@ namespace Gwent.DeckBuilding
 
         private void Update()
         {
-            // Close window on right click
+            // Closed by a right click or Escape
             if (GameInput.CancelPressed() && !UIOverlay.BlocksCancel)
                 gameObject.SetActive(false);
         }
