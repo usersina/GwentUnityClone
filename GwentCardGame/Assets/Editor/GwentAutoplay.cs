@@ -1164,16 +1164,25 @@ namespace Gwent.EditorTools
         }
 
         // Plays part of the game like a person would: a virtual mouse and keyboard at human speed, going through the
-        // Input System, the EventSystem and the game's own handlers.
+        // Input System, the EventSystem and the game's own handlers. Its timeline waits for the game as a person would:
+        // it advances at most MaxTick a frame (a stalled editor slows it down instead of firing a move, a press, a release
+        // and a check in one frame), and a step that only checks (it sends no input) and fails is tried again every frame
+        // until it passes or its patience runs out, the steps after it waiting meanwhile (a slow screen is waited for, and
+        // the next clicks never land on the wrong one).
         private class InputCheck
         {
             private const double PressDuration = 0.1;
+            private const double MaxTick = 0.05;       // the most the timeline advances in a frame
+            private const double CheckPatience = 3;    // how long (real seconds) a failing check step is tried again
 
             private readonly BattleController c;
-            private readonly Action<bool, string> check;
+            private readonly Action<bool, string> report;
             private readonly List<KeyValuePair<double, Action>> steps = new List<KeyValuePair<double, Action>>();
-            private readonly double start;
             private int next;
+            private double elapsed, lastTick;          // the timeline's time, and the real time it last advanced
+            private double failingSince = -1;          // real time the current check step began failing (-1: it is not)
+            private int sent;                          // input events sent so far
+            private List<KeyValuePair<bool, string>> results; // the checks of the step running
             private Mouse mouse;
             private readonly List<double> releases = new List<double>();
             private Keyboard keyboard;
@@ -1196,11 +1205,11 @@ namespace Gwent.EditorTools
 
             // The times are when the button goes down, in seconds. deck_path: the deck builder's test deck; opponent: the
             // one to choose in the opponent picker.
-            public InputCheck(BattleController controller, InputScenario scenario, Action<bool, string> check, string deck_path = null, TextAsset opponent = null)
+            public InputCheck(BattleController controller, InputScenario scenario, Action<bool, string> report, string deck_path = null, TextAsset opponent = null)
             {
                 c = controller;
-                this.check = check;
-                start = EditorApplication.timeSinceStartup;
+                this.report = report;
+                lastTick = EditorApplication.timeSinceStartup;
 
                 At(0, Setup);
                 InputScenario[] with_hand = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace,
@@ -1811,9 +1820,46 @@ namespace Gwent.EditorTools
 
             public void Tick()
             {
-                double elapsed = EditorApplication.timeSinceStartup - start;
+                double now = EditorApplication.timeSinceStartup;
+                if (failingSince < 0) // a check step being tried again holds the timeline
+                    elapsed += Math.Min(now - lastTick, MaxTick);
+                lastTick = now;
                 while (next < steps.Count && elapsed >= steps[next].Key)
-                    steps[next++].Value();
+                {
+                    if (!Run(steps[next].Value, now))
+                        return; // tried again next frame
+                    next++;
+                }
+            }
+
+            // Runs a step, its checks held until it is done; false when it only checks, fails and is to be tried again
+            private bool Run(Action step, double now)
+            {
+                int sent_before = sent;
+                results = new List<KeyValuePair<bool, string>>();
+                step();
+                List<KeyValuePair<bool, string>> got = results;
+                results = null;
+                if (got.Exists(result => !result.Key) && sent == sent_before)
+                {
+                    if (failingSince < 0)
+                        failingSince = now;
+                    if (now - failingSince < CheckPatience)
+                        return false;
+                }
+                failingSince = -1;
+                foreach (KeyValuePair<bool, string> result in got)
+                    report(result.Key, result.Value);
+                return true;
+            }
+
+            // A check: held while its step runs (Run decides), told at once otherwise
+            private void check(bool ok, string what)
+            {
+                if (results != null)
+                    results.Add(new KeyValuePair<bool, string>(ok, what));
+                else
+                    report(ok, what);
             }
 
             public void Teardown()
@@ -1852,11 +1898,13 @@ namespace Gwent.EditorTools
                 steps.Insert(index < 0 ? steps.Count : index, new KeyValuePair<double, Action>(time, action));
             }
 
-            // Moves onto the target first (where it is at that moment), then presses and releases the button
+            // Finds the target first (a step of its own: it waits for the target, its checks tried again until it is on
+            // screen), moves onto it, then presses and releases the button
             private void Click(double time, Func<Vector2> position, MouseButton button = MouseButton.Left)
             {
                 Vector2 at = Vector2.zero;
-                At(time - 0.05, () => { at = position(); Send(at, button, false); });
+                At(time - 0.05, () => at = position());
+                At(time - 0.05, () => Send(at, button, false));
                 At(time, () => Send(at, button, true));
                 At(time + PressDuration, () => { Send(at, button, false); releases.Add(EditorApplication.timeSinceStartup); });
             }
@@ -1865,7 +1913,8 @@ namespace Gwent.EditorTools
             private void Hold(double time, Func<Vector2> position, double duration)
             {
                 Vector2 at = Vector2.zero;
-                At(time - 0.05, () => { at = position(); Send(at, MouseButton.Left, false); });
+                At(time - 0.05, () => at = position());
+                At(time - 0.05, () => Send(at, MouseButton.Left, false));
                 At(time, () => Send(at, MouseButton.Left, true));
                 At(time + duration, () => Send(at, MouseButton.Left, false));
             }
@@ -1874,7 +1923,8 @@ namespace Gwent.EditorTools
             private void DoubleClickAt(double time, Func<Vector2> position)
             {
                 Vector2 at = Vector2.zero;
-                At(time - 0.05, () => { at = position(); Send(at, MouseButton.Left, false); });
+                At(time - 0.05, () => at = position());
+                At(time - 0.05, () => Send(at, MouseButton.Left, false));
                 foreach (double press in new[] { time, time + 0.2 })
                 {
                     At(press, () => Send(at, MouseButton.Left, true));
@@ -1890,26 +1940,28 @@ namespace Gwent.EditorTools
 
             private void Move(double time, Func<Vector2> position)
             {
-                At(time, () => Send(position(), MouseButton.Left, false));
+                Vector2 at = Vector2.zero;
+                At(time, () => at = position());
+                At(time, () => Send(at, MouseButton.Left, false));
             }
 
             private void KeyHold(double time, Key key, double duration)
             {
-                At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
-                At(time + duration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
+                At(time, () => SendKeys(new KeyboardState(key)));
+                At(time + duration, () => SendKeys(new KeyboardState()));
             }
 
             // A key chosen when it is pressed
             private void KeyAt(double time, Func<Key> key)
             {
-                At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key())));
-                At(time + PressDuration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
+                At(time, () => SendKeys(new KeyboardState(key())));
+                At(time + PressDuration, () => SendKeys(new KeyboardState()));
             }
 
             private void Key(double time, Key key)
             {
-                At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
-                At(time + PressDuration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
+                At(time, () => SendKeys(new KeyboardState(key)));
+                At(time + PressDuration, () => SendKeys(new KeyboardState()));
             }
             private void Setup()
             {
@@ -1936,8 +1988,16 @@ namespace Gwent.EditorTools
 
             private void Send(Vector2 position, MouseButton button, bool pressed)
             {
+                sent++;
                 if (mouse != null)
                     InputSystem.QueueStateEvent(mouse, new MouseState { position = position }.WithButton(button, pressed));
+            }
+
+            private void SendKeys(KeyboardState state)
+            {
+                sent++;
+                if (keyboard != null)
+                    InputSystem.QueueStateEvent(keyboard, state);
             }
 
             // A card in the middle of the hand (another one once a redraw has rebuilt the hand)
@@ -2066,9 +2126,24 @@ namespace Gwent.EditorTools
                 {
                     GameObject target = GameObject.Find(name);
                     UnityEngine.UIElements.VisualElement element = target == null ? UIScreens.Find(name) : null;
-                    check(target != null || element != null, "\"" + name + "\" is on screen");
+                    check(target != null || element != null && Settled(element), "\"" + name + "\" is on screen");
                     return target != null ? ScreenPoint(target.transform) : element != null ? ScreenPoint(element) : Vector2.zero;
                 };
+            }
+
+            // Whether a UI Toolkit element is laid out and stands still: where it was the last time this was asked (a menu
+            // or dialog that has finished opening; asked again every frame by a check that waits)
+            private readonly Dictionary<UnityEngine.UIElements.VisualElement, Rect> lastBounds = new Dictionary<UnityEngine.UIElements.VisualElement, Rect>();
+
+            private bool Settled(UnityEngine.UIElements.VisualElement element)
+            {
+                Rect bounds = element.worldBound;
+                if (float.IsNaN(bounds.x) || bounds.width <= 0 || bounds.height <= 0)
+                    return false;
+                Rect was;
+                bool still = lastBounds.TryGetValue(element, out was) && Vector2.Distance(was.center, bounds.center) < 0.5f && Mathf.Abs(was.width - bounds.width) < 0.5f;
+                lastBounds[element] = bounds;
+                return still;
             }
 
             // The object or UI Toolkit element of that name has the keyboard's focus (the highlight menus share with the mouse)
@@ -2088,7 +2163,7 @@ namespace Gwent.EditorTools
                 {
                     UnityEngine.UIElements.VisualElement row = UIScreens.Find("Row Master volume");
                     UnityEngine.UIElements.Slider slider = row != null ? Query<UnityEngine.UIElements.Slider>(row) : null;
-                    check(slider != null, "the settings show the master volume slider");
+                    check(slider != null && Settled(slider), "the settings show the master volume slider");
                     if (slider == null)
                         return Vector2.zero;
                     // Where the knob's middle stands at that value: its travel is the drag area less the knob's width
