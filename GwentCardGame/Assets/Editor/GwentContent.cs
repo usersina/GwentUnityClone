@@ -33,6 +33,9 @@ namespace Gwent.EditorTools
             settings.BuildAddressablesWithPlayerBuild = AddressableAssetSettings.PlayerBuildOption.BuildWithPlayer;
             // A battle asks for both decks' art at once: on the web, a few more downloads side by side
             settings.MaxConcurrentWebRequests = 6;
+            // The state a content update of a released build starts from: the game ships its content with the build and
+            // never updates it apart, so the file stays out of the project (it would be one more per platform)
+            settings.ContentStateBuildPath = "Library/com.unity.addressables/ContentState";
             settings.AddLabel(MusicLabel, false);
 
             int changes = Fill(settings, Group(settings, CardArtGroup), CardArtFolder, "CardArt/", null)

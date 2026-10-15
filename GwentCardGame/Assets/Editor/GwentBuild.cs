@@ -152,6 +152,7 @@ namespace Gwent.EditorTools
             if (EditorUserBuildSettings.activeBuildTarget != target.Build)
                 EditorUserBuildSettings.SwitchActiveBuildTarget(target.Group, target.Build);
             GwentContent.Update();
+            SkipAddressablesReportPrompt();
             Prepare(target);
 
             BuildPlayerOptions options = new BuildPlayerOptions
@@ -197,6 +198,17 @@ namespace Gwent.EditorTools
                 return "";
             FileInfo[] bundles = new DirectoryInfo(aa).GetFiles("*.bundle", SearchOption.AllDirectories);
             return "\n  Addressables: " + bundles.Length + " bundles, " + (bundles.Sum(b => b.Length) / 1048576.0).ToString("F1") + " MB (loaded on demand)";
+        }
+
+        // Before its first content build in an editor (never in batch mode), Addressables asks in a dialog whether to turn
+        // on its build report, and the run would wait for an answer: answered "no", as Edit > Preferences > Addressables
+        // has it by default (a per-user setting; the flag is internal to Addressables)
+        private static void SkipAddressablesReportPrompt()
+        {
+            System.Reflection.PropertyInfo informed = typeof(UnityEditor.AddressableAssets.Settings.ProjectConfigData).GetProperty(
+                "UserHasBeenInformedAboutBuildReportSettingPreBuild", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            if (informed != null)
+                informed.SetValue(null, true);
         }
 
         // The settings each platform's build depends on, applied every time (some are this machine's editor settings)
