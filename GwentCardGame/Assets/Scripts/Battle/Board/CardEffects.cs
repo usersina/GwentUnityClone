@@ -125,7 +125,7 @@ namespace Gwent.Battle
             }
             finally
             {
-                fx.Destroy();
+                fx.Finish().Forget(); // the last flames fade on their own, never cut short
                 Remove(glow);
                 Remove(tint);
                 Remove(heart);
@@ -193,7 +193,7 @@ namespace Gwent.Battle
             }
             finally
             {
-                fx.Destroy();
+                fx.Finish().Forget(); // the last of the fire fades on its own, never cut short
                 Remove(halo);
                 Remove(wash);
                 Remove(icon);
@@ -310,8 +310,8 @@ namespace Gwent.Battle
             {
                 Remove(shade);
                 Remove(frame);
-                back.Destroy();
-                front.Finish().Forget(); // the last embers fade on their own
+                back.Finish().Forget(); // the last smoke and embers fade on their own
+                front.Finish().Forget();
             }
         }
 
