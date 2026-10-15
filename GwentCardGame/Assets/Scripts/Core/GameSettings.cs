@@ -168,6 +168,18 @@ namespace Gwent.Core
             ApplyFrameRate();
             if (WindowSet)
                 ApplyWindow();
+            GameLog.Event(LogCategory.Game, "settings", "values", Describe());
+        }
+
+        // Every setting as it stands, for the log
+        public static System.Collections.Generic.Dictionary<string, object> Describe()
+        {
+            return new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "master_volume", MasterVolume }, { "music_volume", MusicVolume }, { "sfx_volume", SfxVolume },
+                { "mute_in_background", MuteInBackground }, { "fullscreen", Fullscreen }, { "resolution", Resolution.x + "x" + Resolution.y },
+                { "frame_rate", FrameRate }, { "menu_scale", MenuScale }, { "game_speed", GameSpeedNames[GameSpeed] }, { "difficulty", AiDifficulty },
+            };
         }
 
         private static bool WindowSet { get { return PlayerPrefs.HasKey(FullscreenKey) || PlayerPrefs.HasKey(ResolutionWidthKey); } }

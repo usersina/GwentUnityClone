@@ -51,6 +51,7 @@ namespace Gwent.Menus
         private void OnClosed()
         {
             PlayerPrefs.Save();
+            GameLog.Event(LogCategory.Ui, "settings_saved", "values", GameSettings.Describe());
             if (current == this)
                 current = null;
             if (onClosed != null)

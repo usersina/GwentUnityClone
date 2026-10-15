@@ -596,6 +596,7 @@ namespace Gwent.EditorTools
 
             private void Fail(string what, string detail)
             {
+                GameLog.Event(LogCategory.Game, "monkey_failure", "what", what, "detail", detail);
                 string key = what.Length > 200 ? what.Substring(0, 200) : what;
                 int count;
                 failures.TryGetValue(key, out count);

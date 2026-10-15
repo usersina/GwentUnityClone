@@ -182,6 +182,7 @@ namespace Gwent.UI
                 selectable.navigation = new Navigation { mode = Navigation.Mode.None };
             }
             modals.Add(modal);
+            GameLog.Event(LogCategory.Ui, "dialog_open", "name", root.name);
         }
 
         // This dialog is the one on top (keys and clicks are its own)
@@ -202,6 +203,7 @@ namespace Gwent.UI
             }
             Modal modal = modals[index];
             modals.RemoveAt(index);
+            GameLog.Event(LogCategory.Ui, "dialog_close", "name", root != null ? root.name : null);
             foreach (KeyValuePair<Selectable, Navigation> entry in modal.blockedNavigation)
                 if (entry.Key != null)
                     entry.Key.navigation = entry.Value;

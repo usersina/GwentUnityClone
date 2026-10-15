@@ -39,6 +39,16 @@ namespace Gwent.EditorTools
     //                 [-autoplayMatches 21] [-autoplaySeed 1] [-autoplayReport <file>]
     public static class GwentAutoplay
     {
+        // The run's failures: each one also goes into the game log, where it sits among the events that led to it
+        private class LoggedFailures : List<string>
+        {
+            public new void Add(string failure)
+            {
+                base.Add(failure);
+                GameLog.Event(LogCategory.Game, "autoplay_failure", "what", failure);
+            }
+        }
+
         private const string ActiveKey = "GwentAutoplay.Active";
         private const string BatchKey = "GwentAutoplay.Batch";
         private const string MatchesKey = "GwentAutoplay.Matches";
@@ -136,7 +146,7 @@ namespace Gwent.EditorTools
             private readonly bool batch;
             private readonly string reportPath;
             private readonly System.Random rnd;
-            private readonly List<string> failures = new List<string>();
+            private readonly LoggedFailures failures = new LoggedFailures();
             private readonly List<string> results = new List<string>();
             private readonly List<string> errors = new List<string>();
             private int ignoredEditorErrors;
@@ -249,6 +259,7 @@ namespace Gwent.EditorTools
             {
                 EndInputCheck(); // a check never carries over into another battle
                 match++;
+                GameLog.Event(LogCategory.Game, "autoplay_match", "match", match + 1);
                 turnsChecked.Clear();
                 // Every opponent deck in turn, so the AI plays every faction
                 List<TextAsset> opponents = OpponentDecks.All();
@@ -1062,6 +1073,8 @@ namespace Gwent.EditorTools
                     report.AppendLine("  " + stat.Key + ": " + stat.Value);
                 report.AppendLine();
                 report.AppendLine("Failures: " + failures.Count);
+                if (failures.Count > 0 && GameLog.FilePath != null)
+                    report.AppendLine("  (each one is in the game log too, next to what the game was doing: " + GameLog.FilePath + ", event autoplay_failure)");
                 foreach (string failure in failures)
                     report.AppendLine("  " + failure);
                 report.AppendLine("Errors logged: " + errors.Count + (ignoredEditorErrors > 0 ? " (ignored " + ignoredEditorErrors + " known Unity editor-internal error(s))" : ""));

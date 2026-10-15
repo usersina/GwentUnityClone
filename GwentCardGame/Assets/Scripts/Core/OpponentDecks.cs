@@ -53,6 +53,7 @@ namespace Gwent.Core
             {
                 PlayerPrefs.SetString(PrefKey, value ?? "");
                 PlayerPrefs.Save();
+                GameLog.Event(LogCategory.Game, "opponent_chosen", "deck", string.IsNullOrEmpty(value) ? "random" : value);
             }
         }
 
