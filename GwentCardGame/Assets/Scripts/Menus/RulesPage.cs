@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
@@ -13,8 +12,8 @@ namespace Gwent.Menus
     // rules on the right (they scroll when long), each beside the game's own pieces as on the printed Gwent rule cards
     // (matt77hias/Gwent): faction shields, the hand count, row emblems, the abilities' medallions, life gems, The Witcher 3's
     // notices, cards, keys. The factions show their perk and five leaders (hover a leader, or hold a finger on it, to read
-    // its ability).
-    public class RulesPage : MonoBehaviour
+    // its ability). A UI Toolkit dialog: Assets/UI/Toolkit/RulesPage.uxml, the topics and their rules made here.
+    public static class RulesPage
     {
         // A rule: its pieces (see Piece), a term and its explanation
         private struct Entry
@@ -191,184 +190,133 @@ namespace Gwent.Menus
         private const float PieceScale = 0.7f;
         private const float ClusterHeight = 104;
 
-        private Topic[] topics;
-        private readonly Dictionary<LayoutElement, float> clusters = new Dictionary<LayoutElement, float>(); // the topic's, with their pieces' width
-        private readonly List<Image> markers = new List<Image>();
-        private readonly List<Button> tabs = new List<Button>();
-        private RectTransform content;
-        private ScrollRect scroll;
-
         public static void Open(Action on_close)
         {
-            RectTransform dimmer = UIKit.Dimmer(UIOverlay.Root, "RulesPage");
-            dimmer.gameObject.AddComponent<RulesPage>().Build(dimmer);
-            UIOverlay.PushModal(dimmer.gameObject, on_close);
+            UIScreens.ShowDialog("RulesPage", UITheme.Current.rulesPage, Bind, on_close);
         }
 
-        private void Build(RectTransform dimmer)
+        private static void Bind(VisualElement root)
         {
-            UITheme theme = UITheme.Current;
-            topics = Topics();
-            RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500, 900)).FitInside(dimmer);
-            TextMeshProUGUI title = UIKit.Text(panel, "How to play", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
-            title.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0, -60), new Vector2(1200, 64));
-            UIKit.Ornament(panel, new Vector2(0.5f, 1), new Vector2(0, -106), 420);
-
-            // Topics
+            Topic[] topics = Topics();
+            ScrollView view = root.Q<ScrollView>("Topic");
+            view.mouseWheelScrollSize = 40;
+            view.touchScrollBehavior = ScrollView.TouchScrollBehavior.Clamped;
+            VisualElement list = root.Q("Topics");
+            List<MenuEntry> tabs = new List<MenuEntry>();
             for (int i = 0; i < topics.Length; i++)
             {
                 int index = i;
-                Button tab = UIKit.MenuItem(panel, topics[i].Name, () => Show(index), false, new Vector2(360, 66));
-                ((RectTransform)tab.transform).Place(new Vector2(0, 1), new Vector2(50, -150 - i * 76), new Vector2(360, 66), new Vector2(0, 1));
-                Image marker = UIKit.NewImage(tab.transform, "Current", null, theme.gold);
-                marker.rectTransform.Place(new Vector2(0, 0.5f), Vector2.zero, new Vector2(4, 44), new Vector2(0, 0.5f));
-                markers.Add(marker);
+                MenuEntry tab = new MenuEntry { name = "Item " + topics[i].Name, text = topics[i].Name };
+                tab.AddToClassList("rules__topic");
+                tab.clicked += () => Show(view, topics[index], tabs, index);
+                list.Add(tab);
                 tabs.Add(tab);
             }
+            root.Q<Button>("Button Close").clicked += () => UIScreens.Close(root);
 
-            // The topic, in a scroll view
-            RectTransform viewport = UIKit.Rect("Viewport", panel).Place(new Vector2(0, 1), new Vector2(450, -150), new Vector2(1000, 620), new Vector2(0, 1));
-            viewport.gameObject.AddComponent<RectMask2D>();
-            Image hit = viewport.gameObject.AddComponent<Image>();
-            hit.color = Color.clear;
-            content = UIKit.Rect("Topic", viewport);
-            content.anchorMin = new Vector2(0, 1);
-            content.anchorMax = new Vector2(1, 1);
-            content.pivot = new Vector2(0.5f, 1);
-            content.anchoredPosition = Vector2.zero;
-            content.sizeDelta = Vector2.zero; // exactly the viewport's width (the fitter sets the height)
-            VerticalLayoutGroup column = content.gameObject.AddComponent<VerticalLayoutGroup>();
-            column.spacing = 22;
-            column.padding = new RectOffset(0, 24, 0, 24);
-            column.childControlWidth = true;
-            column.childControlHeight = true;
-            column.childForceExpandWidth = true;
-            column.childForceExpandHeight = false;
-            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            scroll = viewport.gameObject.AddComponent<ScrollRect>();
-            scroll.viewport = viewport;
-            scroll.content = content;
-            scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 40;
-
-            Button close = UIKit.Button(panel, "Close", UIKit.ButtonStyle.Secondary, () => UIOverlay.CloseModal(gameObject), new Vector2(220, 60));
-            ((RectTransform)close.transform).Place(new Vector2(0.5f, 0), new Vector2(0, 56), new Vector2(220, 60));
-
-            Show(0);
-            UIKit.Focus(tabs[0]);
+            Show(view, topics[0], tabs, 0);
+            root.schedule.Execute(() => UIScreens.Focus(tabs[0]));
         }
 
-        private void Show(int index)
+        // The pieces' columns of a topic, to be made as wide as its widest group
+        private class Columns
         {
-            for (int i = 0; i < markers.Count; i++)
-                markers[i].enabled = i == index;
-            foreach (Transform child in content)
-                Destroy(child.gameObject);
-            content.DetachChildren();
+            public readonly List<VisualElement> All = new List<VisualElement>();
+            public float Widest;
+        }
 
-            Topic topic = topics[index];
-            TextMeshProUGUI intro = UIKit.Text(content, topic.Intro, UIKit.TextStyle.Body, TextAlignmentOptions.TopLeft);
-            intro.textWrappingMode = TextWrappingModes.Normal;
-            intro.color = UITheme.Current.textSecondary;
+        private static void Show(ScrollView view, Topic topic, List<MenuEntry> tabs, int index)
+        {
+            for (int i = 0; i < tabs.Count; i++)
+                tabs[i].EnableInClassList("rules__topic--current", i == index);
+            view.Clear();
+            Label intro = new Label(topic.Intro);
+            intro.AddToClassList("rules__intro");
+            view.Add(intro);
+
+            Columns columns = new Columns();
             int order = 0;
-            clusters.Clear();
             if (topic.Factions)
                 foreach (FactionTopic faction in FactionList)
-                    FadeIn(AddFaction(faction), order++);
+                    FadeIn(AddFaction(view, faction, columns), order++);
             else
                 foreach (Entry entry in topic.Entries)
-                    FadeIn(AddEntry(entry.Pieces, entry.Title, entry.Text), order++);
+                {
+                    VisualElement text;
+                    FadeIn(AddEntry(view, entry.Pieces, entry.Title, entry.Text, columns, out text), order++);
+                }
             // One column for the topic's pieces, as wide as its widest group: the texts line up, close to their pieces
-            float widest = 0;
-            foreach (float width in clusters.Values)
-                widest = Mathf.Max(widest, width);
-            foreach (LayoutElement cluster in clusters.Keys)
-                cluster.minWidth = cluster.preferredWidth = Mathf.Max(64, widest);
-            scroll.verticalNormalizedPosition = 1;
+            foreach (VisualElement column in columns.All)
+                column.style.width = Mathf.Max(64, columns.Widest);
+            view.scrollOffset = Vector2.zero;
         }
 
-        // The rule's pieces beside its gold title and its text; returns the text's column (for more below it)
-        private RectTransform AddEntry(string[] pieces, string title_text, string text_text)
+        // The rule's pieces beside its gold title and its text; text: the text's column (for more below it)
+        private static VisualElement AddEntry(VisualElement parent, string[] pieces, string title_text, string text_text, Columns columns, out VisualElement text)
         {
-            RectTransform text;
-            return AddEntry(pieces, title_text, text_text, out text);
-        }
+            VisualElement row = new VisualElement { name = "Entry " + title_text };
+            row.AddToClassList("rules__row");
+            Cluster(row, pieces, columns);
 
-        private RectTransform AddEntry(string[] pieces, string title_text, string text_text, out RectTransform text)
-        {
-            UITheme theme = UITheme.Current;
-            RectTransform row = UIKit.Rect("Entry " + title_text, content);
-            HorizontalLayoutGroup line = row.gameObject.AddComponent<HorizontalLayoutGroup>();
-            line.spacing = 22;
-            line.childAlignment = TextAnchor.UpperLeft;
-            line.childControlWidth = true;
-            line.childControlHeight = true;
-            line.childForceExpandWidth = false;
-            line.childForceExpandHeight = false;
-
-            Cluster(row, pieces);
-
-            text = UIKit.Rect("Text", row);
-            VerticalLayoutGroup lines = text.gameObject.AddComponent<VerticalLayoutGroup>();
-            lines.spacing = 4;
-            lines.childControlWidth = true;
-            lines.childControlHeight = true;
-            lines.childForceExpandWidth = true;
-            lines.childForceExpandHeight = false;
-            text.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
-
-            TextMeshProUGUI title = UIKit.Text(text, title_text, UIKit.TextStyle.Heading, TextAlignmentOptions.TopLeft);
-            title.fontSize = 28;
-            TextMeshProUGUI body = UIKit.Text(text, text_text, UIKit.TextStyle.Body, TextAlignmentOptions.TopLeft);
-            body.fontSize = 27;
-            body.color = theme.text;
-            body.textWrappingMode = TextWrappingModes.Normal;
+            text = new VisualElement();
+            text.AddToClassList("rules__text");
+            Label title = new Label(title_text);
+            title.AddToClassList("rules__title");
+            Label body = new Label(text_text);
+            body.AddToClassList("rules__line");
+            text.Add(title);
+            text.Add(body);
+            row.Add(text);
+            parent.Add(row);
             return row;
         }
 
         // The pieces side by side, overlapping a little where they do on the printed rule cards, the group centred in its
-        // column and drawn at PieceScale
-        private void Cluster(Transform row, string[] pieces)
+        // column and drawn at PieceScale (sizes below are the pieces' own)
+        private static void Cluster(VisualElement row, string[] pieces, Columns columns)
         {
-            RectTransform cluster = UIKit.Rect("Pieces", row);
-            LayoutElement size = cluster.gameObject.AddComponent<LayoutElement>();
-            size.minHeight = size.preferredHeight = ClusterHeight * PieceScale;
-            RectTransform group = UIKit.Rect("Group", cluster);
-            group.anchorMin = group.anchorMax = group.pivot = new Vector2(0.5f, 0.5f);
-            group.localScale = Vector3.one * PieceScale;
+            VisualElement column = new VisualElement { name = "Pieces" };
+            column.AddToClassList("rules__pieces");
+            VisualElement group = new VisualElement { name = "Group", pickingMode = PickingMode.Ignore };
 
-            List<RectTransform> made = new List<RectTransform>();
-            List<float> advance = new List<float>();
+            List<VisualElement> made = new List<VisualElement>();
             float total = 0;
             foreach (string spec in pieces)
             {
-                float overlap;
-                RectTransform piece = Piece(group, spec, out overlap);
+                float overlap, rise;
+                Vector2 size;
+                VisualElement piece = Piece(spec, made.Count, out size, out overlap, out rise);
                 if (piece == null)
                     continue;
                 if (made.Count > 0)
                     total -= overlap;
+                piece.style.left = total;
+                piece.style.top = (ClusterHeight - size.y) / 2 - rise;
+                piece.style.width = size.x;
+                piece.style.height = size.y;
                 made.Add(piece);
-                advance.Add(overlap);
-                total += piece.sizeDelta.x;
-            }
-            float x = -total / 2;
-            for (int i = 0; i < made.Count; i++)
-            {
-                if (i > 0)
-                    x -= advance[i];
-                made[i].anchoredPosition = new Vector2(x + made[i].sizeDelta.x / 2, made[i].anchoredPosition.y);
-                x += made[i].sizeDelta.x;
+                total += size.x;
             }
             // Drawn left to right, the first on top (as the printed cards' fanned shields)
             for (int i = made.Count - 1; i >= 0; i--)
-                made[i].SetAsLastSibling();
-            clusters[size] = total * PieceScale;
+                group.Add(made[i]);
+
+            group.style.position = Position.Absolute;
+            group.style.width = total;
+            group.style.height = ClusterHeight;
+            group.style.left = Length.Percent(50);
+            group.style.marginLeft = -total / 2;
+            group.style.top = (ClusterHeight * PieceScale - ClusterHeight) / 2;
+            group.style.scale = new Scale(new Vector2(PieceScale, PieceScale));
+            column.Add(group);
+            row.Add(column);
+            columns.All.Add(column);
+            columns.Widest = Mathf.Max(columns.Widest, total * PieceScale);
         }
 
-        // One piece, from its description; overlap: how far it slides under the piece before it
-        private static RectTransform Piece(RectTransform parent, string spec, out float overlap)
+        // One piece, from its description, at its own size; index: its place in the group; overlap: how far it slides
+        // under the piece before it; rise: how much higher than the middle it sits
+        private static VisualElement Piece(string spec, int index, out Vector2 size, out float overlap, out float rise)
         {
             UITheme theme = UITheme.Current;
             string kind = spec, arg = "";
@@ -379,176 +327,184 @@ namespace Gwent.Menus
                 arg = spec.Substring(colon + 1);
             }
             overlap = 0;
+            rise = 0;
+            size = Vector2.zero;
             switch (kind)
             {
                 case "shield":
-                    {
-                        // Fanned, every other one a little higher
-                        overlap = 24;
-                        RectTransform shield = Picture(parent, SpriteCache.Load("Stats/faction/" + arg), new Vector2(76, 85));
-                        if (shield != null)
-                            shield.anchoredPosition = new Vector2(0, parent.childCount % 2 == 0 ? -5 : 5);
-                        return shield;
-                    }
+                    // Fanned, every other one a little higher
+                    overlap = 24;
+                    rise = index % 2 == 0 ? 5 : -5;
+                    return Picture(SpriteCache.Load("Stats/faction/" + arg), size = new Vector2(76, 85));
                 case "cards":
-                    return Picture(parent, SpriteCache.Load("Stats/cards"), new Vector2(46, 63));
+                    return Picture(SpriteCache.Load("Stats/cards"), size = new Vector2(46, 63));
                 case "num":
                     {
                         overlap = -10;
-                        TextMeshProUGUI number = UIKit.Text(parent, arg, UIKit.TextStyle.Title, TextAlignmentOptions.Center);
-                        number.fontSize = 66;
-                        number.color = theme.goldBright;
-                        number.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(96, 80));
-                        return number.rectTransform;
+                        VisualElement number = Box("Number", size = new Vector2(96, 80));
+                        number.Add(Number(arg, 66, theme.goldBright));
+                        return number;
                     }
                 case "emblem":
                     overlap = 4;
-                    return Picture(parent, theme.rowEmblems[int.Parse(arg)], new Vector2(78, 78));
+                    return Picture(theme.rowEmblems[int.Parse(arg)], size = new Vector2(78, 78));
                 case "medal":
                     overlap = 22;
-                    return Picture(parent, SpriteCache.Load("UI/Rules/" + arg), new Vector2(98, 98));
+                    return Picture(SpriteCache.Load("UI/Rules/" + arg), size = new Vector2(98, 98));
                 case "gem":
                     overlap = -8;
-                    return Picture(parent, theme.gem, new Vector2(58, 59));
+                    return Picture(theme.gem, size = new Vector2(58, 59));
                 case "notice":
-                    return Picture(parent, SpriteCache.Load("W3/Notifications/" + arg), new Vector2(126, 90));
+                    return Picture(SpriteCache.Load("W3/Notifications/" + arg), size = new Vector2(126, 90));
                 case "card":
                     overlap = -8;
-                    return CardPicture(parent, SpriteCache.Load("Cards/List/135x87/" + arg), new Vector2(64, 99));
+                    return CardPicture(SpriteCache.Load("Cards/List/135x87/" + arg), size = new Vector2(64, 99));
                 case "back":
                     overlap = 38;
-                    return CardPicture(parent, SpriteCache.Load("Cards/Back/" + arg), new Vector2(64, 99));
+                    return CardPicture(SpriteCache.Load("Cards/Back/" + arg), size = new Vector2(64, 99));
                 case "crown":
-                    return Picture(parent, theme.leaderReady, new Vector2(76, 76));
+                    return Picture(theme.leaderReady, size = new Vector2(76, 76));
                 case "score":
                     {
                         overlap = -10;
-                        RectTransform disc = Picture(parent, theme.scoreDisc, new Vector2(64, 65));
-                        Number(disc, arg, 32, new Color(0.24f, 0.15f, 0.07f));
+                        VisualElement disc = Picture(theme.scoreDisc, size = new Vector2(64, 65));
+                        if (disc != null)
+                            disc.Add(Number(arg, 32, new Color(0.24f, 0.15f, 0.07f)));
                         return disc;
                     }
                 case "total":
                     {
-                        RectTransform laurel = Picture(parent, SpriteCache.Load("Various/pass"), new Vector2(112, 97));
-                        RectTransform disc = Picture(laurel, theme.scoreTotal, new Vector2(86, 86));
-                        disc.anchoredPosition = new Vector2(0, 2);
-                        Number(disc, arg, 34, new Color(0.11f, 0.08f, 0.05f));
+                        VisualElement laurel = Picture(SpriteCache.Load("Various/pass"), size = new Vector2(112, 97));
+                        VisualElement disc = Picture(theme.scoreTotal, new Vector2(86, 86));
+                        if (laurel == null || disc == null)
+                            return laurel;
+                        disc.style.left = (112 - 86) / 2f;
+                        disc.style.top = (97 - 86) / 2f - 2;
+                        disc.style.width = 86;
+                        disc.style.height = 86;
+                        disc.Add(Number(arg, 34, new Color(0.11f, 0.08f, 0.05f)));
+                        laurel.Add(disc);
                         return laurel;
                     }
                 case "key":
                     overlap = -10;
-                    return Key(parent, arg);
+                    return Key(arg, out size);
             }
             return null;
         }
 
-        private static RectTransform Picture(Transform parent, Sprite sprite, Vector2 size)
+        private static VisualElement Box(string name, Vector2 size)
+        {
+            VisualElement box = new VisualElement { name = name, pickingMode = PickingMode.Ignore };
+            box.AddToClassList("piece");
+            return box;
+        }
+
+        // A picture of the game's, kept in shape (none: no piece)
+        private static VisualElement Picture(Sprite sprite, Vector2 size)
         {
             if (sprite == null)
                 return null;
-            Image image = UIKit.NewImage(parent, sprite.name, sprite, Color.white);
-            image.preserveAspect = true;
-            image.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, size);
-            return image.rectTransform;
+            VisualElement picture = Box(sprite.name, size);
+            picture.style.backgroundImage = new StyleBackground(sprite);
+            return picture;
         }
 
-        // A card, with the soft shadow the board gives its cards (the art in a child, over the shadow)
-        private static RectTransform CardPicture(Transform parent, Sprite sprite, Vector2 size)
+        // A card, with the soft shadow the board gives its cards
+        private static VisualElement CardPicture(Sprite sprite, Vector2 size)
         {
-            RectTransform card = Picture(parent, sprite, size);
-            if (card == null)
+            if (sprite == null)
                 return null;
-            Image shadow = UIKit.NewImage(card, "Shadow", UITheme.Current.softShadow, new Color(0, 0, 0, 0.6f));
-            shadow.rectTransform.Stretch(-9, -9, -6, -12);
-            Image art = card.GetComponent<Image>();
-            Image front = UIKit.NewImage(card, "Art", art.sprite, Color.white);
-            front.preserveAspect = true;
-            front.rectTransform.Stretch();
-            art.enabled = false;
+            VisualElement card = Box(sprite.name, size);
+            VisualElement shadow = Box("Shadow", size);
+            shadow.style.left = -9;
+            shadow.style.right = -9;
+            shadow.style.top = -6;
+            shadow.style.bottom = -12;
+            shadow.style.backgroundImage = new StyleBackground(UITheme.Current.softShadow);
+            shadow.style.unityBackgroundImageTintColor = new Color(0, 0, 0, 0.6f);
+            shadow.style.backgroundSize = new BackgroundSize(Length.Percent(100), Length.Percent(100)); // stretched, not kept in shape
+            VisualElement art = Box("Art", size);
+            art.style.left = 0;
+            art.style.right = 0;
+            art.style.top = 0;
+            art.style.bottom = 0;
+            art.style.backgroundImage = new StyleBackground(sprite);
+            card.Add(shadow);
+            card.Add(art);
             return card;
         }
 
-        private static void Number(RectTransform disc, string text, float size, Color color)
+        private static Label Number(string text, float size, Color color)
         {
-            TextMeshProUGUI number = UIKit.Text(disc, text, UIKit.TextStyle.Title, TextAlignmentOptions.Center);
-            number.fontSize = size;
-            number.color = color;
-            number.rectTransform.Stretch();
+            Label number = new Label(text) { pickingMode = PickingMode.Ignore };
+            number.AddToClassList("piece__number");
+            number.style.fontSize = size;
+            number.style.color = color;
+            return number;
         }
 
         // A key of the keyboard: a dark key with a gold outline; < and > show as chevrons
-        private static RectTransform Key(Transform parent, string label)
+        private static VisualElement Key(string label, out Vector2 size)
         {
             UITheme theme = UITheme.Current;
             Sprite chevron = label == "<" ? theme.chevronLeft : label == ">" ? theme.chevronRight : null;
-            float width = chevron != null ? 62 : Mathf.Max(62, 34 + label.Length * 19);
-            Image key = UIKit.NewImage(parent, "Key " + label, theme.panelSprite, theme.panelRaised);
-            key.type = Image.Type.Sliced;
-            key.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(width, 60));
-            Image outline = UIKit.NewImage(key.transform, "Outline", theme.panelOutline, theme.gold);
-            outline.type = Image.Type.Sliced;
-            outline.rectTransform.Stretch();
+            size = new Vector2(chevron != null ? 62 : Mathf.Max(62, 34 + label.Length * 19), 60);
+            VisualElement key = Box("Key " + label, size);
+            key.AddToClassList("piece--key");
             if (chevron != null)
             {
-                Image glyph = UIKit.NewImage(key.transform, "Glyph", chevron, theme.goldBright);
-                glyph.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(34, 34));
+                VisualElement glyph = new VisualElement { pickingMode = PickingMode.Ignore };
+                glyph.style.width = 34;
+                glyph.style.height = 34;
+                glyph.style.backgroundImage = new StyleBackground(chevron);
+                glyph.style.unityBackgroundImageTintColor = theme.goldBright;
+                key.Add(glyph);
             }
             else
             {
-                TextMeshProUGUI text = UIKit.Text(key.transform, label, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
-                text.font = theme.bodyMediumFont != null ? theme.bodyMediumFont : text.font;
-                text.fontSize = 30;
-                text.color = theme.goldBright;
-                text.rectTransform.Stretch();
+                Label text = new Label(label) { pickingMode = PickingMode.Ignore };
+                text.AddToClassList("piece__key-label");
+                text.style.fontSize = 30;
+                key.Add(text);
             }
-            return key.rectTransform;
+            return key;
         }
 
         //----------------------------------------Factions----------------------------------------//
         // A faction like any rule (its shield, its name, its perk), its five leaders below the perk
-        private RectTransform AddFaction(FactionTopic faction)
+        private static VisualElement AddFaction(VisualElement parent, FactionTopic faction, Columns columns)
         {
-            RectTransform text;
-            RectTransform row = AddEntry(new[] { "shield:" + faction.Faction.Code() }, faction.Faction.DisplayName(), faction.Perk, out text);
-            RectTransform leaders = UIKit.Rect("Leaders", text);
-            HorizontalLayoutGroup portraits = leaders.gameObject.AddComponent<HorizontalLayoutGroup>();
-            portraits.spacing = 10;
-            portraits.padding = new RectOffset(0, 0, 6, 0);
-            portraits.childAlignment = TextAnchor.MiddleLeft;
-            portraits.childControlWidth = false;
-            portraits.childControlHeight = false;
-            portraits.childForceExpandWidth = false;
-            portraits.childForceExpandHeight = false;
-            leaders.gameObject.AddComponent<LayoutElement>().preferredHeight = 62;
+            VisualElement text;
+            VisualElement row = AddEntry(parent, new[] { "shield:" + faction.Faction.Code() }, faction.Faction.DisplayName(), faction.Perk, columns, out text);
+            VisualElement leaders = new VisualElement { name = "Leaders" };
+            leaders.AddToClassList("rules__leaders");
             foreach (int leader in faction.Leaders)
-                LeaderPortrait(leaders, leader);
+                leaders.Add(LeaderPortrait(leader));
+            text.Add(leaders);
             return row;
         }
 
         // A round portrait of the leader in a gold ring; its ability shows over it on hover (a held finger with touch)
-        private static void LeaderPortrait(Transform parent, int leader_id)
+        private static VisualElement LeaderPortrait(int leader_id)
         {
-            UITheme theme = UITheme.Current;
-            RectTransform holder = UIKit.Rect("Leader " + leader_id, parent);
-            holder.sizeDelta = new Vector2(56, 56);
-            Image mask = UIKit.NewImage(holder, "Portrait", theme.circle, Color.white, true);
-            mask.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(50, 50));
-            mask.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            Image portrait = UIKit.NewImage(mask.transform, "Art", null, Color.white);
-            CardArt.Show(portrait, leader_id);
-            portrait.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(88, 88 * 591f / 380f), new Vector2(0.5f, 0.72f));
-            Image ring = UIKit.NewImage(holder, "Ring", theme.ring, theme.gold);
-            ring.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56, 56));
+            VisualElement holder = new VisualElement { name = "Leader " + leader_id };
+            holder.AddToClassList("rules__leader");
+            VisualElement art = new VisualElement { name = "Art", pickingMode = PickingMode.Ignore };
+            art.AddToClassList("rules__leader-art");
+            CardArt.Show(art, leader_id);
+            holder.Add(art);
             string[] text;
             if (LeaderText.TryGetValue(leader_id, out text))
-                mask.gameObject.AddComponent<UITooltip>().text = () => "<b>" + text[0] + "</b>\n" + text[1];
+                ElementTooltip.Attach(holder, () => "<b>" + text[0] + "</b>\n" + text[1]);
+            return holder;
         }
 
         //----------------------------------------A little life----------------------------------------//
         // The rules come in one after another when a topic opens
-        private static void FadeIn(RectTransform row, int order)
+        private static void FadeIn(VisualElement row, int order)
         {
-            UIMotion.FadeIn(row.gameObject, 0.04f + order * 0.05f, 0.28f);
+            row.schedule.Execute(() => row.AddToClassList("rules__row--shown")).StartingIn((long)((0.04f + order * 0.05f) * 1000));
         }
     }
 }

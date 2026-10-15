@@ -742,3 +742,181 @@
     -unity-text-align: middle-center;
     font-size: 30px;
 }
+
+/*---------------------------------------- Tooltip ----------------------------------------*/
+.tooltip {
+    position: absolute;
+    max-width: 640px;
+    padding: 8px 18px 10px 18px;
+    background-color: var(--panel-raised);
+    border-width: 2px;
+    border-color: var(--line);
+    border-radius: 10px;
+    -unity-font-definition: var(--body-font);
+    font-size: 26px;
+    color: var(--text);
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+/*---------------------------------------- How to play ----------------------------------------*/
+.rules {
+    width: 1500px;
+    height: 900px;
+    padding: 30px 50px 26px 50px;
+    align-items: center;
+}
+
+.rules__ornament {
+    margin: 14px 0 22px 0;
+}
+
+.rules__body {
+    flex-direction: row;
+    align-self: stretch;
+    flex-grow: 1;
+}
+
+.rules__topics {
+    width: 360px;
+    margin-right: 40px;
+}
+
+/* A topic: a menu entry, its rule lit while it is the one shown */
+.rules__topic {
+    width: 360px;
+    height: 66px;
+    margin: 0 0 10px 0;
+}
+
+.rules__topic--current > .menu-item__rule {
+    opacity: 1;
+}
+
+.rules__view {
+    flex-grow: 1;
+    height: 620px;
+}
+
+.rules__view .unity-scroll-view__content-container {
+    padding: 0 24px 24px 0;
+}
+
+.rules__intro {
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text-secondary);
+    white-space: normal;
+    padding: 0;
+    margin: 0 0 22px 0;
+}
+
+/* A rule: its pieces in a column of their own, its gold title and its text; they come in one after another */
+.rules__row {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: 22px;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.28s;
+    transition-timing-function: ease-in-out-sine;
+}
+
+.rules__row--shown {
+    opacity: 1;
+}
+
+.rules__pieces {
+    height: 73px;
+    flex-shrink: 0;
+    margin-right: 22px;
+}
+
+.rules__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.rules__title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--gold-bright);
+    padding: 0;
+    margin: 0 0 4px 0;
+}
+
+.rules__line {
+    -unity-font-definition: var(--body-font);
+    font-size: 27px;
+    color: var(--text);
+    white-space: normal;
+    padding: 0;
+    margin: 0;
+}
+
+/* A piece: a picture of the game's, kept in shape */
+.piece {
+    position: absolute;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.piece__number {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    -unity-font-definition: var(--heading-font);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
+/* A key of the keyboard: dark, outlined in gold */
+.piece--key {
+    background-color: var(--panel-raised);
+    border-width: 2px;
+    border-color: var(--gold);
+    border-radius: 7px;
+    align-items: center;
+    justify-content: center;
+}
+
+.piece__key-label {
+    -unity-font-definition: url("project://database/Assets/Fonts/AlegreyaSans-Medium.ttf");
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
+.rules__leaders {
+    flex-direction: row;
+    padding-top: 6px;
+    height: 62px;
+}
+
+/* A leader: a round portrait in a gold ring (its ability in a tooltip) */
+.rules__leader {
+    width: 56px;
+    height: 56px;
+    margin-right: 10px;
+    border-width: 3px;
+    border-color: var(--gold);
+    border-radius: 28px;
+    overflow: hidden;
+    background-color: var(--panel-raised);
+}
+
+.rules__leader-art {
+    position: absolute;
+    left: -19px;
+    top: -13px;
+    width: 88px;
+    height: 137px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+.rules__close {
+    width: 220px;
+    height: 60px;
+    margin-top: 20px;
+}

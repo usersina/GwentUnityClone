@@ -1323,7 +1323,7 @@ namespace Gwent.EditorTools
                     Click(3.3, Named("Item How to play"));
                     At(3.8, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
                     Click(4.1, Named("Item Abilities"));
-                    At(4.6, () => check(GameObject.Find("Entry Spy") != null && GameObject.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
+                    At(4.6, () => check(UIScreens.Find("Entry Spy") != null && UIScreens.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
                     Key(4.9, UnityEngine.InputSystem.Key.Escape);
                     At(5.4, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
                 }
