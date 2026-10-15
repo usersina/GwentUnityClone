@@ -124,7 +124,8 @@ namespace Gwent.UI
                 glow.rectTransform.Stretch(-34, -34, -34, -34);
                 Image shadow = UIKit.NewImage(holder, "Shadow", theme.softShadow, new Color(0, 0, 0, 0.7f));
                 shadow.rectTransform.Stretch(-16, -26, -10, -34);
-                Image art = UIKit.NewImage(holder, "Art", SpriteCache.Load("Cards/List/591x380/" + shown[i]), Color.white, true);
+                Image art = UIKit.NewImage(holder, "Art", null, Color.white, true);
+                CardArt.Show(art, shown[i]);
                 art.rectTransform.Stretch();
                 art.preserveAspect = true;
 

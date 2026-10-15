@@ -104,7 +104,8 @@ namespace Gwent.Battle
             GameObject go = new GameObject("CardShowcase", typeof(RectTransform));
             go.transform.SetParent(CardMotion.Layer, false);
             shown = (RectTransform)go.transform;
-            Image art = UIKit.NewImage(shown, "Art", SpriteCache.Load("Cards/List/591x380/" + card._id), Color.white);
+            Image art = UIKit.NewImage(shown, "Art", null, Color.white);
+            CardArt.Show(art, card._id);
             art.preserveAspect = true;
             art.rectTransform.Stretch();
             if (glow)

@@ -47,8 +47,7 @@ namespace Gwent.DeckBuilding
             {
                 GameObject instantiatedLeader = Instantiate(leaderWPrefab);
                 instantiatedLeader.GetComponent<LeaderWindow>().leaderId = leaders_list[i];
-                instantiatedLeader.transform.Find("LImage").GetComponent<Image>().sprite =
-                    SpriteCache.Load("Cards/List/591x380/" + leaders_list[i]);
+                CardArt.Show(instantiatedLeader.transform.Find("LImage").GetComponent<Image>(), leaders_list[i]);
                 instantiatedLeader.transform.Find("LEffect").GetComponent<Image>().sprite =
                     SpriteCache.Load("Cards/EffectBox/Leader/" + leaders_list[i]);
                 instantiatedLeader.transform.SetParent(contentGO.transform, false);

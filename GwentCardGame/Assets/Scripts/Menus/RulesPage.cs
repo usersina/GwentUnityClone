@@ -534,12 +534,9 @@ namespace Gwent.Menus
             Image mask = UIKit.NewImage(holder, "Portrait", theme.circle, Color.white, true);
             mask.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(50, 50));
             mask.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            Sprite art = SpriteCache.Load("Cards/List/591x380/" + leader_id);
-            if (art != null)
-            {
-                Image portrait = UIKit.NewImage(mask.transform, "Art", art, Color.white);
-                portrait.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(88, 88 * 591f / 380f), new Vector2(0.5f, 0.72f));
-            }
+            Image portrait = UIKit.NewImage(mask.transform, "Art", null, Color.white);
+            CardArt.Show(portrait, leader_id);
+            portrait.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(88, 88 * 591f / 380f), new Vector2(0.5f, 0.72f));
             Image ring = UIKit.NewImage(holder, "Ring", theme.ring, theme.gold);
             ring.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56, 56));
             string[] text;

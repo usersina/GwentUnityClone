@@ -1,11 +1,16 @@
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace Gwent.Core
 {
     public class GameAudio : MonoBehaviour
     {
-        private const string MusicPath = "Audio/Music";
+        private const string MusicLabel = "music"; // the tracks, in Addressables (see GwentContent)
         private const string SfxPath = "Audio/Sfx";
         private const float MusicBaseVolume = 0.45f;
         private const float SfxBaseVolume = 0.9f;
@@ -52,7 +57,10 @@ namespace Gwent.Core
         };
 
         private readonly Dictionary<string, AudioClip> clipCache = new Dictionary<string, AudioClip>();
-        private AudioClip[] musicClips;
+        private List<IResourceLocation> tracks;        // where the tracks are, found once by their label
+        private IResourceLocation trackPlaying;
+        private AsyncOperationHandle<AudioClip> trackLoaded; // released once the next track plays
+        private bool trackLoading;
         private AudioSource musicSource;
         private AudioSource sfxSource;
         private bool hasFocus = true;
@@ -189,22 +197,59 @@ namespace Gwent.Core
                 PlayNextTrack();
         }
 
-        // A random track other than the one that just played. The tracks stream from disk (import settings), so
-        // loading them all only creates their small handles
+        // A random track other than the one that just played. Each track is a bundle of its own, loaded when it is to
+        // play (on the web, downloaded then) and released when the next one starts.
         private void PlayNextTrack()
         {
-            if (musicClips == null)
-                musicClips = Resources.LoadAll<AudioClip>(MusicPath);
-            if (musicClips == null || musicClips.Length == 0)
-                return;
+            if (!trackLoading)
+                NextTrack(destroyCancellationToken).Forget();
+        }
 
-            AudioClip previous = musicSource.clip;
-            AudioClip clip = musicClips[Random.Range(0, musicClips.Length)];
-            if (clip == previous && musicClips.Length > 1)
-                clip = musicClips[(System.Array.IndexOf(musicClips, clip) + 1 + Random.Range(0, musicClips.Length - 1)) % musicClips.Length];
-            musicSource.clip = clip;
-            musicSource.Play();
+        private async UniTaskVoid NextTrack(CancellationToken ct)
+        {
+            trackLoading = true;
             lastTrackStart = Time.unscaledTime;
+            AsyncOperationHandle<AudioClip> next = default;
+            IResourceLocation location = null;
+            try
+            {
+                if (tracks == null)
+                {
+                    AsyncOperationHandle<IList<IResourceLocation>> found = Addressables.LoadResourceLocationsAsync(MusicLabel, typeof(AudioClip));
+                    tracks = new List<IResourceLocation>(await found.ToUniTask(cancellationToken: ct));
+                    Addressables.Release(found);
+                }
+                if (tracks.Count == 0)
+                    return;
+
+                int index = Random.Range(0, tracks.Count);
+                if (tracks[index] == trackPlaying && tracks.Count > 1)
+                    index = (index + 1 + Random.Range(0, tracks.Count - 1)) % tracks.Count;
+                location = tracks[index];
+                next = Addressables.LoadAssetAsync<AudioClip>(location);
+                AudioClip clip = await next.ToUniTask(cancellationToken: ct);
+
+                musicSource.clip = clip;
+                musicSource.Play();
+                if (trackLoaded.IsValid())
+                    Addressables.Release(trackLoaded);
+                trackLoaded = next;
+                trackPlaying = location;
+                lastTrackStart = Time.unscaledTime;
+                GameLog.Event(LogCategory.Game, "music", "track", clip.name);
+            }
+            catch (System.Exception e) when (!(e is System.OperationCanceledException))
+            {
+                // Addressables logged why; a track that cannot be read is not tried again
+                if (next.IsValid())
+                    Addressables.Release(next);
+                if (location != null && tracks != null)
+                    tracks.Remove(location);
+            }
+            finally
+            {
+                trackLoading = false;
+            }
         }
 
         private void PlaySoundEffect(string clipName, float volumeScale)

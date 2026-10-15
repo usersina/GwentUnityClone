@@ -171,7 +171,7 @@ namespace Gwent.DeckBuilding
                 CardRef stats = instantiatedCard.GetComponent<CardRef>();
                 stats.Card = card;
 
-                instantiatedCard.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + card._id);
+                CardArt.Show(instantiatedCard.GetComponent<Image>(), card._id);
                 instantiatedCard.transform.SetParent(cardsArea.transform, false);
                 AddCountBadge(instantiatedCard.transform, count);
             }

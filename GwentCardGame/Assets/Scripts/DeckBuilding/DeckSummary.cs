@@ -125,7 +125,7 @@ namespace Gwent.DeckBuilding
             CardRef stats = leaderGo.GetComponent<CardRef>();
             stats.Card = leader_card;
 
-            leaderGo.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + loadedDeck.Leader);
+            CardArt.Show(leaderGo.GetComponent<Image>(), loadedDeck.Leader);
             leaderGo.transform.Find("Name").GetComponent<TextMeshProUGUI>().text = leader_card.name;
         }
 

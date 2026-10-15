@@ -214,6 +214,9 @@ namespace Gwent.Battle
                 && (myDeck.Leader == LeaderIds.EmhyrTheWhiteFlame || oppDeck.Leader == LeaderIds.EmhyrTheWhiteFlame);
             PrepareField(myDeck, PlayerInfo, true, white_flame);
             PrepareField(oppDeck, EnemyInfo, false, white_flame);
+            // The cards' art before it is seen: the player's hand first (the redraw shows it at once), then both decks
+            CardArt.Preload(PlayerInfo.HandList, "hand", destroyCancellationToken).Forget();
+            CardArt.Preload(myDeck.Cards.Concat(oppDeck.Cards).Append(myDeck.Leader).Append(oppDeck.Leader), "battle", destroyCancellationToken).Forget();
 
             foreach (bool is_player in new[] { true, false })
                 if (white_flame && Info(is_player).Leader != LeaderIds.EmhyrTheWhiteFlame)
@@ -258,7 +261,7 @@ namespace Gwent.Battle
             info.Leader = deck.Leader;
 
             View(is_player_deck).Stats.UISetGeneral(info.Faction);
-            View(is_player_deck).Stats.UISetPlayer(info.Name, SpriteCache.Load("Cards/List/591x380/" + deck.Leader));
+            View(is_player_deck).Stats.UISetPlayer(info.Name, deck.Leader);
             SetLeaderCard(deck.Leader, is_player_deck);
 
             // Francesca, Daisy of the Valley: one extra card at the beginning of the battle

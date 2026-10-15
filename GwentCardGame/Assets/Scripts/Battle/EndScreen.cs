@@ -94,12 +94,9 @@ namespace Gwent.Battle
             Image mask = UIKit.NewImage(board, "Portrait", theme.circle, Color.white);
             mask.rectTransform.Place(new Vector2(0, 1), new Vector2(30 + 56, y), new Vector2(84, 84));
             mask.gameObject.AddComponent<Mask>().showMaskGraphic = false;
-            Sprite art = SpriteCache.Load("Cards/List/591x380/" + info.Leader);
-            if (art != null)
-            {
-                Image portrait = UIKit.NewImage(mask.transform, "Art", art, Color.white);
-                portrait.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150, 150 * 591f / 380f), new Vector2(0.5f, 0.72f));
-            }
+            Image portrait = UIKit.NewImage(mask.transform, "Art", null, Color.white);
+            CardArt.Show(portrait, info.Leader);
+            portrait.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(150, 150 * 591f / 380f), new Vector2(0.5f, 0.72f));
             Image ring = UIKit.NewImage(board, "Ring", theme.ring, theme.gold);
             ring.rectTransform.Place(new Vector2(0, 1), new Vector2(30 + 56, y), new Vector2(92, 92));
 

@@ -167,7 +167,8 @@ namespace Gwent.Battle
         // An image of a card on the carousel's canvas (above the board), over a screen rectangle
         private RectTransform Ghost(int card_id, Rect screen_rect)
         {
-            Image art = UIKit.NewImage(transform, "RedrawGhost", SpriteCache.Load("Cards/List/591x380/" + card_id), Color.white);
+            Image art = UIKit.NewImage(transform, "RedrawGhost", null, Color.white);
+            CardArt.Show(art, card_id);
             art.preserveAspect = true;
             PlaceOnScreen(art.rectTransform, screen_rect);
             return art.rectTransform;

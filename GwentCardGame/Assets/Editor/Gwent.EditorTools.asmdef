@@ -3,7 +3,10 @@
     "references": [
         "Gwent.Game",
         "Gwent.Rules",
+        "Unity.Addressables",
+        "Unity.Addressables.Editor",
         "Unity.InputSystem",
+        "Unity.ResourceManager",
         "Unity.TextMeshPro",
         "UnityEngine.UI"
     ],

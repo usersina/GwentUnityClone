@@ -37,15 +37,14 @@ namespace Gwent.Menus
             UIKit.Ornament(panel, new Vector2(0.5f, 1), new Vector2(0, -112), 420);
 
             string chosen = OpponentDecks.Chosen;
-            Button focus = Entry(panel, 0, null, "Random opponent", "A different deck every battle", "", chosen == "");
+            Button focus = Entry(panel, 0, -1, "Random opponent", "A different deck every battle", "", chosen == "");
             for (int i = 0; i < decks.Count; i++)
             {
                 Deck deck = CardLibrary.ParseDeck(decks[i].text, decks[i].name);
                 if (deck == null)
                     continue;
                 string leader = db.Contains(deck.Leader) ? db.Get(deck.Leader).DisplayName : "";
-                Sprite portrait = SpriteCache.Load("Cards/List/591x380/" + deck.Leader);
-                Button entry = Entry(panel, i + 1, portrait, deck.Name, Factions.DisplayName(deck.Faction) + "  ·  " + leader, decks[i].name, decks[i].name == chosen);
+                Button entry = Entry(panel, i + 1, deck.Leader, deck.Name, Factions.DisplayName(deck.Faction) + "  ·  " + leader, decks[i].name, decks[i].name == chosen);
                 if (decks[i].name == chosen)
                     focus = entry;
             }
@@ -55,8 +54,9 @@ namespace Gwent.Menus
             UIKit.Focus(focus);
         }
 
-        // One opponent: portrait in a gold ring, name, faction and leader; lights up like a menu entry
-        private Button Entry(RectTransform panel, int index, Sprite portrait, string name, string detail, string deck, bool current)
+        // One opponent: portrait in a gold ring (its leader's, or a question mark for the random one), name, faction and
+        // leader; lights up like a menu entry
+        private Button Entry(RectTransform panel, int index, int leader, string name, string detail, string deck, bool current)
         {
             UITheme theme = UITheme.Current;
             Vector2 at = new Vector2(index % 2 == 0 ? -310 : 310, -190 - (index / 2) * RowStep);
@@ -72,12 +72,13 @@ namespace Gwent.Menus
             rule.rectTransform.sizeDelta = new Vector2(4, 0);
             rule.rectTransform.anchoredPosition = Vector2.zero;
 
-            Image mask = UIKit.NewImage(root, "Portrait", theme.circle, portrait != null ? Color.white : theme.panelRaised);
+            Image mask = UIKit.NewImage(root, "Portrait", theme.circle, leader >= 0 ? Color.white : theme.panelRaised);
             mask.rectTransform.Place(new Vector2(0, 0.5f), new Vector2(64, 0), new Vector2(80, 80));
-            mask.gameObject.AddComponent<Mask>().showMaskGraphic = portrait == null;
-            if (portrait != null)
+            mask.gameObject.AddComponent<Mask>().showMaskGraphic = leader < 0;
+            if (leader >= 0)
             {
-                Image art = UIKit.NewImage(mask.transform, "Art", portrait, Color.white);
+                Image art = UIKit.NewImage(mask.transform, "Art", null, Color.white);
+                CardArt.Show(art, leader);
                 art.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(140, 140 * 591f / 380f), new Vector2(0.5f, 0.72f));
             }
             else

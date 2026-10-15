@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
@@ -86,13 +87,13 @@ namespace Gwent.Battle
         }
 
         // Player name, and the leader card's art in the round portrait frame (Avatar/Image masks Avatar/Image/Portrait)
-        public void UISetPlayer(string player_name, Sprite portrait_sprite)
+        public void UISetPlayer(string player_name, int leader)
         {
             CacheReferences();
             nameText.text = player_name;
-            if (portrait == null || portrait_sprite == null)
+            if (portrait == null)
                 return;
-            portrait.sprite = portrait_sprite;
+            CardArt.Show(portrait, leader);
             portrait.enabled = true;
         }
 

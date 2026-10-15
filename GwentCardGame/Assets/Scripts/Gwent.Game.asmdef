@@ -5,7 +5,10 @@
         "LitMotion",
         "LitMotion.Extensions",
         "UniTask",
+        "UniTask.Addressables",
+        "Unity.Addressables",
         "Unity.InputSystem",
+        "Unity.ResourceManager",
         "Unity.TextMeshPro",
         "UnityEngine.UI"
     ],

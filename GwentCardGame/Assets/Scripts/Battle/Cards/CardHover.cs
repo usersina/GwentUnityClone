@@ -179,7 +179,7 @@ namespace Gwent.Battle
             Card cardStats = GetComponent<CardFace>().Card;
             bigImage = Instantiate(BigImage);
             bigImage.transform.SetParent(Canvas.transform, false);
-            bigImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
+            CardArt.Show(bigImage.GetComponent<Image>(), cardStats._id);
             // A plain unit has no description (The Witcher 3)
             string description = EffectBoxPath(cardStats);
             if (description != null)
