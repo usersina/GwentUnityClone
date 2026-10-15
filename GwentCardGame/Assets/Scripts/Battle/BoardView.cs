@@ -35,9 +35,8 @@ public class BoardView
     {
         public GameObject Root;
         public RowPicker Picker;
-        public HandManager Hand;
+        public GameObject Hand;
         public DeckManager Deck;
-        public PileManager Discard;
         public GameObject DiscardPile;
         public StatsManager Stats;
         public LeaderManager Leader;
@@ -51,9 +50,8 @@ public class BoardView
             Root = root;
             Transform t = root.transform;
             Picker = root.GetComponent<RowPicker>();
-            Hand = t.Find("Hand").GetComponent<HandManager>();
+            Hand = t.Find("Hand").gameObject;
             Deck = t.Find("Deck").GetComponent<DeckManager>();
-            Discard = t.Find("Discard").GetComponent<PileManager>();
             DiscardPile = t.Find("Discard").Find("Pile").gameObject;
             Stats = t.Find("Stats").GetComponent<StatsManager>();
             Leader = t.Find("Leader").GetComponent<LeaderManager>();
@@ -129,7 +127,7 @@ public class BoardView
             float gap = ((RectTransform)view.LeadMarker.transform).rect.height / 2 + passed.rect.height / 2;
             passed.anchoredPosition = total.anchoredPosition + new Vector2(-6, is_player ? gap : -gap);
             // The Witcher 3's lines of cards: centred, gliding into place (the grids snapped)
-            CardLane.Install(view.Hand.gameObject, 50);
+            CardLane.Install(view.Hand, 50);
             foreach (RowView row in view.Rows.Values)
             {
                 CardLane.Install(row.Unit, 100).emptyMark = row.Emblem.gameObject;
@@ -212,7 +210,7 @@ public class BoardView
     public void SetHand(List<int> hand_list, bool is_player_hand)
     {
         FieldView view = View(is_player_hand);
-        SyncCards(view.Hand.gameObject, CardOrder.Sorted(hand_list, controller.Db), is_player_hand, BoardChange.Place.Hand);
+        SyncCards(view.Hand, CardOrder.Sorted(hand_list, controller.Db), is_player_hand, BoardChange.Place.Hand);
         view.Stats.UIUpdateHandCount(hand_list.Count);
     }
 
