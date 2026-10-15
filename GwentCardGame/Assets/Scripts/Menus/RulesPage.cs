@@ -140,14 +140,16 @@ namespace Gwent.Menus
                         E("Leader", "Tap the leader: it leaves its place for the right, shows where it acts, and its crown glows; tap the crown to use it, or the empty place to put it back. Hold a finger on the crown to see whether it can still be used.", "crown"),
                         E("Pass", "Hold the Hold to pass button.", "key:Hold to pass"),
                         E("Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large until you lift it; tap a discard pile to look through it.", "card:14"),
-                        E("Pause", "The back button or the menu button: resume, settings, or give up the battle.", "key:Back"),
+                        E("Pause", "The back button or the menu button: resume or settings.", "key:Back"),
+                        E("Give up", "Lay your hand on your deck: in your turn, hold a finger on it, then confirm. It counts as a loss.", "back:NR"),
                     } : new[]
                     {
                         E("Play a card", "Click it in your hand, then click where it lights up; the cursor shows a red sign where it can't go. With the keys: Left/Right go through your hand, Enter takes the card, Up/Down choose where it goes, Enter plays it, Esc puts it back.", "key:<", "key:>", "key:Enter"),
                         E("Leader", "Click the leader: it leaves its place for the right, shows where it acts, and its crown glows; click the crown to use it, or the empty place (or right-click, Esc) to put it back. Or X, then X again or Enter.", "key:X", "crown"),
                         E("Pass", "Hold Space, or hold the Hold to pass button.", "key:Space"),
                         E("Look", "Hover a card to see it large; click a discard pile to look through it.", "card:14"),
-                        E("Pause", "Esc: resume, settings, or give up the battle.", "key:Esc"),
+                        E("Pause", "Esc or the menu button: resume or settings.", "key:Esc"),
+                        E("Give up", "Lay your hand on your deck: in your turn, the cursor over it turns into a hand; click, then confirm. It counts as a loss.", "back:NR"),
                     },
                 },
             };

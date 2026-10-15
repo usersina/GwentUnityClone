@@ -9,7 +9,8 @@ using UnityEngine.UIElements;
 namespace Gwent.Menus
 {
     // The battle's pause menu (Escape, the Android back button or the menu button at the top right).
-    // Time stops while it is open, so the AI waits too. A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this
+    // Time stops while it is open, so the AI waits too. Giving up is not here: a hand laid on your deck does it
+    // (DeckGiveUp), as in Yu-Gi-Oh. A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this
     // component sits on its object to put time back should the scene close under it.
     public class PauseMenu : MonoBehaviour
     {
@@ -46,11 +47,9 @@ namespace Gwent.Menus
             resume.clicked += Close;
             MenuEntry settings = root.Q<MenuEntry>("Item Settings");
             settings.clicked += () => SettingsPanel.Open(() => UIScreens.Focus(settings));
-            // Give up (The Witcher 3's forfeit): the battle counts as lost and the end screen follows; once it is over,
-            // back to the main menu instead
+            // Once the battle is over, back to the main menu from here too
             BattleController battle = BattleController.Instance;
             bool battle_on = battle != null && !battle.IsBattleOver;
-            Entry(root, "Item Give up", battle_on, () => UIOverlay.Confirm("Give up this battle? It counts as a loss.", "Give up", "Keep playing", GiveUp));
             Entry(root, "Item Main menu", !battle_on, () => UIOverlay.Confirm("Leave and go back to the main menu?", "Leave", "Stay", LeaveBattle));
             Entry(root, "Item Quit game", !GameSettings.IsMobile && !GameSettings.IsWeb, () => UIOverlay.Confirm("Quit the game?", "Quit", "Cancel", Application.Quit));
             root.schedule.Execute(() => UIScreens.Focus(resume));
@@ -72,13 +71,6 @@ namespace Gwent.Menus
             float previous = current != null ? current.previousTimeScale : 1f;
             Time.timeScale = BattleController.Instance != null ? GameSettings.GameTimeScale : previous > 0 ? previous : 1f;
             current = null;
-        }
-
-        private static void GiveUp()
-        {
-            Close();
-            if (BattleController.Instance != null)
-                BattleController.Instance.GiveUp();
         }
 
         private static void LeaveBattle()

@@ -109,6 +109,7 @@ namespace Gwent.Battle
         {
             if (!GameInput.IsTouch)
                 gameObject.AddComponent<BattleKeys>();
+            View(true).Deck.gameObject.AddComponent<DeckGiveUp>(); // a hand laid on your deck gives up
             GameAudio.PlayGameMusic();
             Time.timeScale = GameSettings.GameTimeScale;
             PlayerInfo.Name = "Player";
@@ -195,6 +196,9 @@ namespace Gwent.Battle
         {
             get { return battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && presenting == 0; }
         }
+
+        // The player may give up (a hand on their deck): in their turn, nothing pending or being shown
+        public bool CanGiveUp { get { return IsPlayerActionAllowed && !IsBattleOver; } }
 
         // A play is being shown: nothing else can be done until it ends
         public bool IsPresenting { get { return presenting > 0; } }

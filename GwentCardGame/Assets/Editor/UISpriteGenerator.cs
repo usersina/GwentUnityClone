@@ -539,6 +539,40 @@ namespace Gwent.EditorTools
             WriteCursor("CursorDefault", (x, y) => CursorArrow(x, y, SilverLight, SilverDark, false));
             WriteCursor("CursorInteract", (x, y) => CursorArrow(x, y, GoldLight, GoldDark, false));
             WriteCursor("CursorInvalid", (x, y) => CursorArrow(x, y, SilverLight, SilverDark, true));
+            WriteCursor("CursorGiveUp", CursorHand);
+        }
+
+        // A gold hand laid flat, seen from its back: four fingers up, the thumb out to the left. Over the player's own deck in
+        // their turn: laying a hand on the deck gives up the battle (Yu-Gi-Oh's surrender). Its hotspot is the palm
+        // (CursorHandHotspot).
+        public static readonly Vector2 CursorHandHotspot = new Vector2(30, 40);
+        private static readonly Vector2[] Palm =
+        {
+            new Vector2(16.5f, 31), new Vector2(43.5f, 31), new Vector2(45, 45), new Vector2(40, 55), new Vector2(22, 55), new Vector2(16, 46),
+        };
+
+        private static Color CursorHand(float x, float y)
+        {
+            // Each finger a capsule, a hair apart, so the outline runs between them
+            float index = Segment(x, y, 20.5f, 33, 20.5f, 13.5f) - 3.35f;
+            float middle = Segment(x, y, 27.3f, 33, 27.3f, 9.5f) - 3.35f;
+            float ring = Segment(x, y, 34.1f, 33, 34.1f, 11.5f) - 3.35f;
+            float little = Segment(x, y, 40.7f, 34, 41.3f, 17.5f) - 3.1f;
+            float thumb = Segment(x, y, 19, 45, 9.5f, 33.5f) - 3.4f;
+            float d = Mathf.Min(Polygon(x, y, Palm), Mathf.Min(Mathf.Min(index, middle), Mathf.Min(Mathf.Min(ring, little), thumb)));
+            // Gold metal as the gold arrow: lighter towards the top left, a bright bevel inside the edges
+            float t = Mathf.Clamp01((x - 10) / 36f * 0.4f + (y - 10) / 45f * 0.6f);
+            Color color = Color.Lerp(GoldLight, GoldDark, t);
+            if (d > -2.5f && d < -0.8f)
+                color = Color.Lerp(color, Color.white, 0.3f);
+            if (d > -1.2f)
+                color = new Color(0.08f, 0.06f, 0.05f, 1); // dark outline
+            // The knuckles' line across the top of the palm
+            if (Mathf.Abs(y - 33.5f) < 0.6f && x > 18 && x < 43 && d < -1.5f)
+                color = Shade(color, 0.7f);
+            float coverage = Mathf.Clamp01(0.5f - d);
+            float shadow = Mathf.Min(Polygon(x - 2, y - 3, Palm), Segment(x - 2, y - 3, 27.3f, 33, 27.3f, 9.5f) - 9);
+            return OverShadow(color, coverage, (shadow + 1) / 3f);
         }
 
         private static Color CursorArrow(float x, float y, Color light, Color dark, bool invalid)
@@ -724,6 +758,7 @@ namespace Gwent.EditorTools
             theme.cursorDefault = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorDefault.png");
             theme.cursorInteract = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInteract.png");
             theme.cursorInvalid = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorInvalid.png");
+            theme.cursorGiveUp = AssetDatabase.LoadAssetAtPath<Texture2D>(CursorFolder + "/CursorGiveUp.png");
             EditorUtility.SetDirty(theme);
             AssetDatabase.SaveAssets();
         }

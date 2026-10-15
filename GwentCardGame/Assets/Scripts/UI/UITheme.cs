@@ -77,6 +77,7 @@ namespace Gwent.UI
         public Texture2D cursorDefault;
         public Texture2D cursorInteract;
         public Texture2D cursorInvalid;
+        public Texture2D cursorGiveUp; // a hand laid on the deck (hotspot at the palm: 30, 40)
 
         private static UITheme current;
 

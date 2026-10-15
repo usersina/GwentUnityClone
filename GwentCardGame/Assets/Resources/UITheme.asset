@@ -72,3 +72,4 @@ MonoBehaviour:
   cursorDefault: {fileID: 2800000, guid: cbcb12b56ba765b95ad7887bec99e252, type: 3}
   cursorInteract: {fileID: 2800000, guid: b850cb37082471b529f708fa503613ef, type: 3}
   cursorInvalid: {fileID: 2800000, guid: 511b23d617df0dc869d7200289b1e555, type: 3}
+  cursorGiveUp: {fileID: 2800000, guid: 91af15957fb167502bee33be199278e2, type: 3}

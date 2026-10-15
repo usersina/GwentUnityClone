@@ -9,14 +9,16 @@ using UnityEngine.UI;
 
 namespace Gwent.UI
 {
-    // The Witcher-style mouse cursor (desktop): a silver arrow, gold over anything that reacts to a click, and a red
-    // "no" badge where the selected card cannot go. Reads the UI's own raycast under the mouse every frame and only
-    // changes the hardware cursor when the state changes.
+    // The Witcher-style mouse cursor (desktop): a silver arrow, gold over anything that reacts to a click, a red "no" badge
+    // where the selected card cannot go, and a gold hand over the player's own deck in their turn (laying a hand on it
+    // gives up the battle). Reads the UI's own raycast under the mouse every frame and only changes the hardware cursor
+    // when the state changes.
     public class GameCursor : MonoBehaviour
     {
-        public enum State { Default, Interact, Invalid }
+        public enum State { Default, Interact, Invalid, GiveUp }
 
-        private static readonly Vector2 Hotspot = new Vector2(5, 4);
+        private static readonly Vector2 Hotspot = new Vector2(5, 4);       // the arrows' tip
+        private static readonly Vector2 HandHotspot = new Vector2(30, 40); // the hand's palm
         private static GameCursor instance;
         private State current = (State)(-1);
 
@@ -49,7 +51,12 @@ namespace Gwent.UI
                 return;
             current = state;
             UITheme theme = UITheme.Current;
-            Texture2D texture = state == State.Interact ? theme.cursorInteract : state == State.Invalid ? theme.cursorInvalid : theme.cursorDefault;
+            if (state == State.GiveUp && theme.cursorGiveUp != null)
+            {
+                Cursor.SetCursor(theme.cursorGiveUp, HandHotspot, CursorMode.Auto);
+                return;
+            }
+            Texture2D texture = state == State.Interact || state == State.GiveUp ? theme.cursorInteract : state == State.Invalid ? theme.cursorInvalid : theme.cursorDefault;
             Cursor.SetCursor(texture, Hotspot, CursorMode.Auto);
         }
 
@@ -69,6 +76,11 @@ namespace Gwent.UI
             Selectable selectable = hovered.GetComponentInParent<Selectable>();
             if (selectable != null)
                 return selectable.IsInteractable() && selectable.enabled ? State.Interact : State.Default;
+
+            // The player's own deck in their turn: a hand laid on it gives up the battle
+            DeckGiveUp deck = hovered.GetComponentInParent<DeckGiveUp>();
+            if (deck != null)
+                return deck.Available ? State.GiveUp : State.Default;
 
             // A discard pile with cards opens for browsing
             DiscardPileBrowser pile = hovered.GetComponentInParent<DiscardPileBrowser>();
