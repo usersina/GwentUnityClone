@@ -32,9 +32,9 @@ namespace Gwent.DeckBuilding
         public List<string> SCDecks;
         public List<string> MDecks;
 
-        [HideInInspector] // List of all cards (each card has unique stats)
-        public List<Card> allCards;
-        public Deck my_deck;
+        // Runtime state, never saved with the scene: every card (each card has unique stats), the deck being edited
+        [System.NonSerialized] public List<Card> allCards;
+        [System.NonSerialized] public Deck my_deck;
 
         public bool IsReady { get; private set; }
         public CardDatabase Db { get; private set; }

@@ -16,11 +16,11 @@ namespace Gwent.DeckBuilding
         public CardGrid deckCollection;
         public GameObject leaderGo;
         public TMP_Dropdown deckPicker;
-        public Deck loadedDeck;
-        public List<Card> deckCards;
+        [System.NonSerialized] public Deck loadedDeck;
+        [System.NonSerialized] public List<Card> deckCards;
         public List<TextMeshProUGUI> deckInfo;
 
-        public List<Deck> myDecks = new List<Deck>();
+        [System.NonSerialized] public List<Deck> myDecks = new List<Deck>();
         public List<string> myPaths = new List<string>();
 
         IEnumerator Start()

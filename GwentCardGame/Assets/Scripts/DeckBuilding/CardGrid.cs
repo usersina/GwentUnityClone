@@ -40,8 +40,7 @@ namespace Gwent.DeckBuilding
         public List<Sprite> idleSprites;
         public List<Sprite> selectedSprites;
 
-        [HideInInspector]
-        public List<Card> CardsToDisplay;
+        [System.NonSerialized] public List<Card> CardsToDisplay;
 
         public DeckSummary deckSummary;
 
