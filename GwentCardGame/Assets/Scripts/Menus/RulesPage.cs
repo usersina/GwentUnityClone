@@ -89,7 +89,7 @@ namespace Gwent.Menus
                         E("Heroes", "The gold-framed units. Nothing changes them: no weather, horn, morale boost, scorch, decoy or medic. A hero can be in a deck only once.", "card:67", "card:14"),
                         E("Units", "Everything else on the rows. Most exist once; a few, such as the Blue Stripes Commando, several times.", "card:7", "card:4"),
                         E("Special cards", "Weather, Commander's Horn, Decoy and Scorch: they shape the board instead of adding strength.", "card:202", "card:203"),
-                        E("Leader", "One ability you can use once per battle; its crown is lit while you still can. A few leaders' abilities are always in effect instead.", "card:51", "crown"),
+                        E("Leader", "One ability you can use once per battle: lift the leader card, and its crown glows; the crown uses it. The crown turns grey once used. A few leaders' abilities are always in effect instead.", "card:51", "crown"),
                     },
                 },
                 new Topic
@@ -137,14 +137,14 @@ namespace Gwent.Menus
                     Entries = touch ? new[]
                     {
                         E("Play a card", "Tap it in your hand (it shows large on the right), then tap where it lights up.", "card:7"),
-                        E("Leader", "Tap the leader: it shows on the right and lights where it acts; tap it again, or the lit place, to use it. Hold a finger on its crown to see whether it can still be used.", "crown"),
+                        E("Leader", "Tap the leader: it leaves its place for the right, shows where it acts, and its crown glows; tap the crown to use it, or the empty place to put it back. Hold a finger on the crown to see whether it can still be used.", "crown"),
                         E("Pass", "Hold the Hold to pass button.", "key:Hold to pass"),
                         E("Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large until you lift it; tap a discard pile to look through it.", "card:14"),
                         E("Pause", "The back button or the menu button: resume, settings, or give up the battle.", "key:Back"),
                     } : new[]
                     {
                         E("Play a card", "Click it in your hand, then click where it lights up; the cursor shows a red sign where it can't go. With the keys: Left/Right go through your hand, Enter takes the card, Up/Down choose where it goes, Enter plays it, Esc puts it back.", "key:<", "key:>", "key:Enter"),
-                        E("Leader", "Click the leader (or its crown): it shows on the right and lights where it acts; click it again, or the lit place, to use it. Or X, then X again or Enter.", "key:X"),
+                        E("Leader", "Click the leader: it leaves its place for the right, shows where it acts, and its crown glows; click the crown to use it, or the empty place (or right-click, Esc) to put it back. Or X, then X again or Enter.", "key:X", "crown"),
                         E("Pass", "Hold Space, or hold the Hold to pass button.", "key:Space"),
                         E("Look", "Hover a card to see it large; click a discard pile to look through it.", "card:14"),
                         E("Pause", "Esc: resume, settings, or give up the battle.", "key:Esc"),

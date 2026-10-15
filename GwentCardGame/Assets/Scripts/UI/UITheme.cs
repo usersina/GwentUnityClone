@@ -54,7 +54,7 @@ namespace Gwent.UI
         public Sprite iconEdit;
         public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
         public Sprite glowRing;   // a glow around a rectangle, clear inside (nine-sliced, reaching 32 px out)
-        public Sprite leaderReady; // the leader ability's crown, lit: the ability can still be used this round
+        public Sprite leaderReady; // the leader ability's crown, glowing: the leader is lifted and the crown uses it
 
         [Header("Board pieces (shown on the rules page)")]
         public Sprite[] rowEmblems;   // close combat, ranged, siege

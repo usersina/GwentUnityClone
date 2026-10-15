@@ -27,9 +27,13 @@ namespace Gwent.Battle
 
         public void Clicked()
         {
+            // The lifted leader (a leader that takes from a pile lights it): its crown uses it, not the pile
             BattleController battle = BattleController.Instance;
-            if (battle != null && battle.TryUseLeaderOn(gameObject))
+            if (battle != null && battle.LeaderSelected)
+            {
+                battle.HintLeaderCrown();
                 return;
+            }
             Browse();
         }
 

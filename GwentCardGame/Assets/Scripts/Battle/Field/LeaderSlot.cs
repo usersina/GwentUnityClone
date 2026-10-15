@@ -1,13 +1,15 @@
-using System.Collections;
-using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
+using LitMotion;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Gwent.Battle
 {
+    // A side's leader: its card and its crown. The crown shows the ability's state (gold while it can be used, grey once
+    // used or for a passive leader, red when cancelled) and, for the player, uses it: it glows and becomes a button only
+    // while the leader card is lifted (BattleController.LeaderSelected).
     public class LeaderSlot : MonoBehaviour
     {
         [HideInInspector]
@@ -25,7 +27,9 @@ namespace Gwent.Battle
         private bool used;
         private bool cancelled;
         private bool ready = true; // the ability can still be used this round (not used, cancelled or passed)
-        private Sprite plainFace;  // the gold crown; the lit one is UITheme.leaderReady
+        private bool lifted;       // the player's leader card is out of its slot: the crown uses it
+        private Sprite plainFace;  // the gold crown; the glowing one is UITheme.leaderReady
+        private MotionHandle throb;
 
         private static readonly Color UsedGrey = new Color(0.45f, 0.45f, 0.45f, 0.9f);
         private static readonly Color PassiveGrey = new Color(0.78f, 0.78f, 0.78f, 1f);
@@ -90,8 +94,17 @@ namespace Gwent.Battle
             Refresh();
         }
 
-        // The Witcher 3's crown: lit (blue) while the ability can still be used this round, grey once used, after
-        // passing, or when passive; red when cancelled
+        // The player's leader card was lifted out of its slot, or put back
+        public void UISetLifted(bool is_lifted)
+        {
+            if (lifted == is_lifted)
+                return;
+            lifted = is_lifted;
+            Refresh();
+        }
+
+        // The crown: gold while the ability can still be used this round; glowing (orange and gold), swelling softly and
+        // a button while the leader is lifted; grey once used, after passing, or when passive; red when cancelled
         private void Refresh()
         {
             Button button = ActivateButton;
@@ -101,15 +114,24 @@ namespace Gwent.Battle
             if (plainFace == null)
                 plainFace = face.sprite;
             bool passive = type == Row.LeaderPassive;
-            bool lit = ready && !used && !cancelled && !passive && UITheme.Current.leaderReady != null;
-            face.sprite = lit ? UITheme.Current.leaderReady : plainFace;
-            face.color = cancelled ? CancelledRed : used ? UsedGrey : passive ? PassiveGrey : lit ? Color.white : UsedGrey;
+            bool usable = ready && !used && !cancelled && !passive;
+            bool glowing = usable && lifted && IsPlayers && UITheme.Current.leaderReady != null;
+            face.sprite = glowing ? UITheme.Current.leaderReady : plainFace;
+            face.color = cancelled ? CancelledRed : used ? UsedGrey : passive ? PassiveGrey : usable ? Color.white : UsedGrey;
             if (button.transition == Selectable.Transition.None)
                 face.canvasRenderer.SetColor(Color.white); // no tint left over from the button's earlier look
-            button.interactable = IsPlayers && !used && !cancelled && !passive;
+            button.interactable = glowing;
             ColorBlock colors = button.colors;
             colors.disabledColor = Color.white; // the face carries the state
             button.colors = colors;
+
+            if (glowing && !throb.IsActive())
+                throb = UIMotion.Throb(button.transform);
+            else if (!glowing && throb.IsActive())
+            {
+                throb.TryCancel();
+                button.transform.localScale = Vector3.one;
+            }
         }
 
         private string TooltipText()
@@ -121,18 +143,21 @@ namespace Gwent.Battle
                 return whose + ": passive, always in effect";
             if (used)
                 return whose + ": used";
+            if (!IsPlayers)
+                return whose + ": not used yet";
             string press = GameInput.IsTouch ? "tap" : "click";
-            return IsPlayers ? "Leader ability: " + press + " to choose it, " + press + " again to use it" : whose + ": not used yet";
+            return lifted ? "Leader ability: " + press + " to use it"
+                : "Leader ability: " + press + " your leader card to lift it, then " + press + " this crown to use it";
         }
 
-        // Reference: Activate button (and a click on the leader card). The first click chooses the leader, the second uses
-        // it; the controller marks the button used once the ability really happened.
+        // Reference: the crown's button (Activate). It uses the lifted leader; the controller marks the crown used once the
+        // ability really happened.
         public void ActivateLeader()
         {
             if (!IsPlayers)
                 return;
             if (controller.battleState == BattleState.PlayerTurn)
-                controller.LeaderClicked();
+                controller.LeaderCrownClicked();
         }
     }
 }

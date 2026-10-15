@@ -83,11 +83,11 @@ namespace Gwent.Battle
             return arrow.wasPressedThisFrame || letter.wasPressedThisFrame;
         }
 
-        // As a click on the leader: the first chooses it, the second uses it
+        // The first lifts the leader, the second uses it
         private void LeaderKey(BattleController battle)
         {
             Unfocus();
-            battle.LeaderClicked();
+            battle.LeaderKeyPressed();
             if (battle.LeaderSelected)
                 UIOverlay.Toast("X again or Enter uses your leader ability; Esc puts it back");
         }

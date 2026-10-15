@@ -35,11 +35,10 @@ namespace Gwent.Battle
                 controller = BattleController.Instance;
             if (controller.battleState == BattleState.PlayerTurn)
             {
-                // The chosen leader: a weather leader is used here
+                // The lifted leader: its crown uses it, not the board
                 if (controller.LeaderSelected)
                 {
-                    if (!controller.TryUseLeaderOn(gameObject))
-                        GameAudio.PlaySfx("invalid");
+                    controller.HintLeaderCrown();
                     return;
                 }
                 if (controller.selectedCard == null)

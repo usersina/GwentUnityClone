@@ -5,8 +5,9 @@ using UnityEngine.EventSystems;
 
 namespace Gwent.Battle
 {
-    // Click on a card: select a hand card; on the board, the target of a selected decoy, the leader (chosen first, used
-    // by a second click), a discard pile to browse, or the row / weather board under it for a selected card
+    // Click on a card: select a hand card; on the board, the target of a selected decoy, the leader (lifted out of its
+    // slot, put back by a click on the empty slot; its crown uses it), a discard pile to browse, or the row / weather
+    // board under it for a selected card
     public class CardSelect : MonoBehaviour, IPointerClickHandler
     {
         [HideInInspector]
@@ -102,11 +103,10 @@ namespace Gwent.Battle
             if (cardStats.ability != Ability.Leader)
                 return false;
 
-            LeaderSlot leaderManager = GetComponentInParent<LeaderSlot>();
-            if (leaderManager == null)
+            if (GetComponentInParent<LeaderSlot>() == null)
                 return false;
 
-            leaderManager.ActivateLeader();
+            controller.LeaderCardClicked();
             return true;
         }
 

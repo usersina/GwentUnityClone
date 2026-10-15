@@ -37,6 +37,16 @@ namespace Gwent.UI
                 .BindToAlpha(Group(element, false)).AddTo(element);
         }
 
+        // Swells a little and back, over and over, to show it waits for a click; cancel the handle to stop it (and set
+        // the size back)
+        public static MotionHandle Throb(Transform target, float amount = 0.08f, float period = 1.1f)
+        {
+            MotionHandle handle = Unscaled(LMotion.Create(1f, 1f + amount, period / 2).WithEase(Ease.InOutSine).WithLoops(-1, LoopType.Yoyo))
+                .Bind(scale => target.localScale = Vector3.one * scale);
+            handle.AddTo(target.gameObject);
+            return handle;
+        }
+
         // Fades a graphic out from its alpha, then destroys it
         public static void FlashOut(Graphic graphic, float seconds)
         {

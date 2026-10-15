@@ -361,8 +361,8 @@ namespace Gwent.EditorTools
             return OverShadow(color, Mathf.Clamp01(outer + 0.5f - r), (new Vector2(x - c - 3, y - c - 5).magnitude - outer) / 8f);
         }
 
-        // The same button lit, as The Witcher 3 shows an ability that can still be used: a blue face with a white crown
-        // in a pale ring, glowing softly
+        // The same button lit, once the leader is lifted and the crown uses it: an amber face with a cream crown in a pale
+        // gold ring, glowing softly (The Witcher 3 lights it blue at that moment; orange and gold here)
         [MenuItem("Gwent/UI/Regenerate Leader Ready Crown")]
         public static void GenerateLeaderReady()
         {
@@ -439,20 +439,20 @@ namespace Gwent.EditorTools
             float light = r > 0.001f ? Vector2.Dot(p / r, Light) : 0;
             Color color;
             if (r > ring_in)
-                color = Color.Lerp(new Color32(0xB8, 0xD8, 0xF4, 0xFF), new Color32(0xF2, 0xF8, 0xFF, 0xFF), 0.5f + 0.4f * light);
+                color = Color.Lerp(new Color32(0xF0, 0xCB, 0x7A, 0xFF), new Color32(0xFF, 0xF3, 0xD2, 0xFF), 0.5f + 0.4f * light);
             else
             {
-                // Lighter at the top, as if lit from above
-                color = Color.Lerp(new Color32(0x4E, 0x9A, 0xDC, 0xFF), new Color32(0x1E, 0x5C, 0xA6, 0xFF), Mathf.Clamp01((p.y / ring_in + 1) / 2));
+                // Lighter at the top, as if lit from above: yellow to deep orange
+                color = Color.Lerp(new Color32(0xF6, 0xBE, 0x3E, 0xFF), new Color32(0xC8, 0x5A, 0x14, 0xFF), Mathf.Clamp01((p.y / ring_in + 1) / 2));
                 float crown = Crown((p.x / 1.55f) + 32, (p.y / 1.55f) + 33);
-                color = Color.Lerp(color, new Color32(0xF4, 0xF8, 0xFF, 0xFF), Mathf.Clamp01(0.5f - crown * 1.55f));
+                color = Color.Lerp(color, new Color32(0xFF, 0xF8, 0xE8, 0xFF), Mathf.Clamp01(0.5f - crown * 1.55f));
             }
             if (Mathf.Abs(r - ring_in) < 1.2f)
                 color = Shade(color, 0.75f);
             float coverage = Mathf.Clamp01(outer + 0.5f - r);
-            // The glow around it: a pale blue halo fading out to the texture's edge
-            float glow = Mathf.Clamp01(1 - (r - outer) / (c - outer)) * 0.55f;
-            Color halo = new Color(0.75f, 0.88f, 1f, glow * glow);
+            // The glow around it: a golden halo fading out to the texture's edge
+            float glow = Mathf.Clamp01(1 - (r - outer) / (c - outer)) * 0.65f;
+            Color halo = new Color(1f, 0.78f, 0.36f, glow * glow);
             return coverage >= 1 ? color : Color.Lerp(halo, color, coverage);
         }
 

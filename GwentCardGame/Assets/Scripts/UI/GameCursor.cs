@@ -111,7 +111,7 @@ namespace Gwent.UI
             if (card != null && card.isSelectable && card.CompareTag("Player"))
                 return my_turn || RedrawPicker.IsOpen ? State.Interact : State.Invalid;
 
-            // The player's leader card: chosen by a click, used by a second one
+            // The player's leader card: lifted by a click, put back by another on its empty slot
             if (card != null && !card.isSelectable && card.CompareTag("Player") && battle.selectedCard == null)
             {
                 Card stats = card.GetComponent<CardFace>().Card;
@@ -119,15 +119,9 @@ namespace Gwent.UI
                     return battle.CanUseLeader(true) ? State.Interact : State.Default;
             }
 
-            // The leader chosen: the places it lit use it
+            // The leader lifted: the board only shows where it acts, its crown uses it
             if (battle.LeaderSelected && my_turn)
-            {
-                if (weather != null)
-                    return battle.IsLeaderTarget(weather.gameObject) ? State.Interact : State.Invalid;
-                if (row != null)
-                    return battle.IsLeaderTarget(row.gameObject) ? State.Interact : State.Invalid;
                 return State.Default;
-            }
 
             if (battle.selectedCard == null || !my_turn)
                 return State.Default;

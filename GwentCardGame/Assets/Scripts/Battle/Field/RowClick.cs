@@ -40,11 +40,10 @@ namespace Gwent.Battle
 
             if (controller.battleState == BattleState.PlayerTurn) // Just to be extra sure
             {
-                // The chosen leader: a row it lights uses it
+                // The lifted leader: its crown uses it, not the board
                 if (controller.LeaderSelected)
                 {
-                    if (!controller.TryUseLeaderOn(gameObject))
-                        GameAudio.PlaySfx("invalid");
+                    controller.HintLeaderCrown();
                     return;
                 }
                 if (controller.IsSelectedCardPlayable())

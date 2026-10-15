@@ -13,13 +13,14 @@ namespace Gwent.Battle
         //----------------------------------------------LEADERS---------------------------------------------------//
         private enum LeaderOutcome { Unavailable, Instant, Pending }
 
-        // The player's leader is chosen like a card first (The Witcher 3): it shows on the right and lights where its
-        // ability acts. A second click on it, a click on a lit place, Enter or X uses it; Escape, a right click,
-        // another card or passing puts it back. A click alone never spends the ability.
+        // The player's leader is lifted like a card about to be played (The Witcher 3): a click on it takes it out of its
+        // slot to the right, the slot stays empty and the places its ability acts on light up; its crown glows, and the
+        // crown, only the crown, uses it (or X again, Enter). A click on the empty slot, Escape, a right click, another
+        // card or passing puts it back. A click on the card alone never spends the ability.
         public bool LeaderSelected { get; private set; }
         private readonly List<GameObject> leaderTargets = new List<GameObject>();
 
-        // The places the chosen leader lit
+        // The places the lifted leader's ability acts on (lit; they show it, the crown uses it)
         public IList<GameObject> LeaderTargets { get { return leaderTargets.AsReadOnly(); } }
 
         // Why the player's leader ability would do nothing now (null when it would act)
@@ -28,13 +29,38 @@ namespace Gwent.Battle
             return LeaderRules.Unavailable(CurrentBoard(), PlayerInfo.Leader, true);
         }
 
-        // A click on the player's leader (its card or its button), a tap, or X
-        public void LeaderClicked()
+        // A click (a tap) on the player's leader card, or on its empty slot once it is lifted: lifts it, or puts it back
+        public void LeaderCardClicked()
+        {
+            if (LeaderSelected)
+                PutBackSelectedCard();
+            else
+                SelectLeader();
+        }
+
+        // A click on the crown: it uses the lifted leader (the crown is not a button before)
+        public void LeaderCrownClicked()
+        {
+            if (LeaderSelected)
+                UseSelectedLeader();
+            else
+                GameAudio.PlaySfx("invalid");
+        }
+
+        // X: lifts the leader, then uses it
+        public void LeaderKeyPressed()
         {
             if (LeaderSelected)
                 UseSelectedLeader();
             else
                 SelectLeader();
+        }
+
+        // A click on the board while the leader is lifted: the crown is what uses it
+        public void HintLeaderCrown()
+        {
+            GameAudio.PlaySfx("invalid");
+            UIOverlay.Toast((GameInput.IsTouch ? "Tap" : "Click") + " the glowing crown to use your leader ability");
         }
 
         private void SelectLeader()
@@ -60,9 +86,13 @@ namespace Gwent.Battle
             GameObject card = LeaderCard();
             if (card != null)
             {
-                card.GetComponent<CardHover>().TranslateUp();
-                CardShowcase.Select(card, Db.Get(PlayerInfo.Leader), false);
+                // Out of its slot to the right; the empty slot puts it back when clicked
+                CardHover hover = card.GetComponent<CardHover>();
+                hover.isHoverable = false;
+                hover.DestroyEffect();
+                CardShowcase.Select(card, Db.Get(PlayerInfo.Leader));
             }
+            View(true).Leader.UISetLifted(true);
             leaderTargets.AddRange(board.MarkLeaderTargets(PlayerInfo.Leader));
         }
 
@@ -73,21 +103,7 @@ namespace Gwent.Battle
                 ActivateLeader(PlayerInfo.Leader, true);
         }
 
-        // A click on a place while the leader is chosen: a lit place uses it (true)
-        public bool TryUseLeaderOn(GameObject place)
-        {
-            if (!LeaderSelected || !leaderTargets.Contains(place))
-                return false;
-            UseSelectedLeader();
-            return true;
-        }
-
-        public bool IsLeaderTarget(GameObject place)
-        {
-            return LeaderSelected && leaderTargets.Contains(place);
-        }
-
-        // The leader goes back to its place: down, its places lit off (the showcase is the caller's)
+        // The leader goes back to its slot (the showcase's glide back is the caller's), its crown and places lit off
         private void ReleaseLeader()
         {
             if (!LeaderSelected)
@@ -95,7 +111,8 @@ namespace Gwent.Battle
             LeaderSelected = false;
             GameObject card = LeaderCard();
             if (card != null)
-                card.GetComponent<CardHover>().TranslateDown();
+                card.GetComponent<CardHover>().isHoverable = true;
+            View(true).Leader.UISetLifted(false);
             board.UnmarkLeaderTargets(leaderTargets);
             leaderTargets.Clear();
             LightOffField(true);

@@ -572,7 +572,7 @@ namespace Gwent.EditorTools
                 if (!leaderChecked && c.CanUseLeader(true) && c.LeaderProblem() == null && c.PlayerInfo.HandList.Count > 0)
                 {
                     leaderChecked = true;
-                    inputCheck = new InputCheck(c, InputScenario.LeaderTwoClicks, (ok, what) => Check(ok, what, "leader input"));
+                    inputCheck = new InputCheck(c, InputScenario.LeaderLift, (ok, what) => Check(ok, what, "leader input"));
                     return;
                 }
 
@@ -1144,9 +1144,9 @@ namespace Gwent.EditorTools
             PickerKeys,               // the card picker (the carousel): Right and Left move, Down goes to Skip, Up comes back,
                                       // Enter picks the front card
             DiscardPile,              // a click opens a discard pile in the carousel, Left goes down it, Escape closes it
-            LeaderTwoClicks,          // a click on the leader chooses it (shown on the right, its places lit), Escape puts it
-                                      // back, its button chooses it too, a hand card takes its place; then a click on a lit
-                                      // place (or the leader again) uses it
+            LeaderLift,               // a click lifts the leader (out of its slot to the right, its places lit, its crown a
+                                      // glowing button), Escape and a click on the empty slot put it back, the crown does
+                                      // nothing before, a hand card takes its place, a lit place does not use it, the crown does
             DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
                                       // a held press (touch) shows a card, the leader picker, the header's faction arrows,
                                       // the deck dropdown
@@ -1195,7 +1195,7 @@ namespace Gwent.EditorTools
 
                 At(0, Setup);
                 InputScenario[] with_hand = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace,
-                    InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls, InputScenario.LeaderTwoClicks };
+                    InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls, InputScenario.LeaderLift };
                 if (c != null && with_hand.Contains(scenario))
                     At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
                 if (scenario == InputScenario.RedrawSlowClicksThenDone)
@@ -1277,8 +1277,8 @@ namespace Gwent.EditorTools
                     PickerKeys();
                 else if (scenario == InputScenario.DiscardPile)
                     DiscardPile();
-                else if (scenario == InputScenario.LeaderTwoClicks)
-                    LeaderTwoClicks();
+                else if (scenario == InputScenario.LeaderLift)
+                    LeaderLift();
                 else if (scenario == InputScenario.DeckBuilder)
                     DeckBuilderClicks(deck_path);
                 else if (scenario == InputScenario.MenuPlay)
@@ -1501,37 +1501,58 @@ namespace Gwent.EditorTools
                 return element != null ? Query<UnityEngine.UIElements.Label>(element, "Caption") : null;
             }
 
-            private void LeaderTwoClicks()
+            private void LeaderLift()
             {
-                Func<Vector2> leader_card = () =>
+                Func<GameObject> leader_object = () =>
                 {
                     Transform holder = c.PlayerField.transform.Find("Leader/Holder");
                     CardSelect leader = holder != null ? holder.GetComponentInChildren<CardSelect>() : null;
-                    return leader != null ? ScreenPoint(leader.transform) : Vector2.zero;
+                    return leader != null ? leader.gameObject : null;
                 };
+                Func<Vector2> leader_card = () => leader_object() != null ? ScreenPoint(leader_object().transform) : Vector2.zero;
+                Func<Vector2> crown = () => ScreenPoint(c.PlayerLeader.Button.transform);
+                // The card's slot is empty while it is lifted (the card shows on the right)
+                Func<bool> slot_empty = () =>
+                {
+                    CanvasGroup group = leader_object() != null ? leader_object().GetComponent<CanvasGroup>() : null;
+                    return group != null && group.alpha < 0.01f;
+                };
+                Func<bool> crown_button = () => c.PlayerLeader.Button.interactable;
                 int leader_id = c.PlayerInfo.Leader;
                 int targets = LeaderIds.WeatherPickRow(leader_id) != null || LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
                     || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless ? 1
                     : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe ? 2 : 0;
+
+                At(0.2, () => check(!crown_button(), "the crown is no button before the leader is lifted"));
                 Click(0.4, leader_card);
-                At(0.9, () => check(c.LeaderSelected && CardShowcase.IsShown && c.CanUseLeader(true) && c.LeaderTargets.Count == targets,
-                    "a click on the leader chooses it: it shows on the right, " + targets + " place(s) lit (" + c.LeaderTargets.Count + "), not used yet"));
+                At(0.9, () => check(c.LeaderSelected && CardShowcase.IsShown && slot_empty() && crown_button() && c.CanUseLeader(true) && c.LeaderTargets.Count == targets,
+                    "a click lifts the leader: out of its slot (empty: " + slot_empty() + ") to the right, its crown a button (" + crown_button() + "), "
+                    + targets + " place(s) lit (" + c.LeaderTargets.Count + "), not used yet"));
                 Key(1.2, UnityEngine.InputSystem.Key.Escape);
-                At(1.6, () => check(!c.LeaderSelected && c.CanUseLeader(true) && !PauseMenu.IsOpen, "Escape puts it back"));
-                Click(1.9, () => ScreenPoint(c.PlayerLeader.Button.transform));
-                At(2.4, () => check(c.LeaderSelected && c.CanUseLeader(true), "a click on its button chooses it too"));
-                Click(2.7, CardPosition);
-                At(3.2, () => check(!c.LeaderSelected && card != null && c.selectedCard == card.gameObject && c.CanUseLeader(true), "a hand card takes its place"));
-                Click(3.5, CardPosition);
-                At(4.0, () => check(c.selectedCard == null, "(and goes back)"));
-                Click(4.3, leader_card);
-                Click(4.9, () =>
+                At(1.8, () => check(!c.LeaderSelected && !slot_empty() && !crown_button() && c.CanUseLeader(true) && !PauseMenu.IsOpen,
+                    "Escape puts it back in its slot, and the crown is no button again"));
+                Click(2.1, crown);
+                At(2.5, () => check(!c.LeaderSelected && c.CanUseLeader(true), "a click on the crown alone neither lifts nor uses it"));
+                Click(2.8, leader_card);
+                Click(3.3, leader_card);
+                At(3.9, () => check(!c.LeaderSelected && !slot_empty() && c.CanUseLeader(true), "a click on its empty slot puts it back"));
+                Click(4.2, leader_card);
+                Click(4.7, CardPosition);
+                At(5.2, () => check(!c.LeaderSelected && card != null && c.selectedCard == card.gameObject && c.CanUseLeader(true), "a hand card takes its place"));
+                Click(5.5, CardPosition);
+                At(6.0, () => check(c.selectedCard == null, "(and goes back)"));
+                Click(6.3, leader_card);
+                Click(6.8, () =>
                 {
                     GameObject place = c.LeaderTargets.Count > 0 ? c.LeaderTargets[0] : null;
                     return place != null ? ScreenPoint(place.transform) : leader_card();
                 });
-                At(5.5, () => check(!c.LeaderSelected && !c.PlayerInfo.canLeader,
-                    (targets > 0 ? "a click on the place it lit" : "a second click on it") + " uses the ability"));
+                if (targets > 0)
+                    At(7.3, () => check(c.LeaderSelected && c.CanUseLeader(true), "a click on a place it lit does not use it (the crown does)"));
+                else
+                    Click(7.1, leader_card); // put back by its slot, lifted again
+                Click(7.6, crown);
+                At(8.2, () => check(!c.LeaderSelected && !c.PlayerInfo.canLeader && !crown_button(), "a click on the glowing crown uses the ability"));
             }
 
             // The picker is The Witcher 3's carousel under a title band
