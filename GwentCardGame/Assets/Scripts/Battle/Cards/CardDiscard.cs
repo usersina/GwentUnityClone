@@ -1,40 +1,45 @@
+using Gwent.Core;
+using Gwent.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// Eredin, Destroyer of Worlds: double-click (double-tap on mobile, Enter with the keys) two hand cards to discard them,
-// then pick one from the deck
-public class CardDiscard : MonoBehaviour, IPointerClickHandler
+namespace Gwent.Battle
 {
-    [HideInInspector]
-    public BattleController controller;
-
-    private readonly DoubleClick doubleClick = new DoubleClick();
-
-    void Start()
+    // Eredin, Destroyer of Worlds: double-click (double-tap on mobile, Enter with the keys) two hand cards to discard them,
+    // then pick one from the deck
+    public class CardDiscard : MonoBehaviour, IPointerClickHandler
     {
-        controller = BattleController.Instance;
-    }
+        [HideInInspector]
+        public BattleController controller;
 
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        if (eventData.button == PointerEventData.InputButton.Left && doubleClick.Register())
-            Discard();
-    }
+        private readonly DoubleClick doubleClick = new DoubleClick();
 
-    // Also Enter on the card the keys are on (BattleKeys)
-    public void Discard()
-    {
-        if (controller == null)
-            controller = BattleController.Instance;
-        if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
+        void Start()
         {
-            GameLog.Info("Discarding");
-            controller.DiscardCard(GetComponent<CardFace>().Card._id, true);
-            controller.PlayerInfo.CardsDiscarded++;
+            controller = BattleController.Instance;
+        }
 
-            // Conditions met, a card can be chosen
-            if (controller.PlayerInfo.CardsDiscarded >= 2)
-                controller.OpenDeckPicker(true);
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Left && doubleClick.Register())
+                Discard();
+        }
+
+        // Also Enter on the card the keys are on (BattleKeys)
+        public void Discard()
+        {
+            if (controller == null)
+                controller = BattleController.Instance;
+            if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
+            {
+                GameLog.Info("Discarding");
+                controller.DiscardCard(GetComponent<CardFace>().Card._id, true);
+                controller.PlayerInfo.CardsDiscarded++;
+
+                // Conditions met, a card can be chosen
+                if (controller.PlayerInfo.CardsDiscarded >= 2)
+                    controller.OpenDeckPicker(true);
+            }
         }
     }
 }

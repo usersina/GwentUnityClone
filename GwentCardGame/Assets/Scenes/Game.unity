@@ -2761,7 +2761,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 2127944995}
-        m_TargetAssemblyTypeName: BattleController, Assembly-CSharp
+        m_TargetAssemblyTypeName: Gwent.Battle.BattleController, Gwent.Game
         m_MethodName: OpenPauseMenu
         m_Mode: 1
         m_Arguments:

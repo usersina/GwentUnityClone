@@ -1,13 +1,17 @@
+using Gwent.Core;
 using UnityEngine;
 
-// Lives in the Menu scene: prepares the deck folders and reads back the deck chosen for battle
-public class MenuStartup : MonoBehaviour
+namespace Gwent.Menus
 {
-    private void Start()
+    // Lives in the Menu scene: prepares the deck folders and reads back the deck chosen for battle
+    public class MenuStartup : MonoBehaviour
     {
-        DeckStorage.EnsureDirectories();
-        GameLog.Info("Decks directory is: " + DeckStorage.Root);
-        DeckStorage.LoadBattleDeck();
-        GameLog.Info("Starting, selected deck: " + DeckStorage.BattleDeckPath);
+        private void Start()
+        {
+            DeckStorage.EnsureDirectories();
+            GameLog.Info("Decks directory is: " + DeckStorage.Root);
+            DeckStorage.LoadBattleDeck();
+            GameLog.Info("Starting, selected deck: " + DeckStorage.BattleDeckPath);
+        }
     }
 }

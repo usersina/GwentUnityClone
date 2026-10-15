@@ -1,157 +1,163 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Gwent.Battle;
+using Gwent.Core;
+using Gwent.Rules;
+using Gwent.UI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Gwent.Rules;
 
-public class CollectionCard : MonoBehaviour, IPointerClickHandler
+namespace Gwent.DeckBuilding
 {
-    public List<Sprite> normalPatch;
-    public List<Sprite> uniquePatch;
-
-    private readonly DoubleClick doubleClick = new DoubleClick();
-
-    [HideInInspector]
-    public DeckBuilder deckBuilder;
-
-    // The "Cards in Deck" collection (the one tagged Player)
-    [HideInInspector]
-    public CardGrid deckCollection;
-
-    private void Start()
+    public class CollectionCard : MonoBehaviour, IPointerClickHandler
     {
-        deckBuilder = DeckBuilder.Instance;
-        deckCollection = deckBuilder.deckCollection;
+        public List<Sprite> normalPatch;
+        public List<Sprite> uniquePatch;
 
-        UpdateCardGUI();
-        // Touch controls have no right click: a finger held on the card shows it large until it lifts
-        LongPress.On(gameObject, () => { ShowBigCard(); return true; }, () => Details().SetActive(false));
-    }
+        private readonly DoubleClick doubleClick = new DoubleClick();
 
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        // Detect Card Right Click
-        if (eventData.button == PointerEventData.InputButton.Right)
+        [HideInInspector]
+        public DeckBuilder deckBuilder;
+
+        // The "Cards in Deck" collection (the one tagged Player)
+        [HideInInspector]
+        public CardGrid deckCollection;
+
+        private void Start()
         {
-            GameAudio.PlaySfx("card_select");
-            ShowBigCard();
+            deckBuilder = DeckBuilder.Instance;
+            deckCollection = deckBuilder.deckCollection;
+
+            UpdateCardGUI();
+            // Touch controls have no right click: a finger held on the card shows it large until it lifts
+            LongPress.On(gameObject, () => { ShowBigCard(); return true; }, () => Details().SetActive(false));
         }
 
-        if (eventData.button == PointerEventData.InputButton.Left)
+        public void OnPointerClick(PointerEventData eventData)
         {
-            if (UseSingleTapActions() || doubleClick.Register())
-                EditDeckWithThisCard();
-        }
-    }
-
-    private bool UseSingleTapActions()
-    {
-        return GameInput.IsTouch;
-    }
-
-    private void EditDeckWithThisCard()
-    {
-        Card cardStats = GetComponent<CardRef>().Card;
-        if (transform.parent.parent.parent.CompareTag("Player"))
-        {
-            // Remove card from deck
-            GameAudio.PlaySfx("deck_remove");
-            GameLog.Info("Removing card from deck: " + deckBuilder.my_deck.Name);
-            deckBuilder.my_deck.Cards.Remove(cardStats._id);
-            deckCollection.OnDeckEdit();
-        }
-        else
-        {
-            AddCardToSelectedDeck(cardStats);
-        }
-    }
-
-    private void AddCardToSelectedDeck(Card cardStats)
-    {
-        if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
-        {
-            GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast("Create a deck first: type a name and press +");
-            return;
-        }
-
-        int occurences = deckBuilder.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
-
-        // Only the deck's faction, neutral and special cards
-        Gwent.Rules.Card card = deckBuilder.Db.Get(cardStats._id);
-        if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckBuilder.my_deck.Faction)
-        {
-            GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
-            return;
-        }
-
-        // The copies of the card that exist in The Witcher 3 (one of a hero)
-        if (occurences >= Gwent.Rules.DeckRules.MaxCopies(card))
-        {
-            GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast(Gwent.Rules.DeckRules.TooManyCopies(card));
-            return;
-        }
-
-        // If Special occurences is less than 3, check total specials count
-        if (cardStats.faction == "Special")
-        {
-            int specialsOcc = deckBuilder.GetSpecialsOccurence(deckBuilder.my_deck);
-            if (specialsOcc >= Gwent.Rules.DeckRules.MaxSpecials)
+            // Detect Card Right Click
+            if (eventData.button == PointerEventData.InputButton.Right)
             {
-                GameAudio.PlaySfx("invalid");
-                UIOverlay.Toast("A deck can hold at most " + Gwent.Rules.DeckRules.MaxSpecials + " special cards");
-                return;
+                GameAudio.PlaySfx("card_select");
+                ShowBigCard();
+            }
+
+            if (eventData.button == PointerEventData.InputButton.Left)
+            {
+                if (UseSingleTapActions() || doubleClick.Register())
+                    EditDeckWithThisCard();
             }
         }
 
-        // If all checks don't match, add the card to deck
-        GameAudio.PlaySfx("deck_add");
-        deckBuilder.my_deck.Cards.Add(cardStats._id);
-        deckCollection.OnDeckEdit();
-    }
-
-    //------------------------------------------------------Functions---------------------------------------------------//
-    private void UpdateCardGUI()
-    {
-        Card stats = GetComponent<CardRef>().Card;
-        TextMeshProUGUI name_text = transform.Find("Name").GetComponent<TextMeshProUGUI>();
-        Image patch = transform.Find("Patch").GetComponent<Image>();
-        name_text.text = Card.DisplayNameOf(stats.name);
-
-        // Neutral and special cards have no faction banner: their name is centered on a wider patch
-        bool bannerless = stats.faction == Factions.Neutral || stats.faction == Factions.Special;
-        if (bannerless)
+        private bool UseSingleTapActions()
         {
-            RectTransform name_rect = name_text.rectTransform;
-            name_rect.localPosition = new Vector2(0, name_rect.localPosition.y);
+            return GameInput.IsTouch;
         }
-        int variant = bannerless ? 1 : 0;
-        patch.sprite = stats.unique ? uniquePatch[variant] : normalPatch[variant];
+
+        private void EditDeckWithThisCard()
+        {
+            Card cardStats = GetComponent<CardRef>().Card;
+            if (transform.parent.parent.parent.CompareTag("Player"))
+            {
+                // Remove card from deck
+                GameAudio.PlaySfx("deck_remove");
+                GameLog.Info("Removing card from deck: " + deckBuilder.my_deck.Name);
+                deckBuilder.my_deck.Cards.Remove(cardStats._id);
+                deckCollection.OnDeckEdit();
+            }
+            else
+            {
+                AddCardToSelectedDeck(cardStats);
+            }
+        }
+
+        private void AddCardToSelectedDeck(Card cardStats)
+        {
+            if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
+            {
+                GameAudio.PlaySfx("invalid");
+                UIOverlay.Toast("Create a deck first: type a name and press +");
+                return;
+            }
+
+            int occurences = deckBuilder.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
+
+            // Only the deck's faction, neutral and special cards
+            Gwent.Rules.Card card = deckBuilder.Db.Get(cardStats._id);
+            if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckBuilder.my_deck.Faction)
+            {
+                GameAudio.PlaySfx("invalid");
+                UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
+                return;
+            }
+
+            // The copies of the card that exist in The Witcher 3 (one of a hero)
+            if (occurences >= Gwent.Rules.DeckRules.MaxCopies(card))
+            {
+                GameAudio.PlaySfx("invalid");
+                UIOverlay.Toast(Gwent.Rules.DeckRules.TooManyCopies(card));
+                return;
+            }
+
+            // If Special occurences is less than 3, check total specials count
+            if (cardStats.faction == "Special")
+            {
+                int specialsOcc = deckBuilder.GetSpecialsOccurence(deckBuilder.my_deck);
+                if (specialsOcc >= Gwent.Rules.DeckRules.MaxSpecials)
+                {
+                    GameAudio.PlaySfx("invalid");
+                    UIOverlay.Toast("A deck can hold at most " + Gwent.Rules.DeckRules.MaxSpecials + " special cards");
+                    return;
+                }
+            }
+
+            // If all checks don't match, add the card to deck
+            GameAudio.PlaySfx("deck_add");
+            deckBuilder.my_deck.Cards.Add(cardStats._id);
+            deckCollection.OnDeckEdit();
+        }
+
+        //------------------------------------------------------Functions---------------------------------------------------//
+        private void UpdateCardGUI()
+        {
+            Card stats = GetComponent<CardRef>().Card;
+            TextMeshProUGUI name_text = transform.Find("Name").GetComponent<TextMeshProUGUI>();
+            Image patch = transform.Find("Patch").GetComponent<Image>();
+            name_text.text = Card.DisplayNameOf(stats.name);
+
+            // Neutral and special cards have no faction banner: their name is centered on a wider patch
+            bool bannerless = stats.faction == Factions.Neutral || stats.faction == Factions.Special;
+            if (bannerless)
+            {
+                RectTransform name_rect = name_text.rectTransform;
+                name_rect.localPosition = new Vector2(0, name_rect.localPosition.y);
+            }
+            int variant = bannerless ? 1 : 0;
+            patch.sprite = stats.unique ? uniquePatch[variant] : normalPatch[variant];
+        }
+
+        private GameObject Details()
+        {
+            return transform.parent.parent.parent.GetComponent<CardGrid>().cardDetails;
+        }
+
+        private void ShowBigCard()
+        {
+            GameObject cardDetails = Details();
+            Card cardStats = GetComponent<CardRef>().Card;
+
+            cardDetails.SetActive(true);
+            cardDetails.transform.Find("BigImage").GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
+            // A plain unit has no description
+            string description = CardHover.EffectBoxPath(cardStats);
+            GameObject effect = cardDetails.transform.Find("BigEffect").gameObject;
+            effect.SetActive(description != null);
+            if (description != null)
+                effect.GetComponent<Image>().sprite = SpriteCache.Load(description);
+        }
+
     }
-
-    private GameObject Details()
-    {
-        return transform.parent.parent.parent.GetComponent<CardGrid>().cardDetails;
-    }
-
-    private void ShowBigCard()
-    {
-        GameObject cardDetails = Details();
-        Card cardStats = GetComponent<CardRef>().Card;
-
-        cardDetails.SetActive(true);
-        cardDetails.transform.Find("BigImage").GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
-        // A plain unit has no description
-        string description = CardHover.EffectBoxPath(cardStats);
-        GameObject effect = cardDetails.transform.Find("BigEffect").gameObject;
-        effect.SetActive(description != null);
-        if (description != null)
-            effect.GetComponent<Image>().sprite = SpriteCache.Load(description);
-    }
-
 }

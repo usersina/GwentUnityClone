@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb83ce226e8ae203aa92e1db8d4bbc5d, type: 3}
   m_Name: UITheme
-  m_EditorClassIdentifier: Assembly-CSharp::UITheme
+  m_EditorClassIdentifier: Gwent.Game::Gwent.UI.UITheme
   headingFont: {fileID: 11400000, guid: c0a3c0f12519ebef3b67a346c81c103d, type: 2}
   bodyFont: {fileID: 11400000, guid: 634ce8f8061774bb79705b8fa141b9c0, type: 2}
   bodyMediumFont: {fileID: 11400000, guid: 9e750905be9e813db82b0b457ee903f1, type: 2}

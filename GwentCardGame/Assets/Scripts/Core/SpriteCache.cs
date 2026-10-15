@@ -2,35 +2,38 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Resources.Load<Sprite> with a per-scene cache: card objects are re-created on every board refresh
-// and each one used to load the same handful of sprites again.
-public static class SpriteCache
+namespace Gwent.Core
 {
-    private static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void Init()
+    // Resources.Load<Sprite> with a per-scene cache: card objects are re-created on every board refresh
+    // and each one used to load the same handful of sprites again.
+    public static class SpriteCache
     {
-        cache.Clear();
-        SceneManager.sceneLoaded -= OnSceneLoaded;
-        SceneManager.sceneLoaded += OnSceneLoaded;
-    }
+        private static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
-    // Let the previous scene's textures be unloaded
-    private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        if (mode == LoadSceneMode.Single)
-            cache.Clear();
-    }
-
-    public static Sprite Load(string path)
-    {
-        Sprite sprite;
-        if (!cache.TryGetValue(path, out sprite) || sprite == null)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void Init()
         {
-            sprite = Resources.Load<Sprite>(path);
-            cache[path] = sprite;
+            cache.Clear();
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
         }
-        return sprite;
+
+        // Let the previous scene's textures be unloaded
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (mode == LoadSceneMode.Single)
+                cache.Clear();
+        }
+
+        public static Sprite Load(string path)
+        {
+            Sprite sprite;
+            if (!cache.TryGetValue(path, out sprite) || sprite == null)
+            {
+                sprite = Resources.Load<Sprite>(path);
+                cache[path] = sprite;
+            }
+            return sprite;
+        }
     }
 }

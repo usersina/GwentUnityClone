@@ -1,80 +1,84 @@
 using System.Collections;
 using System.Collections.Generic;
+using Gwent.Core;
+using Gwent.Rules;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Gwent.Rules;
 
-// This is instansiated on every card creation ! 
-public class CardFace : MonoBehaviour
+namespace Gwent.Battle
 {
-    // Gameplay related
-    private CardRef cardRef;
-    // The card shown (its CardRef is on the card's Stats child)
-    public Card Card { get { if (cardRef == null) cardRef = GetComponentInChildren<CardRef>(true); return cardRef.Card; } }
-    // Display related
-    public GameObject artworkImage;
-    public GameObject natureImage;
-    public GameObject strengthImage;
-    public GameObject rowImage;
-    public GameObject abilityImage;
-
-    void Start()
+    // This is instansiated on every card creation ! 
+    public class CardFace : MonoBehaviour
     {
-        // Populate display related details
-        OnCreation();
-    }
+        // Gameplay related
+        private CardRef cardRef;
+        // The card shown (its CardRef is on the card's Stats child)
+        public Card Card { get { if (cardRef == null) cardRef = GetComponentInChildren<CardRef>(true); return cardRef.Card; } }
+        // Display related
+        public GameObject artworkImage;
+        public GameObject natureImage;
+        public GameObject strengthImage;
+        public GameObject rowImage;
+        public GameObject abilityImage;
 
-    //----------------------------------------On card creation-----------------------------------------------//
-    private void OnCreation()
-    {
-        Card card = Card;
-
-        // Change the artwork based on ID
-        artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);
-
-        if (card.faction == Factions.Special)
-        {// Special Card:
-            // Change to the corresponding special Icon
-            natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Special/" + card._idstr);
-            rowImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
-            abilityImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+        void Start()
+        {
+            // Populate display related details
+            OnCreation();
         }
-        else
-        {// Unit Card or Leader:
-            if (card.ability == Abilities.Leader)
-            {
-                natureImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+
+        //----------------------------------------On card creation-----------------------------------------------//
+        private void OnCreation()
+        {
+            Card card = Card;
+
+            // Change the artwork based on ID
+            artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);
+
+            if (card.faction == Factions.Special)
+            {// Special Card:
+                // Change to the corresponding special Icon
+                natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Special/" + card._idstr);
                 rowImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
                 abilityImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
             }
             else
-            {
-                // Change the strength, strength text color and uniqueness image
-                strengthImage.GetComponent<TextMeshProUGUI>().text = card.strength.ToString();
-                if (card.unique)
+            {// Unit Card or Leader:
+                if (card.ability == Abilities.Leader)
                 {
-                    natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Nature/unique");
-                    strengthImage.GetComponent<TextMeshProUGUI>().color = Color.white;
-                }
-                else
-                {
-                    natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Nature/not_unique");
-                    strengthImage.GetComponent<TextMeshProUGUI>().color = new Color(0, 0, 0);
-                }
-                // Change row Image
-                rowImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Row/" + card.row);
-                // Change the ability image
-                if (string.IsNullOrEmpty(card.ability))
-                {
+                    natureImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+                    rowImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
                     abilityImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
                 }
                 else
                 {
-                    if (card.ability.Contains("scorch"))
-                        abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/scorch");
+                    // Change the strength, strength text color and uniqueness image
+                    strengthImage.GetComponent<TextMeshProUGUI>().text = card.strength.ToString();
+                    if (card.unique)
+                    {
+                        natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Nature/unique");
+                        strengthImage.GetComponent<TextMeshProUGUI>().color = Color.white;
+                    }
                     else
-                        abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/" + card.ability);
+                    {
+                        natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Nature/not_unique");
+                        strengthImage.GetComponent<TextMeshProUGUI>().color = new Color(0, 0, 0);
+                    }
+                    // Change row Image
+                    rowImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Row/" + card.row);
+                    // Change the ability image
+                    if (string.IsNullOrEmpty(card.ability))
+                    {
+                        abilityImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+                    }
+                    else
+                    {
+                        if (card.ability.Contains("scorch"))
+                            abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/scorch");
+                        else
+                            abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/" + card.ability);
+                    }
                 }
             }
         }

@@ -1692,7 +1692,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 235e341119ea9db749a86f822d131f8f, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FactionHeader
+  m_EditorClassIdentifier: Gwent.Game::Gwent.DeckBuilding.FactionHeader
   content: {fileID: 109361564}
   previousButton: {fileID: 1474553651}
   nextButton: {fileID: 480266672}
@@ -1702,7 +1702,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 478145757}
-        m_TargetAssemblyTypeName: CardGrid, Assembly-CSharp
+        m_TargetAssemblyTypeName: Gwent.DeckBuilding.CardGrid, Gwent.Game
         m_MethodName: UpdateSelectedFaction
         m_Mode: 1
         m_Arguments:
@@ -1714,7 +1714,7 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
       - m_Target: {fileID: 310488422}
-        m_TargetAssemblyTypeName: CardGrid, Assembly-CSharp
+        m_TargetAssemblyTypeName: Gwent.DeckBuilding.CardGrid, Gwent.Game
         m_MethodName: UpdateSelectedFaction
         m_Mode: 1
         m_Arguments:

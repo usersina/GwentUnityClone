@@ -1,36 +1,41 @@
 using System.Collections;
 using System.Collections.Generic;
+using Gwent.Core;
+using Gwent.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class LeaderWindow : MonoBehaviour, IPointerClickHandler
+namespace Gwent.DeckBuilding
 {
-    public int leaderId;
-
-    private readonly DoubleClick doubleClick = new DoubleClick();
-
-    public void OnPointerClick(PointerEventData eventData)
+    public class LeaderWindow : MonoBehaviour, IPointerClickHandler
     {
-        if (eventData.button == PointerEventData.InputButton.Left)
+        public int leaderId;
+
+        private readonly DoubleClick doubleClick = new DoubleClick();
+
+        public void OnPointerClick(PointerEventData eventData)
         {
-            if (GameInput.IsTouch || doubleClick.Register())
-                SelectLeader();
+            if (eventData.button == PointerEventData.InputButton.Left)
+            {
+                if (GameInput.IsTouch || doubleClick.Register())
+                    SelectLeader();
+            }
         }
-    }
 
-    private void SelectLeader()
-    {
-        GameAudio.PlaySfx("deck_select");
-        GameObject leaderPickerGo = transform.parent.parent.parent.gameObject;
-        DeckBuilder deckBuilder = leaderPickerGo.GetComponent<LeaderPicker>().deckBuilder;
-        CardGrid deckCollection = leaderPickerGo.GetComponent<LeaderPicker>().deckCollection;
-        // Change the leader in deck
-        deckBuilder.my_deck.Leader = leaderId;
+        private void SelectLeader()
+        {
+            GameAudio.PlaySfx("deck_select");
+            GameObject leaderPickerGo = transform.parent.parent.parent.gameObject;
+            DeckBuilder deckBuilder = leaderPickerGo.GetComponent<LeaderPicker>().deckBuilder;
+            CardGrid deckCollection = leaderPickerGo.GetComponent<LeaderPicker>().deckCollection;
+            // Change the leader in deck
+            deckBuilder.my_deck.Leader = leaderId;
 
-        // Save deck and update middle info
-        deckCollection.OnDeckEdit();
+            // Save deck and update middle info
+            deckCollection.OnDeckEdit();
 
-        // Disable Leader Picker
-        leaderPickerGo.SetActive(false);
+            // Disable Leader Picker
+            leaderPickerGo.SetActive(false);
+        }
     }
 }

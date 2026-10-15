@@ -1,36 +1,42 @@
 using System.Collections;
 using System.Collections.Generic;
+using Gwent.Battle;
+using Gwent.Core;
+using Gwent.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class CollectionLeader : MonoBehaviour, IPointerClickHandler
+namespace Gwent.DeckBuilding
 {
-    public DeckBuilder deckBuilder;
-    public GameObject LeaderPicker;
-
-    private readonly DoubleClick doubleClick = new DoubleClick();
-
-    public void OnPointerClick(PointerEventData eventData)
+    public class CollectionLeader : MonoBehaviour, IPointerClickHandler
     {
-        // Double-click (tap on mobile) opens the leader picker
-        if (eventData.button == PointerEventData.InputButton.Left)
-        {
-            if (GameInput.IsTouch || doubleClick.Register())
-                OpenLeaderPicker();
-        }
-    }
+        public DeckBuilder deckBuilder;
+        public GameObject LeaderPicker;
 
-    private void OpenLeaderPicker()
-    {
-        if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
+        private readonly DoubleClick doubleClick = new DoubleClick();
+
+        public void OnPointerClick(PointerEventData eventData)
         {
-            GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast("Create a deck first: type a name and press +");
-            return;
+            // Double-click (tap on mobile) opens the leader picker
+            if (eventData.button == PointerEventData.InputButton.Left)
+            {
+                if (GameInput.IsTouch || doubleClick.Register())
+                    OpenLeaderPicker();
+            }
         }
 
-        LeaderPicker.SetActive(true);
-        LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
-        LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardRef>().Card.faction);
+        private void OpenLeaderPicker()
+        {
+            if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
+            {
+                GameAudio.PlaySfx("invalid");
+                UIOverlay.Toast("Create a deck first: type a name and press +");
+                return;
+            }
+
+            LeaderPicker.SetActive(true);
+            LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
+            LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardRef>().Card.faction);
+        }
     }
 }
