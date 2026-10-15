@@ -205,6 +205,8 @@ namespace Gwent.Battle
                 return "Cards/EffectBox/Leader/" + card._id;
             if (card.ability != Ability.None)
                 return "Cards/EffectBox/" + card.ability.Code();
+            if (AbilityRules.AvengerOf(card._id) != -1)
+                return "Cards/EffectBox/avenger"; // the Cow: what it calls, and when
             if (card.unique)
                 return "Cards/EffectBox/hero";
             if (card.row == Row.Agile)

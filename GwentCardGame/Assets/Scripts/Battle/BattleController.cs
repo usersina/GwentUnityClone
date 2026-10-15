@@ -970,6 +970,29 @@ namespace Gwent.Battle
         {
             RecalculateStrengths();
             board.Refresh();
+            AnnounceSummons();
+        }
+
+        // A Cow gone to the discard pile during a round (scorched): its Bovine Defense Force is held until the board clears
+        // for the next round (The Witcher 3), and never comes if the battle ends first. Said at once, or the player looks
+        // for it in vain. (At the end of a round it arrives in the same clearing: nothing to say.)
+        private readonly int[] summonsAnnounced = new int[2];
+
+        private void AnnounceSummons()
+        {
+            foreach (bool is_player in new[] { true, false })
+            {
+                int pending = Info(is_player).PendingSummons.Count;
+                int index = is_player ? 0 : 1;
+                if (pending > summonsAnnounced[index])
+                {
+                    GameLog.Event(LogCategory.Battle, "summon_pending", "side", is_player ? "player" : "enemy", "cards", pending);
+                    UIOverlay.Toast(is_player
+                        ? "Your Cow is gone: the Bovine Defense Force joins your close combat row next round, if the battle goes on"
+                        : "The opponent's Cow is gone: their Bovine Defense Force comes next round, if the battle goes on", 4f);
+                }
+                summonsAnnounced[index] = pending;
+            }
         }
 
         private void SetDeckObject(BattleSide info, bool is_player_deck) { board.SetDeck(info, is_player_deck); }

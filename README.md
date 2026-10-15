@@ -86,8 +86,9 @@ saved with more copies than that loses the extra ones when it is loaded.
   in the deck...) can't be used, so it is never wasted. Passive leaders (The Treacherous, Invader of the North, The White Flame,
   Daisy of the Valley) work from the start; The White Flame cancels the other leader, passive ones included.
 - A decoy on a row is not a unit: morale, horns and scorch ignore it, and Monsters never keep it (nor a hero) at the end of a round.
-- The Cow summons the Bovine Defense Force when it goes to the discard pile; the Defense Force arrives when the board is cleared for
-  the next round, and vanishes instead of going to the discard pile.
+- The Cow summons the Bovine Defense Force when it goes to the discard pile (scorched, or cleared at a round's end); the Defense
+  Force arrives when the board is cleared for the next round (never, if the battle ends first), and vanishes instead of going to
+  the discard pile. The game says so when a Cow leaves during a round, and the Cow's description box explains it.
 - Muster also pulls the matching cards from your hand, not only from your deck (The Witcher 3 does this too, although the card only
   says "deck"). The Arachas Behemoth calls the Arachas and Gaunter O'Dimm calls the Darkness, but not the other way round.
 - Francesca, Hope of the Aen Seidhe moves an agile unit when its own strength would be higher on the other row (ranged row first),
