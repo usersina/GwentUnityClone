@@ -276,6 +276,15 @@ namespace Gwent.Rules
             return false;
         }
 
+        // Whether Berserkers on this side's rows meet a Mardroeme (Transform would turn some)
+        public static bool CanTransform(PlayerState info, CardDatabase db)
+        {
+            foreach (Row row in Rows.Units)
+                if (info.UnitRow(row).Exists(id => CardIds.TransformedOf(id) != -1) && HasMardroeme(info, row, db))
+                    return true;
+            return false;
+        }
+
         // The Berserkers on this side's rows that have a Mardroeme turn into their bears, in their places: whether the
         // Mardroeme came first or they did. The Berserker is set aside (Transformed) until its bear leaves the board: then
         // the bear leaves the game, and the Berserker goes to the discard pile. Returns how many turned.

@@ -51,6 +51,12 @@ namespace Gwent.Rules
             return card_id == BovineDefenseForce || card_id == Hemdall || card_id == TransformedVildkaarl || card_id == TransformedYoungVildkaarl;
         }
 
+        // The units an Avenger calls (AbilityRules.AvengerOf)
+        public static bool IsAvenger(int card_id)
+        {
+            return card_id == BovineDefenseForce || card_id == Hemdall;
+        }
+
         // The Berserker a bear was (-1 for any other card)
         public static int BerserkerOf(int card_id)
         {

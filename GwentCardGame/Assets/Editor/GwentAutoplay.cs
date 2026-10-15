@@ -60,13 +60,13 @@ namespace Gwent.EditorTools
         [MenuItem("Gwent/Run Autoplay Smoke Test %#&g")] // Ctrl+Shift+Alt+G
         public static void RunFromMenu()
         {
-            Begin(Factions.Playable.Length * 5 + 1, 1, false, Path.Combine("Logs", "autoplay-report.txt"));
+            Begin(LeaderIds.ByFaction.Values.Sum(leaders => leaders.Length) + 1, 1, false, Path.Combine("Logs", "autoplay-report.txt"));
         }
 
         public static void RunBatch()
         {
             string[] args = Environment.GetCommandLineArgs();
-            int matches = IntArg(args, "-autoplayMatches", Factions.Playable.Length * 5 + 1);
+            int matches = IntArg(args, "-autoplayMatches", LeaderIds.ByFaction.Values.Sum(leaders => leaders.Length) + 1);
             int seed = IntArg(args, "-autoplaySeed", 1);
             string report = StringArg(args, "-autoplayReport", Path.Combine("Logs", "autoplay-report.txt"));
             Begin(matches, seed, true, report);
@@ -755,7 +755,7 @@ namespace Gwent.EditorTools
                 List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
                 cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
                 int special_count = 0;
-                foreach (Card special in db.All.Where(card => card.IsSpecial).OrderBy(card => card._id))
+                foreach (Card special in db.All.Where(card => card.IsSpecial && DeckRules.Fits(card, faction)).OrderBy(card => card._id))
                     for (int i = 0; i < DeckRules.MaxCopies(special) && special_count < DeckRules.MaxSpecials; i++, special_count++)
                         cards.Add(special._id);
 
@@ -1115,8 +1115,9 @@ namespace Gwent.EditorTools
                             for (int i = 0; i < copies && cards.Count < 26; i++)
                                 cards.Add(card._id);
                         }
-                        int[] specials = { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather };
-                        foreach (int special in specials.OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)))
+                        int[] specials = { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather,
+                            CardIds.SkelligeStorm, CardIds.Mardroeme };
+                        foreach (int special in specials.Where(id => DeckRules.Fits(db.Get(id), faction)).OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)))
                             cards.Add(special);
 
                         Deck deck = new Deck { Faction = faction, Leader = leader, Name = faction.Code() + " / " + db.Get(leader).name, Cards = cards };
@@ -1540,7 +1541,7 @@ namespace Gwent.EditorTools
                 int leader_id = c.PlayerInfo.Leader;
                 int targets = LeaderIds.WeatherPickRow(leader_id) != null || LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
                     || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless ? 1
-                    : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe ? 2 : 0;
+                    : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe || leader_id == LeaderIds.CrachAnCraite ? 2 : 0;
 
                 At(0.2, () => check(!crown_button(), "the crown is no button before the leader is lifted"));
                 Click(0.4, leader_card);

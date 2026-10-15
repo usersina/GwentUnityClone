@@ -12,9 +12,10 @@ namespace Gwent.Battle
     // Plays a change of the board the way The Witcher 3 does (the rules resolved it already; the board still shows it as
     // it was): the played card, in its board look from the start, glides in from the right end of its row and lands in
     // white wisps (a hero in smoke and fire), its ability flares, then what it caused follows: scorched cards burn and go
-    // to the discard piles (a killed Cow's Bovine Defense Force appearing in its side's close combat row), a medic's flare
-    // over the discard pile brings a card back, called and drawn cards fly in from the deck, a decoyed card goes back to
-    // the hand. In game time: the pause menu stops it.
+    // to the discard piles (a killed Cow's Bovine Defense Force, a killed Kambi's Hemdall appearing in its side's close
+    // combat row), a medic's flare over the discard pile brings a card back, called and drawn cards fly in from the deck,
+    // a decoyed card goes back to the hand, discard piles shuffled back (Crach an Craite) fly to their decks. Berserkers
+    // meeting a Mardroeme turn afterwards (Transform). In game time: the pause menu stops it.
     public class BoardPresenter
     {
         public const float LandSeconds = 0.22f; // the played card's glide along its row (The Witcher 3: about 0.2 s)
@@ -58,8 +59,8 @@ namespace Gwent.Battle
             if (burned.Length > 0)
                 await CardEffects.Burn(burned, ct);
 
-            // A killed Cow's Bovine Defense Force takes the field, in its side's close combat row
-            List<BoardChange.Arrival> avengers = change.New.Where(a => a.CardId == CardIds.BovineDefenseForce && a.To == Place.Row && !shown.Contains(a)).ToList();
+            // A killed Cow's Bovine Defense Force (a killed Kambi's Hemdall) takes the field, in its side's close combat row
+            List<BoardChange.Arrival> avengers = change.New.Where(a => CardIds.IsAvenger(a.CardId) && a.To == Place.Row && !shown.Contains(a)).ToList();
             if (avengers.Count > 0)
             {
                 shown.UnionWith(avengers.Cast<object>());
@@ -82,9 +83,24 @@ namespace Gwent.Battle
                 rest.Add(Move(move, rest.Count * Stagger, ct));
             foreach (BoardChange.Arrival arrival in change.New.Where(a => !shown.Contains(a)))
                 rest.Add(Arrive(arrival, rest.Count * Stagger, arrival.To == Place.Hand || arrival.To == Place.Row, ct));
+            int to_deck = 0;
             foreach (BoardChange.Departure departure in change.Gone)
-                rest.Add(Vanish(departure, ct));
+                rest.Add(departure.From == Place.Discard ? ToDeck(departure, to_deck++ * ClearStagger, ct) : Vanish(departure, ct));
             await UniTask.WhenAll(rest);
+        }
+
+        // Berserkers turning into their bears: each Berserker fades where it stands as its bear appears in its place, in
+        // white wisps
+        public async UniTask Transform(BoardChange change, CancellationToken ct)
+        {
+            List<UniTask> all = new List<UniTask>();
+            foreach (BoardChange.Departure berserker in change.Gone)
+                all.Add(Vanish(berserker, ct));
+            foreach (BoardChange.Arrival bear in change.New)
+                all.Add(Summon(bear, ct));
+            foreach (BoardChange.Move move in change.Moves)
+                all.Add(Move(move, 0, ct));
+            await UniTask.WhenAll(all);
         }
 
         // The end of a round: every card on the board leaves for its discard pile at once (the Monsters' kept unit
@@ -193,6 +209,18 @@ namespace Gwent.Battle
         {
             LaneHold.Release(departure.Spacer);
             await CardMotion.FadeOut(departure.Ghost, 0.25f, ct);
+        }
+
+        // A card of a discard pile going back into its deck (Crach an Craite): it flies onto the deck and is gone
+        private async UniTask ToDeck(BoardChange.Departure departure, float delay, CancellationToken ct)
+        {
+            if (departure.Ghost == null)
+                return;
+            if (delay > 0)
+                await Wait(delay, ct);
+            Rect deck = board.DeckRect(departure.IsPlayer);
+            await CardMotion.Glide(departure.Ghost, () => CardMotion.Around(deck.center, CardMotion.ScreenRect(departure.Ghost).size), MoveSeconds, ct: ct);
+            UnityEngine.Object.Destroy(departure.Ghost.gameObject);
         }
 
         // A departure that is not shown (the opponent's played card leaving its hand: it comes in from the showcase)

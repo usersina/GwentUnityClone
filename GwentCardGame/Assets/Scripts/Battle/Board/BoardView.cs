@@ -505,13 +505,14 @@ namespace Gwent.Battle
 
         //----------------------------------------Weather and scores----------------------------------------//
         // Each row's weather, The Witcher 3's art over its cards (WeatherEffect): it fades in with its weather card, out once
-        // cleared
+        // cleared. Skellige Storm is the fog over the ranged row and the rain over the siege row.
         private void RefreshWeather(FieldView view)
         {
             List<int> weather = controller.weatherList;
+            bool storm = weather.Contains(CardIds.SkelligeStorm);
             ShowWeather(view.Rows[Row.Close], WeatherEffect.Kind.Frost, weather.Contains(CardIds.BitingFrost));
-            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, weather.Contains(CardIds.ImpenetrableFog));
-            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, weather.Contains(CardIds.TorrentialRain));
+            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, storm || weather.Contains(CardIds.ImpenetrableFog));
+            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, storm || weather.Contains(CardIds.TorrentialRain));
         }
 
         private static void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on)
@@ -551,11 +552,11 @@ namespace Gwent.Battle
             {
                 if (card_stats.row == Row.Special)
                 {
-                    // Commander's Horn: any special slot that has no horn yet (one per row)
+                    // Commander's Horn or Mardroeme: any free special slot (one card per row)
                     PlayerState side = is_player_turn ? (PlayerState)controller.PlayerInfo : controller.EnemyInfo;
                     foreach (KeyValuePair<Row, RowView> row in mine.Rows)
                     {
-                        if (side.HasHorn(row.Key))
+                        if (side.SlotTaken(row.Key))
                             continue;
                         row.Value.SpecialImage.sprite = mine.Picker.specialSelected;
                         mine.Picker.StoreField(row.Value.Special);
@@ -639,12 +640,17 @@ namespace Gwent.Battle
                     targets.Add(mine.Rows[row].Unit);
                 }
             }
-            else if (leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless)
+            else if (leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless || leader_id == LeaderIds.CrachAnCraite)
             {
-                GameObject pile = View(leader_id == LeaderIds.EredinBringerOfDeath).DiscardPile.transform.parent.gameObject;
-                foreach (Image side in UIKit.Frame(pile.transform, LeaderTargetFrame, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
-                    UIMotion.Pulse(side);
-                targets.Add(pile);
+                // The discard pile it takes a card from; Crach an Craite's, both (back into the decks)
+                bool[] sides = leader_id == LeaderIds.CrachAnCraite ? new[] { true, false } : new[] { leader_id == LeaderIds.EredinBringerOfDeath };
+                foreach (bool own in sides)
+                {
+                    GameObject pile = View(own).DiscardPile.transform.parent.gameObject;
+                    foreach (Image side in UIKit.Frame(pile.transform, LeaderTargetFrame, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
+                        UIMotion.Pulse(side);
+                    targets.Add(pile);
+                }
             }
             return targets;
         }

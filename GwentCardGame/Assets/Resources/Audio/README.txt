@@ -37,6 +37,7 @@ ability_horn -> horn
 ability_morale -> moral
 ability_tight_bond -> ally
 ability_decoy -> knockback
+ability_mardroeme -> mardroeme (Berserkers turning into bears; gwent-classic's sound, as the others)
 leader -> shield
 
 Deck editor SFX mapping:

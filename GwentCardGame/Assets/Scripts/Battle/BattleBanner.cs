@@ -64,6 +64,7 @@ namespace Gwent.Battle
                 case Gwent.Rules.Faction.Nilfgaard: return "nilfgaard";
                 case Gwent.Rules.Faction.Monsters: return "monsters";
                 case Gwent.Rules.Faction.Scoiatael: return "scoiatael";
+                case Gwent.Rules.Faction.Skellige: return "skellige";
                 default: return null;
             }
         }

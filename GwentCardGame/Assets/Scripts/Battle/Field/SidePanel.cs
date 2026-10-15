@@ -13,7 +13,7 @@ namespace Gwent.Battle
     {
         public Sprite redRuby;
         public Sprite greyRuby;
-        public List<Sprite> factionShields; // Monsters, Nilfgaard, Northern Realms, Scoia'tael (then Skellige's, for when it comes)
+        public List<Sprite> factionShields; // Monsters, Nilfgaard, Northern Realms, Scoia'tael, Skellige
 
         private Image factionShield;
         private TextMeshProUGUI nameText;
@@ -80,6 +80,10 @@ namespace Gwent.Battle
                 case Faction.Scoiatael:
                     faction_name = "Scoia'tael";
                     factionShield.sprite = factionShields[3];
+                    break;
+                case Faction.Skellige:
+                    faction_name = "Skellige";
+                    factionShield.sprite = factionShields[4];
                     break;
             }
             deckText.text = faction_name;

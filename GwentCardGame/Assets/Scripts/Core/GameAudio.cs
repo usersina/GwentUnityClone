@@ -49,6 +49,7 @@ namespace Gwent.Core
             { "ability_morale", new[] { "moral" } },
             { "ability_tight_bond", new[] { "ally" } },
             { "ability_decoy", new[] { "knockback" } },
+            { "ability_mardroeme", new[] { "mardroeme" } },
             { "leader", new[] { "shield" } },
             { "deck_add", new[] { "menu_buy" } },
             { "deck_remove", new[] { "discard" } },

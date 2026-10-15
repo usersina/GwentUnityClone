@@ -5,14 +5,16 @@ namespace Gwent.Rules
     // Resolving a card once it has left the hand
     public static class PlayRules
     {
-        // manual_medic: the side picks its medic target itself (the human player), otherwise the AI picks
-        public static PlayOutcome Resolve(Board board, Card card, Row field_row, bool is_player, bool manual_medic)
+        // manual_medic: the side picks its medic target itself (the human player), otherwise the AI picks.
+        // transform: Berserkers meeting a Mardroeme turn now; the battle turns them after showing the play
+        // (AbilityRules.Transform), which changes nothing else: what a play scorches is decided before they meet.
+        public static PlayOutcome Resolve(Board board, Card card, Row field_row, bool is_player, bool manual_medic, bool transform = true)
         {
             PlayerState me = board.Side(is_player);
             PlayerState opp = board.Opponent(is_player);
 
             if (card.IsUnit)
-                return ResolveUnit(board, card, field_row, is_player, manual_medic);
+                return ResolveUnit(board, card, field_row, is_player, manual_medic, transform);
 
             switch (card.row)
             {
@@ -23,7 +25,8 @@ namespace Gwent.Rules
                     else
                     {
                         me.SpecialRow(row).Add(card._id);
-                        AbilityRules.Transform(me, board.Db); // a Mardroeme: the row's Berserkers turn
+                        if (transform)
+                            AbilityRules.Transform(me, board.Db); // a Mardroeme: the row's Berserkers turn
                     }
                     break;
                 case Row.Weather:
@@ -42,7 +45,7 @@ namespace Gwent.Rules
             return PlayOutcome.Done;
         }
 
-        private static PlayOutcome ResolveUnit(Board board, Card card, Row field_row, bool is_player, bool manual_medic)
+        private static PlayOutcome ResolveUnit(Board board, Card card, Row field_row, bool is_player, bool manual_medic, bool transform)
         {
             PlayerState me = board.Side(is_player);
             PlayerState opp = board.Opponent(is_player);
@@ -87,7 +90,8 @@ namespace Gwent.Rules
             }
 
             owner.UnitRow(row).Add(card._id);
-            AbilityRules.Transform(owner, board.Db); // a Berserker on a Mardroeme's row, or Ermion on theirs
+            if (transform)
+                AbilityRules.Transform(owner, board.Db); // a Berserker on a Mardroeme's row, or Ermion on theirs
             board.Recalculate();
 
             Row? scorch_row = Abilities.RowScorchTarget(card.ability);
@@ -104,7 +108,7 @@ namespace Gwent.Rules
                 Row revived_row = revived_card.row == Row.Agile
                     ? AbilityRules.BestAgileRow(me, revived, board.Weather, board.DoubleSpies, board.Db)
                     : revived_card.row;
-                return ResolveUnit(board, revived_card, revived_row, is_player, manual_medic);
+                return ResolveUnit(board, revived_card, revived_row, is_player, manual_medic, transform);
             }
             return outcome;
         }

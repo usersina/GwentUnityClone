@@ -593,7 +593,36 @@ namespace Gwent.Battle
 
             // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
             bool player_starts = winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer);
-            Present(change, ct => presenter.Clear(change, ct), () => RoundOpening(player_starts, flow.Token).Forget());
+            Present(change, ct => presenter.Clear(change, ct), () => Reinforce(() => RoundOpening(player_starts, flow.Token).Forget()));
+        }
+
+        // Skellige's perk, as the third round opens on a cleared board: its notice, then two units of its discard pile
+        // fly back onto the battlefield
+        private void Reinforce(Action then)
+        {
+            List<bool> sides = new[] { true, false }.Where(is_player => RoundRules.SkelligeReinforces(Info(is_player))).ToList();
+            if (sides.Count == 0)
+            {
+                then();
+                return;
+            }
+            board.BeginChange();
+            foreach (bool is_player in sides)
+            {
+                List<int> placed = RoundRules.SkelligeReinforcements(CurrentBoard(), is_player);
+                if (placed.Count == 0)
+                    continue;
+                GameLog.Event(LogCategory.Battle, "skellige_reinforcements", "side", is_player ? "player" : "enemy", "cards", string.Join(", ", placed.Select(id => Db.Get(id).name)));
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Skellige), "Skellige faction ability triggered: " + (placed.Count == 1 ? "a unit" : "two units")
+                    + " from " + (is_player ? "your" : "your opponent's") + " discard pile " + (placed.Count == 1 ? "returns" : "return") + " to the battlefield.");
+            }
+            RefreshBoard();
+            BoardChange change = board.EndChange();
+            Present(change, async ct =>
+            {
+                await While(() => BattleBanner.Busy, ct);
+                await presenter.Clear(change, ct);
+            }, then);
         }
 
         public bool IsBattleOver
@@ -720,7 +749,7 @@ namespace Gwent.Battle
             PlayCardAudio(card);
             int hand_before = me.HandList.Count;
             board.BeginChange();
-            PlayOutcome outcome = PlayRules.Resolve(CurrentBoard(), card, field_row, is_player_turn, is_player_turn);
+            PlayOutcome outcome = PlayRules.Resolve(CurrentBoard(), card, field_row, is_player_turn, is_player_turn, transform: false);
             if (me.HandList.Count > hand_before)
                 GameAudio.PlaySfx("card_draw");
             RefreshBoard();
@@ -729,7 +758,7 @@ namespace Gwent.Battle
 
             bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
             BoardChange change = board.EndChange();
-            Present(change, ct => presenter.Play(change, card_id, is_player_turn, medic_choice, ct), () =>
+            Present(change, ct => presenter.Play(change, card_id, is_player_turn, medic_choice, ct), () => TransformBerserkers(() =>
             {
                 // Medic: the player picks a unit to restore from the discard panel
                 if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
@@ -738,7 +767,29 @@ namespace Gwent.Battle
                     return;
                 }
                 EndTurn(is_player_turn);
-            });
+            }));
+        }
+
+        // Berserkers that met a Mardroeme (the special card, or Ermion) turn into their bears once the play that brought
+        // them together has shown, in their places, to the Mardroeme's growl
+        private void TransformBerserkers(Action then)
+        {
+            if (!AbilityRules.CanTransform(PlayerInfo, Db) && !AbilityRules.CanTransform(EnemyInfo, Db))
+            {
+                then();
+                return;
+            }
+            board.BeginChange();
+            foreach (bool is_player in new[] { true, false })
+            {
+                int turned = AbilityRules.Transform(Info(is_player), Db);
+                if (turned > 0)
+                    GameLog.Event(LogCategory.Battle, "berserkers_transformed", "side", is_player ? "player" : "enemy", "count", turned);
+            }
+            RefreshBoard();
+            BoardChange change = board.EndChange();
+            GameAudio.PlaySfx("ability_mardroeme");
+            Present(change, ct => presenter.Transform(change, ct), then);
         }
 
         // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act. Never left waiting:
@@ -962,7 +1013,8 @@ namespace Gwent.Battle
                     {
                         case "biting_frost": GameAudio.PlaySfx("ability_weather_frost"); break;
                         case "impenetrable_fog": GameAudio.PlaySfx("ability_weather_fog"); break;
-                        case "torrential_rain": GameAudio.PlaySfx("ability_weather_rain"); break;
+                        case "torrential_rain":
+                        case "skellige_storm": GameAudio.PlaySfx("ability_weather_rain"); break;
                         case "clear_weather": GameAudio.PlaySfx("ability_weather_clear"); break;
                         default: GameAudio.PlaySfx("ability_weather"); break;
                     }
@@ -987,7 +1039,7 @@ namespace Gwent.Battle
                 case Ability.MoraleBoost: GameAudio.PlaySfx("ability_morale"); return;
                 case Ability.TightBond: GameAudio.PlaySfx("ability_tight_bond"); return;
             }
-            if (Abilities.IsRowScorch(card.ability))
+            if (Abilities.IsRowScorch(card.ability) || card.ability == Ability.Scorch) // the Clan Dimun Pirate's too
                 GameAudio.PlaySfx("ability_scorch");
             else
                 GameAudio.PlaySfx(card.unique ? "card_play_hero" : "card_play_unit");
@@ -1008,12 +1060,12 @@ namespace Gwent.Battle
             AnnounceCows(round_clear);
         }
 
-        // A Cow gone to the discard pile during a round, said at once (AbilityRules.AvengerOf): killed (scorched), its
-        // Bovine Defense Force takes the field now, or the player wonders where it came from; discarded (Destroyer of
+        // An Avenger (a Cow, Kambi) gone to the discard pile during a round, said at once (AbilityRules.AvengerOf): killed
+        // (scorched), its avenger takes the field now, or the player wonders where it came from; discarded (Destroyer of
         // Worlds), it is held until the board clears for the next round, never coming if the battle ends first, or the
         // player looks for it in vain. (At the end of a round it arrives in the same clearing: nothing to say.)
-        private readonly int[] cowsDiscarded = new int[2];
-        private readonly int[] summonsPending = new int[2];
+        private readonly Dictionary<int, int[]> avengersDiscarded = new Dictionary<int, int[]> { { CardIds.Cow, new int[2] }, { CardIds.Kambi, new int[2] } };
+        private readonly Dictionary<int, int[]> summonsPending = new Dictionary<int, int[]> { { CardIds.Cow, new int[2] }, { CardIds.Kambi, new int[2] } };
 
         private void AnnounceCows(bool round_clear)
         {
@@ -1021,24 +1073,37 @@ namespace Gwent.Battle
             {
                 BattleSide info = Info(is_player);
                 int index = is_player ? 0 : 1;
-                int cows = info.DiscardList.Count(id => id == CardIds.Cow);
-                int pending = info.PendingSummons.Count;
-                if (!round_clear && cows > cowsDiscarded[index])
+                foreach (int caller in avengersDiscarded.Keys)
                 {
-                    bool killed = pending <= summonsPending[index];
-                    GameLog.Event(LogCategory.Battle, killed ? "cow_avenged" : "summon_pending", "side", is_player ? "player" : "enemy");
-                    if (killed)
-                        UIOverlay.Toast(is_player
-                            ? "Your Cow was killed: the Bovine Defense Force takes the field to avenge it"
-                            : "You killed the opponent's Cow: their Bovine Defense Force takes the field to avenge it", 4f);
-                    else
-                        UIOverlay.Toast(is_player
-                            ? "Your Cow is discarded: the Bovine Defense Force joins your close combat row next round, if the battle goes on"
-                            : "The opponent's Cow is discarded: their Bovine Defense Force comes next round, if the battle goes on", 4f);
+                    int avenger = AbilityRules.AvengerOf(caller);
+                    int discarded = info.DiscardList.Count(id => id == caller);
+                    int pending = info.PendingSummons.Count(id => id == avenger);
+                    if (!round_clear && discarded > avengersDiscarded[caller][index])
+                    {
+                        bool killed = pending <= summonsPending[caller][index];
+                        GameLog.Event(LogCategory.Battle, killed ? "avenged" : "summon_pending", "side", is_player ? "player" : "enemy", "card", Db.Get(caller).name);
+                        UIOverlay.Toast(AvengerNotice(caller == CardIds.Kambi, is_player, killed), 4f);
+                    }
+                    avengersDiscarded[caller][index] = discarded;
+                    summonsPending[caller][index] = pending;
                 }
-                cowsDiscarded[index] = cows;
-                summonsPending[index] = pending;
             }
+        }
+
+        private static string AvengerNotice(bool kambi, bool is_player, bool killed)
+        {
+            if (kambi)
+            {
+                if (killed)
+                    return is_player ? "Kambi was killed: Hemdall takes the field to avenge him" : "You killed the opponent's Kambi: their Hemdall takes the field to avenge him";
+                return is_player ? "Kambi is discarded: Hemdall joins your close combat row next round, if the battle goes on"
+                    : "The opponent's Kambi is discarded: their Hemdall comes next round, if the battle goes on";
+            }
+            if (killed)
+                return is_player ? "Your Cow was killed: the Bovine Defense Force takes the field to avenge it"
+                    : "You killed the opponent's Cow: their Bovine Defense Force takes the field to avenge it";
+            return is_player ? "Your Cow is discarded: the Bovine Defense Force joins your close combat row next round, if the battle goes on"
+                : "The opponent's Cow is discarded: their Bovine Defense Force comes next round, if the battle goes on";
         }
 
         private void SetDeckObject(BattleSide info, bool is_player_deck) { board.SetDeck(info, is_player_deck); }

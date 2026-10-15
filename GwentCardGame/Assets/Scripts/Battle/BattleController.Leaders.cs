@@ -199,7 +199,7 @@ namespace Gwent.Battle
                 return PickWeatherCard(weather_row.Value, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
             }
 
-            // Horns, scorches, clear weather, agile: resolved by the rules right away
+            // Horns, scorches, clear weather, agile, Crach an Craite's shuffle: resolved by the rules right away
             if (LeaderRules.IsInstant(leader_id))
                 return LeaderRules.ApplyInstant(CurrentBoard(), leader_id, is_player_turn, out reason) ? LeaderOutcome.Instant : LeaderOutcome.Unavailable;
 

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Gwent.Rules;
 using UnityEngine;
 
 namespace Gwent.Battle
@@ -41,9 +42,10 @@ namespace Gwent.Battle
         public readonly List<Arrival> New = new List<Arrival>();      // arrived from off the board
         public readonly List<Departure> Gone = new List<Departure>(); // left the board for good
 
-        // Pairs each arrival with a departure of the same card: on the same side first, else from a hand (a spy goes
-        // to the other side) or the weather slot (it has no side), else from anywhere (a spy a medic brings back goes to
-        // the other side; Emhyr the Relentless takes a card from the other side's discard pile)
+        // Pairs each arrival with a departure of the same card: on the same side first (a Berserker reaching its discard
+        // pile, with the bear it was), else from a hand (a spy goes to the other side) or the weather slot (it has no side),
+        // else from anywhere (a spy a medic brings back goes to the other side; Emhyr the Relentless takes a card from the
+        // other side's discard pile)
         public BoardChange(List<Arrival> arrivals, List<Departure> departures)
         {
             Arrivals = arrivals;
@@ -52,6 +54,7 @@ namespace Gwent.Battle
             foreach (Arrival arrival in arrivals)
             {
                 Departure from = left.Find(d => d.CardId == arrival.CardId && d.IsPlayer == arrival.IsPlayer)
+                    ?? left.Find(d => arrival.To == Place.Discard && d.IsPlayer == arrival.IsPlayer && d.CardId == CardIds.TransformedOf(arrival.CardId)) // a bear gone: its Berserker
                     ?? left.Find(d => d.CardId == arrival.CardId && (d.From == Place.Hand || d.From == Place.Weather || arrival.To == Place.Weather))
                     ?? left.Find(d => d.CardId == arrival.CardId);
                 if (from == null)
