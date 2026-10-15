@@ -920,3 +920,14 @@
     height: 60px;
     margin-top: 20px;
 }
+
+/*---------------------------------------- Unity's own button states ----------------------------------------*/
+/* The default theme fills a button grey and outlines it when hovered, focused or pressed, as specifically as a class and a
+   state: the buttons drawn here only by their text, band or icon keep no fill or outline of Unity's */
+.unity-button.menu-item:hover, .unity-button.menu-item:focus, .unity-button.menu-item:active,
+.unity-button.tab:hover, .unity-button.tab:focus, .unity-button.tab:active,
+.unity-button.button--ghost:hover, .unity-button.button--ghost:focus, .unity-button.button--ghost:active,
+.unity-button.stepper__arrow:hover, .unity-button.stepper__arrow:focus, .unity-button.stepper__arrow:active {
+    background-color: rgba(0, 0, 0, 0);
+    border-color: rgba(0, 0, 0, 0);
+}
