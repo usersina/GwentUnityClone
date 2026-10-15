@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
@@ -140,7 +141,7 @@ namespace Gwent.Menus
                         E("Leader", "Tap the leader: it leaves its place for the right, shows where it acts, and its crown glows; tap the crown to use it, or the empty place to put it back. Hold a finger on the crown to see whether it can still be used.", "crown"),
                         E("Pass", "Hold the Hold to pass button.", "key:Hold to pass"),
                         E("Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large until you lift it; tap a discard pile to look through it.", "card:14"),
-                        E("Pause", "The back button or the menu button: resume or settings.", "key:Back"),
+                        E("Pause", "The menu button (or the Android app's back button): resume or settings.", "key:Back"),
                         E("Give up", "Lay your hand on your deck: in your turn, hold a finger on it, then confirm. It counts as a loss.", "back:NR"),
                     } : new[]
                     {
@@ -148,7 +149,7 @@ namespace Gwent.Menus
                         E("Leader", "Click the leader: it leaves its place for the right, shows where it acts, and its crown glows; click the crown to use it, or the empty place (or right-click, Esc) to put it back. Or X, then X again or Enter.", "key:X", "crown"),
                         E("Pass", "Hold Space, or hold the Hold to pass button.", "key:Space"),
                         E("Look", "Hover a card to see it large; click a discard pile to look through it.", "card:14"),
-                        E("Pause", "Esc or the menu button: resume or settings.", "key:Esc"),
+                        E("Pause", "Esc or the menu button: resume, settings, or quit the game (outside the browser).", "key:Esc"),
                         E("Give up", "Lay your hand on your deck: in your turn, the cursor over it turns into a hand; click, then confirm. It counts as a loss.", "back:NR"),
                     },
                 },
@@ -163,29 +164,29 @@ namespace Gwent.Menus
             new FactionTopic { Faction = Faction.Monsters, Perk = "One random unit stays on the board after each round.", Leaders = new[] { 40, 41, 42, 43, 44 } },
         };
 
-        // The leaders as The Witcher 3's cards name and describe them
-        private static readonly Dictionary<int, string[]> LeaderText = new Dictionary<int, string[]>
+        // The leaders as The Witcher 3's cards name them (their abilities: CardDescription, as on their cards)
+        private static readonly Dictionary<int, string> LeaderNames = new Dictionary<int, string>
         {
-            { 51, new[] { "Foltest: King of Temeria", "Pick an Impenetrable Fog card from your deck and play it instantly." } },
-            { 52, new[] { "Foltest: Lord Commander of the North", "Clear any weather effects in play." } },
-            { 53, new[] { "Foltest: Son of Medell", "Destroy your enemy's strongest Ranged Combat unit(s) if their combined Ranged Combat strength is 10 or more." } },
-            { 54, new[] { "Foltest: The Siegemaster", "Double the strength of all your Siege units (unless a Commander's Horn is also present on that row)." } },
-            { 55, new[] { "Foltest: The Steel-Forged", "Destroy your enemy's strongest Siege unit(s) if their combined Siege strength is 10 or more." } },
-            { 33, new[] { "Emhyr var Emreis: Emperor of Nilfgaard", "Look at 3 random cards from your opponent's hand." } },
-            { 34, new[] { "Emhyr var Emreis: His Imperial Majesty", "Pick a Torrential Rain card from your deck and play it instantly." } },
-            { 35, new[] { "Emhyr var Emreis: Invader of the North", "Abilities that restore a unit restore a randomly chosen one. Affects both players." } },
-            { 36, new[] { "Emhyr var Emreis: The Relentless", "Draw a card from your opponent's discard pile." } },
-            { 37, new[] { "Emhyr var Emreis: The White Flame", "Cancel your opponent's Leader Ability." } },
-            { 57, new[] { "Francesca Findabair: Daisy of the Valley", "Draw an extra card at the beginning of the battle." } },
-            { 58, new[] { "Francesca Findabair: Hope of the Aen Seidhe", "Move agile units to whichever valid row maximizes their strength (units already in their best row stay)." } },
-            { 59, new[] { "Francesca Findabair: Pureblood Elf", "Pick a Biting Frost card from your deck and play it instantly." } },
-            { 60, new[] { "Francesca Findabair: Queen of Dol Blathanna", "Destroy your enemy's strongest Close Combat unit(s) if their combined Close Combat strength is 10 or more." } },
-            { 61, new[] { "Francesca Findabair: The Beautiful", "Double the strength of all your Ranged Combat units (unless a Commander's Horn is also present on that row)." } },
-            { 40, new[] { "Eredin Bréacc Glas: The Treacherous", "Doubles the strength of all spy cards (affects both players)." } },
-            { 41, new[] { "Eredin: Bringer of Death", "Restore a card from your discard pile to your hand." } },
-            { 42, new[] { "Eredin: Commander of the Red Riders", "Double the strength of all your Close Combat units (unless a Commander's Horn is also present on that row)." } },
-            { 43, new[] { "Eredin: Destroyer of Worlds", "Discard 2 cards and draw 1 card of your choice from your deck." } },
-            { 44, new[] { "Eredin: King of the Wild Hunt", "Pick any weather card from your deck and play it instantly." } },
+            { 51, "Foltest: King of Temeria" },
+            { 52, "Foltest: Lord Commander of the North" },
+            { 53, "Foltest: Son of Medell" },
+            { 54, "Foltest: The Siegemaster" },
+            { 55, "Foltest: The Steel-Forged" },
+            { 33, "Emhyr var Emreis: Emperor of Nilfgaard" },
+            { 34, "Emhyr var Emreis: His Imperial Majesty" },
+            { 35, "Emhyr var Emreis: Invader of the North" },
+            { 36, "Emhyr var Emreis: The Relentless" },
+            { 37, "Emhyr var Emreis: The White Flame" },
+            { 57, "Francesca Findabair: Daisy of the Valley" },
+            { 58, "Francesca Findabair: Hope of the Aen Seidhe" },
+            { 59, "Francesca Findabair: Pureblood Elf" },
+            { 60, "Francesca Findabair: Queen of Dol Blathanna" },
+            { 61, "Francesca Findabair: The Beautiful" },
+            { 40, "Eredin Bréacc Glas: The Treacherous" },
+            { 41, "Eredin: Bringer of Death" },
+            { 42, "Eredin: Commander of the Red Riders" },
+            { 43, "Eredin: Destroyer of Worlds" },
+            { 44, "Eredin: King of the Wild Hunt" },
         };
 
         // The pieces are drawn at this scale, so they sit in the page's icon column as its icons did
@@ -496,9 +497,10 @@ namespace Gwent.Menus
             art.AddToClassList("rules__leader-art");
             CardArt.Show(art, leader_id);
             holder.Add(art);
-            string[] text;
-            if (LeaderText.TryGetValue(leader_id, out text))
-                ElementTooltip.Attach(holder, () => "<b>" + text[0] + "</b>\n" + text[1]);
+            string name;
+            string ability = CardDescription.LeaderAbility(leader_id);
+            if (LeaderNames.TryGetValue(leader_id, out name) && ability != null)
+                ElementTooltip.Attach(holder, () => "<b>" + name + "</b>\n" + ability);
             return holder;
         }
 

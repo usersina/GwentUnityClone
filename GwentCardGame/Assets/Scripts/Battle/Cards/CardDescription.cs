@@ -12,6 +12,13 @@ namespace Gwent.Battle
         public readonly string Text;
         public readonly string Icon; // under Resources/Cards/DescriptionIcon, or null
 
+        // A leader's ability, as its description box and How to play say it (null for an id that is no leader)
+        public static string LeaderAbility(int leader_id)
+        {
+            string text;
+            return Leaders.TryGetValue(leader_id, out text) ? text : null;
+        }
+
         private CardDescription(string title, string text, string icon = null)
         {
             Title = title;
@@ -42,14 +49,18 @@ namespace Gwent.Battle
             "Not affected by any special cards or abilities.");
 
         private static readonly CardDescription Agile = new CardDescription("Agile",
-            "Can be placed in either the Close Combat or the Ranged Combat row. Cannot be moved once placed.", "agile");
+            "Can be placed in either the Close Combat or the Ranged Combat row.", "agile"); // Francesca, Hope of the Aen Seidhe moves it later
 
         private static readonly CardDescription Avenger = new CardDescription("Avenger",
             "Killed by a scorch, it calls the Bovine Defense Force to your Close Combat row at once. Discarded any other way, "
             + "the Defense Force comes at the start of the next round.");
 
-        private static readonly CardDescription UnitHorn = new CardDescription("Commander's Horn",
+        private static readonly CardDescription CommanderHorn = new CardDescription("Commander's Horn",
             "Doubles the strength of all unit cards in that row. Limited to 1 per row.", "commander_horn");
+
+        // Dandelion: his horn doubles the others in his row (not himself), and a Commander's Horn may still join it
+        private static readonly CardDescription UnitHorn = new CardDescription("Commander's Horn",
+            "Doubles the strength of the other units in its row.", "commander_horn");
 
         // Special cards, by their id string
         private static readonly Dictionary<string, CardDescription> Specials = new Dictionary<string, CardDescription>
@@ -58,7 +69,7 @@ namespace Gwent.Battle
             { "impenetrable_fog", new CardDescription("Impenetrable Fog", "Sets the strength of all Ranged Combat cards to 1 for both players.", "impenetrable_fog") },
             { "torrential_rain", new CardDescription("Torrential Rain", "Sets the strength of all Siege Combat cards to 1 for both players.", "torrential_rain") },
             { "clear_weather", new CardDescription("Clear Weather", "Removes all weather effects (Biting Frost, Impenetrable Fog and Torrential Rain).", "clear_weather") },
-            { "commander_horn", UnitHorn },
+            { "commander_horn", CommanderHorn },
             { "decoy", new CardDescription("Decoy", "Swap with a card on the battlefield to return it to your hand.", "decoy") },
             { "scorch", new CardDescription("Scorch", "Discard after playing. Kills the strongest card(s) on the battlefield.", "scorch") },
         };
@@ -88,11 +99,11 @@ namespace Gwent.Battle
         {
             { LeaderIds.EmhyrEmperorOfNilfgaard, "Look at 3 random cards from your opponent's hand." },
             { LeaderIds.EmhyrHisImperialMajesty, "Pick a Torrential Rain card from your deck and play it instantly." },
-            { LeaderIds.EmhyrInvaderOfTheNorth, "Abilities that restore a unit to the battlefield restore a randomly chosen one. Affects both players." },
-            { LeaderIds.EmhyrTheRelentless, "Draw a card from your opponent's discard pile." },
+            { LeaderIds.EmhyrInvaderOfTheNorth, "Medics and leader abilities that restore a unit pick a random one (a hero medic still chooses). Affects both players." },
+            { LeaderIds.EmhyrTheRelentless, "Draw a unit (not a hero) from your opponent's discard pile." },
             { LeaderIds.EmhyrTheWhiteFlame, "Cancels your opponent's leader ability." },
             { LeaderIds.EredinTheTreacherous, "Doubles the strength of all spy cards. Affects both players." },
-            { LeaderIds.EredinBringerOfDeath, "Restore a card from your discard pile to your hand." },
+            { LeaderIds.EredinBringerOfDeath, "Restore a unit (not a hero) from your discard pile to your hand." },
             { LeaderIds.EredinCommanderOfTheRedRiders, "Doubles the strength of all your Close Combat units (unless a Commander's Horn is also on that row)." },
             { LeaderIds.EredinDestroyerOfWorlds, "Discard 2 cards and draw 1 card of your choice from your deck." },
             { LeaderIds.EredinKingOfTheWildHunt, "Pick any weather card from your deck and play it instantly." },

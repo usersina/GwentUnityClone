@@ -82,8 +82,7 @@ namespace Gwent.Rules
                 if (i < base_strengths.Count)
                     base_strengths.RemoveAt(i);
                 strengths.RemoveAt(i);
-                if (card_id != CardIds.BovineDefenseForce)
-                    info.DiscardList.Add(card_id);
+                ToDiscardPile(info, card_id);
                 if (AvengerOf(card_id) != -1)
                     avengers.Add(AvengerOf(card_id)); // killed: its avenger comes at once (Avenge)
                 destroyed++;
@@ -113,14 +112,21 @@ namespace Gwent.Rules
             }
         }
 
-        // A unit leaving the battlefield goes to the discard pile, a Cow's avenger coming next round. A summoned card is
-        // not a real card: it vanishes (so a medic cannot bring it back).
+        // A card discarded without being killed (cleared at a round's end, or from the hand by Destroyer of Worlds) goes
+        // to the discard pile, a Cow's avenger coming next round
         public static void Discard(PlayerState info, int card_id)
+        {
+            ToDiscardPile(info, card_id);
+            if (AvengerOf(card_id) != -1)
+                info.PendingSummons.Add(AvengerOf(card_id));
+        }
+
+        // A summoned card is not a real card: it vanishes instead of going to the discard pile (so a medic cannot bring
+        // it back)
+        private static void ToDiscardPile(PlayerState info, int card_id)
         {
             if (card_id != CardIds.BovineDefenseForce)
                 info.DiscardList.Add(card_id);
-            if (AvengerOf(card_id) != -1)
-                info.PendingSummons.Add(AvengerOf(card_id));
         }
 
         //----------------------------------------Muster----------------------------------------//

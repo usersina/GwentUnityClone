@@ -362,9 +362,10 @@ public static class RulesFuzzer
         if (LeaderRules.IsInstant(leader))
         {
             string reason;
-            int opp_units = Rows.Units.Sum(r => opp.UnitRow(r).Count);
+            Row? scorch_row = LeaderIds.ScorchRow(leader);
+            int row_units = scorch_row != null ? opp.UnitRow(scorch_row.Value).Count : 0; // a killed Cow's defender joins another row
             if (!LeaderRules.ApplyInstant(board, leader, p, out reason)) Fail("instant leader " + leader + " failed after Unavailable said yes: " + reason);
-            if (LeaderIds.ScorchRow(leader) != null && Rows.Units.Sum(r => opp.UnitRow(r).Count) >= opp_units) Fail("leader row scorch " + leader + " destroyed nothing although allowed");
+            if (scorch_row != null && opp.UnitRow(scorch_row.Value).Count >= row_units) Fail("leader row scorch " + leader + " destroyed nothing although allowed");
             return "leader " + leader + " (instant)";
         }
         switch (leader)
@@ -520,11 +521,6 @@ public static class RulesFuzzer
         {
             foreach (var src in new[] { me.DeckList, me.HandList })
                 if (src.Any(id => AbilityRules.IsMusterRelative(card, Db.Get(id)))) Fail("muster left a relative of " + card.name + " behind");
-        }
-        if (card.ability == Ability.Scorch && !card.IsUnit)
-        {
-            // No non-hero unit left with a strength above the scorched one... checked loosely: the strongest remaining
-            // non-hero must be weaker than before unless nothing was destroyed
         }
     }
 }

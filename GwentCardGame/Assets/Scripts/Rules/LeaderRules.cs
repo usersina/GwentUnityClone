@@ -86,6 +86,7 @@ namespace Gwent.Rules
             {
                 board.Recalculate();
                 AbilityRules.ScorchRow(board.Opponent(is_player), scorch_row.Value, board.Db);
+                board.Recalculate(); // a killed Cow's Defense Force arrived: horn and weather count for it at once
                 return true;
             }
 

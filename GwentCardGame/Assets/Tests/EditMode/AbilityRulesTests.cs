@@ -25,6 +25,7 @@ namespace Gwent.Rules.Tests
         private const int Olgierd = 95;             // N agile 6 morale boost
         private const int DolBlathannaArcher = 25, VrihheddRecruit = 137, Toruviel = 122; // SC range 4, 4, 2
         private const int MahakamanDefender = 87;   // SC close 5
+        private const int Philippa = 96;            // NR hero range 10
 
         private CardDatabase Db { get { return TestBoard.Db; } }
 
@@ -220,16 +221,52 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
-        public void ARowScorchedCowCallsTheDefenseForceAtOnce()
+        public void ALeaderScorchingTheCowsRowCallsTheDefenseForceAtOnce()
         {
-            PlayerState e = TestBoard.Player(Faction.Monsters);
-            e.CloseList.AddRange(new[] { CardIds.Cow, Draug }); // the hero makes the row's 10; the Cow is its strongest unit
-            TestBoard.Recalc(null, e);
+            // Foltest, Son of Medell scorches the enemy's ranged row: Philippa (a hero) makes its 10, the Cow is its only unit
+            Board board = new Board { Player = TestBoard.Player(Faction.NorthernRealms, LeaderIds.FoltestSonOfMedell), Enemy = TestBoard.Player(Faction.Monsters), Db = Db };
+            board.Enemy.RangeList.AddRange(new[] { CardIds.Cow, Philippa });
+            board.Recalculate();
 
-            Assert.AreEqual(1, AbilityRules.ScorchRow(e, Row.Close, Db));
-            CollectionAssert.AreEqual(new[] { Draug, CardIds.BovineDefenseForce }, e.CloseList);
-            Assert.AreEqual(e.CloseList.Count, e.CloseStrengthL.Count);
-            Assert.AreEqual(e.CloseList.Count, e.MCloseStrength.Count);
+            string reason;
+            Assert.IsTrue(LeaderRules.ApplyInstant(board, LeaderIds.FoltestSonOfMedell, true, out reason), reason);
+            CollectionAssert.AreEqual(new[] { Philippa }, board.Enemy.RangeList);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, board.Enemy.CloseList);
+            CollectionAssert.AreEqual(new[] { CardIds.Cow }, board.Enemy.DiscardList);
+            Assert.AreEqual(8, board.Enemy.RowScore(Row.Close), "counted at once");
+        }
+
+        [Test]
+        public void TheDefenseForceTakesItsRowsHornAndWeather()
+        {
+            PlayerState p = TestBoard.Player();
+            PlayerState e = TestBoard.Player(Faction.Monsters);
+            p.RangeList.Add(CardIds.Cow);
+            Assert.IsTrue(AbilityRules.PlaceLeaderHorn(p, Row.Close)); // a horn on the close row, as a leader's
+            TestBoard.Recalc(null, p, e);
+            AbilityRules.Scorch(p, e, Db);
+
+            TestBoard.Recalc(null, p, e);
+            Assert.AreEqual(16, p.RowScore(Row.Close), "doubled by the close row's horn");
+            TestBoard.Recalc(new List<int> { CardIds.BitingFrost }, p, e);
+            Assert.AreEqual(2, p.RowScore(Row.Close), "1 under Biting Frost, doubled by the horn");
+        }
+
+        [Test]
+        public void ACowDiscardedFromTheHandCallsTheDefenseForceNextRound()
+        {
+            // Eredin, Destroyer of Worlds discards it from the hand: not killed, so its defender waits for the next round
+            PlayerState p = TestBoard.Player(Faction.Monsters, LeaderIds.EredinDestroyerOfWorlds);
+            p.HandList.Add(CardIds.Cow);
+            p.HandList.Remove(CardIds.Cow);
+            AbilityRules.Discard(p, CardIds.Cow);
+            CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.DiscardList);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.PendingSummons);
+            Assert.IsEmpty(p.CloseList);
+
+            RoundRules.CleanupBoard(p, new Random(0), Db);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+            Assert.IsEmpty(p.PendingSummons);
         }
 
         [Test]
