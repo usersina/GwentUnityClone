@@ -314,3 +314,336 @@
     background-image: url("project://database/Assets/UI/Sprites/IconCheck.png");
     -unity-background-image-tint-color: var(--gold);
 }
+
+/* Plain text that lights up: Reset to defaults, the settings' tabs */
+.button--ghost {
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    -unity-font-definition: var(--body-font);
+    font-size: 28px;
+    letter-spacing: 0;
+    color: var(--text-muted);
+}
+
+.button--ghost:hover,
+.button--ghost:focus {
+    color: var(--text);
+}
+
+.button--ghost:active {
+    color: var(--text-secondary);
+}
+
+.heading {
+    -unity-font-definition: var(--heading-font);
+    font-size: 44px;
+    letter-spacing: 3.2px;
+    color: var(--gold-bright);
+    padding: 0;
+    margin: 0;
+}
+
+.caption {
+    padding: 0;
+    margin: 0;
+}
+
+.divider {
+    height: 2px;
+    background-color: var(--line-soft);
+}
+
+/*---------------------------------------- Settings ----------------------------------------*/
+.settings {
+    width: 1040px;
+    height: 800px;
+    padding: 0 64px 32px 64px;
+}
+
+.settings__header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    height: 104px;
+}
+
+.settings__tabs {
+    flex-direction: row;
+    height: 64px;
+    margin-bottom: 14px;
+}
+
+.tab {
+    width: 200px;
+    height: 56px;
+    margin: 0 16px 0 0;
+    padding: 0 0 2px 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 2px;
+    -unity-text-align: middle-left;
+    color: var(--text-muted);
+    transition-property: color;
+    transition-duration: 0.12s;
+}
+
+.tab:hover,
+.tab:focus {
+    color: var(--text-secondary);
+}
+
+.tab--selected,
+.tab--selected:hover,
+.tab--selected:focus {
+    color: var(--text-bright);
+}
+
+.tab__underline {
+    position: absolute;
+    left: 0;
+    bottom: 4px;
+    width: 120px;
+    height: 3px;
+    background-color: var(--gold);
+    display: none;
+}
+
+.tab--selected > .tab__underline {
+    display: flex;
+}
+
+.settings__pages {
+    flex-grow: 1;
+    margin-top: 32px;
+}
+
+.settings__footer {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings__reset {
+    width: 300px;
+    height: 64px;
+    -unity-text-align: middle-left;
+    padding-left: 0;
+}
+
+.settings__back {
+    width: 240px;
+    height: 68px;
+}
+
+/* A labelled row: the label (and a caption under it) on the left, the control on the right */
+.setting {
+    flex-direction: row;
+    align-items: center;
+    height: 92px;
+}
+
+.setting__labels {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.setting__label {
+    -unity-font-definition: var(--body-font);
+    font-size: 30px;
+    color: var(--text-secondary);
+    padding: 0;
+    margin: 0;
+}
+
+.setting__control {
+    width: 520px;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.setting__percent {
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text);
+    width: 84px;
+    -unity-text-align: middle-right;
+    padding: 0;
+    margin: 0;
+}
+
+/* The volume slider: a thin track, the gold part up to a dark knob in a gold ring */
+.volume {
+    width: 400px;
+    height: 44px;
+    margin: 0 16px 0 0;
+}
+
+.volume .unity-base-slider__input {
+    height: 44px;
+}
+
+.volume .unity-base-slider__drag-container {
+    height: 44px;
+    margin: 0 14px;
+}
+
+.volume .unity-base-slider__tracker {
+    height: 8px;
+    margin-top: -4px;
+    top: 50%;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--line-soft);
+    left: -14px;
+    right: -14px;
+}
+
+.volume .unity-base-slider__fill {
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--gold);
+}
+
+.volume .unity-base-slider__dragger {
+    width: 28px;
+    height: 28px;
+    margin-top: -14px;
+    top: 50%;
+    border-width: 3px;
+    border-radius: 14px;
+    border-color: var(--gold);
+    background-color: var(--background);
+    transition-property: border-color;
+    transition-duration: 0.12s;
+}
+
+.volume:hover .unity-base-slider__dragger,
+.volume:focus .unity-base-slider__dragger {
+    border-color: var(--gold-bright);
+}
+
+.volume .unity-base-slider__dragger-border {
+    display: none;
+}
+
+/* The on/off switch: a pill and a knob that slides across, gold when on */
+.switch {
+    margin: 0;
+}
+
+/* (as specific as the default theme's no-label field, which would squeeze the input to nothing) */
+.switch.unity-base-field--no-label > .unity-toggle__input {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: auto;
+    width: 76px;
+    overflow: visible;
+}
+
+.switch .unity-toggle__checkmark {
+    width: 76px;
+    height: 40px;
+    border-width: 0;
+    border-radius: 20px;
+    background-image: none;
+    background-color: var(--line-soft);
+    -unity-background-image-tint-color: rgba(0, 0, 0, 0);
+    transition-property: background-color;
+    transition-duration: 0.15s;
+}
+
+.switch:checked .unity-toggle__checkmark {
+    background-color: var(--gold);
+}
+
+.switch__knob {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 15px;
+    background-color: var(--text-secondary);
+    transition-property: translate, background-color;
+    transition-duration: 0.15s;
+}
+
+.switch:checked .switch__knob {
+    translate: 36px 0;
+    background-color: var(--background);
+}
+
+.switch:focus .unity-toggle__checkmark {
+    border-width: 2px;
+    border-color: var(--gold-bright);
+}
+
+/* < value > */
+.stepper {
+    width: 420px;
+    height: 52px;
+    flex-direction: row;
+    align-items: center;
+    border-width: 2px;
+    border-radius: 10px;
+    border-color: var(--line-soft);
+}
+
+.stepper__value {
+    flex-grow: 1;
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text);
+    -unity-text-align: middle-center;
+    padding: 0 0 2px 0;
+    margin: 0;
+}
+
+.stepper__arrow {
+    width: 52px;
+    height: 48px;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    align-items: center;
+    justify-content: center;
+}
+
+.stepper__icon {
+    width: 39px;
+    height: 39px;
+    -unity-background-image-tint-color: var(--gold);
+    transition-property: -unity-background-image-tint-color;
+    transition-duration: 0.12s;
+}
+
+.stepper__arrow--left .stepper__icon {
+    background-image: url("project://database/Assets/UI/Sprites/ChevronLeft.png");
+}
+
+.stepper__arrow--right .stepper__icon {
+    background-image: url("project://database/Assets/UI/Sprites/ChevronRight.png");
+}
+
+.stepper__arrow:hover .stepper__icon,
+.stepper__arrow:focus .stepper__icon {
+    -unity-background-image-tint-color: var(--gold-bright);
+}
+
+.stepper__arrow:active .stepper__icon {
+    -unity-background-image-tint-color: var(--text-bright);
+}
+
+.stepper__arrow:disabled .stepper__icon {
+    -unity-background-image-tint-color: rgba(201, 164, 92, 0.3);
+}
+
+/* Unity's own look for a disabled control would dim the whole arrow twice */
+.stepper__arrow:disabled {
+    opacity: 1;
+}

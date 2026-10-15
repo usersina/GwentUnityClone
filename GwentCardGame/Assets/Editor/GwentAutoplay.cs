@@ -1443,40 +1443,36 @@ namespace Gwent.EditorTools
                 Click(1.5, Named("Button Game"));
                 Click(2.0, () =>
                 {
-                    GameObject row = GameObject.Find("Row Game speed");
-                    UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
+                    Stepper stepper = SettingsStepper("Row Game speed");
                     check(stepper != null, "the settings' Game tab shows the game speed");
-                    return stepper != null ? ScreenPoint(stepper.right.transform) : Vector2.zero;
+                    return stepper != null ? ScreenPoint(stepper.Right) : Vector2.zero;
                 });
                 At(2.5, () =>
                 {
-                    GameObject row = GameObject.Find("Row Game speed");
-                    UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
+                    Stepper stepper = SettingsStepper("Row Game speed");
                     check(GameSettings.GameSpeed == 2, "its right arrow sets it to " + GameSettings.GameSpeedNames[2] + " (speed " + GameSettings.GameSpeed
-                        + ", stepper " + (stepper != null ? stepper.index.ToString() : "gone") + ", over " + Hovered() + ")");
+                        + ", stepper " + (stepper != null ? stepper.Index.ToString() : "gone") + ", over " + Hovered() + ")");
                 });
                 // The opponent's difficulty, on the same tab: one step of its arrows changes it and the caption under it
                 Click(2.7, () =>
                 {
-                    GameObject row = GameObject.Find("Row Difficulty");
-                    UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
-                    Transform caption = row != null ? row.transform.Find("Caption") : null;
-                    check(stepper != null && caption != null && stepper.index == (int)GameSettings.AiDifficulty,
+                    Stepper stepper = SettingsStepper("Row Difficulty");
+                    UnityEngine.UIElements.Label caption = SettingsCaption("Row Difficulty");
+                    check(stepper != null && caption != null && stepper.Index == (int)GameSettings.AiDifficulty,
                         "the settings' Game tab shows the opponent's difficulty (" + GameSettings.AiDifficulty + ")");
                     if (stepper == null || caption == null)
                         return Vector2.zero;
-                    difficultyBefore = stepper.index;
-                    captionBefore = caption.GetComponent<TextMeshProUGUI>().text;
-                    return ScreenPoint(stepper.index > 0 ? stepper.left.transform : stepper.right.transform);
+                    difficultyBefore = stepper.Index;
+                    captionBefore = caption.text;
+                    return ScreenPoint(stepper.Index > 0 ? stepper.Left : stepper.Right);
                 });
                 At(3.2, () =>
                 {
-                    GameObject row = GameObject.Find("Row Difficulty");
-                    UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
-                    Transform caption = row != null ? row.transform.Find("Caption") : null;
-                    string about = caption != null ? caption.GetComponent<TextMeshProUGUI>().text : "";
-                    int shown = stepper != null ? stepper.index : -1;
-                    check(shown >= 0 && shown != difficultyBefore && (int)GameSettings.AiDifficulty == shown && stepper.label.text == GameSettings.AiDifficultyNames[shown],
+                    Stepper stepper = SettingsStepper("Row Difficulty");
+                    UnityEngine.UIElements.Label caption = SettingsCaption("Row Difficulty");
+                    string about = caption != null ? caption.text : "";
+                    int shown = stepper != null ? stepper.Index : -1;
+                    check(shown >= 0 && shown != difficultyBefore && (int)GameSettings.AiDifficulty == shown && stepper.Label.text == GameSettings.AiDifficultyNames[shown],
                         "its arrow changes the difficulty (" + GameSettings.AiDifficulty + ", stepper " + shown + ", over " + Hovered() + ")");
                     check(about.Length > 0 && about != captionBefore, "the caption follows the difficulty (\"" + about + "\")");
                 });
@@ -1484,6 +1480,25 @@ namespace Gwent.EditorTools
                 Click(4.0, Named("Item Resume"));
                 At(4.5, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
                     "after Resume the battle runs at that speed (time scale " + Time.timeScale + ")"));
+            }
+
+            // UI Toolkit's Q (an extension method: this file keeps uGUI's names, so it does not import UnityEngine.UIElements)
+            private static T Query<T>(UnityEngine.UIElements.VisualElement root, string name = null, string class_name = null) where T : UnityEngine.UIElements.VisualElement
+            {
+                return UnityEngine.UIElements.UQueryExtensions.Q<T>(root, name, class_name);
+            }
+
+            // A settings row's stepper and the caption under its label (UI Toolkit)
+            private static Stepper SettingsStepper(string row)
+            {
+                UnityEngine.UIElements.VisualElement element = UIScreens.Find(row);
+                return element != null ? Query<Stepper>(element) : null;
+            }
+
+            private static UnityEngine.UIElements.Label SettingsCaption(string row)
+            {
+                UnityEngine.UIElements.VisualElement element = UIScreens.Find(row);
+                return element != null ? Query<UnityEngine.UIElements.Label>(element, "Caption") : null;
             }
 
             private void LeaderTwoClicks()
@@ -2023,15 +2038,15 @@ namespace Gwent.EditorTools
             {
                 return () =>
                 {
-                    SettingsPanel panel = UnityEngine.Object.FindAnyObjectByType<SettingsPanel>();
-                    UnityEngine.UI.Slider slider = panel != null ? panel.GetComponentInChildren<UnityEngine.UI.Slider>() : null;
+                    UnityEngine.UIElements.VisualElement row = UIScreens.Find("Row Master volume");
+                    UnityEngine.UIElements.Slider slider = row != null ? Query<UnityEngine.UIElements.Slider>(row) : null;
                     check(slider != null, "the settings show the master volume slider");
                     if (slider == null)
                         return Vector2.zero;
-                    RectTransform area = (RectTransform)slider.handleRect.parent;
-                    Vector3[] corners = new Vector3[4];
-                    area.GetWorldCorners(corners);
-                    return RectTransformUtility.WorldToScreenPoint(null, Vector3.Lerp(corners[0], corners[3], fraction) + (corners[1] - corners[0]) / 2);
+                    // Where the knob's middle stands at that value: its travel is the drag area less the knob's width
+                    Rect area = Query<UnityEngine.UIElements.VisualElement>(slider, null, UnityEngine.UIElements.Slider.dragContainerUssClassName).worldBound;
+                    float knob = Query<UnityEngine.UIElements.VisualElement>(slider, null, UnityEngine.UIElements.Slider.draggerUssClassName).worldBound.width;
+                    return ScreenPoint(slider.panel, new Vector2(area.xMin + knob / 2 + fraction * (area.width - knob), area.center.y));
                 };
             }
 
@@ -2039,12 +2054,15 @@ namespace Gwent.EditorTools
             // points land on the panel, so it holds whatever the panel's scaling; ScreenToPanel counts from the top left.
             private static Vector2 ScreenPoint(UnityEngine.UIElements.VisualElement element)
             {
-                UnityEngine.UIElements.IPanel panel = element.panel;
+                return ScreenPoint(element.panel, element.worldBound.center);
+            }
+
+            private static Vector2 ScreenPoint(UnityEngine.UIElements.IPanel panel, Vector2 point)
+            {
                 Vector2 origin = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.zero);
                 Vector2 x = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.right) - origin;
                 Vector2 y = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.up) - origin;
-                Vector2 center = element.worldBound.center;
-                return new Vector2((center.x - origin.x) / x.x, Screen.height - (center.y - origin.y) / y.y);
+                return new Vector2((point.x - origin.x) / x.x, Screen.height - (point.y - origin.y) / y.y);
             }
 
             private static Vector2 ScreenPoint(Transform target)

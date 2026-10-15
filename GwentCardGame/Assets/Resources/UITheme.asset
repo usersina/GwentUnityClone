@@ -64,6 +64,7 @@ MonoBehaviour:
   mainMenu: {fileID: 9197481963319205126, guid: 9eb64dcfb31c343ad8a905ee917b3bc0, type: 3}
   opponentPicker: {fileID: 9197481963319205126, guid: 90e8771f59f444318992f9445f85864a, type: 3}
   opponentEntry: {fileID: 9197481963319205126, guid: 04572ad0cbee4a5cd808a8300dee16fe, type: 3}
+  settings: {fileID: 9197481963319205126, guid: 56ee6535a2f93a299933304d2b220249, type: 3}
   cursorDefault: {fileID: 2800000, guid: cbcb12b56ba765b95ad7887bec99e252, type: 3}
   cursorInteract: {fileID: 2800000, guid: b850cb37082471b529f708fa503613ef, type: 3}
   cursorInvalid: {fileID: 2800000, guid: 511b23d617df0dc869d7200289b1e555, type: 3}
