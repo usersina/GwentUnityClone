@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Text;
 using Debug = UnityEngine.Debug;
 using UnityEditor;
 using UnityEditor.Build;
@@ -17,7 +16,7 @@ namespace Gwent.EditorTools
     // Builds/<version>/ holds GwentLegacy-Linux.tar.gz, -Windows.zip, -macOS.zip, -Android.apk and -Web.zip, with
     // build-report.txt (the names carry no version: the GitHub release keeps the same download links from one version to
     // the next). Menu Gwent > Build, or from the command line (the editor closed):
-    //   Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBatch
+    //   Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.GwentBuild.BuildAllBatch
     // The run starts at once, the editor focused or not (in the background it may not update for a long time), and goes
     // through every platform in one go: script reloads (a platform switch asks for one) wait until it is over. The current
     // platform is built first, the others after it, and the editor is switched back to it at the end. The targets left
@@ -34,6 +33,8 @@ namespace Gwent.EditorTools
         private const string ReportKey = "GwentBuild.Report";
         private const string BatchKey = "GwentBuild.Batch";
         private const string HomeKey = "GwentBuild.Home"; // the platform the editor was on
+        private const string SucceededKey = "GwentBuild.Succeeded"; // a build of the run succeeded
+        private const string FailedKey = "GwentBuild.Failed";       // one failed
         private const string ProductFile = "GwentLegacy";
 
         private class Target
@@ -77,7 +78,8 @@ namespace Gwent.EditorTools
         [MenuItem("Gwent/Build/Web")]
         public static void BuildWeb() { Start(new[] { "web" }, false); }
 
-        // -executeMethod GwentBuild.BuildAllBatch [-buildTargets linux,windows]: exits 0 when every build succeeded
+        // -executeMethod Gwent.EditorTools.GwentBuild.BuildAllBatch [-buildTargets linux,windows]: exits 0 when every build
+        // succeeded
         public static void BuildAllBatch()
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -99,6 +101,8 @@ namespace Gwent.EditorTools
             SessionState.SetString(ReportKey, "Gwent Legacy " + Version + ", built " + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + " with Unity " + Application.unityVersion + "\n");
             SessionState.SetBool(BatchKey, batch);
             SessionState.SetInt(HomeKey, (int)home);
+            SessionState.SetBool(SucceededKey, false);
+            SessionState.SetBool(FailedKey, false);
 
             EditorApplication.LockReloadAssemblies();
             try
@@ -182,6 +186,7 @@ namespace Gwent.EditorTools
                 .Select(message => "  " + message.type.ToString().ToLowerInvariant() + ": " + message.content.Split('\n')[0].Trim())
                 .Distinct().Take(40))
                 line += "\n" + problem;
+            SessionState.SetBool(summary.result == BuildResult.Succeeded ? SucceededKey : FailedKey, true); // not read back from the text: a warning may say "Failed"
             if (summary.result != BuildResult.Succeeded)
                 return line;
 
@@ -311,7 +316,8 @@ namespace Gwent.EditorTools
                 {
                     // tar keeps the executable permission
                     string archive = Path.Combine(Root, name + ".tar.gz");
-                    Run("tar", "-czf \"" + archive + "\" -C \"" + Root + "\" --transform \"s,^" + target.Folder + "," + name + ",\" --exclude \"*_BurstDebugInformation_DoNotShip\" " + target.Folder);
+                    Run("tar", "-czf \"" + archive + "\" -C \"" + Root + "\" --transform \"s,^" + target.Folder + "," + name + ",\""
+                        + " --exclude \"*" + BurstBackup + "\" --exclude \"*" + BurstDebug + "\" " + target.Folder);
                     return archive;
                 }
                 case BuildTarget.StandaloneOSX:
@@ -335,11 +341,24 @@ namespace Gwent.EditorTools
                 {
                     string archive = Path.Combine(Root, name + ".zip");
                     File.Delete(archive);
-                    ZipFile.CreateFromDirectory(folder, archive, System.IO.Compression.CompressionLevel.Optimal, false);
+                    using (ZipArchive zip = ZipFile.Open(archive, ZipArchiveMode.Create))
+                    {
+                        foreach (string file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))
+                        {
+                            string entry = Path.GetRelativePath(folder, file).Replace('\\', '/');
+                            if (!entry.Contains(BurstBackup) && !entry.Contains(BurstDebug))
+                                zip.CreateEntryFromFile(file, entry, System.IO.Compression.CompressionLevel.Optimal);
+                        }
+                    }
                     return archive;
                 }
             }
         }
+
+        // What Burst leaves beside a player that Unity says not to hand out: its backup (the generated code's listing,
+        // since LitMotion brought Burst code) and its debug information
+        private const string BurstBackup = "_BackUpThisFolder_ButDontShipItWithYourGame";
+        private const string BurstDebug = "_BurstDebugInformation_DoNotShip";
 
         private static void Run(string program, string arguments, string directory = null)
         {
@@ -377,7 +396,7 @@ namespace Gwent.EditorTools
             Debug.Log("[GwentBuild] done:\n" + report);
             bool batch = SessionState.GetBool(BatchKey, false);
             if (batch)
-                EditorApplication.Exit(report.Contains(": Succeeded") && !report.Contains(": Failed") ? 0 : 1);
+                EditorApplication.Exit(SessionState.GetBool(SucceededKey, false) && !SessionState.GetBool(FailedKey, false) ? 0 : 1);
         }
     }
 }

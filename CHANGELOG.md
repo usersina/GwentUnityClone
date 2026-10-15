@@ -33,6 +33,11 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
   for the next round); discarded any other way, it still comes next round. A notice says which.
 - The decks' card counts are back under the decks.
 
+### Fixes
+
+- Editing a preset deck with a long name (such as Riders of the Wild Hunt) a second time no longer freezes the game.
+- The Linux and Windows downloads no longer carry a folder Unity says not to ship (Burst's code listing).
+
 ### The web version
 
 - The game starts after downloading about 26 MB instead of about 67: the cards' full art and the music now come when they

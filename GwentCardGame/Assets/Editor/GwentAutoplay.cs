@@ -35,7 +35,7 @@ namespace Gwent.EditorTools
     // It only touches its own "Autoplay ..." decks, and restores the battle deck, the opponent and the settings it changes.
     //
     //  Editor:  menu Gwent > Run Autoplay Smoke Test (Ctrl+Shift+Alt+G)
-    //  Batch:   Unity -batchmode -projectPath <path> -executeMethod GwentAutoplay.RunBatch
+    //  Batch:   Unity -batchmode -projectPath <path> -executeMethod Gwent.EditorTools.GwentAutoplay.RunBatch
     //                 [-autoplayMatches 21] [-autoplaySeed 1] [-autoplayReport <file>]
     public static class GwentAutoplay
     {
@@ -168,6 +168,7 @@ namespace Gwent.EditorTools
             private int redrawChecks;
             private bool selectionChecked;
             private bool pauseChecked;
+            private bool giveUpChecked;
             private bool passKeyChecked;
             private bool keyboardChecked;
             private bool touchChecked;
@@ -536,6 +537,12 @@ namespace Gwent.EditorTools
                 {
                     pauseChecked = true;
                     inputCheck = new InputCheck(c, InputScenario.PauseMenu, (ok, what) => Check(ok, what, "pause menu input"));
+                    return;
+                }
+                if (!giveUpChecked && c.CanGiveUp)
+                {
+                    giveUpChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.GiveUpAsked, (ok, what) => Check(ok, what, "give up input"));
                     return;
                 }
                 if (!passKeyChecked)
@@ -1135,14 +1142,15 @@ namespace Gwent.EditorTools
             SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
                                       // click deselects it, right-click does nothing
             PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
+            GiveUpAsked,              // the cursor over the player's deck is a hand; a click asks first; Escape keeps playing
             PassWithSpace,            // a short press of Space does not pass, holding it does
             KeyboardPlay,             // Right raises a hand card (shown on the right), Right again moves on, Enter takes it,
                                       // Down chooses a place, Enter plays it there (Escape puts back a card with no place)
             TouchControls,            // touch (simulated): a held press on the leader, its button and a hand card shows them
                                       // and is no tap; a tap selects a card, another puts it back
             GameSpeed,                // pause menu > Settings > Game: Fast, and after Resume the battle runs faster
-            PickerKeys,               // the card picker (the carousel): Right and Left move, Down goes to Skip, Up comes back,
-                                      // Enter picks the front card
+            PickerKeys,               // the card picker (the carousel): Right and Left move, Down goes to Skip (Enter there
+                                      // asks first, Escape keeps choosing), Up comes back, Enter picks the front card
             DiscardPile,              // a click opens a discard pile in the carousel, Left goes down it, Escape closes it
             LeaderLift,               // a click lifts the leader (out of its slot to the right, its places lit, its crown a
                                       // glowing button), Escape and a click on the empty slot put it back, the crown does
@@ -1300,6 +1308,17 @@ namespace Gwent.EditorTools
                     At(2.4, () => check(PauseMenu.IsOpen, "the menu button opens the pause menu"));
                     Click(2.7, Named("Item Resume"));
                     At(3.2, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
+                }
+                else if (scenario == InputScenario.GiveUpAsked)
+                {
+                    // The deck's own object is no UI rectangle: aim at the image that takes its clicks
+                    Func<Vector2> deck = () => ScreenPoint(UnityEngine.Object.FindAnyObjectByType<DeckGiveUp>().GetComponentsInChildren<Graphic>().First(g => g.raycastTarget).rectTransform);
+                    Move(0.3, deck);
+                    At(0.7, () => check(GameCursor.Current == GameCursor.State.GiveUp, "the cursor over the player's deck is a hand (give up)"));
+                    Click(1.0, deck);
+                    At(1.5, () => check(UIScreens.Find("Button No") != null && !c.IsBattleOver, "a click on the deck asks before giving up"));
+                    Key(1.8, UnityEngine.InputSystem.Key.Escape);
+                    At(2.3, () => check(UIScreens.Find("Button No") == null && !c.IsBattleOver && c.battleState == BattleState.PlayerTurn, "Escape keeps playing"));
                 }
                 else if (scenario == InputScenario.PassWithSpace)
                 {
@@ -1572,10 +1591,21 @@ namespace Gwent.EditorTools
                 At(1.4, () => check(panel.Picker != null && panel.Picker.FocusIndex == 0, "Left brings back the first"));
                 Key(1.7, UnityEngine.InputSystem.Key.DownArrow);
                 At(2.0, () => check(panel.Picker != null && selected() == panel.Picker.BandButton.gameObject, "Down goes to the band's button (Skip or Close)"));
-                Key(2.3, UnityEngine.InputSystem.Key.UpArrow);
-                At(2.6, () => check(panel.Picker != null && selected() != panel.Picker.BandButton.gameObject, "Up comes back to the cards"));
-                Key(2.9, UnityEngine.InputSystem.Key.Enter);
-                At(3.4, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter picks the front card (a look at the opponent's hand closes)"));
+                // Skip asks first (a look's Close does not): Enter on it asks, Escape keeps choosing
+                TextMeshProUGUI band = panel.Picker != null ? panel.Picker.BandButton.GetComponentInChildren<TextMeshProUGUI>() : null;
+                double later = 0;
+                if (band != null && band.text.Contains("Skip"))
+                {
+                    Key(2.3, UnityEngine.InputSystem.Key.Enter);
+                    At(2.8, () => check(UIScreens.Find("Button No") != null && c.pendingAction == PendingAction.PanelChoice, "Skip asks before the choice is given up"));
+                    Key(3.1, UnityEngine.InputSystem.Key.Escape);
+                    At(3.6, () => check(UIScreens.Find("Button No") == null && panel.Picker != null && c.pendingAction == PendingAction.PanelChoice, "Escape keeps choosing"));
+                    later = 1.6;
+                }
+                Key(2.3 + later, UnityEngine.InputSystem.Key.UpArrow);
+                At(2.6 + later, () => check(panel.Picker != null && selected() != panel.Picker.BandButton.gameObject, "Up comes back to the cards"));
+                Key(2.9 + later, UnityEngine.InputSystem.Key.Enter);
+                At(3.4 + later, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter picks the front card (a look at the opponent's hand closes)"));
             }
 
             // A discard pile, opened by a click, in the carousel with its top card in front; the battle waits
@@ -1919,13 +1949,21 @@ namespace Gwent.EditorTools
             }
 
             // The hand card at the front of the redraw carousel (a double-click on it redraws it)
+            // The hand card at the carousel's front: by its place in the hand (with two alike, the other is another card)
             private Vector2 FrontHandCard()
             {
                 RedrawPicker picker = Picker();
                 if (picker != null)
+                {
+                    int index = 0;
                     foreach (Transform t in c.PlayerField.transform.Find("Hand"))
-                        if (t.name == picker.FocusedCardId.ToString())
+                    {
+                        if (t.GetComponent<CardFace>() == null)
+                            continue;
+                        if (index++ == picker.FocusIndex)
                             return ScreenPoint(t);
+                    }
+                }
                 return CardPosition();
             }
 
@@ -2040,18 +2078,6 @@ namespace Gwent.EditorTools
                     return EventSystem.current != null && EventSystem.current.currentSelectedGameObject == target;
                 UnityEngine.UIElements.VisualElement element = UIScreens.Find(name);
                 return element != null && element.focusController != null && element.focusController.focusedElement == element;
-            }
-
-            // An object by name under an active root object (a name with a slash would be a path for GameObject.Find)
-            private Func<Vector2> NamedUnder(string root, string name)
-            {
-                return () =>
-                {
-                    GameObject parent = GameObject.Find(root);
-                    Transform target = parent != null ? parent.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name == name) : null;
-                    check(target != null, "\"" + name + "\" is on screen");
-                    return target != null ? ScreenPoint(target) : Vector2.zero;
-                };
             }
 
             // A point on the settings' master volume slider, at that fraction of its travel
