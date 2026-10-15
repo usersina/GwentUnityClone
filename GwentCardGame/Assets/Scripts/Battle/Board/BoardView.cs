@@ -12,11 +12,10 @@ using UnityEngine.UI;
 namespace Gwent.Battle
 {
     // Draws the battle from the model: the card objects in the hands, rows, horn slots, discard piles and weather slot,
-    // row highlights, weather overlays, scores and the panels' markers. BattleController runs the battle and asks it
+    // row highlights, the rows' weather, scores and the panels' markers. BattleController runs the battle and asks it
     // to redraw; this class never changes the model.
     public class BoardView
     {
-        private const string WeatherOverlayName = "WeatherOverlay";
 
         //----------------------------------------Cached scene references----------------------------------------//
         // Looked up once instead of transform.Find chains on every refresh / every frame
@@ -54,7 +53,7 @@ namespace Gwent.Battle
                 if (await UniTask.NextFrame(ct).SuppressCancellationThrow())
                     return;
 
-                // Only card children: the row also holds the weather overlay
+                // Only card children
                 List<CardFace> cards = new List<CardFace>();
                 foreach (Transform child in Unit.transform)
                 {
@@ -258,7 +257,7 @@ namespace Gwent.Battle
             }
 
             SetDiscard(info.DiscardList, is_player_field);
-            RefreshWeatherOverlays(view);
+            RefreshWeather(view);
         }
 
         //----------------------------------------Piles and hand----------------------------------------//
@@ -296,7 +295,7 @@ namespace Gwent.Battle
 
         //----------------------------------------Card objects----------------------------------------//
         // True when a container already shows exactly these cards, in this order (card objects are named after their
-        // id; other children such as the weather overlay are ignored). Refreshes skip such containers: rebuilding the
+        // id; other children are ignored). Refreshes skip such containers: rebuilding the
         // whole board on every play cost ~30 ms in the editor on a busy board, several times that on a phone.
         private static bool ShowsCards(Transform container, List<int> card_ids)
         {
@@ -314,7 +313,7 @@ namespace Gwent.Battle
 
         // Makes a container show exactly these cards, in this order, reusing the card objects already there: a play
         // only creates the cards that arrived and removes the ones that left. Hand cards can be selected and hovered,
-        // board cards only show their preview; other children (the weather overlay) stay after the cards.
+        // board cards only show their preview; other children stay after the cards.
         // While a change is recorded, the board keeps looking as it was (see BeginChange). Returns false when nothing
         // changed.
         private bool SyncCards(GameObject container, List<int> card_ids, bool is_player_card, BoardChange.Place place)
@@ -504,53 +503,20 @@ namespace Gwent.Battle
             return instantiatedCard;
         }
 
-        //----------------------------------------Weather overlays and scores----------------------------------------//
-        private void RefreshWeatherOverlays(FieldView view)
+        //----------------------------------------Weather and scores----------------------------------------//
+        // Each row's weather, The Witcher 3's art over its cards (WeatherEffect): it fades in with its weather card, out once
+        // cleared
+        private void RefreshWeather(FieldView view)
         {
             List<int> weather = controller.weatherList;
-            SetWeatherOverlay(view.Rows[Row.Close].Unit.transform, weather.Contains(CardIds.BitingFrost), "Cards/EffectBox/overlay_frost", new Color32(108, 198, 255, 78));
-            SetWeatherOverlay(view.Rows[Row.Range].Unit.transform, weather.Contains(CardIds.ImpenetrableFog), "Cards/EffectBox/overlay_fog", new Color32(185, 190, 188, 86));
-            SetWeatherOverlay(view.Rows[Row.Siege].Unit.transform, weather.Contains(CardIds.TorrentialRain), "Cards/EffectBox/overlay_rain", new Color32(61, 111, 184, 86));
+            ShowWeather(view.Rows[Row.Close], WeatherEffect.Kind.Frost, weather.Contains(CardIds.BitingFrost));
+            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, weather.Contains(CardIds.ImpenetrableFog));
+            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, weather.Contains(CardIds.TorrentialRain));
         }
 
-        private static void SetWeatherOverlay(Transform unitRow, bool isActive, string spriteResourcePath, Color fallbackColor)
+        private static void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on)
         {
-            Transform existingOverlay = unitRow.Find(WeatherOverlayName);
-            if (!isActive)
-            {
-                if (existingOverlay != null)
-                    Object.Destroy(existingOverlay.gameObject);
-                return;
-            }
-
-            GameObject overlayObject;
-            if (existingOverlay == null)
-            {
-                overlayObject = new GameObject(WeatherOverlayName, typeof(RectTransform));
-                overlayObject.transform.SetParent(unitRow, false);
-
-                LayoutElement layoutElement = overlayObject.AddComponent<LayoutElement>();
-                layoutElement.ignoreLayout = true;
-
-                Image image = overlayObject.AddComponent<Image>();
-                image.raycastTarget = false;
-                image.preserveAspect = false;
-
-                RectTransform rectTransform = overlayObject.GetComponent<RectTransform>();
-                rectTransform.anchorMin = Vector2.zero;
-                rectTransform.anchorMax = Vector2.one;
-                rectTransform.offsetMin = Vector2.zero;
-                rectTransform.offsetMax = Vector2.zero;
-            }
-            else
-                overlayObject = existingOverlay.gameObject;
-
-            overlayObject.transform.SetAsLastSibling();
-
-            Image overlayImage = overlayObject.GetComponent<Image>();
-            Sprite overlaySprite = SpriteCache.Load(spriteResourcePath);
-            overlayImage.sprite = overlaySprite;
-            overlayImage.color = overlaySprite != null ? new Color(1f, 1f, 1f, 0.82f) : fallbackColor;
+            WeatherEffect.Show((RectTransform)row.Special.transform, (RectTransform)row.Unit.transform, kind, on);
         }
 
         private void UpdateScores(bool is_player_field)
