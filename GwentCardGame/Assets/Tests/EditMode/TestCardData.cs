@@ -103,7 +103,7 @@ namespace Gwent.Rules.Tests
             C(72, "havekar_healer_3", "Havekar Healer 3", "SC", false, 0, "range", "medic", 3),
             C(73, "havekar_smuggler_1", "Havekar Smuggler 1", "SC", false, 5, "close", "muster", 3),
             C(74, "heavy_zerrikanian_fire_scorpion", "Heavy Zerrikanian Fire Scorpion", "NF", false, 10, "siege", "", 1),
-            C(75, "ice_giant", "Ice Giant", "M", false, 6, "siege", "", 1),
+            C(75, "ice_giant", "Ice Giant", "M", false, 5, "siege", "", 1),
             C(76, "ida_emean_aep_sivney", "Ida Emean aep Sivney", "SC", false, 6, "range", "", 1),
             C(77, "imlerith", "Imlerith", "M", true, 10, "close", "", 1),
             C(78, "impera_brigade_guard_3", "Impera Brigade Guard 3", "NF", false, 3, "close", "tight_bond", 4),

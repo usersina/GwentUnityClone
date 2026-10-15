@@ -839,7 +839,7 @@
       "_id": 75,
       "faction": "M",
       "unique": false,
-      "strength": 6,
+      "strength": 5,
       "row": "siege",
       "ability": null,
       "copies": 1

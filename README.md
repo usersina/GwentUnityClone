@@ -96,9 +96,8 @@ saved with more copies than that loses the extra ones when it is loaded.
   your close combat row, Bringer of Death restores a card from your discard pile, Destroyer of Worlds discards 2 cards to draw 1 of
   your choice, King of the Wild Hunt plays any weather card from your deck.
 
-Differences that remain: the Ice Giant is 6 strength as on its card (5 in The Witcher 3), a revived agile unit goes where you put
-it (The Witcher 3 puts it on the row where it is stronger), a leader's horn leaves no card in the discard pile, and the Skellige
-faction (Blood and Wine) is not in the game.
+Differences that remain: a revived agile unit goes where you put it (The Witcher 3 puts it on the row where it is stronger), a
+leader's horn leaves no card in the discard pile, and the Skellige faction (Blood and Wine) is not in the game.
 
 ## The AI
 
