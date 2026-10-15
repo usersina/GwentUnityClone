@@ -22,27 +22,6 @@ namespace Gwent.UI
                 .AddTo(screen);
         }
 
-        // Fades in after a delay (the layout keeps its place all along)
-        public static void FadeIn(GameObject element, float delay, float seconds)
-        {
-            CanvasGroup group = Group(element, true);
-            group.alpha = 0;
-            Unscaled(LMotion.Create(0f, 1f, seconds).WithEase(Ease.InOutSine).WithDelay(delay)).BindToAlpha(group).AddTo(element);
-        }
-
-        // Shown for a while, then gone: fades in, stays, fades out and is destroyed (a notice that never catches clicks)
-        public static void ShowFor(GameObject notice, float seconds)
-        {
-            const float Fade = 0.25f;
-            float lifetime = Mathf.Max(seconds, Fade * 2);
-            CanvasGroup group = Group(notice, false);
-            group.alpha = 0;
-            Unscaled(LMotion.Create(0f, 1f, Fade)).BindToAlpha(group).AddTo(notice);
-            // Not bound before its delay is over (it would show the notice at once)
-            Unscaled(LMotion.Create(1f, 0f, Fade).WithDelay(lifetime - Fade).WithImmediateBind(false).WithOnComplete(() => Object.Destroy(notice)))
-                .BindToAlpha(group).AddTo(notice);
-        }
-
         // Breathes a graphic's alpha between a share of its own and all of it, to draw the eye to it
         public static void Pulse(Graphic graphic, float low = 0.35f, float period = Mathf.PI / 2)
         {

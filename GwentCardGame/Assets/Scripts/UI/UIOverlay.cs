@@ -62,24 +62,12 @@ namespace Gwent.UI
         }
 
         //----------------------------------------Building blocks (kept for the scene scripts)----------------------------------------//
-        public static RectTransform CreateRect(string name, Transform parent, Vector2 anchor, Vector2 position, Vector2 size)
-        {
-            return UIKit.Rect(name, parent).Place(anchor, position, size);
-        }
-
         public static TextMeshProUGUI CreateText(Transform parent, string text, float font_size, Vector2 anchor, Vector2 position, Vector2 size)
         {
             TextMeshProUGUI label = UIKit.Text(parent, text, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
             label.fontSize = font_size;
             label.rectTransform.Place(anchor, position, size);
             return label;
-        }
-
-        public static Button CreateButton(Transform parent, string text, Vector2 anchor, Vector2 position, Vector2 size, Action on_click)
-        {
-            Button button = UIKit.Button(parent, text, UIKit.ButtonStyle.Secondary, on_click, size);
-            ((RectTransform)button.transform).Place(anchor, position, size);
-            return button;
         }
 
         //----------------------------------------Toast----------------------------------------//
