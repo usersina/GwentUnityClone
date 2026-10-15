@@ -570,7 +570,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 59b24b168d37f1e40a62b6f2908df9cb, type: 3}
+  m_Sprite: {fileID: 0}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -1426,19 +1426,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1658cf5d37443ec42b5341d65b2838b2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  outcomeImage: {fileID: 8493296851418979500}
-  outComes:
-  - {fileID: 21300000, guid: 1e29c06b47a7ffd4d86159f1e70ef386, type: 3}
-  - {fileID: 21300000, guid: 59b24b168d37f1e40a62b6f2908df9cb, type: 3}
-  - {fileID: 21300000, guid: 68bcb150de37cb1479fecee35dc3c91c, type: 3}
-  playerScores:
-  - {fileID: 8493296852757614938}
-  - {fileID: 8493296851456082304}
-  - {fileID: 8493296851006173602}
-  enemyScores:
-  - {fileID: 8493296851822178170}
-  - {fileID: 8493296852219291472}
-  - {fileID: 8493296850857252016}
 --- !u!1 &8493296852215666981
 GameObject:
   m_ObjectHideFlags: 0

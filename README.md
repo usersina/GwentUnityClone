@@ -279,7 +279,7 @@ This is a non-commercial fan project.
 
 - The source code is released under the [MIT License](LICENSE).
 - The license does not cover the Gwent/Witcher card art, names and other CD PROJEKT RED material, which remain the property of their owners.
-- The fonts keep their own licenses: Cinzel and Alegreya Sans (SIL Open Font License 1.1), Roboto (Apache 2.0); see `GwentCardGame/Assets/Fonts/FONTS-LICENSE.md`.
+- The fonts keep their own licenses: Cinzel and Alegreya Sans (SIL Open Font License 1.1); see `GwentCardGame/Assets/Fonts/FONTS-LICENSE.md`.
 - The battle's flow runs on [UniTask](https://github.com/Cysharp/UniTask) by Cysharp (MIT), and the interface's animations on [LitMotion](https://github.com/annulusgames/LitMotion) by Annulus Games (MIT), both fetched by the package manager (`Packages/manifest.json`).
 - The battle's smoke, flames and sparks are particles drawn in the interface by [ParticleEffectForUGUI](https://github.com/mob-sakai/ParticleEffectForUGUI) by mob-sakai (MIT), which the package manager fetches too; their textures are generated (**Gwent > UI > Regenerate Particle Art**).
 - The opponent decks (`Resources/Decks/AI`) are adapted from the default decks of [gwent-classic](https://github.com/asundr/gwent-classic) by Arun Sundaram (MIT with the Commons Clause), as kept in [gwent-classic-v3.1](https://github.com/RandomPianist/gwent-classic-v3.1); three were changed so that their leader suits their cards (see [The AI](#the-ai)).

@@ -13,7 +13,7 @@ namespace Gwent.Battle
     {
         public Sprite redRuby;
         public Sprite greyRuby;
-        public List<Sprite> factionShields; // Monsters, Nilfgaard, Northern Realms, Scoia'tael
+        public List<Sprite> factionShields; // Monsters, Nilfgaard, Northern Realms, Scoia'tael (then Skellige's, for when it comes)
 
         private Image factionShield;
         private TextMeshProUGUI nameText;
