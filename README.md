@@ -155,7 +155,7 @@ so a switch takes seconds); all five take about 4 minutes once they have been bu
 editor closed:
 
 ```bash
-Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBatch -buildTargets linux,windows
+Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.GwentBuild.BuildAllBatch -buildTargets linux,windows
 ```
 
 - The Android build is a 64-bit (ARM64) `.apk` to install directly. It is signed with a release key when the environment has
@@ -174,7 +174,7 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod GwentBuild.BuildAllBa
 ### Releases
 
 **Every push to `main` is a release.** `.github/workflows/release.yml` runs the EditMode tests, builds the five platforms on
-GitHub's machines ([GameCI](https://game.ci), Unity 6000.6.5f1, `GwentBuild.BuildAllBatch` for each) and replaces the one
+GitHub's machines ([GameCI](https://game.ci), Unity 6000.6.5f1, `Gwent.EditorTools.GwentBuild.BuildAllBatch` for each) and replaces the one
 release, tagged `latest`, with the new archives; its notes are the newest section of [`CHANGELOG.md`](CHANGELOG.md), followed
 by the downloads and their checksums. Nothing is published unless the tests and all five builds pass, and a push whose
 `CHANGELOG.md` has no new section since the last release is not released: add a section, headed by the date, before pushing.
@@ -215,7 +215,7 @@ unity test GwentCardGame --mode EditMode --output editmode-results.xml
 The autoplay test needs the editor to stay open after the method returns, so it runs the editor directly (the CLI's `run` always adds `-quit`):
 
 ```bash
-<path-to>/6000.6.5f1/Editor/Unity -batchmode -nographics -projectPath GwentCardGame -executeMethod GwentAutoplay.RunBatch -autoplayReport autoplay-report.txt -logFile autoplay.log
+<path-to>/6000.6.5f1/Editor/Unity -batchmode -nographics -projectPath GwentCardGame -executeMethod Gwent.EditorTools.GwentAutoplay.RunBatch -autoplayReport autoplay-report.txt -logFile autoplay.log
 ```
 
 ## AI agents (MCP)

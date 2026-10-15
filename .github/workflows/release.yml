@@ -99,7 +99,7 @@ jobs:
           projectPath: ${{ env.PROJECT }}
           targetPlatform: ${{ matrix.target }}
           # The game's own build: GwentBuild builds and packages it into Builds/<version>/GwentLegacy-<platform>.*
-          buildMethod: GwentBuild.BuildAllBatch
+          buildMethod: Gwent.EditorTools.GwentBuild.BuildAllBatch
           customParameters: -buildTargets ${{ matrix.name }}
           versioning: None
           androidVersionCode: ${{ needs.prepare.outputs.version_code }}
