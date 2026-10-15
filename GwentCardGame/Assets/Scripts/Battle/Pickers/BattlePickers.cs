@@ -95,10 +95,33 @@ namespace Gwent.Battle
             picker = null;
         }
 
-        // Skip / Close: give up the choice and end the turn
+        // Skip / Close: give up the choice and end the turn. Skipping loses something (a medic's revival, a leader already
+        // spent, Destroyer of Worlds' draw after its two discards): asked first, the safe answer focused, so a click or a
+        // key too many cannot throw it away. Closing a look (Emhyr) loses nothing.
         private void OnSkip()
         {
-            BattleController.Instance.CancelPanel();
+            if (mode == Mode.View)
+            {
+                BattleController.Instance.CancelPanel();
+                return;
+            }
+            UIOverlay.Confirm(SkipQuestion(mode, field), "Skip", "Keep choosing", () => BattleController.Instance.CancelPanel());
+        }
+
+        private static string SkipQuestion(Mode mode, PickSource field)
+        {
+            if (mode == Mode.Play)
+                return field == PickSource.Deck ? "Play no weather card? Your leader ability is spent, and your turn ends."
+                    : "Bring no unit back? The medic stays, but its ability is lost, and your turn ends.";
+            switch (field)
+            {
+                case PickSource.Deck:
+                    return "Draw no card? The two cards you discarded are gone, and your turn ends.";
+                case PickSource.OpponentDiscard:
+                    return "Take nothing from your opponent's discard pile? Your leader ability is spent, and your turn ends.";
+                default:
+                    return "Take no card back? Your leader ability is spent, and your turn ends.";
+            }
         }
 
         // A card was picked
