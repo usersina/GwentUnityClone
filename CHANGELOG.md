@@ -6,7 +6,21 @@ date, before pushing.
 
 ## 2026-10-15
 
-A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle, and most of the game's insides renewed.
+Skellige joins the game, a faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle, and most of the
+game's insides renewed.
+
+### Skellige (Blood and Wine)
+
+- The fifth faction, with its cards as The Witcher 3 has them (35 units for its decks, Hemdall and the bears they bring, and
+  Mardroeme), their art in the same print style as the others, its two leaders and its perk: as the third round opens, two
+  random units of its discard pile return to the battlefield.
+- Crach an Craite shuffles both discard piles back into the decks; under King Bran, bad weather only halves your units.
+- Berserkers turn into bears on a row with a Mardroeme, the special card in the row's horn slot or Ermion; when a bear
+  leaves the board, its Berserker goes to the discard pile. Kambi calls Hemdall as the Cow calls the Bovine Defense Force;
+  Cerys calls the Shield Maidens; the Clan Dimun Pirate scorches the battlefield as he lands.
+- Skellige Storm, weather on the ranged and siege rows, for every faction.
+- Two Skellige opponent decks: the an Craite Warband (Crach an Craite) and the Berserkers of Ard Skellig (King Bran).
+- How to play, the deck builder and the battle's notices know Skellige.
 
 ### The battle, closer to The Witcher 3
 
@@ -18,7 +32,8 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
   turns at once into its hand version; drawn cards fly in as hand cards.
 - The effects, closer to the game's: a hero lands under billowing smoke while a swarm of sparks runs around its edge, flames
   rising off the top; an ability's card flashes white and burns bright orange around its large white icon; a landing card
-  puffs white wisps from its sides; a medic's pile smokes with green flames. They are real particle effects now.
+  puffs white wisps from its sides; a medic's pile smokes with green flames; scorched cards burn, fire climbing them from
+  the bottom and charring them. They are real particle effects now.
 - The cards' descriptions (under the big card, in the deck builder, the redraw and the leader picker) are written live in
   The Witcher 3's style: its near-black panel, the ability's icon on a cream disc, the title and text in muted gold.
 - The Ice Giant is 5 strength, and Eredin's four leader cards each show their own art, name and ability, as in The
@@ -41,6 +56,8 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
 - A card you add or remove flies to its place in the other grid: one copy leaves while others are left, the last copy is
   the card itself; where it lands, the count goes up as it arrives.
 - Its two grids show a scroll bar in the menus' gold while their cards overflow.
+- The factions' banners at the top are written live: each faction's shield and its name in the menus' lettering (the old
+  pictures misspelt Scoia'tael).
 
 ### Fixes
 
