@@ -456,13 +456,21 @@ namespace Gwent.Battle
 
         public Rect PileRect(bool is_player) { return CardMotion.ScreenRect((RectTransform)View(is_player).DiscardPile.transform.parent); }
 
-        // Where a played card starts its last glide (The Witcher 3): at the right end of the rows, halfway up the board
-        public Rect LaunchRect(Vector2 size)
+        // Where a played card appears, at its size there (The Witcher 3): at the right end of its row, level with its place,
+        // to glide left to it; a card off the rows (the weather board) at the right end of the rows, halfway up the board
+        public Rect LaunchRect(GameObject card)
         {
+            Rect slot = CardMotion.ScreenRect((RectTransform)card.transform);
+            foreach (FieldView view in new[] { playerView, enemyView })
+                foreach (RowView row in view.Rows.Values)
+                    if (card.transform.parent == row.Unit.transform || card.transform.parent == row.Special.transform)
+                    {
+                        Rect lane = CardMotion.ScreenRect((RectTransform)row.Unit.transform);
+                        return new Rect(lane.xMax - slot.width, slot.y, slot.width, slot.height);
+                    }
             Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Row.Close].Unit.transform);
             Rect theirs = CardMotion.ScreenRect((RectTransform)enemyView.Rows[Row.Close].Unit.transform);
-            Vector2 center = new Vector2(mine.xMax, (mine.yMax + theirs.yMin) / 2);
-            return new Rect(center - size / 2, size);
+            return CardMotion.Around(new Vector2(mine.xMax, (mine.yMax + theirs.yMin) / 2), slot.size);
         }
 
         // Where the opponent's card comes in from: above the board, over the middle of the rows

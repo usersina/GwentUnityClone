@@ -22,15 +22,25 @@ namespace Gwent.Battle
         public GameObject rowImage;
         public GameObject abilityImage;
 
+        private bool shown;
+
         void Start()
         {
-            // Populate display related details
-            OnCreation();
+            EnsureShown();
+        }
+
+        // Its art, strength and icons, at once if not done yet (a card object made this frame is only drawn from its Start:
+        // a copy of it for a flight needs them now)
+        public void EnsureShown()
+        {
+            if (!shown)
+                OnCreation();
         }
 
         //----------------------------------------On card creation-----------------------------------------------//
         private void OnCreation()
         {
+            shown = true;
             Card card = Card;
 
             // Change the artwork based on ID

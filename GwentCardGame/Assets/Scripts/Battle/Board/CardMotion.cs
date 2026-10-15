@@ -11,8 +11,9 @@ using UnityEngine.UI;
 namespace Gwent.Battle
 {
     // Moving cards over the board (game time, so the pause menu and the autoplay's speed apply). A flight is a "ghost"
-    // on the overlay (an image of the card, or the object of a card that left its place) gliding to the card's object
-    // in its new place, following it while its line makes room; the object shows once the ghost lands.
+    // on the overlay (a copy of the card's object in its new place, or the object of a card that left its place) gliding
+    // to the card's object in its new place, following it while its line makes room; the object shows once the ghost
+    // lands. A card thus looks in flight as it will where it lands, from the start (The Witcher 3).
     public static class CardMotion
     {
         private const float SettleSeconds = 0.25f;
@@ -74,14 +75,37 @@ namespace Gwent.Battle
             rect.sizeDelta = size;
         }
 
-        // An image of the card on the overlay, over a screen rectangle (never catches clicks)
-        public static RectTransform Ghost(int card_id, Rect screen_rect)
+        // A copy of a card object on the overlay, over a screen rectangle: the card as it looks there (its art, strength,
+        // ability icons, hero frame), to fly to it. Only its look: made under an inactive holder, so that none of the
+        // card's behaviours wakes up, and stripped of them; it never catches clicks.
+        public static RectTransform Copy(GameObject card, Rect screen_rect)
         {
-            Image art = UIKit.NewImage(Layer, "CardGhost", null, Color.white);
-            CardArt.Show(art, card_id);
-            art.preserveAspect = true;
-            Place(art.rectTransform, screen_rect);
-            return art.rectTransform;
+            CardFace face = card.GetComponent<CardFace>();
+            if (face != null)
+                face.EnsureShown();
+            GameObject holder = new GameObject("CardCopy", typeof(RectTransform));
+            holder.SetActive(false);
+            holder.transform.SetParent(Layer, false);
+            GameObject copy = Object.Instantiate(card, holder.transform, false);
+            copy.name = card.name;
+            foreach (MonoBehaviour behaviour in copy.GetComponentsInChildren<MonoBehaviour>(true))
+                if (!(behaviour is UnityEngine.EventSystems.UIBehaviour)) // the images and texts stay
+                    Object.DestroyImmediate(behaviour);
+            RectTransform rect = (RectTransform)copy.transform;
+            rect.SetParent(Layer, false);
+            Object.Destroy(holder);
+            rect.localScale = Vector3.one;
+            CanvasGroup group = Group(copy);
+            group.alpha = 1; // the object it copies is hidden until the copy lands
+            group.blocksRaycasts = false;
+            Place(rect, screen_rect);
+            return rect;
+        }
+
+        // A rectangle of that size centred on a screen point
+        public static Rect Around(Vector2 center, Vector2 size)
+        {
+            return new Rect(center - size / 2, size);
         }
 
         // A card object taken out of its place onto the overlay, where it stood (it no longer catches clicks)

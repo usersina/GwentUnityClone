@@ -62,7 +62,7 @@ namespace Gwent.Battle
             return Layout(true).sizeDelta * UIOverlay.FixedRoot.GetComponent<Canvas>().scaleFactor;
         }
 
-        // Deselected: the card glides back into its slot in the hand
+        // Deselected: the large card turns at once into its hand version (The Witcher 3), which glides back into its slot
         public static void Deselect()
         {
             GameObject slot = handCard;
@@ -73,11 +73,13 @@ namespace Gwent.Battle
                 CardMotion.Hide(slot, false);
                 return;
             }
-            RectTransform card = shown;
+            RectTransform large = shown;
             shown = null;
             DestroyBox();
-            Rect last = CardMotion.ScreenRect(card);
             glide.TryCancel();
+            Rect last = CardMotion.ScreenRect((RectTransform)slot.transform);
+            RectTransform card = CardMotion.Copy(slot, CardMotion.Around(CardMotion.ScreenRect(large).center, last.size));
+            UnityEngine.Object.Destroy(large.gameObject);
             CardMotion.GlideOver(card, () => slot != null ? last = CardMotion.ScreenRect((RectTransform)slot.transform) : last, ReturnSeconds, () =>
             {
                 if (handCard != slot) // selected again meanwhile: it stays in the showcase

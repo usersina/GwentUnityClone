@@ -10,17 +10,17 @@ using UnityEngine;
 namespace Gwent.Battle
 {
     // Plays a change of the board the way The Witcher 3 does (the rules resolved it already; the board still shows it as
-    // it was): the played card glides in from the board's right edge and lands with a sparkle (a hero in smoke and fire),
+    // it was): the played card, in its board look from the start, glides in from the right end of its row and lands with
+    // a sparkle (a hero in smoke and fire),
     // its ability flares, then what it caused follows: scorched cards burn and go to the discard piles, a medic's flare
     // over the discard pile brings a card back, called and drawn cards fly in from the deck, a decoyed card goes back to
     // the hand. In game time: the pause menu stops it.
     public class BoardPresenter
     {
-        public const float LandSeconds = 0.3f;
+        public const float LandSeconds = 0.22f; // the played card's glide along its row (The Witcher 3: about 0.2 s)
         public const float MoveSeconds = 0.35f;
         private const float Stagger = 0.07f;  // between cards moving together
         private const float ClearStagger = 0.03f;
-        private const float Arc = 50f;        // the bend of a played card's glide (overlay units)
 
         private readonly BoardView board;
         private readonly CardDatabase db;
@@ -110,8 +110,7 @@ namespace Gwent.Battle
         private async UniTask Land(BoardChange.Arrival played, Card card, CancellationToken ct)
         {
             LaneHold.Release(played.Card);
-            Rect slot = CardMotion.ScreenRect((RectTransform)played.Card.transform);
-            await CardMotion.Fly(CardMotion.Ghost(played.CardId, board.LaunchRect(slot.size)), played.Card, LandSeconds, Arc, ct);
+            await CardMotion.Fly(CardMotion.Copy(played.Card, board.LaunchRect(played.Card)), played.Card, LandSeconds, ct: ct);
             if (card.IsUnit && card.unique)
                 await CardEffects.Hero(played.Card, ct);
             else
@@ -161,7 +160,10 @@ namespace Gwent.Battle
                 return;
             if (from_deck)
             {
-                await CardMotion.Fly(CardMotion.Ghost(arrival.CardId, board.DeckRect(arrival.IsPlayer)), arrival.Card, MoveSeconds, ct: ct);
+                // At its size where it goes (a hand or a row card), from the middle of the deck
+                Vector2 size = CardMotion.ScreenRect((RectTransform)arrival.Card.transform).size;
+                Rect from = CardMotion.Around(board.DeckRect(arrival.IsPlayer).center, size);
+                await CardMotion.Fly(CardMotion.Copy(arrival.Card, from), arrival.Card, MoveSeconds, ct: ct);
                 return;
             }
             CardMotion.Hide(arrival.Card, false);
