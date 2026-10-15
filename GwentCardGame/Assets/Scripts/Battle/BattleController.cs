@@ -1116,6 +1116,10 @@ namespace Gwent.Battle
         public void LightOffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
         public void SetHider(bool hidden) { board.SetHider(hidden); }
 
+        // For the effects benchmark (EffectsBenchmark): the board, and showing it after a change of the lists
+        internal BoardView Board { get { return board; } }
+        internal void ShowBoard() { RefreshBoard(); }
+
         //----------------------------------------------Queries---------------------------------------------------//
         public Card GetCard(int card_id)
         {
