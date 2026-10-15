@@ -1,6 +1,7 @@
 {
     "name": "Gwent.Game",
     "references": [
+        "Coffee.UIParticle",
         "Gwent.Rules",
         "LitMotion",
         "LitMotion.Extensions",
