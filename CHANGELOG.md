@@ -16,6 +16,9 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
   orange; the crown uses it (X, then X again or Enter, still works). Its empty place, right-click or Esc puts it back.
 - A played card appears at the end of its row already as it looks on the board and glides into place; a card put back
   turns at once into its hand version; drawn cards fly in as hand cards.
+- The effects, closer to the game's: a hero lands under billowing smoke while a swarm of sparks runs around its edge, flames
+  rising off the top; an ability's card flashes white and burns bright orange around its large white icon; a landing card
+  puffs white wisps from its sides; a medic's pile smokes with green flames. They are real particle effects now.
 - The cards' descriptions (under the big card, in the deck builder, the redraw and the leader picker) are written live in
   The Witcher 3's style: its near-black panel, the ability's icon on a cream disc, the title and text in muted gold.
 - The Ice Giant is 5 strength, and Eredin's four leader cards each show their own art, name and ability, as in The
@@ -46,7 +49,8 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
 
 ### Under the hood
 
-- The battle's turns and animations run on UniTask and LitMotion; the art and music load through Addressables.
+- The battle's turns and animations run on UniTask and LitMotion; the art and music load through Addressables; the
+  effects' particles are drawn by ParticleEffectForUGUI.
 - The editor and development builds write a game log (`Logs/game.jsonl`): every play, AI decision, round and menu, a JSON
   line each, for people and AI agents to read. Release builds write none.
 
