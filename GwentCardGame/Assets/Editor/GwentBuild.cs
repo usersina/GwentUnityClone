@@ -147,6 +147,11 @@ namespace Gwent.EditorTools
             if (Directory.Exists(folder))
                 Directory.Delete(folder, true);
             Directory.CreateDirectory(folder);
+            // On the target's platform before anything else: the Addressables content is built with the player (into
+            // the active platform's folder, Library/com.unity.addressables/aa/<platform>), from the groups as they are now
+            if (EditorUserBuildSettings.activeBuildTarget != target.Build)
+                EditorUserBuildSettings.SwitchActiveBuildTarget(target.Group, target.Build);
+            GwentContent.Update();
             Prepare(target);
 
             BuildPlayerOptions options = new BuildPlayerOptions
@@ -180,7 +185,18 @@ namespace Gwent.EditorTools
                 return line;
 
             string archive = Package(target, folder);
-            return line + "\n  " + Path.GetFileName(archive) + " (" + (new FileInfo(archive).Length / 1048576.0).ToString("F1") + " MB)" + signing;
+            return line + "\n  " + Path.GetFileName(archive) + " (" + (new FileInfo(archive).Length / 1048576.0).ToString("F1") + " MB)" + signing + Content(folder);
+        }
+
+        // The Addressables bundles the player carries (StreamingAssets/aa; inside the .apk on Android, so not counted there)
+        private static string Content(string folder)
+        {
+            string aa = Directory.GetDirectories(folder, "aa", SearchOption.AllDirectories)
+                .FirstOrDefault(path => Path.GetFileName(Path.GetDirectoryName(path)) == "StreamingAssets");
+            if (aa == null)
+                return "";
+            FileInfo[] bundles = new DirectoryInfo(aa).GetFiles("*.bundle", SearchOption.AllDirectories);
+            return "\n  Addressables: " + bundles.Length + " bundles, " + (bundles.Sum(b => b.Length) / 1048576.0).ToString("F1") + " MB (loaded on demand)";
         }
 
         // The settings each platform's build depends on, applied every time (some are this machine's editor settings)
