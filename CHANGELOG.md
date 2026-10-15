@@ -16,6 +16,19 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
   orange; the crown uses it (X, then X again or Enter, still works). Its empty place, right-click or Esc puts it back.
 - A played card appears at the end of its row already as it looks on the board and glides into place; a card put back
   turns at once into its hand version; drawn cards fly in as hand cards.
+- The cards' descriptions (under the big card, in the deck builder, the redraw and the leader picker) are written live in
+  The Witcher 3's style: its near-black panel, the ability's icon on a cream disc, the title and text in muted gold.
+- The Ice Giant is 5 strength, and Eredin's four leader cards each show their own art, name and ability, as in The
+  Witcher 3.
+
+### In battle
+
+- Give up Yu-Gi-Oh style: in your turn, lay your hand on your deck (the cursor turns into a hand), click it or hold a
+  finger on it, then confirm. The pause menu no longer has it.
+- Skipping a choice (a leader's or a medic's pick) asks first, so a stray click can't waste it.
+- Kill the Cow, get the punishment: a Cow killed by a scorch calls the Bovine Defense Force at once (The Witcher 3 waits
+  for the next round); discarded any other way, it still comes next round. A notice says which.
+- The decks' card counts are back under the decks.
 
 ### The web version
 
