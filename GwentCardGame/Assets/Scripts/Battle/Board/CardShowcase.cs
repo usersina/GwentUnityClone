@@ -3,6 +3,7 @@ using System.Collections;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
+using LitMotion;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,6 +23,7 @@ namespace Gwent.Battle
         private static RectTransform shown; // the showcased card on the overlay (its glow, its art)
         private static GameObject box;      // its description
         private static GameObject handCard; // hidden in the hand while it is shown
+        private static MotionHandle glide;  // the showcased card's glide to the right
 
         public static bool IsShown { get { return shown != null; } }
 
@@ -74,7 +76,8 @@ namespace Gwent.Battle
             shown = null;
             DestroyBox();
             Rect last = CardMotion.ScreenRect(card);
-            card.GetComponent<OverlayGlide>().To(() => slot != null ? last = CardMotion.ScreenRect((RectTransform)slot.transform) : last, ReturnSeconds, () =>
+            glide.TryCancel();
+            CardMotion.GlideOver(card, () => slot != null ? last = CardMotion.ScreenRect((RectTransform)slot.transform) : last, ReturnSeconds, () =>
             {
                 if (handCard != slot) // selected again meanwhile: it stays in the showcase
                     CardMotion.Hide(slot, false);
@@ -110,18 +113,18 @@ namespace Gwent.Battle
                 Image edge = UIKit.NewImage(shown, "Edge", UITheme.Current.panelOutline, UITheme.Current.goldBright);
                 edge.pixelsPerUnitMultiplier = 0.5f; // twice the outline's width: a hair line gets lost between pixels
                 edge.rectTransform.Stretch(-3, -3, -3, -3);
-                edge.gameObject.AddComponent<ShowcaseGlow>();
+                UIMotion.Breathe(edge.gameObject, 0.55f, 1.2f); // the gold edge pulses gently
                 CardShine.Attach(shown, "Shine", GlideSeconds + 1.5f, 5f); // late, and now and then
                 Image flash = UIKit.NewImage(shown, "PopFlash", UITheme.Current.softShadow, new Color(1f, 0.55f, 0.12f, 0.9f));
                 flash.rectTransform.Stretch(-14, -14, -14, -14);
                 flash.transform.SetAsFirstSibling();
-                flash.gameObject.AddComponent<ShowcaseFlash>();
+                UIMotion.FlashOut(flash, 0.25f);
             }
             CardMotion.Place(shown, from);
 
             RectTransform target = Layout(true);
             RectTransform showcase = shown;
-            go.AddComponent<OverlayGlide>().To(() => LayoutToScreen(target), GlideSeconds, () =>
+            glide = CardMotion.GlideOver(showcase, () => LayoutToScreen(target), GlideSeconds, () =>
             {
                 // Its description, under it (a plain unit has none)
                 string description = CardHover.EffectBoxPath(card);
@@ -132,7 +135,7 @@ namespace Gwent.Battle
                 text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
                 text.rectTransform.anchoredPosition = layout.anchoredPosition;
                 text.rectTransform.sizeDelta = layout.sizeDelta;
-                text.gameObject.AddComponent<UIAppear>();
+                UIMotion.Appear(text.gameObject);
                 box = text.gameObject;
             });
         }
@@ -165,86 +168,6 @@ namespace Gwent.Battle
             Vector2 center = root.TransformPoint(layout.anchoredPosition);
             Vector2 size = layout.sizeDelta * scale;
             return new Rect(center - size / 2, size);
-        }
-    }
-
-    // The selected card's gold edge pulses gently
-    public class ShowcaseGlow : MonoBehaviour
-    {
-        private const float Seconds = 1.2f;
-        private CanvasGroup group;
-
-        private void Awake()
-        {
-            group = gameObject.AddComponent<CanvasGroup>();
-            group.blocksRaycasts = false;
-        }
-
-        private void Update()
-        {
-            float breath = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * Mathf.PI * 2 / Seconds);
-            group.alpha = Mathf.Lerp(0.55f, 1f, breath);
-        }
-    }
-
-    // The brief orange flash on the edges of a card popping out of the hand
-    public class ShowcaseFlash : MonoBehaviour
-    {
-        private const float Seconds = 0.25f;
-        private Image image;
-        private float alpha, age;
-
-        private void Awake()
-        {
-            image = GetComponent<Image>();
-            alpha = image.color.a;
-        }
-
-        private void Update()
-        {
-            age += Time.unscaledDeltaTime;
-            Color color = image.color;
-            color.a = alpha * (1 - Mathf.Clamp01(age / Seconds));
-            image.color = color;
-            if (age >= Seconds)
-                Destroy(gameObject);
-        }
-    }
-
-    // Glides an element of the overlay to a screen rectangle (followed as it changes), easing out, in game time
-    public class OverlayGlide : MonoBehaviour
-    {
-        private Func<Rect> target;
-        private Action done;
-        private Rect from;
-        private float seconds, age;
-
-        public void To(Func<Rect> to, float duration, Action on_done)
-        {
-            from = CardMotion.ScreenRect((RectTransform)transform);
-            target = to;
-            seconds = duration;
-            done = on_done;
-            age = 0;
-            enabled = true;
-        }
-
-        private void Update()
-        {
-            if (target == null)
-                return;
-            age += Time.deltaTime;
-            float t = Mathf.Clamp01(age / seconds);
-            float eased = 1 - (1 - t) * (1 - t) * (1 - t);
-            Rect to = target();
-            CardMotion.Place((RectTransform)transform, new Rect(Vector2.LerpUnclamped(from.position, to.position, eased), Vector2.LerpUnclamped(from.size, to.size, eased)));
-            if (t < 1)
-                return;
-            target = null;
-            Action finished = done;
-            done = null;
-            if (finished != null)
-                finished();
         }
     }
 }

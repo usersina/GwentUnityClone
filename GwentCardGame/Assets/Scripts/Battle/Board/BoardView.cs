@@ -664,7 +664,7 @@ namespace Gwent.Battle
             {
                 GameObject pile = View(leader_id == LeaderIds.EredinBringerOfDeath).DiscardPile.transform.parent.gameObject;
                 foreach (Image side in UIKit.Frame(pile.transform, LeaderTargetFrame, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<Image>())
-                    side.gameObject.AddComponent<UIPulse>();
+                    UIMotion.Pulse(side);
                 targets.Add(pile);
             }
             return targets;
@@ -702,7 +702,7 @@ namespace Gwent.Battle
                     {
                         // Square, as the card is, and pulsing like the leader's targets
                         foreach (Image side in UIKit.Frame(card, DecoyFrame, UITheme.Current.goldBright, 3, 3).GetComponentsInChildren<Image>())
-                            side.gameObject.AddComponent<UIPulse>();
+                            UIMotion.Pulse(side);
                     }
                     else if (!target && frame != null)
                     {

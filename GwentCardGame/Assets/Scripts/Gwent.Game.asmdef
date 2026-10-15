@@ -2,6 +2,8 @@
     "name": "Gwent.Game",
     "references": [
         "Gwent.Rules",
+        "LitMotion",
+        "LitMotion.Extensions",
         "Unity.InputSystem",
         "Unity.TextMeshPro",
         "UnityEngine.UI"

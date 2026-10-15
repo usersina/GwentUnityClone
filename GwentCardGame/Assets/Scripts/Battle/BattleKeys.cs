@@ -216,7 +216,7 @@ namespace Gwent.Battle
             placeFor = card;
             if (target != null)
                 foreach (UnityEngine.UI.Image side in UIKit.Frame(target.transform, PlaceMark, UITheme.Current.goldBright, 4, 3).GetComponentsInChildren<UnityEngine.UI.Image>())
-                    side.gameObject.AddComponent<UIPulse>();
+                    UIMotion.Pulse(side);
         }
 
         private static void PlayOn(BattleController battle, GameObject target)

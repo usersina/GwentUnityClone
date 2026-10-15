@@ -551,32 +551,7 @@ namespace Gwent.Menus
         // The rules come in one after another when a topic opens
         private static void FadeIn(RectTransform row, int order)
         {
-            RulesFadeIn fade = row.gameObject.AddComponent<RulesFadeIn>();
-            fade.delay = 0.04f + order * 0.05f;
-        }
-    }
-
-    // Fades a rule in after a delay (unscaled time; the layout keeps its place all along)
-    public class RulesFadeIn : MonoBehaviour
-    {
-        private const float Duration = 0.28f;
-        public float delay;
-        private CanvasGroup group;
-        private float age;
-
-        private void Awake()
-        {
-            group = gameObject.AddComponent<CanvasGroup>();
-            group.alpha = 0;
-        }
-
-        private void Update()
-        {
-            age += Time.unscaledDeltaTime;
-            float t = Mathf.Clamp01((age - delay) / Duration);
-            group.alpha = t * t * (3 - 2 * t);
-            if (t >= 1)
-                enabled = false;
+            UIMotion.FadeIn(row.gameObject, 0.04f + order * 0.05f, 0.28f);
         }
     }
 }

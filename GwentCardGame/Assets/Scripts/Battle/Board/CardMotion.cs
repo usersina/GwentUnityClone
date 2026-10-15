@@ -1,6 +1,9 @@
 using System.Collections;
+using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.UI;
+using LitMotion;
+using LitMotion.Extensions;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,7 +14,9 @@ namespace Gwent.Battle
     // in its new place, following it while its line makes room; the object shows once the ghost lands.
     public static class CardMotion
     {
+        private const float SettleSeconds = 0.25f;
         private static RectTransform layer;
+        private static readonly Dictionary<GameObject, MotionHandle> settling = new Dictionary<GameObject, MotionHandle>();
 
         // The overlay's layer for the battle's moving cards and effects, cleared at once when a battle is cut short
         public static Transform Layer
@@ -128,20 +133,27 @@ namespace Gwent.Battle
             if (ghost == null)
                 yield break;
             Vector2 from_pos = ghost.anchoredPosition, from_size = ghost.sizeDelta;
-            float age = 0;
-            while (age < seconds && ghost != null)
+            yield return LMotion.Create(0f, 1f, seconds).WithEase(Ease.OutCubic).Bind(eased =>
             {
-                age += Time.deltaTime;
-                float t = Mathf.Clamp01(age / seconds);
-                float eased = 1 - (1 - t) * (1 - t) * (1 - t);
                 Vector2 to_pos, to_size;
                 ToLayout(to(), out to_pos, out to_size);
                 Vector2 path = to_pos - from_pos;
                 Vector2 bend = path.sqrMagnitude > 1 ? new Vector2(path.y, -path.x).normalized * arc * Mathf.Sin(Mathf.PI * eased) : Vector2.zero;
                 ghost.anchoredPosition = Vector2.LerpUnclamped(from_pos, to_pos, eased) + bend;
                 ghost.sizeDelta = Vector2.LerpUnclamped(from_size, to_size, eased);
-                yield return null;
-            }
+            }).AddTo(ghost.gameObject).ToYieldInstruction();
+        }
+
+        // Glides an element of the overlay to a screen rectangle (asked again every frame, as it may move), easing out;
+        // done once it has arrived (not if it is cancelled or the element goes first)
+        public static MotionHandle GlideOver(RectTransform rect, System.Func<Rect> to, float seconds, System.Action done)
+        {
+            Rect from = ScreenRect(rect);
+            return LMotion.Create(0f, 1f, seconds).WithEase(Ease.OutCubic).WithOnComplete(done).Bind(eased =>
+            {
+                Rect target = to();
+                Place(rect, new Rect(Vector2.LerpUnclamped(from.position, target.position, eased), Vector2.LerpUnclamped(from.size, target.size, eased)));
+            }).AddTo(rect.gameObject);
         }
 
         // Fades a ghost out where it stands (a card leaving the board for good)
@@ -149,65 +161,24 @@ namespace Gwent.Battle
         {
             if (ghost == null)
                 yield break;
-            CanvasGroup group = Group(ghost.gameObject);
-            float age = 0;
-            while (ghost != null && age < seconds)
-            {
-                age += Time.deltaTime;
-                group.alpha = 1 - Mathf.Clamp01(age / seconds);
-                yield return null;
-            }
+            yield return LMotion.Create(1f, 0f, seconds).BindToAlpha(Group(ghost.gameObject)).AddTo(ghost.gameObject).ToYieldInstruction();
             if (ghost != null)
                 Object.Destroy(ghost.gameObject);
         }
 
-        // A card that appears without coming from anywhere: fades in from slightly larger
+        // A card that appears without coming from anywhere: fades in from slightly larger (again from the start if it was
+        // already settling)
         public static void SettleIn(GameObject card)
         {
-            CardSettle settle = card.GetComponent<CardSettle>();
-            if (settle == null)
-                settle = card.AddComponent<CardSettle>();
-            settle.Restart();
-        }
-    }
-
-    // A card appearing on the board: fades in from slightly larger
-    public class CardSettle : MonoBehaviour
-    {
-        private const float Seconds = 0.25f;
-        private CanvasGroup group;
-        private float age;
-
-        public void Restart()
-        {
-            group = GetComponent<CanvasGroup>();
-            if (group == null)
-                group = gameObject.AddComponent<CanvasGroup>();
-            age = 0;
-            enabled = true;
-            Apply(0);
-        }
-
-        private void Update()
-        {
-            age += Time.deltaTime;
-            float t = Mathf.Clamp01(age / Seconds);
-            Apply(1 - (1 - t) * (1 - t));
-            if (t >= 1)
-                enabled = false;
-        }
-
-        private void Apply(float eased)
-        {
-            group.alpha = eased;
-            transform.localScale = Vector3.one * Mathf.Lerp(1.15f, 1f, eased);
-        }
-
-        private void OnDisable()
-        {
-            if (group != null)
-                group.alpha = 1;
-            transform.localScale = Vector3.one;
+            MotionHandle running;
+            if (settling.TryGetValue(card, out running))
+                running.TryCancel();
+            CanvasGroup group = Group(card);
+            Transform t = card.transform;
+            settling[card] = LMotion.Create(0f, 1f, SettleSeconds).WithEase(Ease.OutQuad)
+                .WithOnComplete(() => settling.Remove(card)).WithOnCancel(() => settling.Remove(card))
+                .Bind(eased => { group.alpha = eased; t.localScale = Vector3.one * Mathf.Lerp(1.15f, 1f, eased); })
+                .AddTo(card);
         }
     }
 }

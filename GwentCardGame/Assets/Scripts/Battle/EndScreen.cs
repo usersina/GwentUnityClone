@@ -26,7 +26,7 @@ namespace Gwent.Battle
                 Destroy(child.gameObject);
 
             RectTransform content = UIKit.Rect("Content", transform).Stretch();
-            content.gameObject.AddComponent<UIAppear>();
+            UIMotion.Appear(content.gameObject);
 
             string emblem = outcome == BattleState.Won ? "win" : outcome == BattleState.Lost ? "lose" : "draw";
             // Rounds as they were won (a drawn round counts for nobody, a Nilfgaard tie for Nilfgaard)

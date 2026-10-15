@@ -98,7 +98,7 @@ namespace Gwent.UI
             label.enableAutoSizing = true;
             label.fontSizeMin = 20;
             label.fontSizeMax = 32;
-            panel.gameObject.AddComponent<UIFade>().Init(seconds);
+            UIMotion.ShowFor(panel.gameObject, seconds);
             currentToast = panel.gameObject;
         }
 
@@ -261,31 +261,6 @@ namespace Gwent.UI
                 // Scene change: the dialogs went with the canvas
                 modals.Clear();
             }
-        }
-    }
-
-    // Fades a toast in and out (unscaled time, so it also works while the game is paused), then destroys it
-    public class UIFade : MonoBehaviour
-    {
-        private const float FadeSeconds = 0.25f;
-        private CanvasGroup group;
-        private float lifetime;
-        private float age;
-
-        public void Init(float seconds)
-        {
-            lifetime = Mathf.Max(seconds, FadeSeconds * 2);
-            group = gameObject.AddComponent<CanvasGroup>();
-            group.blocksRaycasts = false;
-            group.alpha = 0;
-        }
-
-        private void Update()
-        {
-            age += Time.unscaledDeltaTime;
-            group.alpha = Mathf.Min(Mathf.Clamp01(age / FadeSeconds), Mathf.Clamp01((lifetime - age) / FadeSeconds));
-            if (age >= lifetime)
-                Destroy(gameObject);
         }
     }
 }
