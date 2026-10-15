@@ -1,3 +1,4 @@
+using Gwent.Rules;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -109,7 +110,7 @@ public class GameCursor : MonoBehaviour
         // The player's leader card: chosen by a click, used by a second one
         if (card != null && !card.isSelectable && card.CompareTag("Player") && battle.selectedCard == null)
         {
-            CardStats stats = card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+            Card stats = card.GetComponent<CardFace>().Card;
             if (stats.ability == Gwent.Rules.Abilities.Leader)
                 return battle.CanUseLeader(true) ? State.Interact : State.Default;
         }
@@ -128,12 +129,12 @@ public class GameCursor : MonoBehaviour
             return State.Default;
 
         // A card is selected: is this a place it can go?
-        CardStats selected = battle.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+        Card selected = battle.selectedCard.GetComponent<CardFace>().Card;
         if (selected.ability == Gwent.Rules.Abilities.Decoy)
         {
             if (card == null || card.isSelectable)
                 return row != null || weather != null ? State.Invalid : State.Default;
-            CardStats target = card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+            Card target = card.GetComponent<CardFace>().Card;
             bool swappable = card.CompareTag("Player") && row != null && !target.unique
                 && target.faction != Gwent.Rules.Factions.Special && target.ability != Gwent.Rules.Abilities.Leader;
             return swappable ? State.Interact : State.Invalid;

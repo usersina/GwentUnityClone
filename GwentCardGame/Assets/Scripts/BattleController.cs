@@ -225,7 +225,7 @@ public partial class BattleController : MonoBehaviour
     // The selected deck if it exists and is valid, else the built-in default deck
     private Deck LoadPlayerDeck()
     {
-        string path = MenuStartup.playerDeckPath;
+        string path = DeckStorage.BattleDeckPath;
         if (DeckStorage.Exists(path)) // a deck file, or a preset (an AI deck)
         {
             Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
@@ -641,7 +641,7 @@ public partial class BattleController : MonoBehaviour
     // Directly places a specific card_go (from hand or picked from a panel) on a field_go
     public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
     {
-        CardStats card_stats = card_go.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+        Card card_stats = card_go.GetComponent<CardFace>().Card;
         card_go.GetComponent<CardHover>().DestroyEffect();
         string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
 
@@ -767,7 +767,7 @@ public partial class BattleController : MonoBehaviour
         if (!IsSelectedCardPlayable())
             return false;
 
-        CardStats selectedStats = SelectedStats();
+        Card selectedStats = SelectedStats();
         if (selectedStats.faction != Factions.Special)
             return false;
 
@@ -783,11 +783,11 @@ public partial class BattleController : MonoBehaviour
         if (!IsSelectedCardPlayable())
             return false;
 
-        CardStats selectedStats = SelectedStats();
+        Card selectedStats = SelectedStats();
         if (selectedStats.ability != Abilities.Decoy)
             return false;
 
-        CardStats targetStats = targetCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+        Card targetStats = targetCard.GetComponent<CardFace>().Card;
         string row = targetCard.transform.parent.parent.name.ToLower();
         bool valid_target = targetCard.CompareTag("Player") && targetStats.faction != Factions.Special
             && !targetStats.unique && targetStats.ability != Abilities.Leader && Rows.IsUnitRow(row);
@@ -845,9 +845,9 @@ public partial class BattleController : MonoBehaviour
             && (pendingAction == PendingAction.None || pendingAction == PendingAction.PlacePickedCard);
     }
 
-    private CardStats SelectedStats()
+    private Card SelectedStats()
     {
-        return selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+        return selectedCard.GetComponent<CardFace>().Card;
     }
 
     // The selected card (or the chosen leader) goes back to its place, gliding there from the showcase (or leaving it
@@ -934,7 +934,7 @@ public partial class BattleController : MonoBehaviour
     private void SetDiscardObject(List<int> discard_list, bool is_player) { board.SetDiscard(discard_list, is_player); }
     private void CreateCardObjects(GameObject my_object, List<int> card_list, bool isSelectable, bool is_player_card) { board.CreateCardObjects(my_object, card_list, isSelectable, is_player_card); }
     public GameObject CreateCardObject(Card card, bool is_player_card) { return board.CreateCardObject(card, is_player_card); }
-    public void HighlightField(CardStats card_stats, bool is_player_turn) { board.Highlight(card_stats, is_player_turn); }
+    public void HighlightField(Card card_stats, bool is_player_turn) { board.Highlight(card_stats, is_player_turn); }
     public void LightOffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
     public void SetHider(bool hidden) { board.SetHider(hidden); }
 

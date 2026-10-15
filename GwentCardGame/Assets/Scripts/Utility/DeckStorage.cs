@@ -34,6 +34,37 @@ public static class DeckStorage
         return Path.Combine(Root, faction);
     }
 
+    //----------------------------------------The battle deck----------------------------------------//
+    // The settings' key of the deck taken into battle: a deck file's path or a preset's
+    public const string BattleDeckKey = "playerDeckPath";
+
+    // The deck taken into battle this session (null: the default deck)
+    public static string BattleDeckPath;
+
+    // The battle deck as saved in the settings ("" when there is none)
+    public static string SavedBattleDeck { get { return PlayerPrefs.GetString(BattleDeckKey, ""); } }
+
+    // Reads the battle deck back from the settings (ignored if the file is gone)
+    public static void LoadBattleDeck()
+    {
+        BattleDeckPath = null;
+        string path = SavedBattleDeck;
+        if ((path.EndsWith(".json") || OpponentDecks.IsPreset(path)) && Exists(path))
+            BattleDeckPath = path;
+    }
+
+    // Takes a deck into battle and saves the choice (null or "": the default deck)
+    public static void SaveBattleDeck(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            PlayerPrefs.DeleteKey(BattleDeckKey);
+        else
+            PlayerPrefs.SetString(BattleDeckKey, path);
+        PlayerPrefs.Save();
+        BattleDeckPath = string.IsNullOrEmpty(path) ? null : path;
+    }
+
+    //----------------------------------------Files----------------------------------------//
     public static void EnsureDirectories()
     {
         foreach (string faction in Factions.Playable)

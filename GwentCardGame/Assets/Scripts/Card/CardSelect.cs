@@ -47,7 +47,7 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
                 if (!CheckSameCard())
                 {
                     CardHover hover = gameObject.GetComponent<CardHover>();
-                    CardStats stats = gameObject.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+                    Card stats = gameObject.GetComponent<CardFace>().Card;
                     hover.isHoverable = false;
                     hover.TranslateUp();
                     hover.DestroyEffect();
@@ -95,7 +95,7 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
         if (controller.battleState != BattleState.PlayerTurn || !gameObject.CompareTag("Player"))
             return false;
 
-        CardStats cardStats = gameObject.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+        Card cardStats = gameObject.GetComponent<CardFace>().Card;
         if (cardStats.ability != Abilities.Leader)
             return false;
 

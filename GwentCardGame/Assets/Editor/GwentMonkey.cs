@@ -197,7 +197,7 @@ public static class GwentMonkey
             List<TextAsset> presets = OpponentDecks.All();
             if (presets.Count == 0)
                 return;
-            MenuStartup.playerDeckPath = OpponentDecks.PresetPath(presets[rnd.Next(presets.Count)]);
+            DeckStorage.BattleDeckPath = OpponentDecks.PresetPath(presets[rnd.Next(presets.Count)]);
             OpponentDecks.Override = presets[rnd.Next(presets.Count)].name;
         }
 
@@ -339,7 +339,7 @@ public static class GwentMonkey
         {
             if (c.selectedCard == null)
                 return;
-            CardStats stats = c.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+            Card stats = c.selectedCard.GetComponent<CardFace>().Card;
             if (stats.ability == Abilities.Decoy)
             {
                 List<GameObject> targets = new List<GameObject>();
@@ -688,7 +688,7 @@ public static class GwentMonkey
             }
             OpponentDecks.Chosen = (string)savedPrefs["opponent"];
             OpponentDecks.Override = null;
-            MenuStartup.playerDeckPath = null;
+            DeckStorage.BattleDeckPath = null;
             GameInput.SimulateTouch = savedTouch;
             PlayerPrefs.Save();
             if (Directory.Exists(DeckStorage.Root))

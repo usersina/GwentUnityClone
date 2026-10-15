@@ -1,6 +1,8 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Gwent.Rules;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,7 +17,7 @@ public class BoardView
     // Looked up once instead of transform.Find chains on every refresh / every frame
     public class RowView
     {
-        public RowManager Manager;
+        public TextMeshProUGUI Score;
         public GameObject Unit;
         public GameObject Special;
         public Image UnitImage;
@@ -28,6 +30,60 @@ public class BoardView
         {
             UnitImage.sprite = lit ? Lit : Idle;
             Emblem.sprite = lit ? LitEmblem : IdleEmblem;
+        }
+
+        // The row's total
+        public void ShowScore(List<int> strengths)
+        {
+            int total = 0;
+            foreach (int strength in strengths)
+                total += strength;
+            Score.text = total.ToString();
+        }
+
+        // The strength labels of the row's cards. The row shows its cards sorted (The Witcher 3's order) while the
+        // game keeps them in play order, so each card takes the strength of a game entry with its id.
+        public IEnumerator ShowStrengths(List<int> card_ids, List<int> base_strengths, List<int> strengths)
+        {
+            // New card objects are only there from the next frame (the destroyed ones are still children until then)
+            yield return null;
+
+            // Only card children: the row also holds the weather overlay
+            List<CardFace> cards = new List<CardFace>();
+            foreach (Transform child in Unit.transform)
+            {
+                CardFace face = child.GetComponent<CardFace>();
+                if (face != null)
+                    cards.Add(face);
+            }
+            if (cards.Count != card_ids.Count || base_strengths.Count != card_ids.Count || strengths.Count != card_ids.Count)
+            {
+                Debug.LogError("ShowStrengths: params mismatch (cards " + cards.Count + ", ids " + card_ids.Count
+                    + ", base " + base_strengths.Count + ", modified " + strengths.Count + ")");
+                yield break;
+            }
+
+            bool[] used = new bool[card_ids.Count];
+            foreach (CardFace card in cards)
+            {
+                int id = card.Card._id;
+                int i = 0;
+                while (i < card_ids.Count && (used[i] || card_ids[i] != id))
+                    i++;
+                if (i == card_ids.Count)
+                    continue;
+                used[i] = true;
+                TextMeshProUGUI strength_text = card.strengthImage.GetComponent<TextMeshProUGUI>();
+                // Red when weakened, green when boosted, else the card's own colour: card objects are reused
+                // between refreshes, so a card back to its base strength must lose the red / green
+                if (base_strengths[i] > strengths[i])
+                    strength_text.color = new Color32(188, 0, 0, 255);
+                else if (base_strengths[i] < strengths[i])
+                    strength_text.color = new Color32(0, 188, 0, 255);
+                else
+                    strength_text.color = card.Card.unique ? Color.white : Color.black;
+                strength_text.text = strengths[i].ToString();
+            }
         }
     }
 
@@ -63,7 +119,7 @@ public class BoardView
                 Transform row_t = t.Find(char.ToUpper(row[0]) + row.Substring(1));
                 RowView view = new RowView
                 {
-                    Manager = row_t.GetComponent<RowManager>(),
+                    Score = row_t.Find("ScoreCount").Find("Number").GetComponent<TextMeshProUGUI>(),
                     Unit = row_t.Find("Unit").gameObject,
                     Special = row_t.Find("Special").gameObject,
                     UnitImage = row_t.Find("Unit").GetComponent<Image>(),
@@ -426,15 +482,8 @@ public class BoardView
     {
         GameObject instantiatedCard = Object.Instantiate(controller.CardPrefab);
         instantiatedCard.name = card._id.ToString();
-        CardStats stats = instantiatedCard.transform.Find("Stats").GetComponent<CardStats>();
-        stats.name = card.name;
-        stats._id = card._id;
-        stats._idstr = card._idstr;
-        stats.faction = card.faction;
-        stats.unique = card.unique;
-        stats.strength = card.strength;
-        stats.row = card.row;
-        stats.ability = card.ability;
+        CardRef stats = instantiatedCard.transform.Find("Stats").GetComponent<CardRef>();
+        stats.Card = card;
         instantiatedCard.tag = is_player_card ? "Player" : "Enemy";
         return instantiatedCard;
     }
@@ -496,9 +545,9 @@ public class BoardView
         // New card objects get their strength labels next frame (coroutine)
         foreach (string row in Rows.Units)
         {
-            RowManager manager = view.Rows[row].Manager;
-            controller.StartCoroutine(manager.UIUpdateUnitsStrength(info.UnitRow(row), info.BaseStrengths(row), info.ModifiedStrengths(row)));
-            manager.UpdateRowScore(info.ModifiedStrengths(row));
+            RowView row_view = view.Rows[row];
+            controller.StartCoroutine(row_view.ShowStrengths(info.UnitRow(row), info.BaseStrengths(row), info.ModifiedStrengths(row)));
+            row_view.ShowScore(info.ModifiedStrengths(row));
         }
 
         view.Stats.UIUpdateTotalScore(info.MCloseStrength, info.MRangeStrength, info.MSiegeStrength);
@@ -508,7 +557,7 @@ public class BoardView
 
     //----------------------------------------Highlighting----------------------------------------//
     // Highlights the rows where the selected card can go, and stores them in the RowPicker
-    public void Highlight(CardStats card_stats, bool is_player_turn)
+    public void Highlight(Card card_stats, bool is_player_turn)
     {
         FieldView mine = View(is_player_turn);
         FieldView opp = View(!is_player_turn);
@@ -643,7 +692,7 @@ public class BoardView
                 if (display == null)
                     continue;
                 Transform frame = card.Find(DecoyFrame);
-                CardStats stats = display.cardStats.GetComponent<CardStats>();
+                Card stats = display.Card;
                 bool target = on && !stats.unique && stats.faction != Factions.Special;
                 if (target && frame == null)
                 {

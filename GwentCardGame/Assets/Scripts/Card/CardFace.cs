@@ -9,7 +9,9 @@ using Gwent.Rules;
 public class CardFace : MonoBehaviour
 {
     // Gameplay related
-    public GameObject cardStats;
+    private CardRef cardRef;
+    // The card shown (its CardRef is on the card's Stats child)
+    public Card Card { get { if (cardRef == null) cardRef = GetComponentInChildren<CardRef>(true); return cardRef.Card; } }
     // Display related
     public GameObject artworkImage;
     public GameObject natureImage;
@@ -26,7 +28,7 @@ public class CardFace : MonoBehaviour
     //----------------------------------------On card creation-----------------------------------------------//
     private void OnCreation()
     {
-        CardStats card = cardStats.GetComponent<CardStats>();
+        Card card = Card;
 
         // Change the artwork based on ID
         artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);

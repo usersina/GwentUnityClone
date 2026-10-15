@@ -250,7 +250,7 @@ public static class GwentAutoplay
             {
                 // Battles done: on to the deck builder, which opens on the battle deck (a test Monsters deck)
                 OpponentDecks.Override = null;
-                MenuStartup.playerDeckPath = CreateTestDeck(CardLibrary.Get());
+                DeckStorage.BattleDeckPath = CreateTestDeck(CardLibrary.Get());
                 deckPhase = true;
                 deckPhaseFrames = 0;
                 lastProgress = EditorApplication.timeSinceStartup;
@@ -266,7 +266,7 @@ public static class GwentAutoplay
             // Match 0: the built-in default deck; then one generated deck per leader (cycling)
             if (match == 0 || decks.Count == 0)
             {
-                MenuStartup.playerDeckPath = null;
+                DeckStorage.BattleDeckPath = null;
                 currentDeck = "default NR deck";
             }
             else
@@ -274,7 +274,7 @@ public static class GwentAutoplay
                 Deck deck = decks[(match - 1) % decks.Count];
                 string path = Path.Combine(Application.temporaryCachePath, "autoplay_" + deck.Faction + "_" + deck.Leader + ".json");
                 File.WriteAllText(path, JsonUtility.ToJson(deck));
-                MenuStartup.playerDeckPath = path;
+                DeckStorage.BattleDeckPath = path;
                 currentDeck = deck.Name;
             }
 
@@ -586,7 +586,7 @@ public static class GwentAutoplay
         {
             if (c.selectedCard == null)
                 return;
-            CardStats stats = c.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+            Card stats = c.selectedCard.GetComponent<CardFace>().Card;
             Count("play " + (stats.faction == Factions.Special ? stats._idstr : string.IsNullOrEmpty(stats.ability) ? "unit" : stats.ability));
 
             // Only where the card can go lights up: no rows for a decoy (its targets get a frame) or a weather card
@@ -682,9 +682,9 @@ public static class GwentAutoplay
                         File.Delete(path);
             }
 
-            dc.middleManager.SelectDeckPath(testDeckPath);
+            dc.deckSummary.SelectDeckPath(testDeckPath);
             Check(PlayerPrefs.GetString("playerDeckPath", "") == testDeckPath, "the deck picked in the builder is saved as the battle deck");
-            MenuStartup.playerDeckPath = null; // the main menu reads it back from the saved settings
+            DeckStorage.BattleDeckPath = null; // the main menu reads it back from the saved settings
 
             // Then the main menu: its scene, settings and rules, and Play
             deckPhase = false;
@@ -700,10 +700,10 @@ public static class GwentAutoplay
             CardGrid browse = UnityEngine.Object.FindObjectsByType<CardGrid>().FirstOrDefault(m => !m.CompareTag("Player"));
             Check(dc.currentDeckPath == testDeckPath && dc.my_deck.Name == testDeckName, "the deck builder opens on the battle deck");
             Check(dc.deckCollection.faction == Factions.Monsters && browse != null && browse.faction == Factions.Monsters
-                && dc.deckCollection.headerSnap.CurrentPanel == Array.IndexOf(CardGrid.HeaderFactions, Factions.Monsters)
+                && dc.deckCollection.header.CurrentPanel == Array.IndexOf(CardGrid.HeaderFactions, Factions.Monsters)
                 && dc.deckCollection.factionPerk.text.Contains("random unit"),
-                "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.headerSnap.CurrentPanel + ")");
-            TMP_Dropdown picker = dc.middleManager.deckPicker;
+                "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.header.CurrentPanel + ")");
+            TMP_Dropdown picker = dc.deckSummary.deckPicker;
             Check(picker.options.Count > picker.value && picker.options[picker.value].text == testDeckName, "the deck dropdown shows the deck");
             Check(dc.BattleDeckStatus == "Battle deck: " + testDeckName, "the status line names the battle deck (\"" + dc.BattleDeckStatus + "\")");
         }
@@ -754,7 +754,7 @@ public static class GwentAutoplay
                     return;
                 MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
                 Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
-                Check(MenuStartup.playerDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
+                Check(DeckStorage.BattleDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
                 inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
                 menuStage = 1;
                 return;
@@ -796,7 +796,7 @@ public static class GwentAutoplay
 
                 string invalid = Path.Combine(Application.temporaryCachePath, "autoplay_invalid.json");
                 File.WriteAllText(invalid, JsonUtility.ToJson(new Deck { Faction = Factions.Monsters, Name = "Autoplay invalid", Leader = LeaderIds.ByFaction[Factions.Monsters][0], Cards = new List<int>(mine != null ? mine.Cards.Take(5) : new int[0]) }));
-                MenuStartup.playerDeckPath = invalid;
+                DeckStorage.BattleDeckPath = invalid;
                 previousBattle = battle;
                 roundTripStage = 1;
                 phaseStart = EditorApplication.timeSinceStartup;
@@ -814,7 +814,7 @@ public static class GwentAutoplay
 
                 // A preset (an AI deck) as the battle deck
                 List<TextAsset> presets = OpponentDecks.All();
-                MenuStartup.playerDeckPath = presets.Count > 0 ? OpponentDecks.PresetPath(presets[presets.Count - 1]) : null;
+                DeckStorage.BattleDeckPath = presets.Count > 0 ? OpponentDecks.PresetPath(presets[presets.Count - 1]) : null;
                 previousBattle = battle;
                 roundTripStage = 2;
                 phaseStart = EditorApplication.timeSinceStartup;
@@ -822,7 +822,7 @@ public static class GwentAutoplay
                 SceneManager.LoadScene(SceneNames.Game);
                 return;
             }
-            Deck preset = DeckStorage.Load(MenuStartup.playerDeckPath);
+            Deck preset = DeckStorage.Load(DeckStorage.BattleDeckPath);
             Check(preset != null && battle.PlayerInfo.Faction == preset.Faction && battle.PlayerInfo.Leader == preset.Leader,
                 "a preset picked as the battle deck is the one played", "battle from the menu");
             Finish();
@@ -847,12 +847,12 @@ public static class GwentAutoplay
             // Presets: the faction's AI decks, picked as they are (as the battle deck too), never renamed or deleted;
             // an edit is saved as the player's own copy and the preset stays as it was
             List<string> presets = OpponentDecks.PresetPaths(faction);
-            Check(presets.Count > 0 && presets.All(p => dc.middleManager.myPaths.Contains(p)), "the faction's AI decks are offered as presets");
+            Check(presets.Count > 0 && presets.All(p => dc.deckSummary.myPaths.Contains(p)), "the faction's AI decks are offered as presets");
             if (presets.Count > 0)
             {
                 string preset = presets[0];
                 Deck original = DeckStorage.Load(preset);
-                dc.middleManager.SelectDeckPath(preset);
+                dc.deckSummary.SelectDeckPath(preset);
                 Check(dc.currentDeckPath == preset && PlayerPrefs.GetString("playerDeckPath", "") == preset && dc.BattleDeckStatus.Contains(original.Name + " (preset)"),
                     "a preset picked in the builder is the battle deck (\"" + dc.BattleDeckStatus + "\")");
                 input.text = tag + " Preset";
@@ -889,18 +889,18 @@ public static class GwentAutoplay
             Check(deck_count() == before + 1 && after_duplicate != null && after_duplicate.Cards.Count == 1, "a duplicate name does not overwrite the existing deck");
 
             // Fill it up to a valid deck: it becomes the battle deck (B9)
-            dc.middleManager.SelectDeckPath(path);
+            dc.deckSummary.SelectDeckPath(path);
             CardDatabase db = dc.Db;
             dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Factions.Neutral) && !c.unique && c._id != CardIds.BovineDefenseForce)
                 .SelectMany(c => Enumerable.Repeat(c._id, Math.Min(2, c.copies))).Take(24).ToList();
             dc.deckCollection.OnDeckEdit();
             Check(DeckRules.IsValid(DeckStorage.Load(path), db), "edited deck saved and valid");
-            Check(MenuStartup.playerDeckPath == path && PlayerPrefs.GetString("playerDeckPath", "") == path, "a valid edited deck becomes the battle deck");
+            Check(DeckStorage.BattleDeckPath == path && PlayerPrefs.GetString("playerDeckPath", "") == path, "a valid edited deck becomes the battle deck");
 
             // Remove cards below the minimum: no longer the battle deck
             dc.my_deck.Cards.RemoveRange(0, 10);
             dc.deckCollection.OnDeckEdit();
-            Check(MenuStartup.playerDeckPath == null && !PlayerPrefs.HasKey("playerDeckPath"), "an invalid deck stops being the battle deck");
+            Check(DeckStorage.BattleDeckPath == null && !PlayerPrefs.HasKey("playerDeckPath"), "an invalid deck stops being the battle deck");
 
             // Rename (B4)
             input.text = tag + " Renamed";
@@ -931,11 +931,11 @@ public static class GwentAutoplay
             created.Add(corrupt);
             File.WriteAllText(corrupt, "{ this is not json");
             dc.PopulateDeckAssets();
-            dc.middleManager.LoadDecks();
-            Check(dc.middleManager.myPaths.Count(p => !OpponentDecks.IsPreset(p)) == deck_count() - 1, "a corrupt deck file is skipped");
+            dc.deckSummary.LoadDecks();
+            Check(dc.deckSummary.myPaths.Count(p => !OpponentDecks.IsPreset(p)) == deck_count() - 1, "a corrupt deck file is skipped");
 
             // Delete (the confirmation dialog's "Delete" button calls ConfirmDelete)
-            dc.middleManager.SelectDeckPath(other);
+            dc.deckSummary.SelectDeckPath(other);
             dc.DeleteDeck();
             Check(File.Exists(other), "DeleteDeck only asks for confirmation");
             foreach (string path_to_delete in new[] { other, renamed, escaped })
@@ -1036,7 +1036,7 @@ public static class GwentAutoplay
                 PlayerPrefs.DeleteKey("aiDifficulty");
             else
                 GameSettings.AiDifficulty = (AiDifficulty)savedDifficulty;
-            MenuStartup.playerDeckPath = null;
+            DeckStorage.BattleDeckPath = null;
             GameInput.SimulateTouch = savedTouch;
             EditorApplication.update -= Tick;
             Application.logMessageReceived -= OnLog;
@@ -1570,7 +1570,7 @@ public static class GwentAutoplay
             DoubleClickAt(0.4, () =>
             {
                 Vector2 at = AddableCard();
-                added = addTarget != null ? addTarget.GetComponent<CardStats>()._id : -1;
+                added = addTarget != null ? addTarget.GetComponent<CardRef>().Card._id : -1;
                 return at;
             });
             At(1.0, () =>
@@ -1606,9 +1606,9 @@ public static class GwentAutoplay
             At(6.9, () => GameInput.SimulateTouch = savedTouch);
 
             // The leader picker
-            GameObject picker = dc.middleManager.leaderGo.GetComponent<CollectionLeader>().LeaderPicker;
+            GameObject picker = dc.deckSummary.leaderGo.GetComponent<CollectionLeader>().LeaderPicker;
             int leader = -1;
-            DoubleClickAt(7.2, () => ScreenPoint(dc.middleManager.leaderGo.transform));
+            DoubleClickAt(7.2, () => ScreenPoint(dc.deckSummary.leaderGo.transform));
             At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Factions.Monsters].Length,
                 "double-clicking the leader opens the faction's leaders"));
             DoubleClickAt(8.1, () =>
@@ -1625,13 +1625,13 @@ public static class GwentAutoplay
             });
 
             // The header's arrows: the previous faction (its cards, its perk, its decks), then back
-            Click(9.0, () => ScreenPoint(dc.deckCollection.headerSnap.previousButton.transform));
+            Click(9.0, () => ScreenPoint(dc.deckCollection.header.previousButton.transform));
             At(10.3, () => check(ShowsFaction(dc, browse, Factions.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
-            Click(10.6, () => ScreenPoint(dc.deckCollection.headerSnap.nextButton.transform));
+            Click(10.6, () => ScreenPoint(dc.deckCollection.header.nextButton.transform));
             At(11.9, () => check(ShowsFaction(dc, browse, Factions.Monsters, "random unit"), "the right arrow switches back"));
 
             // The deck dropdown
-            Click(12.2, () => ScreenPoint(dc.middleManager.deckPicker.transform));
+            Click(12.2, () => ScreenPoint(dc.deckSummary.deckPicker.transform));
             Click(12.8, () =>
             {
                 GameObject list = GameObject.Find("Dropdown List");
@@ -1665,7 +1665,7 @@ public static class GwentAutoplay
         {
             return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
                 && dc.deckCollection.factionPerk.text.Contains(perk)
-                && dc.middleManager.myPaths.All(p => OpponentDecks.IsPreset(p)
+                && dc.deckSummary.myPaths.All(p => OpponentDecks.IsPreset(p)
                     ? DeckStorage.Load(p).Faction == faction // the faction's presets
                     : DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
         }
@@ -1675,14 +1675,14 @@ public static class GwentAutoplay
         {
             List<int> ids = new List<int>();
             foreach (Transform card in collection.cardsArea.transform)
-                ids.Add(card.GetComponent<CardStats>()._id);
+                ids.Add(card.GetComponent<CardRef>().Card._id);
             return ids;
         }
 
         private static int BadgeOf(CardGrid collection, int id)
         {
             foreach (Transform card in collection.cardsArea.transform)
-                if (card.GetComponent<CardStats>()._id == id)
+                if (card.GetComponent<CardRef>().Card._id == id)
                 {
                     Transform badge = card.Find(CardGrid.CountBadge);
                     int count;
@@ -1702,7 +1702,7 @@ public static class GwentAutoplay
             for (int i = 0; browse != null && i < Mathf.Min(4, browse.cardsArea.transform.childCount) && target == null; i++)
             {
                 Transform t = browse.cardsArea.transform.GetChild(i);
-                Card shown = dc.Db.Get(t.GetComponent<CardStats>()._id);
+                Card shown = dc.Db.Get(t.GetComponent<CardRef>().Card._id);
                 if (!shown.IsSpecial && dc.my_deck.Cards.Count(x => x == shown._id) < DeckRules.MaxCopies(shown))
                     target = t;
             }
@@ -1910,7 +1910,7 @@ public static class GwentAutoplay
         {
             foreach (Transform child in c.PlayerField.transform.Find("Hand"))
             {
-                CardStats stats = child.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+                Card stats = child.GetComponent<CardFace>().Card;
                 if (stats.faction != Factions.Special && Rows.IsUnitRow(stats.row) && stats.ability != Abilities.Spy)
                 {
                     card = child;
@@ -1938,7 +1938,7 @@ public static class GwentAutoplay
         {
             if (!plainUnit || card == null)
                 return CardPosition();
-            string row = card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>().row;
+            string row = card.GetComponent<CardFace>().Card.row;
             Transform target = c.EnemyField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit");
             return ScreenPoint(target);
         }

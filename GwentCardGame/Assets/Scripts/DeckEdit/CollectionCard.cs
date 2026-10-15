@@ -15,7 +15,7 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
     private readonly DoubleClick doubleClick = new DoubleClick();
 
     [HideInInspector]
-    public DeckBuilder deckController;
+    public DeckBuilder deckBuilder;
 
     // The "Cards in Deck" collection (the one tagged Player)
     [HideInInspector]
@@ -23,8 +23,8 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
 
     private void Start()
     {
-        deckController = DeckBuilder.Instance;
-        deckCollection = deckController.deckCollection;
+        deckBuilder = DeckBuilder.Instance;
+        deckCollection = deckBuilder.deckCollection;
 
         UpdateCardGUI();
         // Touch controls have no right click: a finger held on the card shows it large until it lifts
@@ -54,13 +54,13 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
 
     private void EditDeckWithThisCard()
     {
-        CardStats cardStats = GetComponent<CardStats>();
+        Card cardStats = GetComponent<CardRef>().Card;
         if (transform.parent.parent.parent.CompareTag("Player"))
         {
             // Remove card from deck
             GameAudio.PlaySfx("deck_remove");
-            GameLog.Info("Removing card from deck: " + deckController.my_deck.Name);
-            deckController.my_deck.Cards.Remove(cardStats._id);
+            GameLog.Info("Removing card from deck: " + deckBuilder.my_deck.Name);
+            deckBuilder.my_deck.Cards.Remove(cardStats._id);
             deckCollection.OnDeckEdit();
         }
         else
@@ -69,20 +69,20 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
         }
     }
 
-    private void AddCardToSelectedDeck(CardStats cardStats)
+    private void AddCardToSelectedDeck(Card cardStats)
     {
-        if (deckController.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
+        if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
         {
             GameAudio.PlaySfx("invalid");
             UIOverlay.Toast("Create a deck first: type a name and press +");
             return;
         }
 
-        int occurences = deckController.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
+        int occurences = deckBuilder.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
 
         // Only the deck's faction, neutral and special cards
-        Gwent.Rules.Card card = deckController.Db.Get(cardStats._id);
-        if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckController.my_deck.Faction)
+        Gwent.Rules.Card card = deckBuilder.Db.Get(cardStats._id);
+        if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckBuilder.my_deck.Faction)
         {
             GameAudio.PlaySfx("invalid");
             UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
@@ -100,7 +100,7 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
         // If Special occurences is less than 3, check total specials count
         if (cardStats.faction == "Special")
         {
-            int specialsOcc = deckController.GetSpecialsOccurence(deckController.my_deck);
+            int specialsOcc = deckBuilder.GetSpecialsOccurence(deckBuilder.my_deck);
             if (specialsOcc >= Gwent.Rules.DeckRules.MaxSpecials)
             {
                 GameAudio.PlaySfx("invalid");
@@ -111,14 +111,14 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
 
         // If all checks don't match, add the card to deck
         GameAudio.PlaySfx("deck_add");
-        deckController.my_deck.Cards.Add(cardStats._id);
+        deckBuilder.my_deck.Cards.Add(cardStats._id);
         deckCollection.OnDeckEdit();
     }
 
     //------------------------------------------------------Functions---------------------------------------------------//
     private void UpdateCardGUI()
     {
-        CardStats stats = GetComponent<CardStats>();
+        Card stats = GetComponent<CardRef>().Card;
         TextMeshProUGUI name_text = transform.Find("Name").GetComponent<TextMeshProUGUI>();
         Image patch = transform.Find("Patch").GetComponent<Image>();
         name_text.text = Card.DisplayNameOf(stats.name);
@@ -142,7 +142,7 @@ public class CollectionCard : MonoBehaviour, IPointerClickHandler
     private void ShowBigCard()
     {
         GameObject cardDetails = Details();
-        CardStats cardStats = GetComponent<CardStats>();
+        Card cardStats = GetComponent<CardRef>().Card;
 
         cardDetails.SetActive(true);
         cardDetails.transform.Find("BigImage").GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);

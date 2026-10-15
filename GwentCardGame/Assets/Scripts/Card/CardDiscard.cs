@@ -29,7 +29,7 @@ public class CardDiscard : MonoBehaviour, IPointerClickHandler
         if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
         {
             GameLog.Info("Discarding");
-            controller.DiscardCard(GetComponent<CardFace>().cardStats.GetComponent<CardStats>()._id, true);
+            controller.DiscardCard(GetComponent<CardFace>().Card._id, true);
             controller.PlayerInfo.CardsDiscarded++;
 
             // Conditions met, a card can be chosen

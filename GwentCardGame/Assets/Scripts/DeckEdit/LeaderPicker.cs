@@ -6,7 +6,7 @@ public class LeaderPicker : MonoBehaviour
 {
     public GameObject contentGO;
     public GameObject leaderWPrefab;
-    public DeckBuilder deckController;
+    public DeckBuilder deckBuilder;
     public CardGrid deckCollection;
 
 

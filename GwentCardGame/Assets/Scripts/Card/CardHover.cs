@@ -172,7 +172,7 @@ public class CardHover : MonoBehaviour
         if (Canvas == null)
             return;
 
-        CardStats cardStats = GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
+        Card cardStats = GetComponent<CardFace>().Card;
         bigImage = Instantiate(BigImage);
         bigImage.transform.SetParent(Canvas.transform, false);
         bigImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);
@@ -193,27 +193,17 @@ public class CardHover : MonoBehaviour
 
     // Description box shown next to the big card (also used by the deck builder and the redraw carousel); null for a
     // plain unit, which has none in The Witcher 3 (only abilities, heroes, agile units, special cards and leaders do)
-    public static string EffectBoxPath(CardStats cardStats)
-    {
-        return EffectBoxPath(cardStats.faction, cardStats._idstr, cardStats.ability, cardStats._id, cardStats.unique, cardStats.row);
-    }
-
     public static string EffectBoxPath(Card card)
     {
-        return EffectBoxPath(card.faction, card._idstr, card.ability, card._id, card.unique, card.row);
-    }
-
-    private static string EffectBoxPath(string faction, string idstr, string ability, int id, bool unique, string row)
-    {
-        if (faction == Factions.Special)
-            return "Cards/EffectBox/" + idstr;
-        if (ability == Abilities.Leader)
-            return "Cards/EffectBox/Leader/" + id;
-        if (!string.IsNullOrEmpty(ability))
-            return "Cards/EffectBox/" + ability;
-        if (unique)
+        if (card.faction == Factions.Special)
+            return "Cards/EffectBox/" + card._idstr;
+        if (card.ability == Abilities.Leader)
+            return "Cards/EffectBox/Leader/" + card._id;
+        if (!string.IsNullOrEmpty(card.ability))
+            return "Cards/EffectBox/" + card.ability;
+        if (card.unique)
             return "Cards/EffectBox/hero";
-        if (row == Rows.Agile)
+        if (card.row == Rows.Agile)
             return "Cards/EffectBox/agile";
         return null;
     }

@@ -105,7 +105,7 @@ public class BattlePickers : MonoBehaviour
                 GameObject card = controller.CreateCardObject(controller.GetCard(card_id), isPlayerCard);
                 card.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
                 controller.selectedCard = card;
-                controller.HighlightField(card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>(), isPlayerCard);
+                controller.HighlightField(card.GetComponent<CardFace>().Card, isPlayerCard);
                 controller.ShowcasePicked(card_id, field, isPlayerCard);
                 controller.SetHider(true);
                 gameObject.SetActive(false);

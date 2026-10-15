@@ -11,12 +11,11 @@ using UnityEngine.SceneManagement;
 public class DeckBuilder : MonoBehaviour
 {
     public const string EmptyDeckResourcePath = "resource://Decks/__empty__";
-    private const string PlayerDeckPrefKey = "playerDeckPath";
 
     public static DeckBuilder Instance { get; private set; }
 
     public TextAsset CardsDatabase;
-    public DeckSummary middleManager;
+    public DeckSummary deckSummary;
     public CardGrid deckCollection;
 
     public string currentDeckPath;
@@ -52,8 +51,8 @@ public class DeckBuilder : MonoBehaviour
 
         // Get Player Deck
         currentDeckPath = EmptyDeckResourcePath;
-        if (DeckStorage.Exists(MenuStartup.playerDeckPath)) // a deck file, or a preset
-            currentDeckPath = MenuStartup.playerDeckPath;
+        if (DeckStorage.Exists(DeckStorage.BattleDeckPath)) // a deck file, or a preset
+            currentDeckPath = DeckStorage.BattleDeckPath;
         GameLog.Info("DeckBuilder: Current deck path is: " + currentDeckPath);
 
         my_deck = LoadDeckFromPath(currentDeckPath);
@@ -247,8 +246,8 @@ public class DeckBuilder : MonoBehaviour
         GameAudio.PlaySfx("deck_save");
         input.text = "";
         PopulateDeckAssets();
-        middleManager.LoadDecks(false);
-        middleManager.SelectDeckPath(newPath);
+        deckSummary.LoadDecks(false);
+        deckSummary.SelectDeckPath(newPath);
     }
 
     // Reference: pencil button
@@ -295,7 +294,7 @@ public class DeckBuilder : MonoBehaviour
         }
         if (!DeckStorage.SamePath(oldPath, newPath))
             DeckStorage.Delete(oldPath);
-        if (DeckStorage.SamePath(PlayerPrefs.GetString(PlayerDeckPrefKey, ""), oldPath))
+        if (DeckStorage.SamePath(DeckStorage.SavedBattleDeck, oldPath))
             SetBattleDeck(newPath);
 
         GameLog.Info("Renamed deck: " + oldPath + " -> " + newPath);
@@ -304,14 +303,14 @@ public class DeckBuilder : MonoBehaviour
         my_deck = renamed;
         currentDeckPath = newPath;
         PopulateDeckAssets();
-        middleManager.LoadDecks(false);
-        middleManager.SelectDeckPath(newPath);
+        deckSummary.LoadDecks(false);
+        deckSummary.SelectDeckPath(newPath);
     }
 
     // Reference: trash button (asks for confirmation first)
     public void DeleteDeck()
     {
-        if (middleManager.deckPicker.options.Count <= 0 || currentDeckPath == EmptyDeckResourcePath)
+        if (deckSummary.deckPicker.options.Count <= 0 || currentDeckPath == EmptyDeckResourcePath)
             return;
         if (ShowsPreset)
         {
@@ -333,7 +332,7 @@ public class DeckBuilder : MonoBehaviour
         }
         GameAudio.PlaySfx("deck_remove");
         GameLog.Info("Deleted: " + filePath);
-        if (DeckStorage.SamePath(PlayerPrefs.GetString(PlayerDeckPrefKey, ""), filePath))
+        if (DeckStorage.SamePath(DeckStorage.SavedBattleDeck, filePath))
             SetBattleDeck(null);
 
         PopulateDeckAssets();
@@ -362,8 +361,8 @@ public class DeckBuilder : MonoBehaviour
         my_deck = copy;
         currentDeckPath = path;
         PopulateDeckAssets();
-        middleManager.LoadDecks(false);
-        middleManager.SelectDeckPath(path);
+        deckSummary.LoadDecks(false);
+        deckSummary.SelectDeckPath(path);
         UIOverlay.Toast("Presets stay as they are: your changes are saved in your own deck, \"" + name + "\"", 4f);
     }
 
@@ -397,19 +396,14 @@ public class DeckBuilder : MonoBehaviour
         bool real_deck = currentDeckPath != EmptyDeckResourcePath && my_deck.Name != DeckRules.EmptyDeckName;
         if (real_deck && IsDeckValid(my_deck))
             SetBattleDeck(currentDeckPath);
-        else if (real_deck && DeckStorage.SamePath(PlayerPrefs.GetString(PlayerDeckPrefKey, ""), currentDeckPath))
+        else if (real_deck && DeckStorage.SamePath(DeckStorage.SavedBattleDeck, currentDeckPath))
             SetBattleDeck(null);
         UpdateBattleDeckStatus();
     }
 
     private void SetBattleDeck(string path)
     {
-        if (string.IsNullOrEmpty(path))
-            PlayerPrefs.DeleteKey(PlayerDeckPrefKey);
-        else
-            PlayerPrefs.SetString(PlayerDeckPrefKey, path);
-        PlayerPrefs.Save();
-        MenuStartup.playerDeckPath = string.IsNullOrEmpty(path) ? null : path;
+        DeckStorage.SaveBattleDeck(path);
         GameLog.Info("Battle deck: " + (path ?? "default"));
     }
 
@@ -426,7 +420,7 @@ public class DeckBuilder : MonoBehaviour
             battleDeckStatus.fontSizeMax = 26;
         }
 
-        string battle_path = MenuStartup.playerDeckPath;
+        string battle_path = DeckStorage.BattleDeckPath;
         Deck battle_deck = DeckStorage.Exists(battle_path) ? DeckStorage.Load(battle_path) : null;
         string battle_name = battle_deck == null ? "default (Northern Realms)" : battle_deck.Name + (OpponentDecks.IsPreset(battle_path) ? " (preset)" : "");
 

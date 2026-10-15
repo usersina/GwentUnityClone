@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 
 public class CollectionLeader : MonoBehaviour, IPointerClickHandler
 {
-    public DeckBuilder deckController;
+    public DeckBuilder deckBuilder;
     public GameObject LeaderPicker;
 
     private readonly DoubleClick doubleClick = new DoubleClick();
@@ -22,7 +22,7 @@ public class CollectionLeader : MonoBehaviour, IPointerClickHandler
 
     private void OpenLeaderPicker()
     {
-        if (deckController.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
+        if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
         {
             GameAudio.PlaySfx("invalid");
             UIOverlay.Toast("Create a deck first: type a name and press +");
@@ -31,6 +31,6 @@ public class CollectionLeader : MonoBehaviour, IPointerClickHandler
 
         LeaderPicker.SetActive(true);
         LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
-        LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardStats>().faction);
+        LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardRef>().Card.faction);
     }
 }

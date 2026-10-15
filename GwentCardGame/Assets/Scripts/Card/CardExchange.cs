@@ -33,7 +33,7 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
 
         // With the redraw carousel open, a click brings the card to its front first; only a double-click on the front
         // card redraws it, so a quick double-click on a card further away never swaps it by accident
-        int card_id = GetComponent<CardFace>().cardStats.GetComponent<CardStats>()._id;
+        int card_id = GetComponent<CardFace>().Card._id;
         if (RedrawPicker.IsOpen && !RedrawPicker.IsReadyToRedraw(card_id))
         {
             RedrawPicker.Bring(card_id);
@@ -49,6 +49,6 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
     private void Exchange()
     {
         lastExchangeTime = Time.unscaledTime;
-        controller.RedrawPlayerCard(GetComponent<CardFace>().cardStats.GetComponent<CardStats>()._id);
+        controller.RedrawPlayerCard(GetComponent<CardFace>().Card._id);
     }
 }

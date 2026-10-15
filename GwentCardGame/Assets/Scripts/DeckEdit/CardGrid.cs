@@ -18,8 +18,8 @@ public class CardGrid : MonoBehaviour
         "Keep one random unit on the board after each round",
     };
 
-    public DeckBuilder deckController;
-    public FactionHeader headerSnap;
+    public DeckBuilder deckBuilder;
+    public FactionHeader header;
     public Toggle toggleBtn;
 
     public TextMeshProUGUI subtitle;
@@ -38,7 +38,7 @@ public class CardGrid : MonoBehaviour
     [HideInInspector]
     public List<Card> CardsToDisplay;
 
-    public DeckSummary middleManager;
+    public DeckSummary deckSummary;
 
     // The Witcher 3's filters: all cards, close, ranged, siege, heroes, weather, special cards
     public const int WeatherTab = 5;
@@ -49,13 +49,13 @@ public class CardGrid : MonoBehaviour
         AddWeatherTab();
         ClearCardsArea();
         // DeckBuilder loads everything in Awake; this only guards against a disabled controller
-        yield return new WaitUntil(() => deckController.IsReady);
+        yield return new WaitUntil(() => deckBuilder.IsReady);
 
         // Collection Cards or player deck
         if (transform.CompareTag("Player"))
             LoadFromDeck();
         else
-            CardsToDisplay = deckController.allCards;
+            CardsToDisplay = deckBuilder.allCards;
 
         SetCardsArea(UnitMergerHelper(faction, "all"));
     }
@@ -125,8 +125,8 @@ public class CardGrid : MonoBehaviour
     // Sets Deck faction and Cards from my_deck
     private void LoadFromDeck()
     {
-        faction = deckController.my_deck.Faction;
-        CardsToDisplay = deckController.GetCardsFromDeck(deckController.my_deck);
+        faction = deckBuilder.my_deck.Faction;
+        CardsToDisplay = deckBuilder.GetCardsFromDeck(deckBuilder.my_deck);
     }
 
     private void ClearCardsArea()
@@ -147,7 +147,7 @@ public class CardGrid : MonoBehaviour
         ClearCardsArea();
         bool deck = transform.CompareTag("Player");
         Dictionary<int, int> in_deck = new Dictionary<int, int>();
-        foreach (int id in deckController.my_deck.Cards)
+        foreach (int id in deckBuilder.my_deck.Cards)
             in_deck[id] = in_deck.TryGetValue(id, out int copies) ? copies + 1 : 1;
         HashSet<int> shown = new HashSet<int>();
         foreach (Card card in cards_list)
@@ -162,15 +162,8 @@ public class CardGrid : MonoBehaviour
 
             GameObject instantiatedCard = Instantiate(CCardPrefab);
             instantiatedCard.name = card._id.ToString();
-            CardStats stats = instantiatedCard.GetComponent<CardStats>();
-            stats.name = card.name;
-            stats._id = card._id;
-            stats._idstr = card._idstr;
-            stats.faction = card.faction;
-            stats.unique = card.unique;
-            stats.strength = card.strength;
-            stats.row = card.row;
-            stats.ability = card.ability;
+            CardRef stats = instantiatedCard.GetComponent<CardRef>();
+            stats.Card = card;
 
             instantiatedCard.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + card._id);
             instantiatedCard.transform.SetParent(cardsArea.transform, false);
@@ -249,7 +242,7 @@ public class CardGrid : MonoBehaviour
         {
             case "weather":
             case "specials":
-                List<Card> specials_list = deckController.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Rows.Weather) == (selected_row == "weather"));
+                List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Rows.Weather) == (selected_row == "weather"));
                 specials_list.Sort((a, b) => a._id.CompareTo(b._id));
                 SetCardsArea(specials_list);
                 break;
@@ -280,15 +273,15 @@ public class CardGrid : MonoBehaviour
         List<Card> returned_list;
         if (toggleBtn.isOn)
         {
-            returned_list = deckController.MergedList(
-            deckController.GetUnitCards(CardsToDisplay, fc, rw, ishero),
-            deckController.GetUnitCards(CardsToDisplay, "N", rw, ishero)
+            returned_list = deckBuilder.MergedList(
+            deckBuilder.GetUnitCards(CardsToDisplay, fc, rw, ishero),
+            deckBuilder.GetUnitCards(CardsToDisplay, "N", rw, ishero)
             );
         }
         else
         {
-            returned_list = deckController.MergedList(
-            deckController.GetUnitCards(CardsToDisplay, fc, rw, ishero)
+            returned_list = deckBuilder.MergedList(
+            deckBuilder.GetUnitCards(CardsToDisplay, fc, rw, ishero)
             );
         }
 
@@ -303,9 +296,9 @@ public class CardGrid : MonoBehaviour
 
         if (rw == "all" && !ishero) // Add special Cards to all cards
         {
-            List<Card> specials_list = deckController.GetSpecialCards(CardsToDisplay);
+            List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay);
             specials_list.Sort((a, b) => a._id.CompareTo(b._id));
-            returned_list = deckController.MergedList(returned_list, specials_list);
+            returned_list = deckBuilder.MergedList(returned_list, specials_list);
         }
 
         return returned_list;
@@ -321,14 +314,14 @@ public class CardGrid : MonoBehaviour
         faction = deck_faction;
         if (factionPerk != null)
             factionPerk.text = Perks[panel];
-        if (headerSnap != null)
-            headerSnap.startingPanel = panel;
+        if (header != null)
+            header.startingPanel = panel;
     }
 
     // Reference: FactionHeader On Panel Changed
     public void UpdateSelectedFaction()
     {
-        int panel = headerSnap.CurrentPanel;
+        int panel = header.CurrentPanel;
         if (panel >= 0 && panel < HeaderFactions.Length)
         {
             faction = HeaderFactions[panel];
@@ -340,13 +333,13 @@ public class CardGrid : MonoBehaviour
         if (transform.CompareTag("Player"))
         {
             // Start from a new empty deck of that faction (the loaded deck object is shared with the dropdown list)
-            deckController.my_deck = new Deck { Faction = faction, Name = DeckRules.EmptyDeckName };
+            deckBuilder.my_deck = new Deck { Faction = faction, Name = DeckRules.EmptyDeckName };
 
             // Change the leader to the default of each faction
-            deckController.my_deck.Leader = LeaderIds.DefaultFor(faction);
+            deckBuilder.my_deck.Leader = LeaderIds.DefaultFor(faction);
 
             // Load the new decklists and get the first deck if not empty
-            middleManager.LoadDecks();
+            deckSummary.LoadDecks();
         }
     }
 
@@ -369,38 +362,38 @@ public class CardGrid : MonoBehaviour
     public void OnDeckChange(Deck selectedDeck, string selectedPath, bool select_for_battle = true)
     {
         // Replace the loaded deck with the selected one
-        deckController.my_deck = selectedDeck;
-        deckController.currentDeckPath = selectedPath;
+        deckBuilder.my_deck = selectedDeck;
+        deckBuilder.currentDeckPath = selectedPath;
         LoadFromDeck();
         Select(selectedTab);
         RefreshCollection();
 
         // A valid selected deck becomes the battle deck (the status line follows the deck shown either way)
         if (select_for_battle)
-            deckController.UpdateBattleDeck();
+            deckBuilder.UpdateBattleDeck();
         else
-            deckController.UpdateBattleDeckStatus();
+            deckBuilder.UpdateBattleDeckStatus();
     }
 
     // From Double Clicking a card
     public void OnDeckEdit()
     {
         // A preset is never changed: the edit goes to the player's own copy
-        if (deckController.ShowsPreset)
+        if (deckBuilder.ShowsPreset)
         {
-            deckController.KeepPresetEdit();
+            deckBuilder.KeepPresetEdit();
             return;
         }
         LoadFromDeck();
         Select(selectedTab, false);
         RefreshCollection();
-        middleManager.InitializeDeck();
+        deckSummary.InitializeDeck();
 
         // Save to the current deck
-        deckController.WriteDeckToFile(deckController.my_deck, deckController.currentDeckPath);
+        deckBuilder.WriteDeckToFile(deckBuilder.my_deck, deckBuilder.currentDeckPath);
 
         // Becomes (or stops being, if now invalid) the battle deck
-        deckController.UpdateBattleDeck();
+        deckBuilder.UpdateBattleDeck();
     }
 
 }

@@ -436,8 +436,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d733b260ab7e82949866778272332a7b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  deckController: {fileID: 0}
-  headerSnap: {fileID: 0}
+  deckBuilder: {fileID: 0}
+  header: {fileID: 0}
   toggleBtn: {fileID: 3415651655588846975}
   subtitle: {fileID: 8009630929962773292}
   CCardPrefab: {fileID: 3294727448798689141, guid: 624eb665d2f80e9478f8decb7e7dbae3,
@@ -469,7 +469,7 @@ MonoBehaviour:
   - {fileID: 21300000, guid: c772ccac8d98c1e4fac09d8ba178fef7, type: 3}
   - {fileID: 21300000, guid: 9adf30081e98a8c43928f1a3e2b35b39, type: 3}
   CardsToDisplay: []
-  middleManager: {fileID: 0}
+  deckSummary: {fileID: 0}
 --- !u!1 &2842275584183876122
 GameObject:
   m_ObjectHideFlags: 0

@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 public class DeckSummary : MonoBehaviour
 {
-    public DeckBuilder deckController;
+    public DeckBuilder deckBuilder;
     public CardGrid deckCollection;
     public GameObject leaderGo;
     public TMP_Dropdown deckPicker;
@@ -29,19 +29,19 @@ public class DeckSummary : MonoBehaviour
                 text.fontSizeMin = 14;
             }
         // DeckBuilder loads everything in Awake; this only guards against a disabled controller
-        yield return new WaitUntil(() => deckController.IsReady);
-        string selected_path = deckController.currentDeckPath;
+        yield return new WaitUntil(() => deckBuilder.IsReady);
+        string selected_path = deckBuilder.currentDeckPath;
         InitializeDeck();
         LoadDecks(false);
         // Keep the deck that was selected last time instead of jumping to the first one
         SelectDeckPath(selected_path);
     }
 
-    // Updates the deck UI and Leader from deckController.my_deck
+    // Updates the deck UI and Leader from deckBuilder.my_deck
     public void InitializeDeck()
     {
-        loadedDeck = deckController.my_deck;
-        deckCards = deckController.GetCardsFromDeck(loadedDeck);
+        loadedDeck = deckBuilder.my_deck;
+        deckCards = deckBuilder.GetCardsFromDeck(loadedDeck);
         UIUpdateDeckInfo();
         UIUpdateLeader();
     }
@@ -55,8 +55,8 @@ public class DeckSummary : MonoBehaviour
 
         List<TMP_Dropdown.OptionData> decks_list_drop = new List<TMP_Dropdown.OptionData>();
         // The player's decks, then the faction's presets (the AI's decks)
-        List<string> deck_paths_list = new List<string>(deckController.DeckPathsOf(deckController.my_deck.Faction));
-        deck_paths_list.AddRange(OpponentDecks.PresetPaths(deckController.my_deck.Faction));
+        List<string> deck_paths_list = new List<string>(deckBuilder.DeckPathsOf(deckBuilder.my_deck.Faction));
+        deck_paths_list.AddRange(OpponentDecks.PresetPaths(deckBuilder.my_deck.Faction));
 
         myDecks.Clear();
         myPaths.Clear();
@@ -65,7 +65,7 @@ public class DeckSummary : MonoBehaviour
         int skipped = 0;
         foreach (string path in deck_paths_list)
         {
-            Deck auxdeck = deckController.LoadDeckFromPath(path);
+            Deck auxdeck = deckBuilder.LoadDeckFromPath(path);
             if (auxdeck == null)
             {
                 skipped++;
@@ -85,7 +85,7 @@ public class DeckSummary : MonoBehaviour
         else
         {
             // Clear the collection (my_deck is empty at this point: Cleared from UpdateSelectedFaction)
-            deckCollection.OnDeckChange(deckController.my_deck, DeckBuilder.EmptyDeckResourcePath, select_for_battle);
+            deckCollection.OnDeckChange(deckBuilder.my_deck, DeckBuilder.EmptyDeckResourcePath, select_for_battle);
         }
         InitializeDeck();
     }
@@ -115,16 +115,9 @@ public class DeckSummary : MonoBehaviour
     // Sets the leader stats and ui
     public void UIUpdateLeader()
     {
-        Card leader_card = deckController.GetCard(loadedDeck.Leader);
-        CardStats stats = leaderGo.GetComponent<CardStats>();
-        stats.name = leader_card.name;
-        stats._id = leader_card._id;
-        stats._idstr = leader_card._idstr;
-        stats.faction = leader_card.faction;
-        stats.unique = leader_card.unique;
-        stats.strength = leader_card.strength;
-        stats.row = leader_card.row;
-        stats.ability = leader_card.ability;
+        Card leader_card = deckBuilder.GetCard(loadedDeck.Leader);
+        CardRef stats = leaderGo.GetComponent<CardRef>();
+        stats.Card = leader_card;
 
         leaderGo.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + loadedDeck.Leader);
         leaderGo.transform.Find("Name").GetComponent<TextMeshProUGUI>().text = leader_card.name;
@@ -139,7 +132,7 @@ public class DeckSummary : MonoBehaviour
         deckInfo[0].text = loadedDeck.Cards.Count.ToString();
 
         // Unit Cards number (Minimum: 22)
-        helperNumber = deckController.GetUnitCards(deckCards, "all", "all", false).Count;
+        helperNumber = deckBuilder.GetUnitCards(deckCards, "all", "all", false).Count;
         if (helperNumber < DeckRules.MinUnits)
         {
             deckInfo[1].color = UITheme.Current.danger;
@@ -152,14 +145,14 @@ public class DeckSummary : MonoBehaviour
         }
 
         // Special Cards number (Maximum: 10)
-        helperNumber = deckController.GetSpecialCards(deckCards).Count;
+        helperNumber = deckBuilder.GetSpecialCards(deckCards).Count;
         deckInfo[2].text = helperNumber.ToString() + "/" + DeckRules.MaxSpecials;
 
         // Total Strengths
-        deckInfo[3].text = deckController.GetUnitsStrength(deckController.GetUnitCards(deckCards, "all", "all", false)).ToString();
+        deckInfo[3].text = deckBuilder.GetUnitsStrength(deckBuilder.GetUnitCards(deckCards, "all", "all", false)).ToString();
 
         // Hero Cards number
-        deckInfo[4].text = deckController.GetUnitCards(deckCards, "all", "all", true).Count.ToString();
+        deckInfo[4].text = deckBuilder.GetUnitCards(deckCards, "all", "all", true).Count.ToString();
     }
 
 }
