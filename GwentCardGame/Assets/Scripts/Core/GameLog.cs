@@ -72,7 +72,7 @@ namespace Gwent.Core
         private static void Begin()
         {
             Open();
-            scene = SceneManager.GetActiveScene().name;
+            scene = SceneManager.GetActiveScene().name ?? "";
             Application.logMessageReceivedThreaded -= Captured;
             Application.logMessageReceivedThreaded += Captured;
             SceneManager.activeSceneChanged -= SceneChanged;
@@ -127,6 +127,8 @@ namespace Gwent.Core
 
         private static void SceneChanged(Scene from, Scene to)
         {
+            if (string.IsNullOrEmpty(to.name))
+                return; // a player's first, empty scene
             scene = to.name;
             Event(LogCategory.Game, "scene", "name", to.name);
         }

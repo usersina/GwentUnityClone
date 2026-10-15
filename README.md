@@ -142,7 +142,37 @@ Rendering uses the Universal Render Pipeline (URP 17.6, settings in `Assets/Sett
 
 Saved decks live in `Application.persistentDataPath/Decks/<faction>/<file name>.json`, the file name being the deck's name in lower case
 with anything unsafe removed (`My Deck!` is `my_deck.json`); settings are saved in `PlayerPrefs`.
-Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or with the `GWENT_VERBOSE_LOGS` define).
+### The game log
+
+Everything that happens is written to a log of events, one JSON object per line, meant to be read by people and by AI
+agents alike: `GwentCardGame/Logs/game.jsonl` in the editor (one Play session; the one before is
+`game.previous.jsonl`), `<persistentDataPath>/Logs/game.jsonl` in a development build. Each event is also shown on one
+console line. Release builds have none of it: the calls are compiled out (`GameLog`, `BattleLog`), so nothing is
+written; only the editor, development builds (`DEBUG`) and the `GWENT_VERBOSE_LOGS` define keep them.
+
+Every line has `t` (seconds since the session began), `f` (frame), `scene`, `cat`, `ev`, and during a battle `battle`,
+`round` and `turn`, then the event's own fields:
+
+| `cat`    | Events                                                                                                         |
+| -------- | -------------------------------------------------------------------------------------------------------------- |
+| `game`   | `session_start` (version, platform, device), `scene`, `settings`, `opponent_chosen`, `autoplay_match`, `autoplay_failure`, `monkey_failure` |
+| `battle` | `battle_start` (decks, leaders, difficulty), `redraw`, `round_start`, `turn_start` (with `board`: both sides' hands, rows with strengths, decks, lives, leaders, weather), `card_played`, `decoy_played`, `leader_used`, `leader_refused`, `picked`, `card_discarded`, `pass` (and why), `monsters_kept`, `northern_realms_draw`, `round_end`, `battle_end`, `battle_left` |
+| `ai`     | `redraw`, `decision` (the move, `think_ms`, and `considered`: the Normal AI's gain, board change and cost of each move; Hard's `win_rate` over its play-outs) |
+| `ui`     | `dialog_open`, `dialog_close`, `notice`, `toast`, `settings_saved`, `quit`                                      |
+| `deck`   | `decks_folder`, `battle_deck`, `builder_open`, `deck_added`, `deck_saved`, `deck_renamed`, `deck_deleted`, `card_added`, `card_removed`, `battle_deck_chosen`, `preset_copied` |
+| `perf`   | `slow_frame` (a frame over 100 ms)                                                                             |
+| `unity`  | Unity's own `warning`, `error`, `exception`, `assert`, with `message` and `stack`                                  |
+
+A play's `effects` say what moved between the zones (`player.hand`, `enemy.close`, `enemy.close_horn`,
+`player.discard`, `weather`... as `in` and `out` lists, a deck as a count), so a scorch, a muster or a medic's chain
+shows as what it did. A few ways in, with [jq](https://jqlang.org):
+
+```bash
+jq -c 'select(.cat=="battle" and (.ev|test("played|leader_used")))|{turn,side,card,row,effects}' GwentCardGame/Logs/game.jsonl
+jq -c 'select(.ev=="decision")|{turn,action,think_ms,considered}' GwentCardGame/Logs/game.jsonl
+jq -c 'select(.ev=="turn_start" and .turn==5)|.board' GwentCardGame/Logs/game.jsonl
+jq -c 'select(.cat=="unity" or .ev=="autoplay_failure")' GwentCardGame/Logs/game.jsonl
+```
 
 ### Release builds
 
