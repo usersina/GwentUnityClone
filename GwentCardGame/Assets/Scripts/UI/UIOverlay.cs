@@ -85,7 +85,7 @@ namespace Gwent.UI
         // Short message at the top of the screen, replaced by the next one; never blocks clicks
         public static void Toast(string message, float seconds = 2.5f)
         {
-            GameLog.Info("Toast: " + message);
+            GameLog.Event(LogCategory.Ui, "toast", "text", message);
             if (currentToast != null)
                 UnityEngine.Object.Destroy(currentToast);
 

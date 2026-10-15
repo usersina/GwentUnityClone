@@ -110,7 +110,7 @@ namespace Gwent.Battle
                 // A medic or a weather leader: the card is placed on the board next
                 case Mode.Play:
                     GameAudio.PlaySfx("ability_medic");
-                    GameLog.Info("Choosing card to play: " + card_id);
+                    GameLog.Event(LogCategory.Battle, "picked", "card", controller.GetCard(card_id).name, "from", field, "to", "play");
                     controller.TakePickedCardToPlay(field, card_id, isPlayerCard);
                     GameObject card = controller.CreateCardObject(controller.GetCard(card_id), isPlayerCard);
                     card.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
@@ -125,7 +125,7 @@ namespace Gwent.Battle
                 // A leader's pick: the card goes to the hand and the turn ends
                 case Mode.Draw:
                     GameAudio.PlaySfx("card_draw");
-                    GameLog.Info("Choosing on: " + card_id);
+                    GameLog.Event(LogCategory.Battle, "picked", "card", controller.GetCard(card_id).name, "from", field, "to", "hand");
                     gameObject.SetActive(false);
                     controller.PickCardToHand(field, card_id, isPlayerCard);
                     break;

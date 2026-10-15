@@ -48,6 +48,7 @@ namespace Gwent.Rules
         public CardDatabase Db;
         public AiDifficulty Difficulty = AiDifficulty.Normal;
         public int Seed;        // Easy's slips and Hard's look-ahead: the same position and seed, the same move
+        public List<AiOption> Considered; // when set, the moves weighed are added to it (the decision's log)
     }
 
     // Decides the AI's move. Every candidate move is simulated on copies of the board, so weather,
@@ -90,6 +91,9 @@ namespace Gwent.Rules
             StrengthCalculator.Recalculate(ctx.Opponent, ctx.Weather, ctx.DoubleSpies, ctx.Db);
 
             List<Candidate> candidates = BuildCandidates(ctx);
+            if (ctx.Considered != null)
+                foreach (Candidate c in candidates)
+                    ctx.Considered.Add(new AiOption { Action = c.Action, Gain = c.Gain, Board = c.Board, Cost = c.Cost, WinRate = -1 });
             if (candidates.Count == 0)
                 return AiAction.Pass();
 

@@ -9,9 +9,9 @@ namespace Gwent.Menus
         private void Start()
         {
             DeckStorage.EnsureDirectories();
-            GameLog.Info("Decks directory is: " + DeckStorage.Root);
+            GameLog.Event(LogCategory.Deck, "decks_folder", "path", DeckStorage.Root);
             DeckStorage.LoadBattleDeck();
-            GameLog.Info("Starting, selected deck: " + DeckStorage.BattleDeckPath);
+            GameLog.Event(LogCategory.Deck, "battle_deck", "path", DeckStorage.BattleDeckPath ?? "default");
         }
     }
 }

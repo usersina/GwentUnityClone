@@ -91,6 +91,8 @@ namespace Gwent.Battle
         {
             if (Instance == this)
             {
+                if (!IsBattleOver)
+                    BattleLog.Left();
                 Instance = null;
                 Time.timeScale = 1f; // the game speed is the battle's
             }
@@ -107,7 +109,6 @@ namespace Gwent.Battle
             PlayerInfo.Name = "Player";
             EnemyInfo.Name = "Opponent";
 
-            GameLog.Info("Starting battle...");
             GameAudio.PlaySfx("game_start");
             UIOverlay.SetEscapeAction(OnEscape);
             battleState = BattleState.Start;
@@ -165,7 +166,7 @@ namespace Gwent.Battle
         {
             if (battleState == BattleState.Start && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
             {
-                GameLog.Info("Player has skipped cards exchanging !");
+                GameLog.Event(LogCategory.Battle, "redraw_skipped");
                 FinishCardExchange();
             }
 
@@ -203,7 +204,6 @@ namespace Gwent.Battle
             Deck myDeck = LoadPlayerDeck();
             // The opponent the player chose before the battle, or a random one
             TextAsset enemy_deck = OpponentDecks.ForBattle() ?? EnemyDeck;
-            GameLog.Info("Opponent deck: " + enemy_deck.name);
             Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(enemy_deck.text, enemy_deck.name), Db);
 
             // Emhyr, The White Flame cancels the other leader's ability, passive ones included (Daisy's extra card,
@@ -225,6 +225,7 @@ namespace Gwent.Battle
             bool either(int leader) { return !white_flame && (myDeck.Leader == leader || oppDeck.Leader == leader); }
             doubleSpies = either(LeaderIds.EredinTheTreacherous);
             randomMedic = either(LeaderIds.EmhyrInvaderOfTheNorth);
+            BattleLog.Begin(this, myDeck, oppDeck, enemy_deck.name);
         }
 
         // The selected deck if it exists and is valid, else the built-in default deck
@@ -300,8 +301,10 @@ namespace Gwent.Battle
         public void ExchangeCard(int card_id, bool is_player_card)
         {
             BattleSide info = Info(is_player_card);
-            if (RoundRules.Redraw(info, card_id) == -1)
+            int drawn = RoundRules.Redraw(info, card_id);
+            if (drawn == -1)
                 return;
+            BattleLog.Redraw(this, is_player_card, card_id, drawn);
 
             GameAudio.PlaySfx("card_exchange");
 
@@ -334,10 +337,11 @@ namespace Gwent.Battle
                 yield return null;
             roundOpening = true;
             lastTurnWasPlayer = null;
+            BattleLog.RoundStart(player_starts);
             // The Witcher 3: a side that starts a round with no card in hand sits it out, even with its leader unused
             foreach (bool is_player in new[] { true, false })
                 if (Info(is_player).HandList.Count == 0 && !Info(is_player).hasPassed)
-                    MarkPassed(is_player);
+                    MarkPassed(is_player, "empty_hand");
             StartTurn(player_starts);
         }
 
@@ -364,7 +368,7 @@ namespace Gwent.Battle
         private IEnumerator PlayerTurn(int generation)
         {
             if (!PlayerInfo.hasPassed && OutOfPlays(true))
-                MarkPassed(true);
+                MarkPassed(true, "nothing_to_play");
             if (PlayerInfo.hasPassed)
             {
                 CheckRoundEnd();
@@ -376,7 +380,7 @@ namespace Gwent.Battle
                 yield return null;
             if (generation != turnGeneration)
                 yield break;
-            GameLog.Info("Player Turn !");
+            BattleLog.TurnStart(this, true);
             GameAudio.PlaySfx("turn_player");
             battleState = BattleState.PlayerTurn;
         }
@@ -384,7 +388,7 @@ namespace Gwent.Battle
         private IEnumerator EnemyTurn(int generation)
         {
             if (!EnemyInfo.hasPassed && OutOfPlays(false))
-                MarkPassed(false);
+                MarkPassed(false, "nothing_to_play");
             if (EnemyInfo.hasPassed)
             {
                 CheckRoundEnd();
@@ -392,7 +396,7 @@ namespace Gwent.Battle
             }
             battleState = BattleState.EnemyTurn;
             AnnounceTurn(false);
-            GameLog.Info("Enemy Turn !");
+            BattleLog.TurnStart(this, false);
             GameAudio.PlaySfx("turn_enemy");
             AiPlayer.Decision decision = ai.StartDecision(); // Hard thinks while the turn's notice shows
             yield return new WaitForSeconds(0.3f);
@@ -432,7 +436,6 @@ namespace Gwent.Battle
         {
             if (PlayerInfo.hasPassed && EnemyInfo.hasPassed)
             {
-                GameLog.Info("Round has ended");
                 ManageOutcome();
             }
             else if (PlayerInfo.hasPassed)
@@ -460,7 +463,7 @@ namespace Gwent.Battle
                 return;
             }
 
-            MarkPassed(is_player_turn);
+            MarkPassed(is_player_turn, "chose");
             EndTurn(is_player_turn);
         }
 
@@ -470,8 +473,9 @@ namespace Gwent.Battle
             return RoundRules.OutOfPlays(CurrentBoard(), is_player);
         }
 
-        private void MarkPassed(bool is_player)
+        private void MarkPassed(bool is_player, string why)
         {
+            BattleLog.Passed(this, is_player, why);
             GameAudio.PlaySfx("pass");
             // A pass that ends the round is followed by the round's result instead; at the opening of a round the
             // other side's "Round N" notice says it all
@@ -493,6 +497,7 @@ namespace Gwent.Battle
             RoundWinner winner = RoundRules.DecideRound(player_total, enemy_total, PlayerInfo.Faction, EnemyInfo.Faction);
             int player_lives = PlayerInfo.Lives, enemy_lives = EnemyInfo.Lives;
             RoundRules.ApplyRoundResult(PlayerInfo, EnemyInfo, winner);
+            BattleLog.RoundEnd(this, winner, player_total, enemy_total);
             PlayerInfo.hasPassed = false;
             EnemyInfo.hasPassed = false;
             bool[] lost = { PlayerInfo.Lives < player_lives, EnemyInfo.Lives < enemy_lives }; // the player's, the opponent's
@@ -554,7 +559,6 @@ namespace Gwent.Battle
 
         private void PrepareNextRound(RoundWinner winner)
         {
-            GameLog.Info("Preparing next round");
             DeselectCard();
             pendingAction = PendingAction.None;
             PlayerInfo.CanDiscard = false;
@@ -566,7 +570,10 @@ namespace Gwent.Battle
             {
                 int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
                 if (kept != -1)
+                {
+                    GameLog.Event(LogCategory.Battle, "monsters_kept", "side", is_player ? "player" : "enemy", "card", Db.Get(kept).name);
                     BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
+                }
             }
             weatherList.Clear();
 
@@ -575,7 +582,10 @@ namespace Gwent.Battle
             {
                 bool is_player = winner == RoundWinner.Player;
                 if (DrawCards(1, Info(is_player), is_player) > 0)
+                {
+                    GameLog.Event(LogCategory.Battle, "northern_realms_draw", "side", is_player ? "player" : "enemy");
                     BattleBanner.Show(BattleBanner.FactionEmblem(Faction.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
+                }
             }
 
             RefreshBoard();
@@ -600,7 +610,6 @@ namespace Gwent.Battle
         {
             if (IsBattleOver)
                 return;
-            GameLog.Info("Player gave up");
             StopTurn();
             StopAllCoroutines();
             EndPresentations();
@@ -618,7 +627,7 @@ namespace Gwent.Battle
 
         private void ConcludeBattle(BattleState outcome, bool gave_up = false)
         {
-            GameLog.Info("Battle ended: " + outcome);
+            BattleLog.End(outcome, gave_up);
             battleState = outcome;
             CardShowcase.Clear();
             CardMotion.ClearLayer();
@@ -668,6 +677,7 @@ namespace Gwent.Battle
         // pending)
         public void PlayCard(int card_id, Row field_row, bool is_player_turn)
         {
+            BattleLog.BeforeChange(this);
             BattleSide me = Info(is_player_turn);
             me.HandList.Remove(card_id);
             selectedCard = null;
@@ -682,6 +692,7 @@ namespace Gwent.Battle
             if (me.HandList.Count > hand_before)
                 GameAudio.PlaySfx("card_draw");
             RefreshBoard();
+            BattleLog.Played(this, "card_played", is_player_turn, card_id, field_row);
             SetHider(false);
 
             bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
@@ -823,12 +834,13 @@ namespace Gwent.Battle
         // Decoy: the target goes back to the hand, the decoy takes its place on the row
         public void PlayDecoy(int target_id, Row row, bool is_player_card, int decoy_id)
         {
+            BattleLog.BeforeChange(this);
             Info(is_player_card).HandList.Remove(decoy_id);
             CardShowcase.Clear();
-            GameLog.Info("Decoying: " + target_id);
             board.BeginChange();
             PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
             RefreshBoard();
+            BattleLog.Played(this, "decoy_played", is_player_card, decoy_id, row);
             BoardChange change = board.EndChange();
             Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => EndTurn(is_player_card));
         }

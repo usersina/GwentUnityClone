@@ -93,7 +93,7 @@ namespace Gwent.Menus
 
         public void QuitGame()
         {
-            GameLog.Info("Quitting...");
+            GameLog.Event(LogCategory.Ui, "quit");
             Application.Quit();
         }
     }

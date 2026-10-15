@@ -32,7 +32,6 @@ namespace Gwent.Battle
                 controller = BattleController.Instance;
             if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
             {
-                GameLog.Info("Discarding");
                 controller.DiscardCard(GetComponent<CardFace>().Card._id, true);
                 controller.PlayerInfo.CardsDiscarded++;
 

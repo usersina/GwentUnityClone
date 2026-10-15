@@ -18,7 +18,6 @@ namespace Gwent.Battle
         public void TakePickedCardToPlay(PickSource field, int card_id, bool is_player_turn)
         {
             BattleSide info = Info(is_player_turn);
-            GameLog.Info("Playing from: " + field);
             switch (field)
             {
                 case PickSource.Deck:
@@ -48,7 +47,6 @@ namespace Gwent.Battle
             BattleSide info = Info(is_player_turn);
             BattleSide opp_info = Opponent(is_player_turn);
 
-            GameLog.Info("Picking from: " + field);
             switch (field)
             {
                 case PickSource.Deck:
@@ -91,6 +89,7 @@ namespace Gwent.Battle
                 return;
 
             GameAudio.PlaySfx("card_discard");
+            GameLog.Event(LogCategory.Battle, "card_discarded", "side", is_player_card ? "player" : "enemy", "card", Db.Get(card_id).name);
             AbilityRules.Discard(info, card_id); // a discarded Cow still calls the Bovine Defense Force (The Witcher 3)
             SetHandObject(info.HandList, is_player_card);
             SetDiscardObject(info.DiscardList, is_player_card);

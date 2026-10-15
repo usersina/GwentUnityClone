@@ -138,10 +138,12 @@ namespace Gwent.Battle
             if (is_player_turn)
                 DeselectCard(false); // the chosen leader (or a selected card) leaves the showcase: the ability takes over
             CardShowcase.Clear();
+            BattleLog.BeforeChange(this);
             board.BeginChange();
             LeaderOutcome outcome = ApplyLeader(leader_id, is_player_turn, out reason);
             if (outcome == LeaderOutcome.Unavailable)
             {
+                GameLog.Event(LogCategory.Battle, "leader_refused", "side", is_player_turn ? "player" : "enemy", "reason", reason);
                 board.EndChange().Flush();
                 GameAudio.PlaySfx("invalid");
                 if (is_player_turn)
@@ -154,6 +156,7 @@ namespace Gwent.Battle
             View(is_player_turn).Leader.MarkUsed();
 
             RefreshBoard();
+            BattleLog.LeaderUsed(this, is_player_turn, leader_id, outcome == LeaderOutcome.Instant ? "done" : "choice_pending");
             BoardChange change = board.EndChange();
 
             // Pending abilities end the turn once their choice is made

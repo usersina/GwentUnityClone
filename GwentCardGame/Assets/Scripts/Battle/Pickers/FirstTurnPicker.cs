@@ -51,7 +51,7 @@ namespace Gwent.Battle
         {
             if (controller == null)
                 controller = BattleController.Instance;
-            GameLog.Info("Going First");
+            GameLog.Event(LogCategory.Battle, "first_turn_chosen", "first", "player");
             controller.ChooseFirstPlayer(true);
             Close();
         }
@@ -60,7 +60,7 @@ namespace Gwent.Battle
         {
             if (controller == null)
                 controller = BattleController.Instance;
-            GameLog.Info("Going Second");
+            GameLog.Event(LogCategory.Battle, "first_turn_chosen", "first", "enemy");
             controller.ChooseFirstPlayer(false);
             Close();
         }

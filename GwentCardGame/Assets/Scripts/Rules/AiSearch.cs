@@ -48,7 +48,7 @@ namespace Gwent.Rules
             List<AiAction> moves = Shortlist(root, normal);
             if (moves.Count < 2)
                 return new Thinking(normal);
-            return new Thinking(normal, moves, root, new Random(ctx.Seed), time_limit_ms);
+            return new Thinking(normal, moves, root, new Random(ctx.Seed), time_limit_ms, ctx.Considered);
         }
 
         public class Thinking
@@ -59,6 +59,7 @@ namespace Gwent.Rules
             private readonly Board root;
             private readonly Random rnd;
             private readonly int timeLimitMs;
+            private readonly List<AiOption> considered;
             private readonly Stopwatch busy = new Stopwatch();
             private readonly Func<Board, bool, AiAction> normalPolicy = (board, is_player) => AiBrain.DecideNormal(board.AiContextFor(is_player));
             private int round, move, deal;
@@ -72,8 +73,9 @@ namespace Gwent.Rules
                 Done = true;
             }
 
-            internal Thinking(AiAction normal, List<AiAction> moves, Board root, Random rnd, int time_limit_ms)
+            internal Thinking(AiAction normal, List<AiAction> moves, Board root, Random rnd, int time_limit_ms, List<AiOption> considered = null)
             {
+                this.considered = considered;
                 this.normal = normal;
                 this.moves = moves;
                 this.root = root;
@@ -125,6 +127,9 @@ namespace Gwent.Rules
 
             private void Choose()
             {
+                if (considered != null)
+                    for (int m = 0; m < moves.Count; m++)
+                        considered.Add(new AiOption { Action = moves[m], WinRate = round > 0 ? wins[m] / round : 0, Battles = round });
                 int best = moves.FindIndex(m => Same(m, normal));
                 wins[best] += NormalBonus;
                 for (int m = 0; m < moves.Count; m++)

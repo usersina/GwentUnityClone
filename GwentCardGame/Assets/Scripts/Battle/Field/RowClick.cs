@@ -66,8 +66,6 @@ namespace Gwent.Battle
                             UIOverlay.Toast("Weather and Scorch go on the weather board");
                     }
                 }
-                else
-                    GameLog.Info("Player has no card selected to play !");
             }
         }
 

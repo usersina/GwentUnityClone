@@ -64,7 +64,7 @@ namespace Gwent.DeckBuilding
             {
                 // Remove card from deck
                 GameAudio.PlaySfx("deck_remove");
-                GameLog.Info("Removing card from deck: " + deckBuilder.my_deck.Name);
+                GameLog.Event(LogCategory.Deck, "card_removed", "deck", deckBuilder.my_deck.Name, "card", cardStats.name);
                 deckBuilder.my_deck.Cards.Remove(cardStats._id);
                 deckCollection.OnDeckEdit();
             }
@@ -117,6 +117,7 @@ namespace Gwent.DeckBuilding
             // If all checks don't match, add the card to deck
             GameAudio.PlaySfx("deck_add");
             deckBuilder.my_deck.Cards.Add(cardStats._id);
+            GameLog.Event(LogCategory.Deck, "card_added", "deck", deckBuilder.my_deck.Name, "card", cardStats.name);
             deckCollection.OnDeckEdit();
         }
 

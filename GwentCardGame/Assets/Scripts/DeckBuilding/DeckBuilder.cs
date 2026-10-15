@@ -57,7 +57,7 @@ namespace Gwent.DeckBuilding
             currentDeckPath = EmptyDeckResourcePath;
             if (DeckStorage.Exists(DeckStorage.BattleDeckPath)) // a deck file, or a preset
                 currentDeckPath = DeckStorage.BattleDeckPath;
-            GameLog.Info("DeckBuilder: Current deck path is: " + currentDeckPath);
+            GameLog.Event(LogCategory.Deck, "builder_open", "deck", currentDeckPath);
 
             my_deck = LoadDeckFromPath(currentDeckPath);
             if (my_deck == null)
@@ -247,7 +247,7 @@ namespace Gwent.DeckBuilding
                 return;
             }
 
-            GameLog.Info("Added deck: " + newPath);
+            GameLog.Event(LogCategory.Deck, "deck_added", "path", newPath);
             GameAudio.PlaySfx("deck_save");
             input.text = "";
             PopulateDeckAssets();
@@ -302,7 +302,7 @@ namespace Gwent.DeckBuilding
             if (DeckStorage.SamePath(DeckStorage.SavedBattleDeck, oldPath))
                 SetBattleDeck(newPath);
 
-            GameLog.Info("Renamed deck: " + oldPath + " -> " + newPath);
+            GameLog.Event(LogCategory.Deck, "deck_renamed", "from", oldPath, "to", newPath);
             GameAudio.PlaySfx("deck_save");
             input.text = "";
             my_deck = renamed;
@@ -336,7 +336,7 @@ namespace Gwent.DeckBuilding
                 return;
             }
             GameAudio.PlaySfx("deck_remove");
-            GameLog.Info("Deleted: " + filePath);
+            GameLog.Event(LogCategory.Deck, "deck_deleted", "path", filePath);
             if (DeckStorage.SamePath(DeckStorage.SavedBattleDeck, filePath))
                 SetBattleDeck(null);
 
@@ -361,7 +361,7 @@ namespace Gwent.DeckBuilding
                 RejectName("Could not save the deck");
                 return;
             }
-            GameLog.Info("Preset edited, saved as: " + path);
+            GameLog.Event(LogCategory.Deck, "preset_copied", "path", path);
             GameAudio.PlaySfx("deck_save");
             my_deck = copy;
             currentDeckPath = path;
@@ -409,7 +409,7 @@ namespace Gwent.DeckBuilding
         private void SetBattleDeck(string path)
         {
             DeckStorage.SaveBattleDeck(path);
-            GameLog.Info("Battle deck: " + (path ?? "default"));
+            GameLog.Event(LogCategory.Deck, "battle_deck_chosen", "path", path ?? "default");
         }
 
         // Line at the bottom of the screen telling which deck will be used in battle
@@ -462,7 +462,7 @@ namespace Gwent.DeckBuilding
             }
 
             if (DeckStorage.Save(deck, file_path))
-                GameLog.Info("Deck saved correctly under: " + file_path);
+                GameLog.Event(LogCategory.Deck, "deck_saved", "path", file_path, "cards", my_deck.Cards.Count, "leader", Db.Get(my_deck.Leader).name);
             else
                 UIOverlay.Toast("Could not save the deck");
         }

@@ -73,7 +73,7 @@ namespace Gwent.Battle
             if (instance == null)
                 instance = Create();
             instance.queue.Enqueue(new Notice { Emblem = emblem, Text = text, Duration = duration });
-            GameLog.Info("Banner: " + text);
+            GameLog.Event(LogCategory.Ui, "notice", "text", text);
         }
 
         // Drops every notice (the battle is over)

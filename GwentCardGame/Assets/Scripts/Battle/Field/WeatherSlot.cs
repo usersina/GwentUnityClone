@@ -44,9 +44,7 @@ namespace Gwent.Battle
                 }
                 if (controller.selectedCard == null)
                     return;
-                if (isWeatherCard && controller.TryPlaySelectedCardOnBoard())
-                    GameLog.Info("Player placing weather card !");
-                else
+                if (!(isWeatherCard && controller.TryPlaySelectedCardOnBoard()))
                     GameAudio.PlaySfx("invalid"); // only weather and scorch go on the weather board
             }
         }
