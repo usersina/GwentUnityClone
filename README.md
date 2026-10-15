@@ -11,7 +11,7 @@
 This is a fan remake of Gwent, the famous card game of The Witcher 3.
 I'm aware that CD PROJEKT RED made an official standalone Gwent, but it plays very differently. I'm enthusiastic about the original version and its mechanics, which is one of the reasons I got so immersed in the world of The Witcher 3. So here it is, made nearly from scratch in the Unity game engine.
 
-The card art comes from [matt77hias/Gwent](https://github.com/matt77hias/Gwent), which also explains the rules if you're new to the game.
+The card art comes from [matt77hias/Gwent](https://github.com/matt77hias/Gwent), which also explains the rules if you're new to the game. Skellige's cards (Blood and Wine) come from Black Swan's English print set, in the same style, as gathered by the community's [printing guide](https://www.reddit.com/r/gwent/comments/4rabye/another_guide_for_printing_gwent_cards_complete/) (King Bran with Black Swan's own fix).
 
 I made the original interface in Adobe Photoshop. Today most of it is drawn by the game's own sprite generator, next to some of The Witcher 3's own interface art and a few free assets (see [Credits](#credits)).
 
@@ -285,5 +285,5 @@ This is a non-commercial fan project.
 - The battle's smoke, flames and sparks are particles drawn in the interface by [ParticleEffectForUGUI](https://github.com/mob-sakai/ParticleEffectForUGUI) by mob-sakai (MIT), which the package manager fetches too; their textures are generated (**Gwent > UI > Regenerate Particle Art**).
 - The opponent decks (`Resources/Decks/AI`) are adapted from the default decks of [gwent-classic](https://github.com/asundr/gwent-classic) by Arun Sundaram (MIT with the Commons Clause), as kept in [gwent-classic-v3.1](https://github.com/RandomPianist/gwent-classic-v3.1); three were changed so that their leader suits their cards (see [The AI](#the-ai)).
 - The cards' names, strengths, abilities and copies follow the community's [Gwent Card List](https://docs.google.com/spreadsheets/d/15RUB-aG3Y2mRY3oWyNY1TlfDTRE-ySgNURUfTpMH0XQ/htmlview) spreadsheet, Blood and Wine's Skellige cards included.
-- The battle's notification emblems, ability flares, end of battle emblems, gems and row-score circles are The Witcher 3's own interface art, as extracted by gwent-classic (see `GwentCardGame/Assets/Resources/W3/CREDITS.md`).
+- The battle's notification emblems, ability flares, end of battle emblems, gems and row-score circles are The Witcher 3's own interface art, as extracted by gwent-classic (see `GwentCardGame/Assets/Resources/W3/CREDITS.md`); so are Skellige's card back and its abilities' glyphs (Berserker, Mardroeme, Skellige Storm, Avenger), set in this game's icon discs.
 - The table under the board is "Dark Wood" from [Poly Haven](https://polyhaven.com/a/dark_wood) (CC0); see `GwentCardGame/Assets/UI/Board/Sources/CREDITS.md`.
