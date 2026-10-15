@@ -67,9 +67,7 @@ namespace Gwent.UI
             Image backdrop = UIKit.NewImage(root, "Backdrop", UITheme.Current.radial, new Color(0, 0, 0, 0.75f));
             backdrop.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2300, CardHeight + 260));
             T carousel = root.gameObject.AddComponent<T>();
-            carousel.details = UIKit.NewImage(root, "Details", null, Color.white);
-            carousel.details.preserveAspect = true;
-            carousel.details.enabled = false;
+            carousel.details = UIKit.NewImage(root, "Details", null, Color.white); // the description box's place
             return carousel;
         }
 
@@ -172,10 +170,7 @@ namespace Gwent.UI
             if (id == detailsFor)
                 return;
             detailsFor = id;
-            string description = id >= 0 ? CardHover.EffectBoxPath(CardLibrary.Get().Get(id)) : null;
-            Sprite sprite = description != null ? SpriteCache.Load(description) : null;
-            details.sprite = sprite;
-            details.enabled = sprite != null;
+            DescriptionBox.Show(details, id >= 0 ? CardLibrary.Get().Get(id) : null);
         }
 
         // Puts an element of the carousel over a screen rectangle

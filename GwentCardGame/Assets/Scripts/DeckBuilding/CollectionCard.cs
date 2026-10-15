@@ -153,11 +153,8 @@ namespace Gwent.DeckBuilding
             cardDetails.SetActive(true);
             CardArt.Show(cardDetails.transform.Find("BigImage").GetComponent<Image>(), cardStats._id);
             // A plain unit has no description
-            string description = CardHover.EffectBoxPath(cardStats);
             GameObject effect = cardDetails.transform.Find("BigEffect").gameObject;
-            effect.SetActive(description != null);
-            if (description != null)
-                effect.GetComponent<Image>().sprite = SpriteCache.Load(description);
+            effect.SetActive(DescriptionBox.Show(effect.GetComponent<Image>(), cardStats));
         }
 
     }

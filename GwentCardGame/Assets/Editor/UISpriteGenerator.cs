@@ -374,8 +374,8 @@ namespace Gwent.EditorTools
         }
 
         //----------------------------------------The rules page (How to play)----------------------------------------//
-        // Each ability's and special card's icon as the game shows it in its description box (Cards/EffectBox: a white disc
-        // with a black glyph), set in a bevelled gold ring over a soft shadow, as The Witcher 3's rule cards show them
+        // Each ability's and special card's icon as the game shows it in its description box (Cards/DescriptionIcon: a white
+        // disc with a black glyph), set in a bevelled gold ring over a soft shadow, as The Witcher 3's rule cards show them
         public const string RulesFolder = "Assets/Resources/UI/Rules";
         public static readonly string[] RuleMedallions = { "spy", "medic", "muster", "tight_bond", "morale_boost", "commander_horn", "scorch", "agile",
             "biting_frost", "impenetrable_fog", "torrential_rain", "clear_weather", "decoy" };
@@ -395,10 +395,10 @@ namespace Gwent.EditorTools
         private static void RuleMedallion(string name)
         {
             Texture2D source = new Texture2D(2, 2);
-            source.LoadImage(File.ReadAllBytes("Assets/Resources/Cards/EffectBox/" + name + ".png"));
-            // The icon's disc in a description box: centred 52.5, 49.5 px from the top left, its white 29 px in radius;
-            // sampled a little inside its edge so none of the box's dark shows
-            const float icon_x = 52.5f, icon_y = 49.5f, icon_radius = 27.5f;
+            source.LoadImage(File.ReadAllBytes("Assets/Resources/Cards/DescriptionIcon/" + name + ".png"));
+            // The icon's disc: centred in its 64 px, its white 29 px in radius; sampled a little inside its edge so none of
+            // its antialiased rim shows
+            const float icon_x = 32f, icon_y = 32f, icon_radius = 27.5f;
             const int size = 160;
             const float c = size / 2f, disc = 52, outer = 66;
             Color ring_gold = new Color32(0xD8, 0x96, 0x3C, 0xFF);

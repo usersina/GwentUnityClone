@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
@@ -48,8 +49,7 @@ namespace Gwent.DeckBuilding
                 GameObject instantiatedLeader = Instantiate(leaderWPrefab);
                 instantiatedLeader.GetComponent<LeaderWindow>().leaderId = leaders_list[i];
                 CardArt.Show(instantiatedLeader.transform.Find("LImage").GetComponent<Image>(), leaders_list[i]);
-                instantiatedLeader.transform.Find("LEffect").GetComponent<Image>().sprite =
-                    SpriteCache.Load("Cards/EffectBox/Leader/" + leaders_list[i]);
+                DescriptionBox.Show(instantiatedLeader.transform.Find("LEffect").GetComponent<Image>(), CardLibrary.Get().Get(leaders_list[i]));
                 instantiatedLeader.transform.SetParent(contentGO.transform, false);
             }
         }

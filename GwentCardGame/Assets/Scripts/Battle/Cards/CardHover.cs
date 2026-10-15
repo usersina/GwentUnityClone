@@ -181,37 +181,17 @@ namespace Gwent.Battle
             bigImage.transform.SetParent(Canvas.transform, false);
             CardArt.Show(bigImage.GetComponent<Image>(), cardStats._id);
             // A plain unit has no description (The Witcher 3)
-            string description = EffectBoxPath(cardStats);
-            if (description != null)
+            if (CardDescription.For(cardStats) != null)
             {
                 bigEffect = Instantiate(BigEffect);
                 bigEffect.transform.SetParent(Canvas.transform, false);
-                bigEffect.GetComponent<Image>().sprite = SpriteCache.Load(description);
+                DescriptionBox.Show(bigEffect.GetComponent<Image>(), cardStats);
             }
             // Only a preview: it must never catch clicks meant for what is under it
             foreach (GameObject part in new[] { bigImage, bigEffect })
                 if (part != null)
                     foreach (Graphic graphic in part.GetComponentsInChildren<Graphic>())
                         graphic.raycastTarget = false;
-        }
-
-        // Description box shown next to the big card (also used by the deck builder and the redraw carousel); null for a
-        // plain unit, which has none in The Witcher 3 (only abilities, heroes, agile units, special cards and leaders do)
-        public static string EffectBoxPath(Card card)
-        {
-            if (card.faction == Faction.Special)
-                return "Cards/EffectBox/" + card._idstr;
-            if (card.ability == Ability.Leader)
-                return "Cards/EffectBox/Leader/" + card._id;
-            if (card.ability != Ability.None)
-                return "Cards/EffectBox/" + card.ability.Code();
-            if (AbilityRules.AvengerOf(card._id) != -1)
-                return "Cards/EffectBox/avenger"; // the Cow: what it calls, and when
-            if (card.unique)
-                return "Cards/EffectBox/hero";
-            if (card.row == Row.Agile)
-                return "Cards/EffectBox/agile";
-            return null;
         }
     }
 }

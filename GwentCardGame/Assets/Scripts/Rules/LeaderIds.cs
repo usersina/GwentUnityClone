@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Gwent.Rules
 {
-    // Leader ids, named after the card (see Resources/Cards/EffectBox/Leader/<id> for the in-game text)
+    // Leader ids, named after the card (see Battle/Cards/CardDescription for the in-game text)
     public static class LeaderIds
     {
         public const int EmhyrEmperorOfNilfgaard = 33;      // Look at 3 random cards from the opponent's hand

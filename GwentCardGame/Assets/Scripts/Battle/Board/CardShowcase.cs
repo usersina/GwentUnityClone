@@ -131,14 +131,14 @@ namespace Gwent.Battle
             glide = CardMotion.GlideOver(showcase, () => LayoutToScreen(target), GlideSeconds, () =>
             {
                 // Its description, under it (a plain unit has none)
-                string description = CardHover.EffectBoxPath(card);
-                if (shown != showcase || description == null)
+                if (shown != showcase || CardDescription.For(card) == null)
                     return;
                 RectTransform layout = Layout(false);
-                Image text = UIKit.NewImage(CardMotion.Layer, "CardShowcaseText", SpriteCache.Load(description), Color.white);
+                Image text = UIKit.NewImage(CardMotion.Layer, "CardShowcaseText", null, Color.white);
                 text.rectTransform.anchorMin = text.rectTransform.anchorMax = text.rectTransform.pivot = new Vector2(0.5f, 0.5f);
                 text.rectTransform.anchoredPosition = layout.anchoredPosition;
                 text.rectTransform.sizeDelta = layout.sizeDelta;
+                DescriptionBox.Show(text, card);
                 UIMotion.Appear(text.gameObject);
                 box = text.gameObject;
             });
