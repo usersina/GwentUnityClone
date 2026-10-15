@@ -14,7 +14,7 @@ public static class CardLibrary
 
         if (source == null)
             source = Resources.Load<TextAsset>(DefaultResourcePath);
-        CardsDB cards_db = JsonUtility.FromJson<CardsDB>(source.text);
+        CardsFile cards_db = JsonUtility.FromJson<CardsFile>(source.text);
         database = new CardDatabase(cards_db.Cards);
         return database;
     }

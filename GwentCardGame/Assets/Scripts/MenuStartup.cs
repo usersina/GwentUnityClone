@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Lives in the Menu scene: prepares the deck folders and remembers the deck used in battle
-public class ApplicationModel : MonoBehaviour
+public class MenuStartup : MonoBehaviour
 {
     static public string playerDeckPath;
 

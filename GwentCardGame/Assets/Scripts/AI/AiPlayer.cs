@@ -7,7 +7,7 @@ using UnityEngine;
 
 // Plays the opponent's side. Decisions come from Gwent.Rules.AiBrain at the difficulty of the settings; this class
 // only executes them, and always ends the AI's turn (falls back to passing if an action cannot be carried out).
-public class AIManager : MonoBehaviour
+public class AiPlayer : MonoBehaviour
 {
     // A move being decided. Easy and Normal decide at once; Hard plays battles out on its own copy of the board while
     // the turn's notice shows: on another thread, or in a browser (no other thread) a few milliseconds every frame.
@@ -38,7 +38,7 @@ public class AIManager : MonoBehaviour
 
         public bool Done { get { return thinking != null ? thinking.IsCompleted : slices == null || slices.Done || failed; } }
 
-        // A slice of the thinking (every frame, by AIManager.Update)
+        // A slice of the thinking (every frame, by AiPlayer.Update)
         public void Advance()
         {
             if (slices == null || slices.Done || failed)
@@ -93,11 +93,11 @@ public class AIManager : MonoBehaviour
             pending.Advance();
     }
 
-    private SceneController controller;
+    private BattleController controller;
 
-    public void AIInitialize()
+    public void Initialize()
     {
-        controller = GetComponent<SceneController>();
+        controller = GetComponent<BattleController>();
         if (controller == null)
             Debug.LogError("Could not initialize AI, scene controller not found!");
     }
@@ -107,7 +107,7 @@ public class AIManager : MonoBehaviour
     // - the extra members of a muster family: the one kept calls them from the deck anyway
     // - then plain units weaker than an average unit of the deck
     // (Easy keeps the hand it was dealt, as a beginner would)
-    public void AIExchangeCards()
+    public void ExchangeCards()
     {
         PlayerState ai = controller.EnemyInfo;
         CardDatabase db = controller.Db;
@@ -154,10 +154,10 @@ public class AIManager : MonoBehaviour
     }
 
     // The AI's turn: exactly one action, decided (the battle shows it), then carried out; the turn then passes
-    public Decision AIDecide()
+    public Decision StartDecision()
     {
         if (controller == null)
-            AIInitialize();
+            Initialize();
         AiContext ctx = BuildContext();
         if (ctx.Difficulty != AiDifficulty.Hard)
             return pending = new Decision(Decide(ctx));
@@ -194,10 +194,10 @@ public class AIManager : MonoBehaviour
         }
     }
 
-    public void AIExecute(AiAction action)
+    public void Play(AiAction action)
     {
         if (controller == null)
-            AIInitialize();
+            Initialize();
         GameLog.Info("AI: " + action);
 
         bool done;
@@ -208,11 +208,11 @@ public class AIManager : MonoBehaviour
         catch (Exception e)
         {
             Debug.LogError("AI action failed: " + e);
-            done = controller.battleState != BattleState.ENEMYTURN;
+            done = controller.battleState != BattleState.EnemyTurn;
         }
 
         // Never leave the game waiting on the AI
-        if (!done && controller.battleState == BattleState.ENEMYTURN)
+        if (!done && controller.battleState == BattleState.EnemyTurn)
             controller.SkipTurn(false);
     }
 
@@ -272,7 +272,7 @@ public class AIManager : MonoBehaviour
                 if (!controller.CanUseLeader(false))
                     return false;
                 controller.ActivateLeader(ai.Leader, false);
-                return controller.battleState != BattleState.ENEMYTURN || !ai.canLeader;
+                return controller.battleState != BattleState.EnemyTurn || !ai.canLeader;
 
             default:
                 controller.SkipTurn(false);

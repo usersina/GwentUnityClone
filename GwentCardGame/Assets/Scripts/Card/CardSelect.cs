@@ -7,14 +7,14 @@ using Gwent.Rules;
 public class CardSelect : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
 
     // Needs to be false if placed on the field
     public bool isSelectable;
 
     void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -26,12 +26,12 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
     public void OnCardSelect()
     {
         if (controller == null)
-            controller = SceneController.Instance;
+            controller = BattleController.Instance;
 
         if (isSelectable)
         {
             // A hand card while the opponent plays: not now
-            if (controller.battleState == BattleState.ENEMYTURN && gameObject.CompareTag("Player"))
+            if (controller.battleState == BattleState.EnemyTurn && gameObject.CompareTag("Player"))
             {
                 GameAudio.PlaySfx("invalid");
                 return;
@@ -41,19 +41,19 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
             if (controller.IsPlayerActionAllowed && gameObject.CompareTag("Player") && !controller.PlayerInfo.CanDiscard)
             {
                 // Lightoff any previous fields
-                controller.LightoffField(true);
-                controller.LightoffField(false);
+                controller.LightOffField(true);
+                controller.LightOffField(false);
                 GameAudio.PlaySfx("card_select");
                 if (!CheckSameCard())
                 {
                     CardHover hover = gameObject.GetComponent<CardHover>();
-                    CardStats stats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+                    CardStats stats = gameObject.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
                     hover.isHoverable = false;
                     hover.TranslateUp();
                     hover.DestroyEffect();
                     controller.selectedCard = gameObject;
                     // The card goes to the showcase while its place is chosen (The Witcher 3)
-                    CardShowcase.Select(gameObject, controller.GetCardStats(stats._id));
+                    CardShowcase.Select(gameObject, controller.GetCard(stats._id));
                     // Hightlights the appropriate field based on: Card Faction AND Card Row
                     controller.HighlightField(stats, true);
                 }
@@ -77,10 +77,10 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
 
         // A card already on a row or the weather board, with a card selected (or the leader chosen): the click counts
         // for the row (or the weather board) under it, so full rows still take the selected card
-        if ((controller.selectedCard != null || controller.LeaderSelected) && controller.battleState == BattleState.PLAYERTURN)
+        if ((controller.selectedCard != null || controller.LeaderSelected) && controller.battleState == BattleState.PlayerTurn)
         {
             RowClick row = GetComponentInParent<RowClick>();
-            WeatherManager weather = GetComponentInParent<WeatherManager>();
+            WeatherSlot weather = GetComponentInParent<WeatherSlot>();
             if (row != null)
                 row.OnRowClick();
             else if (weather != null)
@@ -92,14 +92,14 @@ public class CardSelect : MonoBehaviour, IPointerClickHandler
 
     private bool TryActivateLeaderCard()
     {
-        if (controller.battleState != BattleState.PLAYERTURN || !gameObject.CompareTag("Player"))
+        if (controller.battleState != BattleState.PlayerTurn || !gameObject.CompareTag("Player"))
             return false;
 
-        CardStats cardStats = gameObject.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        CardStats cardStats = gameObject.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
         if (cardStats.ability != Abilities.Leader)
             return false;
 
-        LeaderManager leaderManager = GetComponentInParent<LeaderManager>();
+        LeaderSlot leaderManager = GetComponentInParent<LeaderSlot>();
         if (leaderManager == null)
             return false;
 

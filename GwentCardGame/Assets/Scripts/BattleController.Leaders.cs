@@ -4,20 +4,20 @@ using Gwent.Rules;
 using UnityEngine;
 
 // The battle's pickers (panels of cards to choose from) and leader abilities
-public partial class SceneController
+public partial class BattleController
 {
     //----------------------------------------------PANELS (pickers)---------------------------------------------------//
-    private PanelManager OpenPanel()
+    private BattlePickers OpenPanel()
     {
         pendingAction = PendingAction.PanelChoice;
         Panel.SetActive(true);
-        return Panel.GetComponent<PanelManager>();
+        return Panel.GetComponent<BattlePickers>();
     }
 
     // A card was chosen in a "play" panel (medic / weather from deck): it is moved to the hand, then placed on the board
-    public void PlayBtnCleanUp(string field, int card_id, bool is_player_turn)
+    public void TakePickedCardToPlay(string field, int card_id, bool is_player_turn)
     {
-        MainInfo info = Info(is_player_turn);
+        BattleSide info = Info(is_player_turn);
         GameLog.Info("Playing from: " + field);
         switch (field)
         {
@@ -37,16 +37,16 @@ public partial class SceneController
     }
 
     // A card was chosen in a "draw" panel (leader abilities): it goes to the hand and the turn ends
-    public void ActuallyPickCard(string field, int card_id, bool is_player_turn)
+    public void PickCardToHand(string field, int card_id, bool is_player_turn)
     {
         TakeToHand(field, card_id, is_player_turn);
-        TurnCallBack(is_player_turn);
+        EndTurn(is_player_turn);
     }
 
     private void TakeToHand(string field, int card_id, bool is_player_turn)
     {
-        MainInfo info = Info(is_player_turn);
-        MainInfo opp_info = Opponent(is_player_turn);
+        BattleSide info = Info(is_player_turn);
+        BattleSide opp_info = Opponent(is_player_turn);
 
         GameLog.Info("Picking from: " + field);
         switch (field)
@@ -77,8 +77,8 @@ public partial class SceneController
         GameAudio.PlaySfx("ui_click");
         DeselectCard();
         RefreshBoard();
-        if (battleState == BattleState.PLAYERTURN)
-            TurnCallBack(true);
+        if (battleState == BattleState.PlayerTurn)
+            EndTurn(true);
         else
             pendingAction = PendingAction.None;
     }
@@ -86,7 +86,7 @@ public partial class SceneController
     // Discard (Eredin, Destroyer of Worlds: discard 2 then pick 1 from the deck)
     public void DiscardCard(int card_id, bool is_player_card)
     {
-        MainInfo info = Info(is_player_card);
+        BattleSide info = Info(is_player_card);
         if (!info.HandList.Remove(card_id))
             return;
 
@@ -97,14 +97,14 @@ public partial class SceneController
     }
 
     // Initialize the Deck List on screen
-    public void DeckCardPicker(bool is_player_turn)
+    public void OpenDeckPicker(bool is_player_turn)
     {
-        MainInfo info = Info(is_player_turn);
+        BattleSide info = Info(is_player_turn);
         info.CanDiscard = false;
         if (info.DeckList.Count > 0)
             OpenPanel().ShowToDraw("deck_list", info.DeckList, is_player_turn);
         else
-            TurnCallBack(is_player_turn);
+            EndTurn(is_player_turn);
     }
 
     //----------------------------------------------LEADERS---------------------------------------------------//
@@ -195,8 +195,8 @@ public partial class SceneController
             card.GetComponent<CardHover>().TranslateDown();
         board.UnmarkLeaderTargets(leaderTargets);
         leaderTargets.Clear();
-        LightoffField(true);
-        LightoffField(false);
+        LightOffField(true);
+        LightOffField(false);
     }
 
     // The player's leader card on the board
@@ -208,10 +208,10 @@ public partial class SceneController
 
     public bool CanUseLeader(bool is_player)
     {
-        MainInfo info = Info(is_player);
+        BattleSide info = Info(is_player);
         if (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Rows.LeaderActive)
             return false;
-        return is_player ? IsPlayerActionAllowed : battleState == BattleState.ENEMYTURN;
+        return is_player ? IsPlayerActionAllowed : battleState == BattleState.EnemyTurn;
     }
 
     // Activate the leader's ACTIVE ability. Does nothing (and keeps the leader) when it would have no effect.
@@ -255,14 +255,14 @@ public partial class SceneController
 
         // Pending abilities end the turn once their choice is made
         if (outcome == LeaderOutcome.Instant)
-            Present(change, presenter.Play(change, -1, is_player_turn, false), () => TurnCallBack(is_player_turn));
+            Present(change, presenter.Play(change, -1, is_player_turn, false), () => EndTurn(is_player_turn));
         else
             change.Flush();
     }
 
     private LeaderOutcome ApplyLeader(int leader_id, bool is_player_turn, out string reason)
     {
-        MainInfo info = Info(is_player_turn);
+        BattleSide info = Info(is_player_turn);
 
         // An ability that would do nothing is not used (The Witcher 3): the leader stays available
         reason = LeaderRules.Unavailable(CurrentBoard(), leader_id, is_player_turn);
@@ -338,7 +338,7 @@ public partial class SceneController
     // View random cards from the opponent's hand; false when the hand is empty
     public bool LookHandRandom(int cards_num, bool is_player_turn)
     {
-        MainInfo opp_info = Opponent(is_player_turn);
+        BattleSide opp_info = Opponent(is_player_turn);
         if (!is_player_turn || opp_info.HandList.Count < 1)
             return false;
         List<int> random_list = Rng.Shuffle(opp_info.HandList).Take(cards_num).ToList();

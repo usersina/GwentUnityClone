@@ -4,17 +4,17 @@ using UnityEngine.UI;
 
 // Scoia'tael's perk: the player decides who takes the first turn. A themed dialog over the dimmed board, built
 // the first time the picker shows.
-public class TurnManager : MonoBehaviour
+public class FirstTurnPicker : MonoBehaviour
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
 
     private GameObject dialog;
     private Button goFirst;
 
     private void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     private void OnEnable()
@@ -46,7 +46,7 @@ public class TurnManager : MonoBehaviour
     public void GoFirst()
     {
         if (controller == null)
-            controller = SceneController.Instance;
+            controller = BattleController.Instance;
         GameLog.Info("Going First");
         controller.ChooseFirstPlayer(true);
         Close();
@@ -55,7 +55,7 @@ public class TurnManager : MonoBehaviour
     public void GoSecond()
     {
         if (controller == null)
-            controller = SceneController.Instance;
+            controller = BattleController.Instance;
         GameLog.Info("Going Second");
         controller.ChooseFirstPlayer(false);
         Close();

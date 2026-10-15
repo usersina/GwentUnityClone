@@ -40,7 +40,7 @@ public class BattleKeys : MonoBehaviour
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        SceneController battle = SceneController.Instance;
+        BattleController battle = BattleController.Instance;
         if (keyboard == null || battle == null || UIOverlay.HasModal)
             return;
 
@@ -80,7 +80,7 @@ public class BattleKeys : MonoBehaviour
     }
 
     // As a click on the leader: the first chooses it, the second uses it
-    private void LeaderKey(SceneController battle)
+    private void LeaderKey(BattleController battle)
     {
         Unfocus();
         battle.LeaderClicked();
@@ -90,17 +90,17 @@ public class BattleKeys : MonoBehaviour
 
     //----------------------------------------The hand----------------------------------------//
     // The hand's cards from left to right (not the room kept for a card that just left)
-    private static List<GameObject> HandCards(SceneController battle)
+    private static List<GameObject> HandCards(BattleController battle)
     {
         List<GameObject> hand = new List<GameObject>();
         foreach (Transform child in battle.PlayerField.transform.Find("Hand"))
-            if (child.GetComponent<CardDisplay>() != null && child.gameObject.activeSelf)
+            if (child.GetComponent<CardFace>() != null && child.gameObject.activeSelf)
                 hand.Add(child.gameObject);
         return hand;
     }
 
     // The next card to the left or right (from the selected card, else the one the keys are on, else an end)
-    private void StepHand(SceneController battle, int step)
+    private void StepHand(BattleController battle, int step)
     {
         if (battle.pendingAction != PendingAction.None && battle.pendingAction != PendingAction.DiscardCards)
             return;
@@ -138,7 +138,7 @@ public class BattleKeys : MonoBehaviour
         focused = null;
     }
 
-    private void EnterKey(SceneController battle)
+    private void EnterKey(BattleController battle)
     {
         if (battle.LeaderSelected)
         {
@@ -165,14 +165,14 @@ public class BattleKeys : MonoBehaviour
     //----------------------------------------Places----------------------------------------//
     // Where the selected card can go, from the top of the board down: the lit rows (both sides: spies), the lit
     // weather board, the units framed for a decoy
-    private static List<GameObject> Places(SceneController battle)
+    private static List<GameObject> Places(BattleController battle)
     {
         List<GameObject> places = new List<GameObject>();
         if (!battle.IsSelectedCardPlayable())
             return places;
         places.AddRange(battle.PlayerField.GetComponent<RowPicker>().highLightedRows);
         places.AddRange(battle.EnemyField.GetComponent<RowPicker>().highLightedRows);
-        if (battle.WeatherField.GetComponent<WeatherManager>().isWeatherCard)
+        if (battle.WeatherField.GetComponent<WeatherSlot>().isWeatherCard)
             places.Add(battle.WeatherField);
         places.AddRange(battle.PlayerField.GetComponentsInChildren<Transform>()
             .Where(t => t.name == BoardView.DecoyFrame).Select(t => t.parent.gameObject));
@@ -180,7 +180,7 @@ public class BattleKeys : MonoBehaviour
             .ThenBy(p => CardMotion.ScreenRect((RectTransform)p.transform).center.x).ToList();
     }
 
-    private void StepPlace(SceneController battle, int step)
+    private void StepPlace(BattleController battle, int step)
     {
         List<GameObject> places = Places(battle);
         if (places.Count == 0)
@@ -215,18 +215,18 @@ public class BattleKeys : MonoBehaviour
                 side.gameObject.AddComponent<UIPulse>();
     }
 
-    private static void PlayOn(SceneController battle, GameObject target)
+    private static void PlayOn(BattleController battle, GameObject target)
     {
         RowClick row = target.GetComponent<RowClick>();
         if (row != null)
             row.OnRowClick();
         else if (target == battle.WeatherField)
-            target.GetComponent<WeatherManager>().OnWeatherClick();
+            target.GetComponent<WeatherSlot>().OnWeatherClick();
         else
             battle.TryPlaySelectedDecoyOnCard(target);
     }
 
-    private static void PlayWhereItFits(SceneController battle)
+    private static void PlayWhereItFits(BattleController battle)
     {
         if (!battle.IsSelectedCardPlayable())
             return;

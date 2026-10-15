@@ -1702,7 +1702,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 478145757}
-        m_TargetAssemblyTypeName: CollectionManager, Assembly-CSharp
+        m_TargetAssemblyTypeName: CardGrid, Assembly-CSharp
         m_MethodName: UpdateSelectedFaction
         m_Mode: 1
         m_Arguments:
@@ -1714,7 +1714,7 @@ MonoBehaviour:
           m_BoolArgument: 0
         m_CallState: 2
       - m_Target: {fileID: 310488422}
-        m_TargetAssemblyTypeName: CollectionManager, Assembly-CSharp
+        m_TargetAssemblyTypeName: CardGrid, Assembly-CSharp
         m_MethodName: UpdateSelectedFaction
         m_Mode: 1
         m_Arguments:

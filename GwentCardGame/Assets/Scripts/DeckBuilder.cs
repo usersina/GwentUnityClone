@@ -8,16 +8,16 @@ using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
 // Deck builder: owns the card database, the deck files and the currently edited deck
-public class DeckController : MonoBehaviour
+public class DeckBuilder : MonoBehaviour
 {
     public const string EmptyDeckResourcePath = "resource://Decks/__empty__";
     private const string PlayerDeckPrefKey = "playerDeckPath";
 
-    public static DeckController Instance { get; private set; }
+    public static DeckBuilder Instance { get; private set; }
 
     public TextAsset CardsDatabase;
-    public MiddleManager middleManager;
-    public CollectionManager deckCollection;
+    public DeckSummary middleManager;
+    public CardGrid deckCollection;
 
     public string currentDeckPath;
 
@@ -52,9 +52,9 @@ public class DeckController : MonoBehaviour
 
         // Get Player Deck
         currentDeckPath = EmptyDeckResourcePath;
-        if (DeckStorage.Exists(ApplicationModel.playerDeckPath)) // a deck file, or a preset
-            currentDeckPath = ApplicationModel.playerDeckPath;
-        GameLog.Info("DeckController: Current deck path is: " + currentDeckPath);
+        if (DeckStorage.Exists(MenuStartup.playerDeckPath)) // a deck file, or a preset
+            currentDeckPath = MenuStartup.playerDeckPath;
+        GameLog.Info("DeckBuilder: Current deck path is: " + currentDeckPath);
 
         my_deck = LoadDeckFromPath(currentDeckPath);
         if (my_deck == null)
@@ -71,7 +71,7 @@ public class DeckController : MonoBehaviour
     // for the first faction, the header only places itself in its Start)
     private void OpenOnDeckFaction()
     {
-        foreach (CollectionManager collection in FindObjectsByType<CollectionManager>())
+        foreach (CardGrid collection in FindObjectsByType<CardGrid>())
             collection.OpenOn(my_deck.Faction);
     }
 
@@ -163,7 +163,7 @@ public class DeckController : MonoBehaviour
         }
     }
 
-    public Card GetCardStats(int card_id)
+    public Card GetCard(int card_id)
     {
         return Db.Get(card_id);
     }
@@ -409,7 +409,7 @@ public class DeckController : MonoBehaviour
         else
             PlayerPrefs.SetString(PlayerDeckPrefKey, path);
         PlayerPrefs.Save();
-        ApplicationModel.playerDeckPath = string.IsNullOrEmpty(path) ? null : path;
+        MenuStartup.playerDeckPath = string.IsNullOrEmpty(path) ? null : path;
         GameLog.Info("Battle deck: " + (path ?? "default"));
     }
 
@@ -426,7 +426,7 @@ public class DeckController : MonoBehaviour
             battleDeckStatus.fontSizeMax = 26;
         }
 
-        string battle_path = ApplicationModel.playerDeckPath;
+        string battle_path = MenuStartup.playerDeckPath;
         Deck battle_deck = DeckStorage.Exists(battle_path) ? DeckStorage.Load(battle_path) : null;
         string battle_name = battle_deck == null ? "default (Northern Realms)" : battle_deck.Name + (OpponentDecks.IsPreset(battle_path) ? " (preset)" : "");
 

@@ -16,7 +16,7 @@ public class RedrawPicker : CardCarousel
 
     private static RedrawPicker current;
 
-    private SceneController controller;
+    private BattleController controller;
     private TextMeshProUGUI counter;
     private int counterShows = -1;
     private float lastRedraw = float.NegativeInfinity;
@@ -44,7 +44,7 @@ public class RedrawPicker : CardCarousel
 
     // The whole redraw phase UI: a dark band "Choose a card to redraw. 0/2" (with the Done button) above the
     // carousel. Returns its root, which the battle destroys when the phase ends.
-    public static GameObject ShowPhase(SceneController controller)
+    public static GameObject ShowPhase(BattleController controller)
     {
         RectTransform root = UIKit.Rect("MulliganPrompt", UIOverlay.Root).Stretch();
         string how = GameInput.IsTouch
@@ -65,7 +65,7 @@ public class RedrawPicker : CardCarousel
         return root.gameObject;
     }
 
-    public static RedrawPicker Create(Transform parent, SceneController controller, Vector2 center)
+    public static RedrawPicker Create(Transform parent, BattleController controller, Vector2 center)
     {
         RedrawPicker picker = Create<RedrawPicker>(parent, center);
         picker.name = "RedrawPicker";

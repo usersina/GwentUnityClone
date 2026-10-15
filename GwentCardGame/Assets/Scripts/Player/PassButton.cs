@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // Hold to pass: the left button (or a finger) on the button, or the Space key as in The Witcher 3
-public class PassManager : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+public class PassButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
 {
     private bool pointerDown;
     private float pointerDownTimer;

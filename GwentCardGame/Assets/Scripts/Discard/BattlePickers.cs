@@ -6,7 +6,7 @@ using UnityEngine.UI;
 // The battle's card pickers (a medic's revival, the leaders' picks, Emhyr's look at the opponent's hand), shown as The
 // Witcher 3 does: the carousel under a title band (CardPicker). Skip (Close for a look) gives up the choice, so a picker
 // can never trap the player. The panel itself only keeps the board from taking clicks while it is open.
-public class PanelManager : MonoBehaviour
+public class BattlePickers : MonoBehaviour
 {
     private CardPicker picker;
     private readonly List<int> cards = new List<int>();
@@ -88,28 +88,28 @@ public class PanelManager : MonoBehaviour
     // Skip / Close: give up the choice and end the turn
     private void OnSkip()
     {
-        SceneController.Instance.CancelPanel();
+        BattleController.Instance.CancelPanel();
     }
 
     // A card was picked
     public void Choose(int card_id)
     {
-        SceneController controller = SceneController.Instance;
+        BattleController controller = BattleController.Instance;
         switch (type)
         {
             // A medic or a weather leader: the card is placed on the board next
             case "play":
                 GameAudio.PlaySfx("ability_medic");
                 GameLog.Info("Choosing card to play: " + card_id);
-                controller.PlayBtnCleanUp(field, card_id, isPlayerCard);
-                GameObject card = controller.CreateCardObject(controller.GetCardStats(card_id), isPlayerCard);
+                controller.TakePickedCardToPlay(field, card_id, isPlayerCard);
+                GameObject card = controller.CreateCardObject(controller.GetCard(card_id), isPlayerCard);
                 card.transform.SetParent(controller.TempObject != null ? controller.TempObject.transform : null, false);
                 controller.selectedCard = card;
-                controller.HighlightField(card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>(), isPlayerCard);
+                controller.HighlightField(card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>(), isPlayerCard);
                 controller.ShowcasePicked(card_id, field, isPlayerCard);
                 controller.SetHider(true);
                 gameObject.SetActive(false);
-                UIOverlay.Toast("Now choose where to play " + controller.GetCardStats(card_id).name);
+                UIOverlay.Toast("Now choose where to play " + controller.GetCard(card_id).name);
                 break;
 
             // A leader's pick: the card goes to the hand and the turn ends
@@ -117,14 +117,14 @@ public class PanelManager : MonoBehaviour
                 GameAudio.PlaySfx("card_draw");
                 GameLog.Info("Choosing on: " + card_id);
                 gameObject.SetActive(false);
-                controller.ActuallyPickCard(field, card_id, isPlayerCard);
+                controller.PickCardToHand(field, card_id, isPlayerCard);
                 break;
 
             // Emhyr's look at the opponent's hand
             default:
                 GameAudio.PlaySfx("card_select");
                 gameObject.SetActive(false);
-                controller.TurnCallBack(isPlayerCard);
+                controller.EndTurn(isPlayerCard);
                 break;
         }
     }

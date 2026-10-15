@@ -1,14 +1,14 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using Gwent.Rules;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class MiddleManager : MonoBehaviour
+public class DeckSummary : MonoBehaviour
 {
-    public DeckController deckController;
-    public CollectionManager deckCollection;
+    public DeckBuilder deckController;
+    public CardGrid deckCollection;
     public GameObject leaderGo;
     public TMP_Dropdown deckPicker;
     public Deck loadedDeck;
@@ -28,7 +28,7 @@ public class MiddleManager : MonoBehaviour
                 text.fontSizeMax = text.fontSize;
                 text.fontSizeMin = 14;
             }
-        // DeckController loads everything in Awake; this only guards against a disabled controller
+        // DeckBuilder loads everything in Awake; this only guards against a disabled controller
         yield return new WaitUntil(() => deckController.IsReady);
         string selected_path = deckController.currentDeckPath;
         InitializeDeck();
@@ -85,7 +85,7 @@ public class MiddleManager : MonoBehaviour
         else
         {
             // Clear the collection (my_deck is empty at this point: Cleared from UpdateSelectedFaction)
-            deckCollection.OnDeckChange(deckController.my_deck, DeckController.EmptyDeckResourcePath, select_for_battle);
+            deckCollection.OnDeckChange(deckController.my_deck, DeckBuilder.EmptyDeckResourcePath, select_for_battle);
         }
         InitializeDeck();
     }
@@ -115,7 +115,7 @@ public class MiddleManager : MonoBehaviour
     // Sets the leader stats and ui
     public void UIUpdateLeader()
     {
-        Card leader_card = deckController.GetCardStats(loadedDeck.Leader);
+        Card leader_card = deckController.GetCard(loadedDeck.Leader);
         CardStats stats = leaderGo.GetComponent<CardStats>();
         stats.name = leader_card.name;
         stats._id = leader_card._id;

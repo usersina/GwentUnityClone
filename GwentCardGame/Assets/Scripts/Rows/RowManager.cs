@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -49,10 +49,10 @@ public class RowManager : MonoBehaviour
         yield return null; // This updates the new frame without eye perception (directly)
 
         // Only card children: the row also holds the weather overlay
-        List<CardDisplay> cards = new List<CardDisplay>();
+        List<CardFace> cards = new List<CardFace>();
         foreach (Transform child in unit_go.transform)
         {
-            CardDisplay display = child.GetComponent<CardDisplay>();
+            CardFace display = child.GetComponent<CardFace>();
             if (display != null)
                 cards.Add(display);
         }
@@ -65,7 +65,7 @@ public class RowManager : MonoBehaviour
         }
 
         bool[] used = new bool[card_ids.Count];
-        foreach (CardDisplay card in cards)
+        foreach (CardFace card in cards)
         {
             int id = card.cardStats.GetComponent<CardStats>()._id;
             int i = 0;

@@ -7,18 +7,18 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-public enum BattleState { START, PLAYERTURN, ENEMYTURN, ROUNDOVER, WON, LOST, DRAW }
+public enum BattleState { Start, PlayerTurn, EnemyTurn, RoundOver, Won, Lost, Draw }
 
 // A multi-step player action in progress. While one is pending the turn cannot end (pass / leader are blocked).
 public enum PendingAction { None, PanelChoice, PlacePickedCard, DiscardCards }
 
-// Runs the battle: setup, turns, rounds and playing cards (leaders and pickers: SceneController.Leaders.cs).
+// Runs the battle: setup, turns, rounds and playing cards (leaders and pickers: BattleController.Leaders.cs).
 // The rules themselves live in Gwent.Rules; BoardView draws the board from the model.
-public partial class SceneController : MonoBehaviour
+public partial class BattleController : MonoBehaviour
 {
     private const string DefaultDeckResource = "Decks/player_default";
 
-    public static SceneController Instance { get; private set; }
+    public static BattleController Instance { get; private set; }
 
     public BattleState battleState;
     public PendingAction pendingAction;
@@ -33,8 +33,8 @@ public partial class SceneController : MonoBehaviour
     public GameObject PlayerField;
     public GameObject EnemyField;
 
-    public MainInfo PlayerInfo;
-    public MainInfo EnemyInfo;
+    public BattleSide PlayerInfo;
+    public BattleSide EnemyInfo;
 
     // In-play related
     public GameObject TurnPicker;
@@ -50,7 +50,7 @@ public partial class SceneController : MonoBehaviour
     public CardDatabase Db { get; private set; }
     public GameObject TempObject { get; private set; }
 
-    private AIManager AIManager;
+    private AiPlayer ai;
     private BoardView board;
     private BoardPresenter presenter;
     private int presenting;           // plays being shown (the rules resolved them already)
@@ -65,7 +65,7 @@ public partial class SceneController : MonoBehaviour
     private string whiteFlameNotice;  // shown once the redraw is over
 
     [Serializable]
-    public class MainInfo : PlayerState
+    public class BattleSide : PlayerState
     {
         public string Name;
         public Image Avatar;
@@ -79,7 +79,7 @@ public partial class SceneController : MonoBehaviour
         TempObject = GameObject.Find("Temp");
         board = new BoardView(this);
         presenter = new BoardPresenter(this, board, Db);
-        AIManager = GetComponent<AIManager>();
+        ai = GetComponent<AiPlayer>();
     }
 
     private void OnDestroy()
@@ -91,7 +91,7 @@ public partial class SceneController : MonoBehaviour
         }
     }
 
-    public LeaderManager PlayerLeader { get { return View(true).Leader; } }
+    public LeaderSlot PlayerLeader { get { return View(true).Leader; } }
 
     private void Start()
     {
@@ -105,7 +105,7 @@ public partial class SceneController : MonoBehaviour
         GameLog.Info("Starting battle...");
         GameAudio.PlaySfx("game_start");
         UIOverlay.SetEscapeAction(OnEscape);
-        battleState = BattleState.START;
+        battleState = BattleState.Start;
         SetupBattle();
         StartCoroutine(BattleOpening());
     }
@@ -158,14 +158,14 @@ public partial class SceneController : MonoBehaviour
 
     private void Update()
     {
-        if (battleState == BattleState.START && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
+        if (battleState == BattleState.Start && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
         {
             GameLog.Info("Player has skipped cards exchanging !");
             FinishCardExchange();
         }
 
         // The pass button only exists during the player's turn, and not in the middle of a multi-step action
-        bool can_pass = battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None && presenting == 0;
+        bool can_pass = battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && presenting == 0;
         if (PassBtn.activeSelf != can_pass)
             PassBtn.SetActive(can_pass);
 
@@ -179,13 +179,13 @@ public partial class SceneController : MonoBehaviour
     }
 
     //----------------------------------------------Info helpers---------------------------------------------------//
-    private MainInfo Info(bool is_player) { return is_player ? PlayerInfo : EnemyInfo; }
-    private MainInfo Opponent(bool is_player) { return is_player ? EnemyInfo : PlayerInfo; }
+    private BattleSide Info(bool is_player) { return is_player ? PlayerInfo : EnemyInfo; }
+    private BattleSide Opponent(bool is_player) { return is_player ? EnemyInfo : PlayerInfo; }
     private BoardView.FieldView View(bool is_player) { return board.View(is_player); }
 
     public bool IsPlayerActionAllowed
     {
-        get { return battleState == BattleState.PLAYERTURN && pendingAction == PendingAction.None && presenting == 0; }
+        get { return battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && presenting == 0; }
     }
 
     // A play is being shown: nothing else can be done until it ends
@@ -225,7 +225,7 @@ public partial class SceneController : MonoBehaviour
     // The selected deck if it exists and is valid, else the built-in default deck
     private Deck LoadPlayerDeck()
     {
-        string path = ApplicationModel.playerDeckPath;
+        string path = MenuStartup.playerDeckPath;
         if (DeckStorage.Exists(path)) // a deck file, or a preset (an AI deck)
         {
             Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
@@ -242,7 +242,7 @@ public partial class SceneController : MonoBehaviour
     }
 
     // Prepares the field for the first time
-    private void PrepareField(Deck deck, MainInfo info, bool is_player_deck, bool white_flame)
+    private void PrepareField(Deck deck, BattleSide info, bool is_player_deck, bool white_flame)
     {
         info.Faction = deck.Faction;
         info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + deck.Faction);
@@ -294,7 +294,7 @@ public partial class SceneController : MonoBehaviour
     // Redraw: the deck's top card takes the card's place in the hand, the card goes to the bottom of the deck
     public void ExchangeCard(int card_id, bool is_player_card)
     {
-        MainInfo info = Info(is_player_card);
+        BattleSide info = Info(is_player_card);
         if (RoundRules.Redraw(info, card_id) == -1)
             return;
 
@@ -312,8 +312,8 @@ public partial class SceneController : MonoBehaviour
         if (EnemyInfo.CanExchange)
         {
             // Initialize AI (first turn only)
-            AIManager.AIInitialize();
-            AIManager.AIExchangeCards();
+            ai.Initialize();
+            ai.ExchangeCards();
         }
 
         // Wait for all players to either redraw or skip (and the last redrawn card to land), and for the end of the last
@@ -373,7 +373,7 @@ public partial class SceneController : MonoBehaviour
             yield break;
         GameLog.Info("Player Turn !");
         GameAudio.PlaySfx("turn_player");
-        battleState = BattleState.PLAYERTURN;
+        battleState = BattleState.PlayerTurn;
     }
 
     private IEnumerator EnemyTurn(int generation)
@@ -385,11 +385,11 @@ public partial class SceneController : MonoBehaviour
             CheckRoundEnd();
             yield break;
         }
-        battleState = BattleState.ENEMYTURN;
+        battleState = BattleState.EnemyTurn;
         AnnounceTurn(false);
         GameLog.Info("Enemy Turn !");
         GameAudio.PlaySfx("turn_enemy");
-        AIManager.Decision decision = AIManager.AIDecide(); // Hard thinks while the turn's notice shows
+        AiPlayer.Decision decision = ai.StartDecision(); // Hard thinks while the turn's notice shows
         yield return new WaitForSeconds(0.3f);
         while (!decision.Done || BattleBanner.Busy)
             yield return null;
@@ -410,7 +410,7 @@ public partial class SceneController : MonoBehaviour
                 yield break;
             }
         }
-        AIManager.AIExecute(action);
+        ai.Play(action);
     }
 
     // The Witcher 3's turn notices: each change of side. Not while the other side has passed: its pass was
@@ -437,7 +437,7 @@ public partial class SceneController : MonoBehaviour
     }
 
     // Ends whatever the given side was doing and hands the turn to the other side
-    public void TurnCallBack(bool is_player_turn)
+    public void EndTurn(bool is_player_turn)
     {
         CardShowcase.Clear();
         pendingAction = PendingAction.None;
@@ -446,7 +446,7 @@ public partial class SceneController : MonoBehaviour
         StartTurn(!is_player_turn);
     }
 
-    // Reference: PassManager event (hold to pass button)
+    // Reference: PassButton event (hold to pass button)
     public void SkipTurn(bool is_player_turn)
     {
         if (is_player_turn && !IsPlayerActionAllowed)
@@ -456,7 +456,7 @@ public partial class SceneController : MonoBehaviour
         }
 
         MarkPassed(is_player_turn);
-        TurnCallBack(is_player_turn);
+        EndTurn(is_player_turn);
     }
 
     // The Witcher 3: a side with no card in hand and no leader ability it could use right now passes automatically
@@ -482,7 +482,7 @@ public partial class SceneController : MonoBehaviour
     private void ManageOutcome()
     {
         StopTurn();
-        battleState = BattleState.ROUNDOVER;
+        battleState = BattleState.RoundOver;
         RecalculateStrengths();
         int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
         RoundWinner winner = RoundRules.DecideRound(player_total, enemy_total, PlayerInfo.Faction, EnemyInfo.Faction);
@@ -522,11 +522,11 @@ public partial class SceneController : MonoBehaviour
         View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
         if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
-            ConcludeBattle(BattleState.DRAW);
+            ConcludeBattle(BattleState.Draw);
         else if (EnemyInfo.Lives == 0)
-            ConcludeBattle(BattleState.WON);
+            ConcludeBattle(BattleState.Won);
         else if (PlayerInfo.Lives == 0)
-            ConcludeBattle(BattleState.LOST);
+            ConcludeBattle(BattleState.Lost);
         else
             PrepareNextRound(winner);
     }
@@ -585,7 +585,7 @@ public partial class SceneController : MonoBehaviour
     {
         get
         {
-            return battleState == BattleState.WON || battleState == BattleState.LOST || battleState == BattleState.DRAW
+            return battleState == BattleState.Won || battleState == BattleState.Lost || battleState == BattleState.Draw
                 || PlayerInfo.Lives == 0 || EnemyInfo.Lives == 0; // decided: the last round's result is showing
         }
     }
@@ -608,7 +608,7 @@ public partial class SceneController : MonoBehaviour
         pendingAction = PendingAction.None;
         DeselectCard();
         SetHider(false);
-        ConcludeBattle(BattleState.LOST, true);
+        ConcludeBattle(BattleState.Lost, true);
     }
 
     private void ConcludeBattle(BattleState outcome, bool gave_up = false)
@@ -618,15 +618,15 @@ public partial class SceneController : MonoBehaviour
         CardShowcase.Clear();
         CardMotion.ClearLayer();
         PostGame.SetActive(true);
-        PostGame.GetComponent<PostGameManager>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
-        if (outcome == BattleState.WON)
+        PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
+        if (outcome == BattleState.Won)
             GameAudio.PlaySfx("victory");
-        else if (outcome == BattleState.LOST)
+        else if (outcome == BattleState.Lost)
             GameAudio.PlaySfx("defeat");
     }
 
     // Draws up to num cards (fewer if the deck runs out), returns how many were drawn
-    private int DrawCards(int num, MainInfo info, bool is_player_deck)
+    private int DrawCards(int num, BattleSide info, bool is_player_deck)
     {
         int drawn = RoundRules.Draw(info, num);
         if (drawn == 0)
@@ -641,7 +641,7 @@ public partial class SceneController : MonoBehaviour
     // Directly places a specific card_go (from hand or picked from a panel) on a field_go
     public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
     {
-        CardStats card_stats = card_go.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        CardStats card_stats = card_go.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
         card_go.GetComponent<CardHover>().DestroyEffect();
         string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
 
@@ -656,7 +656,7 @@ public partial class SceneController : MonoBehaviour
     // pending)
     public void PlayCard(int card_id, string field_row, bool is_player_turn)
     {
-        MainInfo me = Info(is_player_turn);
+        BattleSide me = Info(is_player_turn);
         me.HandList.Remove(card_id);
         selectedCard = null;
         pendingAction = PendingAction.None;
@@ -682,7 +682,7 @@ public partial class SceneController : MonoBehaviour
                 SetHider(true);
                 return;
             }
-            TurnCallBack(is_player_turn);
+            EndTurn(is_player_turn);
         });
     }
 
@@ -787,7 +787,7 @@ public partial class SceneController : MonoBehaviour
         if (selectedStats.ability != Abilities.Decoy)
             return false;
 
-        CardStats targetStats = targetCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        CardStats targetStats = targetCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
         string row = targetCard.transform.parent.parent.name.ToLower();
         bool valid_target = targetCard.CompareTag("Player") && targetStats.faction != Factions.Special
             && !targetStats.unique && targetStats.ability != Abilities.Leader && Rows.IsUnitRow(row);
@@ -818,7 +818,7 @@ public partial class SceneController : MonoBehaviour
         PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
         RefreshBoard();
         BoardChange change = board.EndChange();
-        Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => TurnCallBack(is_player_card));
+        Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => EndTurn(is_player_card));
     }
 
     // Escape (the back button on Android) puts a selected card (or the chosen leader) back first, as in The Witcher 3;
@@ -841,13 +841,13 @@ public partial class SceneController : MonoBehaviour
     // A card is selected and can be placed now (from the hand, or picked from a pile by a medic or a leader)
     public bool IsSelectedCardPlayable()
     {
-        return battleState == BattleState.PLAYERTURN && selectedCard != null && presenting == 0
+        return battleState == BattleState.PlayerTurn && selectedCard != null && presenting == 0
             && (pendingAction == PendingAction.None || pendingAction == PendingAction.PlacePickedCard);
     }
 
     private CardStats SelectedStats()
     {
-        return selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        return selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
     }
 
     // The selected card (or the chosen leader) goes back to its place, gliding there from the showcase (or leaving it
@@ -867,8 +867,8 @@ public partial class SceneController : MonoBehaviour
         else
             CardShowcase.Clear();
         selectedCard = null;
-        LightoffField(true);
-        LightoffField(false);
+        LightOffField(true);
+        LightOffField(false);
     }
 
     private void PlayCardAudio(Card card)
@@ -929,17 +929,17 @@ public partial class SceneController : MonoBehaviour
         board.Refresh();
     }
 
-    private void SetDeckObject(MainInfo info, bool is_player_deck) { board.SetDeck(info, is_player_deck); }
+    private void SetDeckObject(BattleSide info, bool is_player_deck) { board.SetDeck(info, is_player_deck); }
     public void SetHandObject(List<int> hand_list, bool is_player_hand) { board.SetHand(hand_list, is_player_hand); }
     private void SetDiscardObject(List<int> discard_list, bool is_player) { board.SetDiscard(discard_list, is_player); }
     private void CreateCardObjects(GameObject my_object, List<int> card_list, bool isSelectable, bool is_player_card) { board.CreateCardObjects(my_object, card_list, isSelectable, is_player_card); }
     public GameObject CreateCardObject(Card card, bool is_player_card) { return board.CreateCardObject(card, is_player_card); }
     public void HighlightField(CardStats card_stats, bool is_player_turn) { board.Highlight(card_stats, is_player_turn); }
-    public void LightoffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
+    public void LightOffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
     public void SetHider(bool hidden) { board.SetHider(hidden); }
 
     //----------------------------------------------Queries---------------------------------------------------//
-    public Card GetCardStats(int card_id)
+    public Card GetCard(int card_id)
     {
         return Db.Get(card_id);
     }

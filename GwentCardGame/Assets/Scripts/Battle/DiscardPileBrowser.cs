@@ -11,7 +11,7 @@ public class DiscardPileBrowser : MonoBehaviour, IPointerClickHandler
     {
         get
         {
-            SceneController battle = SceneController.Instance;
+            BattleController battle = BattleController.Instance;
             return battle != null && (isPlayer ? battle.PlayerInfo : battle.EnemyInfo).DiscardList.Count > 0;
         }
     }
@@ -24,7 +24,7 @@ public class DiscardPileBrowser : MonoBehaviour, IPointerClickHandler
 
     public void Clicked()
     {
-        SceneController battle = SceneController.Instance;
+        BattleController battle = BattleController.Instance;
         if (battle != null && battle.TryUseLeaderOn(gameObject))
             return;
         Browse();
@@ -32,7 +32,7 @@ public class DiscardPileBrowser : MonoBehaviour, IPointerClickHandler
 
     public void Browse()
     {
-        SceneController battle = SceneController.Instance;
+        BattleController battle = BattleController.Instance;
         if (battle == null || !HasCards)
             return;
         GameAudio.PlaySfx("card_select");

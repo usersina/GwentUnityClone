@@ -150,7 +150,7 @@ public static class CardShowcase
     // reference size as the battle's canvas
     private static RectTransform Layout(bool art)
     {
-        CardHover hover = SceneController.Instance.CardPrefab.GetComponent<CardHover>();
+        CardHover hover = BattleController.Instance.CardPrefab.GetComponent<CardHover>();
         return (RectTransform)(art ? hover.BigImage : hover.BigEffect).transform;
     }
 

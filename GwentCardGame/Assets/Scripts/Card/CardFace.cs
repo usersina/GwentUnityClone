@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -6,7 +6,7 @@ using UnityEngine.UI;
 using Gwent.Rules;
 
 // This is instansiated on every card creation ! 
-public class CardDisplay : MonoBehaviour
+public class CardFace : MonoBehaviour
 {
     // Gameplay related
     public GameObject cardStats;

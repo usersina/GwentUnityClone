@@ -6,7 +6,7 @@ namespace Gwent.Rules.Tests
 {
 // The rules engine under fire: battles between random and absurd decks (all spies, all medics, musters, weather
 // spam, decoys, heroes, a handful of cards...), each side making random moves the way the battle does them
-// (SceneController's flows: medic choices, decoys, every leader, round ends, faction abilities), with invariants
+// (BattleController's flows: medic choices, decoys, every leader, round ends, faction abilities), with invariants
 // checked after every move: no card appears or disappears, every unit's strength is The Witcher 3's
 // (an independent copy of its CardInstance.getTotalPower), scores add up, horn slots and the weather board hold
 // what they should, the board clears at a round's end, ties and round winners are decided right, nothing throws,
@@ -214,7 +214,7 @@ public static class RulesFuzzer
         }
     }
 
-    //------------------------------------------ Moves (mirroring SceneController) ------------------------------------------//
+    //------------------------------------------ Moves (mirroring BattleController) ------------------------------------------//
     static string Move(Board board, bool p, Random rnd)
     {
         PlayerState me = board.Side(p), opp = board.Opponent(p);

@@ -2,7 +2,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class DeckManager : MonoBehaviour
+public class DeckStack : MonoBehaviour
 {
     public GameObject CardBackObject;
 
@@ -26,7 +26,7 @@ public class DeckManager : MonoBehaviour
     }
 
     // Updates the card number and the stack of card backs (only adds/removes the difference)
-    public void UIUpdateDeckBase(Sprite my_sprite, int cards_number)
+    public void ShowStack(Sprite my_sprite, int cards_number)
     {
         CacheReferences();
         deckCount.text = cards_number.ToString();

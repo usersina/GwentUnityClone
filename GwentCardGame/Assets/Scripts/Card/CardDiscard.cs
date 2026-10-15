@@ -6,13 +6,13 @@ using UnityEngine.EventSystems;
 public class CardDiscard : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
 
     private readonly DoubleClick doubleClick = new DoubleClick();
 
     void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -25,16 +25,16 @@ public class CardDiscard : MonoBehaviour, IPointerClickHandler
     public void Discard()
     {
         if (controller == null)
-            controller = SceneController.Instance;
-        if (controller.battleState == BattleState.PLAYERTURN && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
+            controller = BattleController.Instance;
+        if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
         {
             GameLog.Info("Discarding");
-            controller.DiscardCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id, true);
+            controller.DiscardCard(GetComponent<CardFace>().cardStats.GetComponent<CardStats>()._id, true);
             controller.PlayerInfo.CardsDiscarded++;
 
             // Conditions met, a card can be chosen
             if (controller.PlayerInfo.CardsDiscarded >= 2)
-                controller.DeckCardPicker(true);
+                controller.OpenDeckPicker(true);
         }
     }
 }

@@ -59,7 +59,7 @@ public class CardLane : MonoBehaviour
             if (!child.gameObject.activeSelf)
                 continue;
             LaneHold hold = child.GetComponent<LaneHold>();
-            if (hold != null && hold.enabled ? hold.spacer : child.GetComponent<CardDisplay>() != null)
+            if (hold != null && hold.enabled ? hold.spacer : child.GetComponent<CardFace>() != null)
                 cards.Add((RectTransform)child);
         }
     }

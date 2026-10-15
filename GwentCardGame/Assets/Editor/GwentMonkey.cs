@@ -97,7 +97,7 @@ public static class GwentMonkey
         private bool savedTouch;
         private Dictionary<string, byte[]> savedDecks;
 
-        private SceneController controller;
+        private BattleController controller;
         private int expectedCards = -1;
         private string lastSignature;
         private double lastProgress;
@@ -197,14 +197,14 @@ public static class GwentMonkey
             List<TextAsset> presets = OpponentDecks.All();
             if (presets.Count == 0)
                 return;
-            ApplicationModel.playerDeckPath = OpponentDecks.PresetPath(presets[rnd.Next(presets.Count)]);
+            MenuStartup.playerDeckPath = OpponentDecks.PresetPath(presets[rnd.Next(presets.Count)]);
             OpponentDecks.Override = presets[rnd.Next(presets.Count)].name;
         }
 
         //----------------------------------------The battle's watch----------------------------------------//
         private void WatchBattle(double now)
         {
-            SceneController c = SceneController.Instance;
+            BattleController c = BattleController.Instance;
             if (c == null)
                 return;
             if (c != controller)
@@ -215,7 +215,7 @@ public static class GwentMonkey
                 lastProgress = now;
                 Count("battles");
             }
-            if (expectedCards < 0 && c.PlayerInfo.HandList.Count > 0 && c.battleState != BattleState.START)
+            if (expectedCards < 0 && c.PlayerInfo.HandList.Count > 0 && c.battleState != BattleState.Start)
                 expectedCards = CountCards(c);
 
             string signature = Signature(c);
@@ -257,13 +257,13 @@ public static class GwentMonkey
             }
         }
 
-        private static bool IsOver(SceneController c)
+        private static bool IsOver(BattleController c)
         {
             return c.IsBattleOver;
         }
 
         // Moves the game on like a player would: closes a dialog, finishes the redraw, makes a choice, plays or passes
-        private void Rescue(SceneController c)
+        private void Rescue(BattleController c)
         {
             Count("rescues");
             if (UIOverlay.HasModal || PauseMenu.IsOpen || DiscardViewer.IsOpen)
@@ -274,12 +274,12 @@ public static class GwentMonkey
             }
             if (c.TurnPicker.activeInHierarchy)
             {
-                c.TurnPicker.GetComponentInChildren<TurnManager>(true).GoFirst();
+                c.TurnPicker.GetComponentInChildren<FirstTurnPicker>(true).GoFirst();
                 return;
             }
             if (c.PostGame.activeInHierarchy)
             {
-                PostGameManager post = c.PostGame.GetComponent<PostGameManager>();
+                EndScreen post = c.PostGame.GetComponent<EndScreen>();
                 PickDecks();
                 if (rnd.Next(4) == 0)
                     post.ToMainMenu();
@@ -295,7 +295,7 @@ public static class GwentMonkey
             }
             if (c.Panel.activeSelf)
             {
-                PanelManager panel = c.Panel.GetComponent<PanelManager>();
+                BattlePickers panel = c.Panel.GetComponent<BattlePickers>();
                 if (panel.Cards.Count > 0 && rnd.Next(4) > 0)
                     panel.Choose(panel.Cards[rnd.Next(panel.Cards.Count)]);
                 else
@@ -303,7 +303,7 @@ public static class GwentMonkey
                 Count("rescue: picker");
                 return;
             }
-            if (c.battleState != BattleState.PLAYERTURN)
+            if (c.battleState != BattleState.PlayerTurn)
                 return;
             switch (c.pendingAction)
             {
@@ -313,7 +313,7 @@ public static class GwentMonkey
                         c.DiscardCard(hand[rnd.Next(hand.Count)], true);
                     c.PlayerInfo.CardsDiscarded++;
                     if (c.PlayerInfo.CardsDiscarded >= 2 || hand.Count == 0)
-                        c.DeckCardPicker(true);
+                        c.OpenDeckPicker(true);
                     return;
                 case PendingAction.PlacePickedCard:
                     PlaceSelected(c);
@@ -335,11 +335,11 @@ public static class GwentMonkey
             Count("rescue: play");
         }
 
-        private void PlaceSelected(SceneController c)
+        private void PlaceSelected(BattleController c)
         {
             if (c.selectedCard == null)
                 return;
-            CardStats stats = c.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+            CardStats stats = c.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
             if (stats.ability == Abilities.Decoy)
             {
                 List<GameObject> targets = new List<GameObject>();
@@ -358,7 +358,7 @@ public static class GwentMonkey
             }
             if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
             {
-                c.WeatherField.GetComponent<WeatherManager>().OnWeatherClick();
+                c.WeatherField.GetComponent<WeatherSlot>().OnWeatherClick();
                 return;
             }
             List<GameObject> rows = new List<GameObject>();
@@ -605,7 +605,7 @@ public static class GwentMonkey
             stats[key] = value + 1;
         }
 
-        private static int CountCards(SceneController c)
+        private static int CountCards(BattleController c)
         {
             int total = 0;
             foreach (PlayerState info in new PlayerState[] { c.PlayerInfo, c.EnemyInfo })
@@ -613,7 +613,7 @@ public static class GwentMonkey
             return total;
         }
 
-        private void CheckBoardShowsModel(SceneController c)
+        private void CheckBoardShowsModel(BattleController c)
         {
             List<string> problems = new List<string>();
             foreach (bool player in new[] { true, false })
@@ -641,14 +641,14 @@ public static class GwentMonkey
         {
             List<string> shown = new List<string>();
             foreach (Transform child in container)
-                if (child.GetComponent<CardDisplay>() != null)
+                if (child.GetComponent<CardFace>() != null)
                     shown.Add(child.name);
             string expected = string.Join(",", ids), actual = string.Join(",", shown);
             if (expected != actual)
                 problems.Add(what + " shows [" + actual + "] instead of [" + expected + "]");
         }
 
-        private static string Signature(SceneController c)
+        private static string Signature(BattleController c)
         {
             PlayerState p = c.PlayerInfo, e = c.EnemyInfo;
             return string.Format("{0}/{1} P[h{2} d{3} g{4} b{5} pass{6} lives{7}] E[h{8} d{9} g{10} b{11} pass{12} lives{13}] w{14} panel{15}",
@@ -656,7 +656,7 @@ public static class GwentMonkey
                 e.HandList.Count, e.DeckList.Count, e.DiscardList.Count, e.UnitsOnBoard(), e.hasPassed, e.Lives, c.weatherList.Count, c.Panel.activeSelf);
         }
 
-        private static string Describe(SceneController c)
+        private static string Describe(BattleController c)
         {
             return string.Format("\n      selected={0} leaderSelected={1} presenting={2} modal={3} pause={4} redraw={5} viewer={6} banner={7} timeScale={8}",
                 c.selectedCard != null ? c.selectedCard.name : "-", c.LeaderSelected, c.IsPresenting, UIOverlay.HasModal, PauseMenu.IsOpen,
@@ -688,7 +688,7 @@ public static class GwentMonkey
             }
             OpponentDecks.Chosen = (string)savedPrefs["opponent"];
             OpponentDecks.Override = null;
-            ApplicationModel.playerDeckPath = null;
+            MenuStartup.playerDeckPath = null;
             GameInput.SimulateTouch = savedTouch;
             PlayerPrefs.Save();
             if (Directory.Exists(DeckStorage.Root))

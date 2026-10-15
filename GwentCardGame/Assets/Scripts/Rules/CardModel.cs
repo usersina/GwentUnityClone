@@ -38,7 +38,7 @@ namespace Gwent.Rules
 
     // List of above Card (root object of cards_db.json)
     [Serializable]
-    public class CardsDB
+    public class CardsFile
     {
         public List<Card> Cards = new List<Card>();
     }

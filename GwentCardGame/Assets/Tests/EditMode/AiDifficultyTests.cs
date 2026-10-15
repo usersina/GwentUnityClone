@@ -121,7 +121,7 @@ namespace Gwent.Rules.Tests
             return AiBrain.Decide(ctx);
         }
 
-        // A battle from the deal (SceneController.Start): shuffled decks, 10 cards (11 under Francesca, Daisy of the
+        // A battle from the deal (BattleController.Start): shuffled decks, 10 cards (11 under Francesca, Daisy of the
         // Valley), the White Flame's cancel, Scoia'tael going first against another faction
         private static RoundWinner PlayBattle(Deck player_deck, Deck enemy_deck, Func<Board, bool, AiAction> policy, int seed)
         {

@@ -9,13 +9,13 @@ using UnityEngine.UI;
 // The end of the battle: The Witcher 3's emblem of the outcome, the round tally, a scoreboard with both sides (leader
 // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on.
 // Built when the battle ends, over the dimmed board.
-public class PostGameManager : MonoBehaviour
+public class EndScreen : MonoBehaviour
 {
     private const float SideColumn = 400;
     private const float RoundColumn = 170;
     private const float RowHeight = 116;
 
-    public void Show(BattleState outcome, SceneController.MainInfo player, SceneController.MainInfo opponent, bool gave_up = false)
+    public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false)
     {
         UITheme theme = UITheme.Current;
         foreach (Transform child in transform)
@@ -24,13 +24,13 @@ public class PostGameManager : MonoBehaviour
         RectTransform content = UIKit.Rect("Content", transform).Stretch();
         content.gameObject.AddComponent<UIAppear>();
 
-        string emblem = outcome == BattleState.WON ? "win" : outcome == BattleState.LOST ? "lose" : "draw";
+        string emblem = outcome == BattleState.Won ? "win" : outcome == BattleState.Lost ? "lose" : "draw";
         // Rounds as they were won (a drawn round counts for nobody, a Nilfgaard tie for Nilfgaard)
         int player_rounds = player.RoundsWon.Count(won => won), opponent_rounds = opponent.RoundsWon.Count(won => won);
         int drawn = player.RoundsScore.Count - player_rounds - opponent_rounds;
         string drawn_text = drawn == 1 ? ", one round drawn" : drawn > 1 ? ", " + drawn + " rounds drawn" : "";
-        string tally = outcome == BattleState.WON ? "You won the battle, " + Rounds(player_rounds) + " to " + opponent_rounds + drawn_text
-            : outcome == BattleState.LOST ? "The opponent won the battle, " + Rounds(opponent_rounds) + " to " + player_rounds + drawn_text
+        string tally = outcome == BattleState.Won ? "You won the battle, " + Rounds(player_rounds) + " to " + opponent_rounds + drawn_text
+            : outcome == BattleState.Lost ? "The opponent won the battle, " + Rounds(opponent_rounds) + " to " + player_rounds + drawn_text
             : "Neither side came out ahead" + drawn_text;
         if (gave_up)
             tally = "You gave up the battle";
@@ -56,7 +56,7 @@ public class PostGameManager : MonoBehaviour
     }
 
     //----------------------------------------Scoreboard----------------------------------------//
-    private void BuildScoreboard(RectTransform content, SceneController.MainInfo player, SceneController.MainInfo opponent)
+    private void BuildScoreboard(RectTransform content, BattleController.BattleSide player, BattleController.BattleSide opponent)
     {
         UITheme theme = UITheme.Current;
         float width = SideColumn + 3 * RoundColumn + 60;
@@ -80,7 +80,7 @@ public class PostGameManager : MonoBehaviour
         return count + (count == 1 ? " round" : " rounds");
     }
 
-    private void AddRow(RectTransform board, int index, SceneController.MainInfo info, string name, SceneController.MainInfo other)
+    private void AddRow(RectTransform board, int index, BattleController.BattleSide info, string name, BattleController.BattleSide other)
     {
         List<int> scores = info.RoundsScore;
         UITheme theme = UITheme.Current;

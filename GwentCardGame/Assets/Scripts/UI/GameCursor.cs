@@ -71,7 +71,7 @@ public class GameCursor : MonoBehaviour
             return pile.HasCards ? State.Interact : State.Default;
 
         // The battle board decides for its own cards, rows and weather board (rows only take a selected card)
-        SceneController battle = SceneController.Instance;
+        BattleController battle = BattleController.Instance;
         if (battle != null && !UIOverlay.HasModal)
         {
             State? board = EvaluateBoard(battle, hovered);
@@ -93,11 +93,11 @@ public class GameCursor : MonoBehaviour
 
     // The battle board: what a click would do with (or without) a selected card; null when not over the board's
     // cards, rows or weather board
-    private static State? EvaluateBoard(SceneController battle, GameObject hovered)
+    private static State? EvaluateBoard(BattleController battle, GameObject hovered)
     {
         CardSelect card = hovered.GetComponentInParent<CardSelect>();
         RowClick row = hovered.GetComponentInParent<RowClick>();
-        WeatherManager weather = hovered.GetComponentInParent<WeatherManager>();
+        WeatherSlot weather = hovered.GetComponentInParent<WeatherSlot>();
         if (card == null && row == null && weather == null)
             return null;
         bool my_turn = battle.IsPlayerActionAllowed;
@@ -109,7 +109,7 @@ public class GameCursor : MonoBehaviour
         // The player's leader card: chosen by a click, used by a second one
         if (card != null && !card.isSelectable && card.CompareTag("Player") && battle.selectedCard == null)
         {
-            CardStats stats = card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+            CardStats stats = card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
             if (stats.ability == Gwent.Rules.Abilities.Leader)
                 return battle.CanUseLeader(true) ? State.Interact : State.Default;
         }
@@ -128,12 +128,12 @@ public class GameCursor : MonoBehaviour
             return State.Default;
 
         // A card is selected: is this a place it can go?
-        CardStats selected = battle.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        CardStats selected = battle.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
         if (selected.ability == Gwent.Rules.Abilities.Decoy)
         {
             if (card == null || card.isSelectable)
                 return row != null || weather != null ? State.Invalid : State.Default;
-            CardStats target = card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+            CardStats target = card.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
             bool swappable = card.CompareTag("Player") && row != null && !target.unique
                 && target.faction != Gwent.Rules.Factions.Special && target.ability != Gwent.Rules.Abilities.Leader;
             return swappable ? State.Interact : State.Invalid;

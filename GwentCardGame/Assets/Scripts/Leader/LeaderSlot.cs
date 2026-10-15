@@ -1,20 +1,20 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Gwent.Rules;
 
-public class LeaderManager : MonoBehaviour
+public class LeaderSlot : MonoBehaviour
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
 
     public int leaderId;
     public string type;
 
     private void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     private Button activateButton;
@@ -45,7 +45,7 @@ public class LeaderManager : MonoBehaviour
         get
         {
             if (controller == null)
-                controller = SceneController.Instance;
+                controller = BattleController.Instance;
             return controller != null && transform.IsChildOf(controller.PlayerField.transform);
         }
     }
@@ -127,7 +127,7 @@ public class LeaderManager : MonoBehaviour
     {
         if (!IsPlayers)
             return;
-        if (controller.battleState == BattleState.PLAYERTURN)
+        if (controller.battleState == BattleState.PlayerTurn)
             controller.LeaderClicked();
     }
 }

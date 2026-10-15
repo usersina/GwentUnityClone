@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -7,7 +7,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Gwent.Rules;
 
-public class CCardManager : MonoBehaviour, IPointerClickHandler
+public class CollectionCard : MonoBehaviour, IPointerClickHandler
 {
     public List<Sprite> normalPatch;
     public List<Sprite> uniquePatch;
@@ -15,15 +15,15 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
     private readonly DoubleClick doubleClick = new DoubleClick();
 
     [HideInInspector]
-    public DeckController deckController;
+    public DeckBuilder deckController;
 
     // The "Cards in Deck" collection (the one tagged Player)
     [HideInInspector]
-    public CollectionManager deckCollection;
+    public CardGrid deckCollection;
 
     private void Start()
     {
-        deckController = DeckController.Instance;
+        deckController = DeckBuilder.Instance;
         deckCollection = deckController.deckCollection;
 
         UpdateCardGUI();
@@ -136,7 +136,7 @@ public class CCardManager : MonoBehaviour, IPointerClickHandler
 
     private GameObject Details()
     {
-        return transform.parent.parent.parent.GetComponent<CollectionManager>().cardDetails;
+        return transform.parent.parent.parent.GetComponent<CardGrid>().cardDetails;
     }
 
     private void ShowBigCard()

@@ -172,7 +172,7 @@ public class CardHover : MonoBehaviour
         if (Canvas == null)
             return;
 
-        CardStats cardStats = GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        CardStats cardStats = GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
         bigImage = Instantiate(BigImage);
         bigImage.transform.SetParent(Canvas.transform, false);
         bigImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/591x380/" + cardStats._id);

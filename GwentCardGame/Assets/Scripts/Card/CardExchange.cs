@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 public class CardExchange : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
     public bool isExchangeable;
 
     // A redraw rebuilds the hand under the pointer: the clicks right after it (the end of a triple or quadruple
@@ -17,7 +17,7 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
 
     void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -25,7 +25,7 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
         if (eventData.button != PointerEventData.InputButton.Left)
             return;
         if (controller == null)
-            controller = SceneController.Instance;
+            controller = BattleController.Instance;
 
         // Only during the redraw phase (it opens after the opening notices), on the player's own cards
         if (!controller.PlayerInfo.CanExchange || !RedrawPicker.IsOpen || !gameObject.CompareTag("Player") || !isExchangeable)
@@ -33,7 +33,7 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
 
         // With the redraw carousel open, a click brings the card to its front first; only a double-click on the front
         // card redraws it, so a quick double-click on a card further away never swaps it by accident
-        int card_id = GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id;
+        int card_id = GetComponent<CardFace>().cardStats.GetComponent<CardStats>()._id;
         if (RedrawPicker.IsOpen && !RedrawPicker.IsReadyToRedraw(card_id))
         {
             RedrawPicker.Bring(card_id);
@@ -49,6 +49,6 @@ public class CardExchange : MonoBehaviour, IPointerClickHandler
     private void Exchange()
     {
         lastExchangeTime = Time.unscaledTime;
-        controller.RedrawPlayerCard(GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>()._id);
+        controller.RedrawPlayerCard(GetComponent<CardFace>().cardStats.GetComponent<CardStats>()._id);
     }
 }

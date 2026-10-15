@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Gwent.Rules
 {
     // Everything one side owns during a battle, as lists of card ids.
-    // Field names are serialized in Game.unity (SceneController.PlayerInfo/EnemyInfo), keep them stable.
+    // Field names are serialized in Game.unity (BattleController.PlayerInfo/EnemyInfo), keep them stable.
     [Serializable]
     public class PlayerState
     {

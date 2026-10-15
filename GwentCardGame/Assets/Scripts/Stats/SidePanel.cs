@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // A player's panel on the battle board: portrait, name, faction, hand count, life gems and total score
-public class StatsManager : MonoBehaviour
+public class SidePanel : MonoBehaviour
 {
     public Sprite redRuby;
     public Sprite greyRuby;

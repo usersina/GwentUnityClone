@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -7,13 +7,13 @@ using Gwent.Rules;
 public class RowClick : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
 
     //public bool isHighlighted;
 
     void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -30,11 +30,11 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
         // This is the parent of the parent of the gameobject of this script
         // Basically the field gameObject (either PlayerField or EnemyField)
         if (controller == null)
-            controller = SceneController.Instance;
+            controller = BattleController.Instance;
         GameObject parent_go = transform.parent.parent.gameObject;
         List<GameObject> highLighted_fields = parent_go.GetComponent<RowPicker>().highLightedRows;
 
-        if (controller.battleState == BattleState.PLAYERTURN) // Just to be extra sure
+        if (controller.battleState == BattleState.PlayerTurn) // Just to be extra sure
         {
             // The chosen leader: a row it lights uses it
             if (controller.LeaderSelected)
@@ -55,7 +55,7 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
                 {
                     // Not a place for this card: say so instead of doing nothing
                     GameAudio.PlaySfx("invalid");
-                    CardStats selected = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+                    CardStats selected = controller.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
                     if (selected.ability == Abilities.Decoy)
                         UIOverlay.Toast("Decoy: click one of your units to take it back to your hand");
                     else if (selected.row == Rows.Weather || selected._id == CardIds.Scorch)
@@ -69,7 +69,7 @@ public class RowClick : MonoBehaviour, IPointerClickHandler
 
     private GameObject GetPlayableTargetField(List<GameObject> highLightedFields)
     {
-        CardStats selectedStats = controller.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
+        CardStats selectedStats = controller.selectedCard.GetComponent<CardFace>().cardStats.GetComponent<CardStats>();
         if (selectedStats.faction == Factions.Special)
         {
             // Weather and scorch only go on the weather board

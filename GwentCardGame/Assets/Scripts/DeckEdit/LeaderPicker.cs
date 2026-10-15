@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -6,8 +6,8 @@ public class LeaderPicker : MonoBehaviour
 {
     public GameObject contentGO;
     public GameObject leaderWPrefab;
-    public DeckController deckController;
-    public CollectionManager deckCollection;
+    public DeckBuilder deckController;
+    public CardGrid deckCollection;
 
 
     private void Update()

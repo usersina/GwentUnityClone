@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-public class CollectionManager : MonoBehaviour
+public class CardGrid : MonoBehaviour
 {
     // The factions of the header's panels, in order, and their perks
     public static readonly string[] HeaderFactions = { Factions.NorthernRealms, Factions.Nilfgaard, Factions.Scoiatael, Factions.Monsters };
@@ -18,7 +18,7 @@ public class CollectionManager : MonoBehaviour
         "Keep one random unit on the board after each round",
     };
 
-    public DeckController deckController;
+    public DeckBuilder deckController;
     public FactionHeader headerSnap;
     public Toggle toggleBtn;
 
@@ -38,7 +38,7 @@ public class CollectionManager : MonoBehaviour
     [HideInInspector]
     public List<Card> CardsToDisplay;
 
-    public MiddleManager middleManager;
+    public DeckSummary middleManager;
 
     // The Witcher 3's filters: all cards, close, ranged, siege, heroes, weather, special cards
     public const int WeatherTab = 5;
@@ -48,7 +48,7 @@ public class CollectionManager : MonoBehaviour
     {
         AddWeatherTab();
         ClearCardsArea();
-        // DeckController loads everything in Awake; this only guards against a disabled controller
+        // DeckBuilder loads everything in Awake; this only guards against a disabled controller
         yield return new WaitUntil(() => deckController.IsReady);
 
         // Collection Cards or player deck
@@ -353,7 +353,7 @@ public class CollectionManager : MonoBehaviour
     // The collection counts the copies left to add: it follows the deck (where it is scrolled to stays)
     private void RefreshCollection()
     {
-        foreach (CollectionManager collection in FindObjectsByType<CollectionManager>())
+        foreach (CardGrid collection in FindObjectsByType<CardGrid>())
             if (collection != this && collection.CardsToDisplay != null)
                 collection.Select(collection.selectedTab, false);
     }
@@ -365,7 +365,7 @@ public class CollectionManager : MonoBehaviour
     }
 
     // DECK CARDS RELATED
-    // Changes my_deck and currentDeckPath in DeckController
+    // Changes my_deck and currentDeckPath in DeckBuilder
     public void OnDeckChange(Deck selectedDeck, string selectedPath, bool select_for_battle = true)
     {
         // Replace the loaded deck with the selected one

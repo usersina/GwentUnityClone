@@ -1,8 +1,8 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class CloseDetails : MonoBehaviour
+public class CloseOnCancel : MonoBehaviour
 {
     // Update is called once per frame
     void Update()

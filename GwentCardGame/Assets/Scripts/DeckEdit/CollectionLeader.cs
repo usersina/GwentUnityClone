@@ -1,11 +1,11 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class CLeaderManager : MonoBehaviour, IPointerClickHandler
+public class CollectionLeader : MonoBehaviour, IPointerClickHandler
 {
-    public DeckController deckController;
+    public DeckBuilder deckController;
     public GameObject LeaderPicker;
 
     private readonly DoubleClick doubleClick = new DoubleClick();

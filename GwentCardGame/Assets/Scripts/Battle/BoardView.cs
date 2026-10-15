@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Draws the battle from the model: the card objects in the hands, rows, horn slots, discard piles and weather slot,
-// row highlights, weather overlays, scores and the panels' markers. SceneController runs the battle and asks it
+// row highlights, weather overlays, scores and the panels' markers. BattleController runs the battle and asks it
 // to redraw; this class never changes the model.
 public class BoardView
 {
@@ -36,10 +36,10 @@ public class BoardView
         public GameObject Root;
         public RowPicker Picker;
         public GameObject Hand;
-        public DeckManager Deck;
+        public DeckStack Deck;
         public GameObject DiscardPile;
-        public StatsManager Stats;
-        public LeaderManager Leader;
+        public SidePanel Stats;
+        public LeaderSlot Leader;
         public GameObject LeaderHolder;
         public GameObject LeadMarker;   // the laurel around the total of the side that is ahead (as in The Witcher 3)
         public GameObject PassedLabel;  // "Passed" by the total score of a side that has passed
@@ -51,10 +51,10 @@ public class BoardView
             Transform t = root.transform;
             Picker = root.GetComponent<RowPicker>();
             Hand = t.Find("Hand").gameObject;
-            Deck = t.Find("Deck").GetComponent<DeckManager>();
+            Deck = t.Find("Deck").GetComponent<DeckStack>();
             DiscardPile = t.Find("Discard").Find("Pile").gameObject;
-            Stats = t.Find("Stats").GetComponent<StatsManager>();
-            Leader = t.Find("Leader").GetComponent<LeaderManager>();
+            Stats = t.Find("Stats").GetComponent<SidePanel>();
+            Leader = t.Find("Leader").GetComponent<LeaderSlot>();
             LeaderHolder = t.Find("Leader").Find("Holder").gameObject;
             LeadMarker = t.Find("Stats").Find("Total").Find("Laurel").gameObject;
             PassedLabel = t.Find("Stats").Find("Passed").gameObject;
@@ -103,14 +103,14 @@ public class BoardView
         }
     }
 
-    private readonly SceneController controller;
+    private readonly BattleController controller;
     private readonly FieldView playerView;
     private readonly FieldView enemyView;
 
-    public WeatherManager Weather { get; private set; }
+    public WeatherSlot Weather { get; private set; }
     private readonly Image weatherImage;
 
-    public BoardView(SceneController battle)
+    public BoardView(BattleController battle)
     {
         controller = battle;
         playerView = new FieldView(battle.PlayerField);
@@ -135,13 +135,13 @@ public class BoardView
             }
         }
         CardLane.Install(battle.WeatherField, 0);
-        Weather = battle.WeatherField.GetComponent<WeatherManager>();
+        Weather = battle.WeatherField.GetComponent<WeatherSlot>();
         weatherImage = battle.WeatherField.GetComponent<Image>();
     }
 
     public FieldView View(bool is_player) { return is_player ? playerView : enemyView; }
 
-    private SceneController.MainInfo Info(bool is_player) { return is_player ? controller.PlayerInfo : controller.EnemyInfo; }
+    private BattleController.BattleSide Info(bool is_player) { return is_player ? controller.PlayerInfo : controller.EnemyInfo; }
 
     //----------------------------------------Whole board----------------------------------------//
     // Shows both sides and the weather from the lists, then lights off the rows and updates the scores
@@ -162,11 +162,11 @@ public class BoardView
     {
         foreach (bool is_player in new[] { true, false })
         {
-            SceneController.MainInfo info = Info(is_player);
+            BattleController.BattleSide info = Info(is_player);
             View(is_player).Leader.UISetReady(info.canLeader && !info.leaderDisabled && !info.hasPassed);
         }
-        playerView.Stats.UISetTurnState(controller.battleState == BattleState.PLAYERTURN, controller.PlayerInfo.hasPassed);
-        enemyView.Stats.UISetTurnState(controller.battleState == BattleState.ENEMYTURN, controller.EnemyInfo.hasPassed);
+        playerView.Stats.UISetTurnState(controller.battleState == BattleState.PlayerTurn, controller.PlayerInfo.hasPassed);
+        enemyView.Stats.UISetTurnState(controller.battleState == BattleState.EnemyTurn, controller.EnemyInfo.hasPassed);
         int player_total = controller.PlayerInfo.TotalScore(), enemy_total = controller.EnemyInfo.TotalScore();
         SetActiveIfChanged(playerView.LeadMarker, player_total > enemy_total);
         SetActiveIfChanged(enemyView.LeadMarker, enemy_total > player_total);
@@ -182,7 +182,7 @@ public class BoardView
 
     private void RefreshField(bool is_player_field)
     {
-        SceneController.MainInfo info = Info(is_player_field);
+        BattleController.BattleSide info = Info(is_player_field);
         FieldView view = View(is_player_field);
 
         SetHand(info.HandList, is_player_field);
@@ -201,9 +201,9 @@ public class BoardView
 
     //----------------------------------------Piles and hand----------------------------------------//
     // Updates the deck count and the stack of card backs
-    public void SetDeck(SceneController.MainInfo info, bool is_player_deck)
+    public void SetDeck(BattleController.BattleSide info, bool is_player_deck)
     {
-        View(is_player_deck).Deck.UIUpdateDeckBase(info.DeckBSprite, info.DeckList.Count);
+        View(is_player_deck).Deck.ShowStack(info.DeckBSprite, info.DeckList.Count);
     }
 
     // Shows the hand in The Witcher 3's order, reusing its card objects (cards slide to make room), and the count
@@ -239,7 +239,7 @@ public class BoardView
         int shown = 0;
         foreach (Transform child in container)
         {
-            if (child.GetComponent<CardDisplay>() == null)
+            if (child.GetComponent<CardFace>() == null)
                 continue;
             if (shown >= card_ids.Count || child.name != card_ids[shown].ToString())
                 return false;
@@ -266,7 +266,7 @@ public class BoardView
         List<GameObject> unused = new List<GameObject>();
         foreach (Transform child in parent)
         {
-            if (child.GetComponent<CardDisplay>() == null)
+            if (child.GetComponent<CardFace>() == null)
                 continue;
             before.Add(child.gameObject);
             int id;
@@ -350,7 +350,7 @@ public class BoardView
         for (int seen = 0; index < siblings.Count && seen < kept_before; index++)
             if (kept.Contains(siblings[index]))
                 seen++;
-        while (index < siblings.Count && siblings[index].GetComponent<CardDisplay>() == null)
+        while (index < siblings.Count && siblings[index].GetComponent<CardFace>() == null)
             index++;
         return index;
     }
@@ -385,7 +385,7 @@ public class BoardView
     {
         Transform pile = View(is_player).DiscardPile.transform;
         for (int i = pile.childCount - 1; i >= 0; i--)
-            if (pile.GetChild(i).GetComponent<CardDisplay>() != null)
+            if (pile.GetChild(i).GetComponent<CardFace>() != null)
                 return (RectTransform)pile.GetChild(i);
         return (RectTransform)pile;
     }
@@ -490,7 +490,7 @@ public class BoardView
 
     private void UpdateScores(bool is_player_field)
     {
-        SceneController.MainInfo info = Info(is_player_field);
+        BattleController.BattleSide info = Info(is_player_field);
         FieldView view = View(is_player_field);
 
         // New card objects get their strength labels next frame (coroutine)
@@ -639,7 +639,7 @@ public class BoardView
         foreach (RowView row in view.Rows.Values)
             foreach (Transform card in row.Unit.transform)
             {
-                CardDisplay display = card.GetComponent<CardDisplay>();
+                CardFace display = card.GetComponent<CardFace>();
                 if (display == null)
                     continue;
                 Transform frame = card.Find(DecoyFrame);

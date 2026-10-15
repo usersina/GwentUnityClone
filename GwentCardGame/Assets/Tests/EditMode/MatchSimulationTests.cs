@@ -109,7 +109,7 @@ namespace Gwent.Rules.Tests
             }
         }
 
-        // Mirrors AIManager.Execute + SceneController.PlayCard/PlayDecoy/AiUseWeatherLeader/ActivateLeader
+        // Mirrors AiPlayer.Execute + BattleController.PlayCard/PlayDecoy/AiUseWeatherLeader/ActivateLeader
         private static void Execute(Board board, AiAction action, bool is_player, string context)
         {
             PlayerState me = board.Side(is_player);
@@ -134,7 +134,7 @@ namespace Gwent.Rules.Tests
                     }
                     else if (me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
                     {
-                        // A unit from a discard pile to the hand (SceneController.RestoreToHand, the AI's choice)
+                        // A unit from a discard pile to the hand (BattleController.RestoreToHand, the AI's choice)
                         List<int> pile = me.Leader == LeaderIds.EmhyrTheRelentless ? board.Side(!is_player).DiscardList : me.DiscardList;
                         int restored = AiBrain.ChooseRestoreTarget(AbilityRules.MedicCandidates(pile, board.Db), me, board.Db);
                         Assert.AreNotEqual(-1, restored, "AI used a restore leader with nothing to restore: " + context);

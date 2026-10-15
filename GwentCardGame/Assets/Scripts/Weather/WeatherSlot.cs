@@ -1,12 +1,12 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class WeatherManager : MonoBehaviour, IPointerClickHandler
+public class WeatherSlot : MonoBehaviour, IPointerClickHandler
 {
     [HideInInspector]
-    public SceneController controller;
+    public BattleController controller;
 
     public Sprite weather;
     public Sprite weatherSelected;
@@ -15,7 +15,7 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
 
     private void Start()
     {
-        controller = SceneController.Instance;
+        controller = BattleController.Instance;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -29,8 +29,8 @@ public class WeatherManager : MonoBehaviour, IPointerClickHandler
     public void OnWeatherClick()
     {
         if (controller == null)
-            controller = SceneController.Instance;
-        if (controller.battleState == BattleState.PLAYERTURN)
+            controller = BattleController.Instance;
+        if (controller.battleState == BattleState.PlayerTurn)
         {
             // The chosen leader: a weather leader is used here
             if (controller.LeaderSelected)
