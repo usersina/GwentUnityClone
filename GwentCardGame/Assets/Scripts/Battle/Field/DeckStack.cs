@@ -5,6 +5,8 @@ using UnityEngine.UI;
 
 namespace Gwent.Battle
 {
+    // A side's deck: its stack of card backs, and the count of cards left in a box just under it (the large card on the
+    // right covers the opponent's count while a card is in focus, a moment)
     public class DeckStack : MonoBehaviour
     {
         public GameObject CardBackObject;
@@ -57,18 +59,6 @@ namespace Gwent.Battle
                 if (image.sprite != my_sprite)
                     image.sprite = my_sprite;
             }
-            PlaceCount();
-        }
-
-        // The count on the deck itself, along the bottom of its top card (The Witcher 3), not under it: the card on the
-        // right of the board sits just below the opponent's deck
-        private void PlaceCount()
-        {
-            Transform count = deckCount.transform.parent;
-            Transform top = deckBase.childCount > 0 ? deckBase.GetChild(deckBase.childCount - 1) : transform.Find("DeckHolder");
-            float bottom = -((RectTransform)top).rect.height / 2 + 24;
-            foreach (Transform part in count)
-                part.position = top.TransformPoint(new Vector3(0, bottom, 0));
         }
     }
 }
