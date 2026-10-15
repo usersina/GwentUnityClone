@@ -8,7 +8,6 @@ using Gwent.Menus;
 using Gwent.Rules;
 using Gwent.UI;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Gwent.Battle
@@ -18,7 +17,8 @@ namespace Gwent.Battle
     // A multi-step player action in progress. While one is pending the turn cannot end (pass / leader are blocked).
     public enum PendingAction { None, PanelChoice, PlacePickedCard, DiscardCards }
 
-    // Runs the battle: setup, turns, rounds and playing cards (leaders and pickers: BattleController.Leaders.cs).
+    // Runs the battle: setup, turns, rounds and playing cards (leaders: BattleController.Leaders.cs; pickers:
+    // BattleController.Pickers.cs).
     // The rules themselves live in Gwent.Rules; BoardView draws the board from the model.
     public partial class BattleController : MonoBehaviour
     {
@@ -74,7 +74,6 @@ namespace Gwent.Battle
         public class BattleSide : PlayerState
         {
             public string Name;
-            public Image Avatar;
             public Sprite DeckBSprite;
         }
 
@@ -277,7 +276,6 @@ namespace Gwent.Battle
         public void SetLeaderCard(int leader_id, bool is_player_deck)
         {
             BoardView.FieldView view = View(is_player_deck);
-            view.Leader.leaderId = leader_id;
             view.Leader.type = Db.Get(leader_id).row;
             CreateCardObjects(view.LeaderHolder, new List<int> { leader_id }, false, is_player_deck);
             view.Leader.UISetPassive();
@@ -289,12 +287,13 @@ namespace Gwent.Battle
             PlayerInfo.CanExchange = false;
         }
 
-        // One redraw of the player's (double-click in the hand, or the redraw picker); the second one ends the phase
-        public void RedrawPlayerCard(int card_id)
+        // One redraw of the player's (double-click in the hand, or the redraw picker); the second one ends the phase.
+        // hand_index: the card's place in the hand, when known (with two alike, the one chosen)
+        public void RedrawPlayerCard(int card_id, int hand_index = -1)
         {
             if (!PlayerInfo.CanExchange || PlayerInfo.CardsExchanged >= 2 || !PlayerInfo.HandList.Contains(card_id))
                 return;
-            ExchangeCard(card_id, true);
+            ExchangeCard(card_id, true, hand_index);
             PlayerInfo.CardsExchanged++;
             if (PlayerInfo.CardsExchanged >= 2)
                 FinishCardExchange();
@@ -307,10 +306,10 @@ namespace Gwent.Battle
         }
 
         // Redraw: the deck's top card takes the card's place in the hand, the card goes to the bottom of the deck
-        public void ExchangeCard(int card_id, bool is_player_card)
+        public void ExchangeCard(int card_id, bool is_player_card, int hand_index = -1)
         {
             BattleSide info = Info(is_player_card);
-            int drawn = RoundRules.Redraw(info, card_id);
+            int drawn = RoundRules.Redraw(info, card_id, hand_index);
             if (drawn == -1)
                 return;
             BattleLog.Redraw(this, is_player_card, card_id, drawn);
@@ -606,7 +605,7 @@ namespace Gwent.Battle
             }
         }
 
-        // Giving up (pause menu): everything in progress stops and the battle is lost
+        // Giving up (a hand laid on the player's deck, DeckGiveUp): everything in progress stops and the battle is lost
         public void GiveUp()
         {
             if (IsBattleOver)
@@ -671,18 +670,48 @@ namespace Gwent.Battle
 
             // Its object leaves the hand first (the showcase shows it): the refresh reuses hand objects, and with two
             // copies in hand it could otherwise keep this very one for the copy that stays
+            int hand_index = HandIndexOf(card_go);
             card_go.transform.SetParent(null, false);
             Destroy(card_go);
-            PlayCard(card_stats._id, field_row, is_player_turn);
+            PlayCard(card_stats._id, field_row, is_player_turn, hand_index);
         }
 
-        // Plays a card from the hand: resolves it, shows it on the board, then passes the turn (unless a choice is
-        // pending)
-        public void PlayCard(int card_id, Row field_row, bool is_player_turn)
+        // A card object's place in its side's hand (which shows the hand list in order), or -1 when it is not in a hand:
+        // with two copies of a card in hand, the one that was clicked
+        public int HandIndexOf(GameObject card_go)
+        {
+            Transform hand = card_go.transform.parent;
+            if (hand == null || (hand != View(true).Hand.transform && hand != View(false).Hand.transform))
+                return -1;
+            int index = 0;
+            foreach (Transform child in hand)
+            {
+                if (child == card_go.transform)
+                    return index;
+                if (child.GetComponent<CardFace>() != null)
+                    index++;
+            }
+            return -1;
+        }
+
+        // A card leaves the hand: the copy at that place in it when known (the one chosen, with two alike in hand), else
+        // the last one (a card picked from a pile joins the end of the hand before it is placed)
+        private static bool TakeFromHand(List<int> hand, int card_id, int hand_index)
+        {
+            int index = hand_index >= 0 && hand_index < hand.Count && hand[hand_index] == card_id ? hand_index : hand.LastIndexOf(card_id);
+            if (index < 0)
+                return false;
+            hand.RemoveAt(index);
+            return true;
+        }
+
+        // Plays a card from the hand (hand_index: its place in it, when known): resolves it, shows it on the board, then
+        // passes the turn (unless a choice is pending)
+        public void PlayCard(int card_id, Row field_row, bool is_player_turn, int hand_index = -1)
         {
             BattleLog.BeforeChange(this);
             BattleSide me = Info(is_player_turn);
-            me.HandList.Remove(card_id);
+            TakeFromHand(me.HandList, card_id, hand_index);
             selectedCard = null;
             pendingAction = PendingAction.None;
             CardShowcase.Clear();
@@ -712,10 +741,9 @@ namespace Gwent.Battle
             });
         }
 
-        // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act
-        // A play's presentation, then what follows it. Never left waiting: a presentation that fails or runs past the limit
-        // (game time: the pause stops it) is cut short and the board shows the result at once. Giving up cancels it with
-        // the battle's flow, and what would follow does not happen.
+        // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act. Never left waiting:
+        // a presentation that fails or runs past the limit (game time: the pause stops it) is cut short and the board shows
+        // the result at once. Giving up cancels it with the battle's flow, and what would follow does not happen.
         private void Present(BoardChange change, Func<CancellationToken, UniTask> show, Action then)
         {
             Presenting(change, show, then, flow.Token).Forget();
@@ -849,18 +877,19 @@ namespace Gwent.Battle
             PlayCardAudio(Db.Get(selectedStats._id));
             selectedCard.GetComponent<CardHover>().DestroyEffect();
             // Out of the hand first, as in DirectlyPlaceCard (a second decoy in hand keeps its own object)
+            int hand_index = HandIndexOf(selectedCard);
             selectedCard.transform.SetParent(null, false);
             Destroy(selectedCard);
             selectedCard = null;
-            PlayDecoy(targetStats._id, row, true, selectedStats._id);
+            PlayDecoy(targetStats._id, row, true, selectedStats._id, hand_index);
             return true;
         }
 
-        // Decoy: the target goes back to the hand, the decoy takes its place on the row
-        public void PlayDecoy(int target_id, Row row, bool is_player_card, int decoy_id)
+        // Decoy: the target goes back to the hand, the decoy (at hand_index in it, when known) takes its place on the row
+        public void PlayDecoy(int target_id, Row row, bool is_player_card, int decoy_id, int hand_index = -1)
         {
             BattleLog.BeforeChange(this);
-            Info(is_player_card).HandList.Remove(decoy_id);
+            TakeFromHand(Info(is_player_card).HandList, decoy_id, hand_index);
             CardShowcase.Clear();
             board.BeginChange();
             PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
@@ -1025,15 +1054,6 @@ namespace Gwent.Battle
         public Card GetCard(int card_id)
         {
             return Db.Get(card_id);
-        }
-
-
-
-        //--------------ToMainMenu
-        public void ToMainMenu()
-        {
-            GameAudio.PlaySfx("ui_click");
-            SceneManager.LoadScene(SceneNames.Menu);
         }
     }
 }

@@ -80,7 +80,6 @@ namespace Gwent.Battle
             GameLog.Event(LogCategory.Ai, "redraw", "exchanged", ai.CardsExchanged);
         }
 
-        // The AI's turn: exactly one action, decided (the battle shows it), then carried out; the turn then passes
         // The move for this turn. Easy and Normal decide at once; Hard plays battles out on its own copy of the board while
         // the turn's notice shows: on another thread, or in a browser (no other thread) a few milliseconds every frame.
         // A decision that fails is taken again as on Normal.

@@ -82,10 +82,10 @@ namespace Gwent.Battle
         }
 
         // Discard (Eredin, Destroyer of Worlds: discard 2 then pick 1 from the deck)
-        public void DiscardCard(int card_id, bool is_player_card)
+        public void DiscardCard(int card_id, bool is_player_card, int hand_index = -1)
         {
             BattleSide info = Info(is_player_card);
-            if (!info.HandList.Remove(card_id))
+            if (!TakeFromHand(info.HandList, card_id, hand_index))
                 return;
 
             GameAudio.PlaySfx("card_discard");
@@ -93,6 +93,7 @@ namespace Gwent.Battle
             AbilityRules.Discard(info, card_id); // a discarded Cow still calls the Bovine Defense Force, next round (The Witcher 3)
             SetHandObject(info.HandList, is_player_card);
             SetDiscardObject(info.DiscardList, is_player_card);
+            AnnounceCows(false); // a Cow discarded: its Bovine Defense Force comes next round, said now
         }
 
         // Initialize the Deck List on screen

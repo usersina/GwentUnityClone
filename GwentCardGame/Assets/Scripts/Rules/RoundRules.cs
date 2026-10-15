@@ -101,18 +101,20 @@ namespace Gwent.Rules
             if (kept_card != -1)
                 info.UnitRow(kept_row).Add(kept_card);
 
-            // Cards summoned during the round (a scorched Cow) or by this cleanup arrive now
+            // Cards summoned by a discard during the round (a Cow discarded by Destroyer of Worlds) or by this cleanup
+            // arrive now (a killed Cow's came at once)
             info.CloseList.AddRange(info.PendingSummons);
             info.PendingSummons.Clear();
             return kept_card;
         }
 
         // Redraw at the start of the battle, as in The Witcher 3: the top card of the deck takes the card's place in the
-        // hand, and the card goes to the bottom of the deck (so it can't come straight back). Returns the new card, or
-        // -1 (nothing changes) when the deck is empty or the card is not in the hand.
-        public static int Redraw(PlayerState info, int card_id)
+        // hand, and the card goes to the bottom of the deck (so it can't come straight back). hand_index: its place in the
+        // hand when known (with two alike, the one chosen), else its first copy. Returns the new card, or -1 (nothing
+        // changes) when the deck is empty or the card is not in the hand.
+        public static int Redraw(PlayerState info, int card_id, int hand_index = -1)
         {
-            int index = info.HandList.IndexOf(card_id);
+            int index = hand_index >= 0 && hand_index < info.HandList.Count && info.HandList[hand_index] == card_id ? hand_index : info.HandList.IndexOf(card_id);
             if (index < 0 || info.DeckList.Count == 0)
                 return -1;
             int drawn = info.DeckList[0];

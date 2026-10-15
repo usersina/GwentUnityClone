@@ -13,8 +13,6 @@ namespace Gwent.Battle
         [HideInInspector]
         public BattleController controller;
 
-        //public bool isHighlighted;
-
         void Start()
         {
             controller = BattleController.Instance;

@@ -15,7 +15,6 @@ namespace Gwent.Battle
         [HideInInspector]
         public BattleController controller;
 
-        public int leaderId;
         public Row type;
 
         private void Start()

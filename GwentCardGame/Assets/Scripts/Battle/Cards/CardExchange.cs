@@ -37,9 +37,9 @@ namespace Gwent.Battle
             // With the redraw carousel open, a click brings the card to its front first; only a double-click on the front
             // card redraws it, so a quick double-click on a card further away never swaps it by accident
             int card_id = GetComponent<CardFace>().Card._id;
-            if (RedrawPicker.IsOpen && !RedrawPicker.IsReadyToRedraw(card_id))
+            if (RedrawPicker.IsOpen && !RedrawPicker.IsReadyToRedraw(card_id, controller.HandIndexOf(gameObject)))
             {
-                RedrawPicker.Bring(card_id);
+                RedrawPicker.Bring(card_id, controller.HandIndexOf(gameObject));
                 doubleClick.Reset();
                 return;
             }
@@ -52,7 +52,7 @@ namespace Gwent.Battle
         private void Exchange()
         {
             lastExchangeTime = Time.unscaledTime;
-            controller.RedrawPlayerCard(GetComponent<CardFace>().Card._id);
+            controller.RedrawPlayerCard(GetComponent<CardFace>().Card._id, controller.HandIndexOf(gameObject));
         }
     }
 }

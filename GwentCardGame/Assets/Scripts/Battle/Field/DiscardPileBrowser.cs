@@ -5,7 +5,7 @@ using UnityEngine.EventSystems;
 namespace Gwent.Battle
 {
     // On a side's discard pile: a click opens the pile in the discard viewer (the cards lying on the pile forward their
-    // clicks here too). With the leader chosen, a click on the pile it takes a unit from uses it.
+    // clicks here too). With the leader lifted, a click on the pile its ability takes a unit from says to use the crown.
     public class DiscardPileBrowser : MonoBehaviour, IPointerClickHandler
     {
         public bool isPlayer;

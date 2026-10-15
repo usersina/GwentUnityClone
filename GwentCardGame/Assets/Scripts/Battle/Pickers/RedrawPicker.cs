@@ -31,16 +31,21 @@ namespace Gwent.Battle
         public static bool IsOpen { get { return current != null; } }
 
         // A card is redrawn only once it has been at the front for a moment: a quick double-click on a card further away
-        // brings it forward and does not swap it by accident
-        public static bool IsReadyToRedraw(int card_id)
+        // brings it forward and does not swap it by accident. hand_index: its place in the hand, which the carousel shows
+        // in order (with two alike, the one clicked), when known.
+        public static bool IsReadyToRedraw(int card_id, int hand_index = -1)
         {
-            return current != null && current.FocusedCardId == card_id && current.FrontIsReady;
+            return current != null && current.FocusedCardId == card_id && (hand_index < 0 || current.focus == hand_index) && current.FrontIsReady;
         }
 
         // Brings a card of the hand to the front (a click on it in the hand)
-        public static void Bring(int card_id)
+        public static void Bring(int card_id, int hand_index = -1)
         {
-            if (current != null && current.shown.Contains(card_id))
+            if (current == null)
+                return;
+            if (hand_index >= 0 && hand_index < current.shown.Count && current.shown[hand_index] == card_id)
+                current.SetFocus(hand_index);
+            else if (current.shown.Contains(card_id))
                 current.SetFocus(current.shown.IndexOf(card_id));
         }
 
@@ -204,7 +209,7 @@ namespace Gwent.Battle
             if (Time.unscaledTime - lastRedraw < RedrawCooldown || focus >= shown.Count || IsAnimating || !IsReadyToRedraw(FocusedCardId))
                 return;
             lastRedraw = Time.unscaledTime;
-            controller.RedrawPlayerCard(shown[focus]);
+            controller.RedrawPlayerCard(shown[focus], focus);
         }
 
         protected override void HandleKeys(Keyboard keyboard)

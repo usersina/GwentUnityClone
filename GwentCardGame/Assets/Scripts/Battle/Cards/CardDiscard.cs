@@ -32,7 +32,7 @@ namespace Gwent.Battle
                 controller = BattleController.Instance;
             if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
             {
-                controller.DiscardCard(GetComponent<CardFace>().Card._id, true);
+                controller.DiscardCard(GetComponent<CardFace>().Card._id, true, controller.HandIndexOf(gameObject));
                 controller.PlayerInfo.CardsDiscarded++;
 
                 // Conditions met, a card can be chosen

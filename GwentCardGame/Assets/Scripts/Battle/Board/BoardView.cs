@@ -637,10 +637,11 @@ namespace Gwent.Battle
             MarkDecoyTargets(view, false);
         }
 
+        public const string LeaderTargetFrame = "LeaderTarget";
+
         // Lights where the player's leader ability acts, as for a selected card: the weather board (weather leaders),
         // its row's horn slot, the opponent's row it scorches, the rows of agile units, the discard pile it takes a unit
-        // from (framed). Nothing for the others (a second click on the leader uses them). Returns the places lit.
-        public const string LeaderTargetFrame = "LeaderTarget";
+        // from (framed). Nothing for the others (the crown uses them). Returns the places lit.
 
         public List<GameObject> MarkLeaderTargets(int leader_id)
         {
