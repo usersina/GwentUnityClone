@@ -1,20 +1,20 @@
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.UI;
-using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
     // The battle's pause menu (Escape, the Android back button or the menu button at the top right).
-    // Time stops while it is open, so the AI waits too.
+    // Time stops while it is open, so the AI waits too. A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this
+    // component sits on its object to put time back should the scene close under it.
     public class PauseMenu : MonoBehaviour
     {
         private static PauseMenu current;
         private float previousTimeScale = 1f;
-        private Button settingsItem;
 
         public static bool IsOpen { get { return current != null; } }
 
@@ -23,12 +23,15 @@ namespace Gwent.Menus
             if (current != null || SettingsPanel.IsOpen)
                 return;
 
-            RectTransform dimmer = UIKit.Dimmer(UIOverlay.Root, "PauseMenu");
-            current = dimmer.gameObject.AddComponent<PauseMenu>();
-            current.previousTimeScale = Time.timeScale;
+            float time_scale = Time.timeScale;
             Time.timeScale = 0f;
-            current.Build(dimmer);
-            UIOverlay.PushModal(dimmer.gameObject, current.Resumed);
+            // The battle reads its keys itself (BattleKeys): the menu button that opened this must not get the selection
+            // back on Resume, or Enter would press it again instead of taking a card
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(null);
+            GameObject dialog = UIScreens.ShowDialog("PauseMenu", UITheme.Current.pauseMenu, Bind, Resumed);
+            current = dialog.AddComponent<PauseMenu>();
+            current.previousTimeScale = time_scale;
         }
 
         public static void Close()
@@ -37,44 +40,38 @@ namespace Gwent.Menus
                 UIOverlay.CloseModal(current.gameObject);
         }
 
-        private void Build(RectTransform dimmer)
+        private static void Bind(VisualElement root)
         {
-            bool can_quit = !GameSettings.IsMobile && !GameSettings.IsWeb;
-            float height = can_quit ? 560 : 472;
-            RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640, height));
-
-            TextMeshProUGUI title = UIKit.Text(panel, "Paused", UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
-            title.rectTransform.Place(new Vector2(0.5f, 1), new Vector2(0, -64), new Vector2(560, 64));
-            UIKit.Ornament(panel, new Vector2(0.5f, 1), new Vector2(0, -112), 360);
-
-            float y = -180;
-            Button resume = Item(panel, "Resume", Close, ref y);
-            settingsItem = Item(panel, "Settings", () => SettingsPanel.Open(() => UIKit.Focus(settingsItem)), ref y);
-            // Give up (The Witcher 3's forfeit): the battle counts as lost and the end screen follows
+            MenuEntry resume = root.Q<MenuEntry>("Item Resume");
+            resume.clicked += Close;
+            MenuEntry settings = root.Q<MenuEntry>("Item Settings");
+            settings.clicked += () => SettingsPanel.Open(() => UIScreens.Focus(settings));
+            // Give up (The Witcher 3's forfeit): the battle counts as lost and the end screen follows; once it is over,
+            // back to the main menu instead
             BattleController battle = BattleController.Instance;
-            if (battle != null && !battle.IsBattleOver)
-                Item(panel, "Give up", () => UIOverlay.Confirm("Give up this battle? It counts as a loss.", "Give up", "Keep playing", GiveUp), ref y);
-            else
-                Item(panel, "Main menu", () => UIOverlay.Confirm("Leave and go back to the main menu?", "Leave", "Stay", LeaveBattle), ref y);
-            if (can_quit)
-                Item(panel, "Quit game", () => UIOverlay.Confirm("Quit the game?", "Quit", "Cancel", Application.Quit), ref y);
-            UIKit.Focus(resume);
+            bool battle_on = battle != null && !battle.IsBattleOver;
+            Entry(root, "Item Give up", battle_on, () => UIOverlay.Confirm("Give up this battle? It counts as a loss.", "Give up", "Keep playing", GiveUp));
+            Entry(root, "Item Main menu", !battle_on, () => UIOverlay.Confirm("Leave and go back to the main menu?", "Leave", "Stay", LeaveBattle));
+            Entry(root, "Item Quit game", !GameSettings.IsMobile && !GameSettings.IsWeb, () => UIOverlay.Confirm("Quit the game?", "Quit", "Cancel", Application.Quit));
+            root.schedule.Execute(() => UIScreens.Focus(resume));
         }
 
-        private Button Item(RectTransform panel, string text, System.Action on_click, ref float y)
+        // An entry shown only where it applies
+        private static void Entry(VisualElement root, string name, bool shown, System.Action on_click)
         {
-            Button item = UIKit.MenuItem(panel, text, on_click, true, new Vector2(520, 76));
-            ((RectTransform)item.transform).Place(new Vector2(0.5f, 1), new Vector2(0, y), new Vector2(520, 76));
-            y -= 88;
-            return item;
+            MenuEntry entry = root.Q<MenuEntry>(name);
+            if (shown)
+                entry.clicked += on_click;
+            else
+                entry.RemoveFromHierarchy();
         }
 
-        private void Resumed()
+        private static void Resumed()
         {
             // In a battle, at the game speed (it may have changed in the settings)
-            Time.timeScale = BattleController.Instance != null ? GameSettings.GameTimeScale : previousTimeScale > 0 ? previousTimeScale : 1f;
-            if (current == this)
-                current = null;
+            float previous = current != null ? current.previousTimeScale : 1f;
+            Time.timeScale = BattleController.Instance != null ? GameSettings.GameTimeScale : previous > 0 ? previous : 1f;
+            current = null;
         }
 
         private static void GiveUp()

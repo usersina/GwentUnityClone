@@ -1,0 +1,7 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/Toolkit/Gwent.uss" />
+    <!-- A short message at the top of the screen; it never takes a click -->
+    <ui:VisualElement name="Toast" class="panel panel--raised toast" picking-mode="Ignore">
+        <ui:Label name="Message" class="body toast__message" picking-mode="Ignore" />
+    </ui:VisualElement>
+</ui:UXML>

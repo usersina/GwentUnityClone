@@ -22,11 +22,10 @@
     --body-font: url("project://database/Assets/Fonts/AlegreyaSans-Regular.ttf");
 }
 
-/* A screen fills the panel and lets clicks through where it shows nothing */
+/* A screen fills the panel (its UXML lets clicks through where it shows nothing: picking-mode="Ignore") */
 .screen {
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
-    picking-mode: ignore;
 }
 
 .caption {
@@ -177,14 +176,15 @@
     color: var(--gold);
 }
 
-.button--secondary:hover,
-.button--secondary:focus {
+/* (.unity-button too: the default theme's focus border, blue, is as specific as a class and a state) */
+.unity-button.button--secondary:hover,
+.unity-button.button--secondary:focus {
     background-color: rgba(201, 164, 92, 0.16);
     border-color: var(--gold-bright);
     color: var(--gold-bright);
 }
 
-.button--secondary:active {
+.unity-button.button--secondary:active {
     background-color: rgba(201, 164, 92, 0.28);
 }
 
@@ -195,13 +195,13 @@
     color: var(--background);
 }
 
-.button--primary:hover,
-.button--primary:focus {
+.unity-button.button--primary:hover,
+.unity-button.button--primary:focus {
     background-color: var(--gold-bright);
     border-color: var(--gold-bright);
 }
 
-.button--primary:active {
+.unity-button.button--primary:active {
     background-color: #AB8B4E;
     border-color: #AB8B4E;
 }
@@ -646,4 +646,99 @@
 /* Unity's own look for a disabled control would dim the whole arrow twice */
 .stepper__arrow:disabled {
     opacity: 1;
+}
+
+.body {
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text);
+    padding: 0;
+    margin: 0;
+}
+
+.panel--raised {
+    background-color: var(--panel-raised);
+}
+
+/* A menu entry in the middle of a dialog: a radial band and a short rule under the text */
+.menu-item--centered {
+    width: 520px;
+    padding: 0 0 2px 0;
+    -unity-text-align: middle-center;
+    background-image: url("project://database/Assets/UI/Sprites/Radial.png");
+}
+
+.menu-item--centered > .menu-item__rule {
+    left: 50%;
+    top: auto;
+    bottom: 4px;
+    width: 160px;
+    height: 2px;
+    margin-left: -80px;
+}
+
+/*---------------------------------------- Pause menu ----------------------------------------*/
+.pause-menu {
+    width: 640px;
+    padding: 34px 0 40px 0;
+    align-items: center;
+}
+
+.pause-menu__ornament {
+    width: 360px;
+    margin: 14px 0 32px 0;
+}
+
+/*---------------------------------------- Confirmation ----------------------------------------*/
+.confirm {
+    width: 920px;
+    min-height: 330px;
+    padding: 34px 60px 36px 60px;
+    align-items: center;
+}
+
+.confirm__ornament {
+    width: 360px;
+}
+
+.confirm__message {
+    flex-grow: 1;
+    margin: 24px 0 28px 0;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.confirm__buttons {
+    flex-direction: row;
+    justify-content: center;
+}
+
+.confirm__buttons > .button {
+    margin: 0 20px;
+}
+
+/*---------------------------------------- Toast ----------------------------------------*/
+/* At the top of the screen; fades in and out (UIOverlay.Toast) */
+.toast {
+    position: absolute;
+    top: 98px;
+    left: 50%;
+    width: 1100px;
+    min-height: 84px;
+    margin-left: -550px;
+    padding: 12px 30px 14px 30px;
+    justify-content: center;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.25s;
+}
+
+.toast--shown {
+    opacity: 1;
+}
+
+.toast__message {
+    white-space: normal;
+    -unity-text-align: middle-center;
+    font-size: 30px;
 }

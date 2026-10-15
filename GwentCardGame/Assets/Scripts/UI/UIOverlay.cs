@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using UIElements = UnityEngine.UIElements;
 
 namespace Gwent.UI
 {
@@ -82,47 +83,48 @@ namespace Gwent.UI
         }
 
         //----------------------------------------Toast----------------------------------------//
-        // Short message at the top of the screen, replaced by the next one; never blocks clicks
+        // Short message at the top of the screen, replaced by the next one; never blocks clicks. Above the dialogs
+        // (UI Toolkit, Toast.uxml); it fades in and out by USS transitions.
         public static void Toast(string message, float seconds = 2.5f)
         {
             GameLog.Event(LogCategory.Ui, "toast", "text", message);
             if (currentToast != null)
                 UnityEngine.Object.Destroy(currentToast);
 
-            RectTransform panel = UIKit.Panel(Root, "Toast", true).Place(new Vector2(0.5f, 1f), new Vector2(0, -140), new Vector2(1100, 84));
-            foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>())
-                graphic.raycastTarget = false;
-            TextMeshProUGUI label = UIKit.Text(panel, message, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
-            label.rectTransform.Stretch(30, 30, 0, 2);
-            label.textWrappingMode = TextWrappingModes.Normal;
-            label.enableAutoSizing = true;
-            label.fontSizeMin = 20;
-            label.fontSizeMax = 32;
-            UIMotion.ShowFor(panel.gameObject, seconds);
-            currentToast = panel.gameObject;
+            const long Fade = 250;
+            long lifetime = Math.Max((long)(seconds * 1000), Fade * 2);
+            GameObject toast = null;
+            toast = UIScreens.Show("Toast", UITheme.Current.toast, root =>
+            {
+                UIElements.UQueryExtensions.Q<UIElements.Label>(root, "Message").text = message;
+                UIElements.VisualElement panel = UIElements.UQueryExtensions.Q(root, "Toast");
+                panel.schedule.Execute(() => panel.AddToClassList("toast--shown")); // from the next frame: it fades in
+                panel.schedule.Execute(() => panel.RemoveFromClassList("toast--shown")).StartingIn(lifetime - Fade);
+                panel.schedule.Execute(() => UnityEngine.Object.Destroy(toast)).StartingIn(lifetime);
+            }, UIScreens.Layer.Dialog).gameObject;
+            currentToast = toast;
         }
 
         //----------------------------------------Confirmation dialog----------------------------------------//
+        // A question with two answers (UI Toolkit, ConfirmDialog.uxml); Enter on a keyboard picks the safe one
         public static void Confirm(string message, string yes_text, string no_text, Action on_yes)
         {
-            RectTransform dimmer = UIKit.Dimmer(Root, "ConfirmDialog");
-            RectTransform panel = UIKit.Panel(dimmer, "Panel").Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(920, 330));
-            UIKit.Ornament(panel, new Vector2(0.5f, 1f), new Vector2(0, -40), 360);
-            TextMeshProUGUI label = UIKit.Text(panel, message, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
-            label.rectTransform.Stretch(60, 60, 56, 124);
-            label.textWrappingMode = TextWrappingModes.Normal;
-
-            GameObject dialog = dimmer.gameObject;
-            Button yes = UIKit.Button(panel, yes_text, UIKit.ButtonStyle.Primary, () =>
+            GameObject dialog = null;
+            dialog = UIScreens.ShowDialog("ConfirmDialog", UITheme.Current.confirmDialog, root =>
             {
-                CloseModal(dialog);
-                on_yes();
+                UIElements.UQueryExtensions.Q<UIElements.Label>(root, "Message").text = message;
+                UIElements.Button yes = UIElements.UQueryExtensions.Q<UIElements.Button>(root, "Button Yes");
+                UIElements.Button no = UIElements.UQueryExtensions.Q<UIElements.Button>(root, "Button No");
+                yes.text = yes_text;
+                no.text = no_text;
+                yes.clicked += () =>
+                {
+                    CloseModal(dialog);
+                    on_yes();
+                };
+                no.clicked += () => CloseModal(dialog);
+                root.schedule.Execute(() => UIScreens.Focus(no));
             });
-            ((RectTransform)yes.transform).Place(new Vector2(0.5f, 0f), new Vector2(-160, 70), new Vector2(280, 68));
-            Button no = UIKit.Button(panel, no_text, UIKit.ButtonStyle.Secondary, () => CloseModal(dialog));
-            ((RectTransform)no.transform).Place(new Vector2(0.5f, 0f), new Vector2(160, 70), new Vector2(280, 68));
-            PushModal(dialog);
-            UIKit.Focus(no); // Enter on a keyboard picks the safe choice
         }
 
         //----------------------------------------Modal dialogs and Escape----------------------------------------//

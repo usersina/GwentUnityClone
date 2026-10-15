@@ -44,7 +44,9 @@ namespace Gwent.UI
                 if (version == bound)
                     return; // the same document as already bound
                 bound = version;
-                // A Panel Renderer's root does not fill the panel by itself
+                // A Panel Renderer's root does not fill the panel by itself, and lets clicks through where the document
+                // shows nothing (a dialog's dimmer takes them)
+                root.pickingMode = PickingMode.Ignore;
                 root.style.position = Position.Absolute;
                 root.style.left = 0;
                 root.style.top = 0;

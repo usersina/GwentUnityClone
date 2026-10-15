@@ -68,6 +68,9 @@ namespace Gwent.UI
         public VisualTreeAsset opponentPicker;
         public VisualTreeAsset opponentEntry;
         public VisualTreeAsset settings;
+        public VisualTreeAsset pauseMenu;
+        public VisualTreeAsset confirmDialog;
+        public VisualTreeAsset toast;
 
         [Header("Cursors (tip at 5, 4)")]
         public Texture2D cursorDefault;

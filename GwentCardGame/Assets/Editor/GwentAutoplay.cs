@@ -120,8 +120,8 @@ namespace Gwent.EditorTools
         // The notice showing at the top of the screen, if any
         private static string ToastText()
         {
-            GameObject toast = GameObject.Find("Toast");
-            TextMeshProUGUI label = toast != null ? toast.GetComponentInChildren<TextMeshProUGUI>() : null;
+            UnityEngine.UIElements.VisualElement toast = UIScreens.Find("Toast");
+            UnityEngine.UIElements.Label label = toast != null ? UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.Label>(toast, "Message") : null;
             return label != null ? label.text : "";
         }
 
