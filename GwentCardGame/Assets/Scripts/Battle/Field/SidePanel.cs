@@ -59,25 +59,25 @@ namespace Gwent.Battle
             rubyRight = transform.Find("RubyR").GetComponent<Image>();
         }
 
-        public void UISetGeneral(string faction)
+        public void UISetGeneral(Faction faction)
         {
             CacheReferences();
-            string faction_name = faction;
+            string faction_name = faction.Code();
             switch (faction)
             {
-                case Factions.Monsters:
+                case Faction.Monsters:
                     faction_name = "Monsters";
                     factionShield.sprite = factionShields[0];
                     break;
-                case Factions.Nilfgaard:
+                case Faction.Nilfgaard:
                     faction_name = "Nilfgaard";
                     factionShield.sprite = factionShields[1];
                     break;
-                case Factions.NorthernRealms:
+                case Faction.NorthernRealms:
                     faction_name = "Northern Realms";
                     factionShield.sprite = factionShields[2];
                     break;
-                case Factions.Scoiatael:
+                case Faction.Scoiatael:
                     faction_name = "Scoia'tael";
                     factionShield.sprite = factionShields[3];
                     break;

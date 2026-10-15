@@ -87,7 +87,7 @@ namespace Gwent.DeckBuilding
 
             // Only the deck's faction, neutral and special cards
             Gwent.Rules.Card card = deckBuilder.Db.Get(cardStats._id);
-            if (!card.IsSpecial && card.faction != Gwent.Rules.Factions.Neutral && card.faction != deckBuilder.my_deck.Faction)
+            if (!card.IsSpecial && card.faction != Gwent.Rules.Faction.Neutral && card.faction != deckBuilder.my_deck.Faction)
             {
                 GameAudio.PlaySfx("invalid");
                 UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
@@ -103,7 +103,7 @@ namespace Gwent.DeckBuilding
             }
 
             // If Special occurences is less than 3, check total specials count
-            if (cardStats.faction == "Special")
+            if (cardStats.faction == Faction.Special)
             {
                 int specialsOcc = deckBuilder.GetSpecialsOccurence(deckBuilder.my_deck);
                 if (specialsOcc >= Gwent.Rules.DeckRules.MaxSpecials)
@@ -129,7 +129,7 @@ namespace Gwent.DeckBuilding
             name_text.text = Card.DisplayNameOf(stats.name);
 
             // Neutral and special cards have no faction banner: their name is centered on a wider patch
-            bool bannerless = stats.faction == Factions.Neutral || stats.faction == Factions.Special;
+            bool bannerless = stats.faction == Faction.Neutral || stats.faction == Faction.Special;
             if (bannerless)
             {
                 RectTransform name_rect = name_text.rectTransform;

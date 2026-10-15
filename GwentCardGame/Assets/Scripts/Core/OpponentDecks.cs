@@ -33,7 +33,7 @@ namespace Gwent.Core
         }
 
         // A faction's presets, by name
-        public static List<string> PresetPaths(string faction)
+        public static List<string> PresetPaths(Faction faction)
         {
             List<string> paths = new List<string>();
             foreach (TextAsset asset in All())

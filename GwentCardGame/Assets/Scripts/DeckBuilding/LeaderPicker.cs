@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Gwent.Core;
+using Gwent.Rules;
 using Gwent.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -31,10 +32,10 @@ namespace Gwent.DeckBuilding
             contentGO.transform.DetachChildren();
         }
 
-        public void SetLeaderContent(string faction)
+        public void SetLeaderContent(Faction faction)
         {
             int[] leaders;
-            if (Gwent.Rules.LeaderIds.ByFaction.TryGetValue(faction ?? "", out leaders))
+            if (Gwent.Rules.LeaderIds.ByFaction.TryGetValue(faction, out leaders))
                 CreateLeaders(leaders);
             else
                 Debug.LogError("SetLeaderContent: Unexpected value: " + faction);

@@ -27,59 +27,59 @@ namespace Gwent.Rules
         public const int FrancescaQueenOfDolBlathanna = 60; // Scorch the enemy close row (if it totals 10+)
         public const int FrancescaTheBeautiful = 61;        // Commander's Horn on your range row
 
-        public static readonly Dictionary<string, int[]> ByFaction = new Dictionary<string, int[]>
+        public static readonly Dictionary<Faction, int[]> ByFaction = new Dictionary<Faction, int[]>
         {
-            { Factions.NorthernRealms, new[] { 51, 52, 53, 54, 55 } },
-            { Factions.Nilfgaard, new[] { 33, 34, 35, 36, 37 } },
-            { Factions.Scoiatael, new[] { 57, 58, 59, 60, 61 } },
-            { Factions.Monsters, new[] { 40, 41, 42, 43, 44 } },
+            { Faction.NorthernRealms, new[] { 51, 52, 53, 54, 55 } },
+            { Faction.Nilfgaard, new[] { 33, 34, 35, 36, 37 } },
+            { Faction.Scoiatael, new[] { 57, 58, 59, 60, 61 } },
+            { Faction.Monsters, new[] { 40, 41, 42, 43, 44 } },
         };
 
-        public static int DefaultFor(string faction)
+        public static int DefaultFor(Faction faction)
         {
             int[] leaders;
-            return ByFaction.TryGetValue(faction ?? "", out leaders) ? leaders[0] : FoltestKingOfTemeria;
+            return ByFaction.TryGetValue(faction, out leaders) ? leaders[0] : FoltestKingOfTemeria;
         }
 
-        public static bool BelongsTo(int leader_id, string faction)
+        public static bool BelongsTo(int leader_id, Faction faction)
         {
             int[] leaders;
-            return ByFaction.TryGetValue(faction ?? "", out leaders) && Array.IndexOf(leaders, leader_id) >= 0;
+            return ByFaction.TryGetValue(faction, out leaders) && Array.IndexOf(leaders, leader_id) >= 0;
         }
 
         // Leaders whose ability plays a weather card from the deck, and which weather row they look for
-        public static string WeatherPickRow(int leader_id)
+        public static Row? WeatherPickRow(int leader_id)
         {
             switch (leader_id)
             {
-                case EredinKingOfTheWildHunt: return "all";
-                case EmhyrHisImperialMajesty: return Rows.Siege;
-                case FoltestKingOfTemeria: return Rows.Range;
-                case FrancescaPurebloodElf: return Rows.Close;
+                case EredinKingOfTheWildHunt: return Row.Weather; // any weather card
+                case EmhyrHisImperialMajesty: return Row.Siege;
+                case FoltestKingOfTemeria: return Row.Range;
+                case FrancescaPurebloodElf: return Row.Close;
                 default: return null;
             }
         }
 
         // Leaders whose ability is a Commander's Horn on a fixed row
-        public static string HornRow(int leader_id)
+        public static Row? HornRow(int leader_id)
         {
             switch (leader_id)
             {
-                case EredinCommanderOfTheRedRiders: return Rows.Close;
-                case FoltestTheSiegemaster: return Rows.Siege;
-                case FrancescaTheBeautiful: return Rows.Range;
+                case EredinCommanderOfTheRedRiders: return Row.Close;
+                case FoltestTheSiegemaster: return Row.Siege;
+                case FrancescaTheBeautiful: return Row.Range;
                 default: return null;
             }
         }
 
         // Leaders whose ability scorches a fixed enemy row
-        public static string ScorchRow(int leader_id)
+        public static Row? ScorchRow(int leader_id)
         {
             switch (leader_id)
             {
-                case FoltestSonOfMedell: return Rows.Range;
-                case FoltestTheSteelForged: return Rows.Siege;
-                case FrancescaQueenOfDolBlathanna: return Rows.Close;
+                case FoltestSonOfMedell: return Row.Range;
+                case FoltestTheSteelForged: return Row.Siege;
+                case FrancescaQueenOfDolBlathanna: return Row.Close;
                 default: return null;
             }
         }

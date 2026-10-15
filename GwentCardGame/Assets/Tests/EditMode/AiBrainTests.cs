@@ -32,7 +32,7 @@ namespace Gwent.Rules.Tests
 
         private static PlayerState Ai(params int[] hand)
         {
-            PlayerState me = TestBoard.Player(Factions.Monsters, LeaderIds.EredinKingOfTheWildHunt);
+            PlayerState me = TestBoard.Player(Faction.Monsters, LeaderIds.EredinKingOfTheWildHunt);
             me.HandList.AddRange(hand);
             return me;
         }
@@ -52,7 +52,7 @@ namespace Gwent.Rules.Tests
             PlayerState me = Ai(Nekker);
             me.CloseList.AddRange(new[] { Fiend, EarthElemental });
             me.Lives = 1;
-            PlayerState opp = TestBoard.Player(Factions.Scoiatael, LeaderIds.FrancescaTheBeautiful);
+            PlayerState opp = TestBoard.Player(Faction.Scoiatael, LeaderIds.FrancescaTheBeautiful);
             opp.RangeList.Add(85); // 10
             opp.Lives = 1;
             Assert.AreNotEqual(AiActionType.Pass, AiBrain.Decide(Context(me, opp)).Type, "the horn would win the battle for the opponent");
@@ -191,8 +191,8 @@ namespace Gwent.Rules.Tests
                     int n = side == source ? value : 1000 + value;
                     if (field.FieldType == typeof(List<int>))
                         field.SetValue(side, new List<int> { n, n + 1 });
-                    else if (field.FieldType == typeof(List<string>))
-                        field.SetValue(side, new List<string> { "row" + n });
+                    else if (field.FieldType == typeof(List<Row>))
+                        field.SetValue(side, new List<Row> { side == source ? Row.Close : Row.Siege, Row.Range });
                     else if (field.FieldType == typeof(List<bool>))
                         field.SetValue(side, new List<bool> { side == source, true });
                     else if (field.FieldType == typeof(int))
@@ -200,7 +200,9 @@ namespace Gwent.Rules.Tests
                     else if (field.FieldType == typeof(bool))
                         field.SetValue(side, side == source);
                     else if (field.FieldType == typeof(string))
-                        field.SetValue(side, "faction" + n);
+                        field.SetValue(side, "text" + n);
+                    else if (field.FieldType == typeof(Faction))
+                        field.SetValue(side, side == source ? Faction.Monsters : Faction.Nilfgaard);
                     else
                         Assert.Fail("PlayerState." + field.Name + ": a field of a kind this test does not know (" + field.FieldType.Name + ")");
                 }
@@ -242,13 +244,13 @@ namespace Gwent.Rules.Tests
             List<int> units = db.All.Where(c => c.IsUnit).Select(c => c._id).ToList();
             for (int i = 0; i < positions; i++)
             {
-                PlayerState me = TestBoard.Player(Factions.Monsters, LeaderIds.ByFaction[Factions.Monsters][rnd.Next(5)]);
-                PlayerState opp = TestBoard.Player(Factions.NorthernRealms, LeaderIds.ByFaction[Factions.NorthernRealms][rnd.Next(5)]);
+                PlayerState me = TestBoard.Player(Faction.Monsters, LeaderIds.ByFaction[Faction.Monsters][rnd.Next(5)]);
+                PlayerState opp = TestBoard.Player(Faction.NorthernRealms, LeaderIds.ByFaction[Faction.NorthernRealms][rnd.Next(5)]);
                 foreach (int card in AiDeck.OrderBy(x => rnd.Next()).Take(rnd.Next(0, 11)))
                     me.HandList.Add(card);
                 foreach (int card in AiDeck.OrderBy(x => rnd.Next()).Take(rnd.Next(0, 10)))
                     me.DeckList.Add(card);
-                foreach (string row in Rows.Units)
+                foreach (Row row in Rows.Units)
                 {
                     for (int n = rnd.Next(0, 4); n > 0; n--)
                         me.UnitRow(row).Add(units[rnd.Next(units.Count)]);
@@ -407,22 +409,22 @@ namespace Gwent.Rules.Tests
         {
             PlayerState me = Ai();
             me.CloseList.AddRange(new[] { Fiend, Villentretenmerth });
-            string row;
+            Row row;
             Assert.AreEqual(Villentretenmerth, AiBrain.ChooseDecoyTarget(me, TestBoard.Db, out row));
-            Assert.AreEqual(Rows.Close, row);
+            Assert.AreEqual(Row.Close, row);
         }
 
         [Test]
         public void NilfgaardHoldsATiedRoundOnceTheOpponentHasPassed()
         {
-            PlayerState me = TestBoard.Player(Factions.Nilfgaard, LeaderIds.EmhyrTheWhiteFlame);
+            PlayerState me = TestBoard.Player(Faction.Nilfgaard, LeaderIds.EmhyrTheWhiteFlame);
             me.HandList.AddRange(new[] { Fiend, EarthElemental });
             me.CloseList.Add(Fiend);
             PlayerState opp = Opponent(Fiend);
             opp.hasPassed = true;
             Assert.AreEqual(AiActionType.Pass, AiBrain.Decide(Context(me, opp)).Type, "Nilfgaard wins the tie");
 
-            me.Faction = Factions.Monsters;
+            me.Faction = Faction.Monsters;
             Assert.AreNotEqual(AiActionType.Pass, AiBrain.Decide(Context(me, opp)).Type, "anyone else must break it");
         }
     }

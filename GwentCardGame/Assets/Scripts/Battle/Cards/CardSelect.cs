@@ -99,7 +99,7 @@ namespace Gwent.Battle
                 return false;
 
             Card cardStats = gameObject.GetComponent<CardFace>().Card;
-            if (cardStats.ability != Abilities.Leader)
+            if (cardStats.ability != Ability.Leader)
                 return false;
 
             LeaderSlot leaderManager = GetComponentInParent<LeaderSlot>();

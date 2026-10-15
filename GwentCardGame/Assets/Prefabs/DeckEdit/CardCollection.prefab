@@ -445,7 +445,7 @@ MonoBehaviour:
   cardsArea: {fileID: 2842275583405778293}
   cardDetails: {fileID: 0}
   selectedTab: 0
-  faction: NR
+  faction: 0
   factionPerk: {fileID: 0}
   currentSprites:
   - {fileID: 2842275585281842362}

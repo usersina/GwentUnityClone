@@ -14,7 +14,7 @@ namespace Gwent.Battle
         public BattleController controller;
 
         public int leaderId;
-        public string type;
+        public Row type;
 
         private void Start()
         {
@@ -100,7 +100,7 @@ namespace Gwent.Battle
                 return;
             if (plainFace == null)
                 plainFace = face.sprite;
-            bool passive = type == Rows.LeaderPassive;
+            bool passive = type == Row.LeaderPassive;
             bool lit = ready && !used && !cancelled && !passive && UITheme.Current.leaderReady != null;
             face.sprite = lit ? UITheme.Current.leaderReady : plainFace;
             face.color = cancelled ? CancelledRed : used ? UsedGrey : passive ? PassiveGrey : lit ? Color.white : UsedGrey;
@@ -117,7 +117,7 @@ namespace Gwent.Battle
             string whose = IsPlayers ? "Leader ability" : "Opponent's leader ability";
             if (cancelled)
                 return whose + ": cancelled by the other leader";
-            if (type == Rows.LeaderPassive)
+            if (type == Row.LeaderPassive)
                 return whose + ": passive, always in effect";
             if (used)
                 return whose + ": used";

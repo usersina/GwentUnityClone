@@ -14,7 +14,7 @@ namespace Gwent.Rules.Tests
         // Resources/Cards/AI_Monsters.json
         private static readonly Deck AiDeck = new Deck
         {
-            Faction = Factions.Monsters,
+            Faction = Faction.Monsters,
             Name = "Monsters Slay",
             Leader = LeaderIds.EredinKingOfTheWildHunt,
             Cards = new List<int> { 67, 14, 77, 83, 85, 27, 125, 126, 127, 128, 129, 1, 1, 1, 2, 18, 19, 20, 47, 30, 22, 135, 92, 94, 94, 94, 201, 202, 204 }
@@ -88,9 +88,9 @@ namespace Gwent.Rules.Tests
                     RoundRules.CleanupBoard(board.Player, rnd, Db);
                     RoundRules.CleanupBoard(board.Enemy, rnd, Db);
                     board.Weather.Clear();
-                    if (winner == RoundWinner.Player && board.Player.Faction == Factions.NorthernRealms)
+                    if (winner == RoundWinner.Player && board.Player.Faction == Faction.NorthernRealms)
                         RoundRules.Draw(board.Player, 1);
-                    if (winner == RoundWinner.Enemy && board.Enemy.Faction == Factions.NorthernRealms)
+                    if (winner == RoundWinner.Enemy && board.Enemy.Faction == Faction.NorthernRealms)
                         RoundRules.Draw(board.Enemy, 1);
                     board.Player.hasPassed = board.Enemy.hasPassed = false;
                     Assert.AreEqual(expected, CountCards(board), "cards lost/created at round end: " + context);
@@ -118,7 +118,7 @@ namespace Gwent.Rules.Tests
                 case AiActionType.PlayCard:
                     Assert.That(me.HandList, Has.Member(action.CardId), context);
                     me.HandList.Remove(action.CardId);
-                    if (Db.Get(action.CardId).ability == Abilities.Decoy)
+                    if (Db.Get(action.CardId).ability == Ability.Decoy)
                         PlayRules.Decoy(board, action.TargetId, action.Row, is_player, action.CardId);
                     else
                         Assert.AreEqual(PlayOutcome.Done, PlayRules.Resolve(board, Db.Get(action.CardId), action.Row, is_player, false), context);
@@ -130,7 +130,7 @@ namespace Gwent.Rules.Tests
                     if (LeaderIds.WeatherPickRow(me.Leader) != null)
                     {
                         Assert.IsTrue(me.DeckList.Remove(action.CardId), "weather leader card not in deck: " + context);
-                        PlayRules.Resolve(board, Db.Get(action.CardId), Rows.Weather, is_player, false);
+                        PlayRules.Resolve(board, Db.Get(action.CardId), Row.Weather, is_player, false);
                     }
                     else if (me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
                     {
@@ -163,12 +163,12 @@ namespace Gwent.Rules.Tests
         private static List<Deck> GenerateDecks(Random rnd)
         {
             List<Deck> decks = new List<Deck>();
-            foreach (string faction in Factions.Playable)
+            foreach (Faction faction in Factions.Playable)
                 foreach (int leader in LeaderIds.ByFaction[faction])
                 {
                     List<int> cards = new List<int>();
                     foreach (Card card in Db.All.Where(c => c.IsUnit && c._id != CardIds.BovineDefenseForce
-                        && (c.faction == faction || c.faction == Factions.Neutral)).OrderBy(x => rnd.Next()))
+                        && (c.faction == faction || c.faction == Faction.Neutral)).OrderBy(x => rnd.Next()))
                     {
                         int copies = 1 + rnd.Next(DeckRules.MaxCopies(card));
                         for (int i = 0; i < copies && cards.Count < 26; i++)

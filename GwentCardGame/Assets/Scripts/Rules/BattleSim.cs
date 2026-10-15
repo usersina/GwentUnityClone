@@ -18,7 +18,7 @@ namespace Gwent.Rules
                     if (!me.HandList.Contains(action.CardId))
                         break;
                     Card card = board.Db.Get(action.CardId);
-                    if (card.ability == Abilities.Decoy)
+                    if (card.ability == Ability.Decoy)
                     {
                         if (action.TargetId < 0 || !Rows.IsUnitRow(action.Row))
                             break;
@@ -49,7 +49,7 @@ namespace Gwent.Rules
                 if (!me.DeckList.Remove(action.CardId))
                     return false;
                 me.canLeader = false;
-                PlayRules.Resolve(board, board.Db.Get(action.CardId), Rows.Weather, is_player, false);
+                PlayRules.Resolve(board, board.Db.Get(action.CardId), Row.Weather, is_player, false);
                 return true;
             }
             if (me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
@@ -113,7 +113,7 @@ namespace Gwent.Rules
             RoundRules.CleanupBoard(board.Player, board.Rnd, board.Db);
             RoundRules.CleanupBoard(board.Enemy, board.Rnd, board.Db);
             board.Weather.Clear();
-            if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Factions.NorthernRealms)
+            if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
                 RoundRules.Draw(board.Side(winner == RoundWinner.Player), 1);
 
             player_turn = winner == RoundWinner.Player || (winner == RoundWinner.Draw && last_passer_player);

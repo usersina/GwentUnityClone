@@ -171,17 +171,17 @@ namespace Gwent.Rules
                 Card card = board.Db.Get(card_id);
                 if (card.IsUnit)
                 {
-                    if (card.row == Rows.Agile)
+                    if (card.row == Row.Agile)
                     {
-                        moves.Add(AiAction.Play(card_id, Rows.Close));
-                        moves.Add(AiAction.Play(card_id, Rows.Range));
+                        moves.Add(AiAction.Play(card_id, Row.Close));
+                        moves.Add(AiAction.Play(card_id, Row.Range));
                     }
                     else
-                        moves.Add(AiAction.Play(card_id, Rows.IsUnitRow(card.row) ? card.row : Rows.Close));
+                        moves.Add(AiAction.Play(card_id, Rows.IsUnitRow(card.row) ? card.row : Row.Close));
                 }
-                else if (card.ability == Abilities.Decoy)
+                else if (card.ability == Ability.Decoy)
                 {
-                    foreach (string row in Rows.Units)
+                    foreach (Row row in Rows.Units)
                         foreach (int target in me.UnitRow(row).Distinct())
                         {
                             Card target_card = board.Db.Get(target);
@@ -189,21 +189,21 @@ namespace Gwent.Rules
                                 moves.Add(AiAction.Play(card_id, row, target));
                         }
                 }
-                else if (card.row == Rows.Special)
+                else if (card.row == Row.Special)
                 {
-                    foreach (string row in Rows.Units)
+                    foreach (Row row in Rows.Units)
                         if (!me.HasHorn(row))
                             moves.Add(AiAction.Play(card_id, row));
                 }
                 else if (!card.IsLeader)
-                    moves.Add(AiAction.Play(card_id, Rows.Weather)); // weather, scorch
+                    moves.Add(AiAction.Play(card_id, Row.Weather)); // weather, scorch
             }
 
             if (me.canLeader && !me.leaderDisabled && LeaderRules.Unavailable(board, me.Leader, true) == null)
             {
-                string weather_row = LeaderIds.WeatherPickRow(me.Leader);
+                Row? weather_row = LeaderIds.WeatherPickRow(me.Leader);
                 if (weather_row != null)
-                    foreach (int card_id in LeaderRules.WeatherCardsFor(me, weather_row, board.Db))
+                    foreach (int card_id in LeaderRules.WeatherCardsFor(me, weather_row.Value, board.Db))
                         moves.Add(AiAction.Leader(card_id));
                 else if (LeaderRules.IsInstant(me.Leader) || me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
                     moves.Add(AiAction.Leader());
@@ -280,7 +280,7 @@ namespace Gwent.Rules
         // Nilfgaard wins a tied round (unless both sides are Nilfgaard)
         private static int Needed(Board board)
         {
-            return board.Player.Faction == Factions.Nilfgaard && board.Enemy.Faction != Factions.Nilfgaard ? 0 : 1;
+            return board.Player.Faction == Faction.Nilfgaard && board.Enemy.Faction != Faction.Nilfgaard ? 0 : 1;
         }
 
         private static bool Same(AiAction a, AiAction b)

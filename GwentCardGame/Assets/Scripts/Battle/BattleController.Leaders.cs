@@ -112,7 +112,7 @@ namespace Gwent.Battle
         public bool CanUseLeader(bool is_player)
         {
             BattleSide info = Info(is_player);
-            if (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Rows.LeaderActive)
+            if (!info.canLeader || info.leaderDisabled || Db.Get(info.Leader).row != Row.LeaderActive)
                 return false;
             return is_player ? IsPlayerActionAllowed : battleState == BattleState.EnemyTurn;
         }
@@ -172,11 +172,11 @@ namespace Gwent.Battle
             if (reason != null)
                 return LeaderOutcome.Unavailable;
 
-            string weather_row = LeaderIds.WeatherPickRow(leader_id);
+            Row? weather_row = LeaderIds.WeatherPickRow(leader_id);
             if (weather_row != null)
             {
                 reason = "No matching weather card left in your deck";
-                return PickWeatherCard(weather_row, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
+                return PickWeatherCard(weather_row.Value, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
             }
 
             // Horns, scorches, clear weather, agile: resolved by the rules right away
@@ -197,9 +197,9 @@ namespace Gwent.Battle
                     UIOverlay.Toast((GameInput.IsTouch ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
                     return LeaderOutcome.Pending;
                 case LeaderIds.EredinBringerOfDeath:
-                    return RestoreToHand("discard_list", info.DiscardList, is_player_turn, out reason);
+                    return RestoreToHand(PickSource.Discard, info.DiscardList, is_player_turn, out reason);
                 case LeaderIds.EmhyrTheRelentless:
-                    return RestoreToHand("opp_discard_list", Opponent(is_player_turn).DiscardList, is_player_turn, out reason);
+                    return RestoreToHand(PickSource.OpponentDiscard, Opponent(is_player_turn).DiscardList, is_player_turn, out reason);
                 case LeaderIds.EmhyrEmperorOfNilfgaard:
                     reason = "Your opponent has no cards in hand";
                     return LookHandRandom(3, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
@@ -208,21 +208,21 @@ namespace Gwent.Battle
             return LeaderOutcome.Unavailable;
         }
 
-        // Plays a weather card from deck ("all": any weather, Clear Weather too); false when there is none
-        public bool PickWeatherCard(string row, bool is_player_turn)
+        // Plays a weather card from deck (Row.Weather: any weather, Clear Weather too); false when there is none
+        public bool PickWeatherCard(Row row, bool is_player_turn)
         {
             if (!is_player_turn)
                 return false;
             List<int> weather_cards = LeaderRules.WeatherCardsFor(PlayerInfo, row, Db);
             if (weather_cards.Count == 0)
                 return false;
-            OpenPanel().ShowToPlay("deck_list", weather_cards, true);
+            OpenPanel().ShowToPlay(PickSource.Deck, weather_cards, true);
             return true;
         }
 
         // A unit from a discard pile (no heroes or special cards) to the hand: chosen in a panel, or at random under
         // Emhyr, Invader of the North (both players)
-        private LeaderOutcome RestoreToHand(string field, List<int> discard, bool is_player_turn, out string reason)
+        private LeaderOutcome RestoreToHand(PickSource field, List<int> discard, bool is_player_turn, out string reason)
         {
             List<int> units_list = AbilityRules.MedicCandidates(discard, Db);
             reason = "No unit to restore";
@@ -258,7 +258,7 @@ namespace Gwent.Battle
             View(false).Leader.MarkUsed();
             GameAudio.PlaySfx("leader");
             EnemyInfo.HandList.Add(weather_card_id);
-            PlayCard(weather_card_id, Rows.Weather, false);
+            PlayCard(weather_card_id, Row.Weather, false);
             return true;
         }
     }

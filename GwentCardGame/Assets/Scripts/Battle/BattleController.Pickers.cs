@@ -14,18 +14,18 @@ namespace Gwent.Battle
             return Panel.GetComponent<BattlePickers>();
         }
 
-        // A card was chosen in a "play" panel (medic / weather from deck): it is moved to the hand, then placed on the board
-        public void TakePickedCardToPlay(string field, int card_id, bool is_player_turn)
+        // A card was chosen in a picker to play (medic / weather from deck): it is moved to the hand, then placed on the board
+        public void TakePickedCardToPlay(PickSource field, int card_id, bool is_player_turn)
         {
             BattleSide info = Info(is_player_turn);
             GameLog.Info("Playing from: " + field);
             switch (field)
             {
-                case "deck_list":
+                case PickSource.Deck:
                     info.DeckList.Remove(card_id);
                     SetDeckObject(info, is_player_turn);
                     break;
-                case "discard_list":
+                case PickSource.Discard:
                     info.DiscardList.Remove(card_id);
                     SetDiscardObject(info.DiscardList, is_player_turn);
                     break;
@@ -36,14 +36,14 @@ namespace Gwent.Battle
             pendingAction = PendingAction.PlacePickedCard;
         }
 
-        // A card was chosen in a "draw" panel (leader abilities): it goes to the hand and the turn ends
-        public void PickCardToHand(string field, int card_id, bool is_player_turn)
+        // A card was chosen in a picker to take (leader abilities): it goes to the hand and the turn ends
+        public void PickCardToHand(PickSource field, int card_id, bool is_player_turn)
         {
             TakeToHand(field, card_id, is_player_turn);
             EndTurn(is_player_turn);
         }
 
-        private void TakeToHand(string field, int card_id, bool is_player_turn)
+        private void TakeToHand(PickSource field, int card_id, bool is_player_turn)
         {
             BattleSide info = Info(is_player_turn);
             BattleSide opp_info = Opponent(is_player_turn);
@@ -51,15 +51,15 @@ namespace Gwent.Battle
             GameLog.Info("Picking from: " + field);
             switch (field)
             {
-                case "deck_list":
+                case PickSource.Deck:
                     info.DeckList.Remove(card_id);
                     SetDeckObject(info, is_player_turn);
                     break;
-                case "discard_list":
+                case PickSource.Discard:
                     info.DiscardList.Remove(card_id);
                     SetDiscardObject(info.DiscardList, is_player_turn);
                     break;
-                case "opp_discard_list":
+                case PickSource.OpponentDiscard:
                     opp_info.DiscardList.Remove(card_id);
                     SetDiscardObject(opp_info.DiscardList, !is_player_turn);
                     break;
@@ -102,7 +102,7 @@ namespace Gwent.Battle
             BattleSide info = Info(is_player_turn);
             info.CanDiscard = false;
             if (info.DeckList.Count > 0)
-                OpenPanel().ShowToDraw("deck_list", info.DeckList, is_player_turn);
+                OpenPanel().ShowToDraw(PickSource.Deck, info.DeckList, is_player_turn);
             else
                 EndTurn(is_player_turn);
         }

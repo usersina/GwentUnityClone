@@ -121,11 +121,11 @@ namespace Gwent.Battle
         {
             if (whiteFlameNotice != null)
             {
-                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Nilfgaard), whiteFlameNotice, BattleBanner.Long);
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), whiteFlameNotice, BattleBanner.Long);
                 whiteFlameNotice = null;
             }
 
-            if (PlayerInfo.Faction == Factions.Scoiatael && EnemyInfo.Faction != Factions.Scoiatael)
+            if (PlayerInfo.Faction == Faction.Scoiatael && EnemyInfo.Faction != Faction.Scoiatael)
             {
                 while (BattleBanner.Busy)
                     yield return null;
@@ -135,10 +135,10 @@ namespace Gwent.Battle
                     yield return null;
                 BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
             }
-            else if (PlayerInfo.Faction != Factions.Scoiatael && EnemyInfo.Faction == Factions.Scoiatael)
+            else if (PlayerInfo.Faction != Faction.Scoiatael && EnemyInfo.Faction == Faction.Scoiatael)
             {
                 firstPlayer = false; // the AI's Scoia'tael goes first
-                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Scoiatael), "Opponent used the Scoia'tael faction perk to go first.");
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Scoiatael), "Opponent used the Scoia'tael faction perk to go first.");
             }
             else
             {
@@ -250,7 +250,7 @@ namespace Gwent.Battle
         private void PrepareField(Deck deck, BattleSide info, bool is_player_deck, bool white_flame)
         {
             info.Faction = deck.Faction;
-            info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + deck.Faction);
+            info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + deck.Faction.Code());
             info.DeckList = Rng.Shuffle(deck.Cards);
             info.Leader = deck.Leader;
 
@@ -499,7 +499,7 @@ namespace Gwent.Battle
 
             // The result over the board as it ended, then the board clears; a tie Nilfgaard wins is announced first
             if (player_total == enemy_total && winner != RoundWinner.Draw)
-                BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
             if (winner == RoundWinner.Player)
                 BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
             else if (winner == RoundWinner.Enemy)
@@ -566,16 +566,16 @@ namespace Gwent.Battle
             {
                 int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
                 if (kept != -1)
-                    BattleBanner.Show(BattleBanner.FactionEmblem(Factions.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
+                    BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
             }
             weatherList.Clear();
 
             //------Northern Realms: Get one additional card from your deck every time you win a round-------------//
-            if (winner != RoundWinner.Draw && Info(winner == RoundWinner.Player).Faction == Factions.NorthernRealms)
+            if (winner != RoundWinner.Draw && Info(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
             {
                 bool is_player = winner == RoundWinner.Player;
                 if (DrawCards(1, Info(is_player), is_player) > 0)
-                    BattleBanner.Show(BattleBanner.FactionEmblem(Factions.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
+                    BattleBanner.Show(BattleBanner.FactionEmblem(Faction.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
             }
 
             RefreshBoard();
@@ -643,12 +643,19 @@ namespace Gwent.Battle
         }
 
         //----------------------------------------------PLAYING CARDS---------------------------------------------------//
+        // The board row of a row's object, by its name (Close, Range or Siege); Row.Special for an object of no row
+        private static Row RowNamed(string name)
+        {
+            Row row;
+            return Enum.TryParse(name, out row) && row.IsUnitRow() ? row : Row.Special;
+        }
+
         // Directly places a specific card_go (from hand or picked from a panel) on a field_go
         public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
         {
             Card card_stats = card_go.GetComponent<CardFace>().Card;
             card_go.GetComponent<CardHover>().DestroyEffect();
-            string field_row = field_go == WeatherField ? Rows.Weather : field_go.transform.parent.name.ToLower();
+            Row field_row = field_go == WeatherField ? Row.Weather : RowNamed(field_go.transform.parent.name);
 
             // Its object leaves the hand first (the showcase shows it): the refresh reuses hand objects, and with two
             // copies in hand it could otherwise keep this very one for the copy that stays
@@ -659,7 +666,7 @@ namespace Gwent.Battle
 
         // Plays a card from the hand: resolves it, shows it on the board, then passes the turn (unless a choice is
         // pending)
-        public void PlayCard(int card_id, string field_row, bool is_player_turn)
+        public void PlayCard(int card_id, Row field_row, bool is_player_turn)
         {
             BattleSide me = Info(is_player_turn);
             me.HandList.Remove(card_id);
@@ -738,9 +745,9 @@ namespace Gwent.Battle
         }
 
         // A card chosen from a pile (medic, weather from the deck) comes from that pile to the showcase
-        public void ShowcasePicked(int card_id, string field, bool is_player)
+        public void ShowcasePicked(int card_id, PickSource field, bool is_player)
         {
-            CardShowcase.Pick(Db.Get(card_id), field == "deck_list" ? board.DeckRect(is_player) : board.PileRect(is_player));
+            CardShowcase.Pick(Db.Get(card_id), field == PickSource.Deck ? board.DeckRect(is_player) : board.PileRect(is_player));
         }
 
         // The rules operate directly on the battle's lists
@@ -763,7 +770,7 @@ namespace Gwent.Battle
             List<int> units = AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db);
             if (units.Count == 0)
                 return false;
-            OpenPanel().ShowToPlay("discard_list", units, true);
+            OpenPanel().ShowToPlay(PickSource.Discard, units, true);
             return true;
         }
 
@@ -773,10 +780,10 @@ namespace Gwent.Battle
                 return false;
 
             Card selectedStats = SelectedStats();
-            if (selectedStats.faction != Factions.Special)
+            if (selectedStats.faction != Faction.Special)
                 return false;
 
-            if (selectedStats.row != Rows.Weather && selectedStats.ability != Abilities.Scorch)
+            if (selectedStats.row != Row.Weather && selectedStats.ability != Ability.Scorch)
                 return false;
 
             DirectlyPlaceCard(selectedCard, WeatherField, true);
@@ -789,13 +796,13 @@ namespace Gwent.Battle
                 return false;
 
             Card selectedStats = SelectedStats();
-            if (selectedStats.ability != Abilities.Decoy)
+            if (selectedStats.ability != Ability.Decoy)
                 return false;
 
             Card targetStats = targetCard.GetComponent<CardFace>().Card;
-            string row = targetCard.transform.parent.parent.name.ToLower();
-            bool valid_target = targetCard.CompareTag("Player") && targetStats.faction != Factions.Special
-                && !targetStats.unique && targetStats.ability != Abilities.Leader && Rows.IsUnitRow(row);
+            Row row = RowNamed(targetCard.transform.parent.parent.name);
+            bool valid_target = targetCard.CompareTag("Player") && targetStats.faction != Faction.Special
+                && !targetStats.unique && targetStats.ability != Ability.Leader && Rows.IsUnitRow(row);
             if (!valid_target)
             {
                 GameAudio.PlaySfx("invalid");
@@ -814,7 +821,7 @@ namespace Gwent.Battle
         }
 
         // Decoy: the target goes back to the hand, the decoy takes its place on the row
-        public void PlayDecoy(int target_id, string row, bool is_player_card, int decoy_id)
+        public void PlayDecoy(int target_id, Row row, bool is_player_card, int decoy_id)
         {
             Info(is_player_card).HandList.Remove(decoy_id);
             CardShowcase.Clear();
@@ -883,7 +890,7 @@ namespace Gwent.Battle
 
             if (card.IsSpecial)
             {
-                if (card.row == Rows.Weather)
+                if (card.row == Row.Weather)
                 {
                     switch (card._idstr)
                     {
@@ -894,11 +901,11 @@ namespace Gwent.Battle
                         default: GameAudio.PlaySfx("ability_weather"); break;
                     }
                 }
-                else if (card.ability == Abilities.Scorch)
+                else if (card.ability == Ability.Scorch)
                     GameAudio.PlaySfx("ability_scorch");
-                else if (card.ability == Abilities.Decoy)
+                else if (card.ability == Ability.Decoy)
                     GameAudio.PlaySfx("ability_decoy");
-                else if (card.ability == Abilities.CommanderHorn)
+                else if (card.ability == Ability.CommanderHorn)
                     GameAudio.PlaySfx("ability_horn");
                 else
                     GameAudio.PlaySfx("card_play_special");
@@ -907,12 +914,12 @@ namespace Gwent.Battle
 
             switch (card.ability)
             {
-                case Abilities.Spy: GameAudio.PlaySfx("ability_spy"); return;
-                case Abilities.Medic: GameAudio.PlaySfx("ability_medic"); return;
-                case Abilities.Muster: GameAudio.PlaySfx("ability_muster"); return;
-                case Abilities.UnitHorn: GameAudio.PlaySfx("ability_horn"); return;
-                case Abilities.MoraleBoost: GameAudio.PlaySfx("ability_morale"); return;
-                case Abilities.TightBond: GameAudio.PlaySfx("ability_tight_bond"); return;
+                case Ability.Spy: GameAudio.PlaySfx("ability_spy"); return;
+                case Ability.Medic: GameAudio.PlaySfx("ability_medic"); return;
+                case Ability.Muster: GameAudio.PlaySfx("ability_muster"); return;
+                case Ability.UnitHorn: GameAudio.PlaySfx("ability_horn"); return;
+                case Ability.MoraleBoost: GameAudio.PlaySfx("ability_morale"); return;
+                case Ability.TightBond: GameAudio.PlaySfx("ability_tight_bond"); return;
             }
             if (Abilities.IsRowScorch(card.ability))
                 GameAudio.PlaySfx("ability_scorch");

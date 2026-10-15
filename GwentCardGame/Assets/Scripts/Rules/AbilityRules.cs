@@ -12,7 +12,7 @@ namespace Gwent.Rules
         {
             int top_strength = -1;
             foreach (PlayerState info in new[] { first, second })
-                foreach (string row in Rows.Units)
+                foreach (Row row in Rows.Units)
                     top_strength = Math.Max(top_strength, StrongestNonHero(info, row, db));
 
             if (top_strength < 0)
@@ -20,13 +20,13 @@ namespace Gwent.Rules
 
             int destroyed = 0;
             foreach (PlayerState info in new[] { first, second })
-                foreach (string row in Rows.Units)
+                foreach (Row row in Rows.Units)
                     destroyed += DestroyWithStrength(info, row, top_strength, db);
             return destroyed;
         }
 
         // Row scorch (unit ability or leader): destroy the strongest non-hero unit(s) of a row if it totals 10 or more
-        public static int ScorchRow(PlayerState target, string row, CardDatabase db)
+        public static int ScorchRow(PlayerState target, Row row, CardDatabase db)
         {
             if (target.RowScore(row) < 10)
                 return 0;
@@ -36,7 +36,7 @@ namespace Gwent.Rules
             return DestroyWithStrength(target, row, top_strength, db);
         }
 
-        private static int StrongestNonHero(PlayerState info, string row, CardDatabase db)
+        private static int StrongestNonHero(PlayerState info, Row row, CardDatabase db)
         {
             int top_strength = -1;
             List<int> units = info.UnitRow(row);
@@ -48,7 +48,7 @@ namespace Gwent.Rules
         }
 
         // Whether a row has a unit a scorch could destroy
-        public static bool HasScorchTarget(PlayerState info, string row, CardDatabase db)
+        public static bool HasScorchTarget(PlayerState info, Row row, CardDatabase db)
         {
             return StrongestNonHero(info, row, db) >= 0;
         }
@@ -59,7 +59,7 @@ namespace Gwent.Rules
             return !card.unique && !card.IsSpecial;
         }
 
-        private static int DestroyWithStrength(PlayerState info, string row, int strength, CardDatabase db)
+        private static int DestroyWithStrength(PlayerState info, Row row, int strength, CardDatabase db)
         {
             List<int> units = info.UnitRow(row);
             List<int> base_strengths = info.BaseStrengths(row);
@@ -117,11 +117,11 @@ namespace Gwent.Rules
             if (other._id == CardIds.ArachasBehemoth || other._id == CardIds.GaunterODimm)
                 return false;
             // Only other muster cards of the same family (Havekar Healer is not a Havekar Smuggler)
-            return other.ability == Abilities.Muster && MusterGroup(other._idstr) == MusterGroup(played._idstr);
+            return other.ability == Ability.Muster && MusterGroup(other._idstr) == MusterGroup(played._idstr);
         }
 
         // Play every copy and muster relative from the deck and the hand (the played card itself is already out of the hand)
-        public static List<int> Muster(PlayerState info, Card played, string played_row, CardDatabase db)
+        public static List<int> Muster(PlayerState info, Card played, Row played_row, CardDatabase db)
         {
             List<int> mustered = new List<int>();
             foreach (List<int> source in new[] { info.DeckList, info.HandList })
@@ -131,7 +131,7 @@ namespace Gwent.Rules
                     Card card = db.Get(source[i]);
                     if (!IsMusterRelative(played, card))
                         continue;
-                    string row = Rows.IsUnitRow(card.row) ? card.row : played_row;
+                    Row row = Rows.IsUnitRow(card.row) ? card.row : played_row;
                     info.UnitRow(row).Add(card._id);
                     mustered.Add(card._id);
                     source.RemoveAt(i);
@@ -172,19 +172,19 @@ namespace Gwent.Rules
         public static int OptimizeAgile(PlayerState info, IList<int> weather, bool double_spies, CardDatabase db)
         {
             // Listed first, then moved one by one, each judged on the board as it is by then
-            List<KeyValuePair<string, int>> units = new List<KeyValuePair<string, int>>();
-            foreach (string row in new[] { Rows.Range, Rows.Close })
+            List<KeyValuePair<Row, int>> units = new List<KeyValuePair<Row, int>>();
+            foreach (Row row in new[] { Row.Range, Row.Close })
                 foreach (int card_id in info.UnitRow(row))
                 {
                     Card card = db.Get(card_id);
-                    if (card.row == Rows.Agile && !card.unique)
-                        units.Add(new KeyValuePair<string, int>(row, card_id));
+                    if (card.row == Row.Agile && !card.unique)
+                        units.Add(new KeyValuePair<Row, int>(row, card_id));
                 }
 
             int moves = 0;
-            foreach (KeyValuePair<string, int> unit in units)
+            foreach (KeyValuePair<Row, int> unit in units)
             {
-                string from = unit.Key, to = from == Rows.Close ? Rows.Range : Rows.Close;
+                Row from = unit.Key, to = from == Row.Close ? Row.Range : Row.Close;
                 StrengthCalculator.Recalculate(info, weather, double_spies, db);
                 int before = StrengthOf(info, from, unit.Value);
                 info.UnitRow(from).Remove(unit.Value);
@@ -203,7 +203,7 @@ namespace Gwent.Rules
         }
 
         // A unit's strength on a row (copies of a card on the same row are equally strong)
-        private static int StrengthOf(PlayerState info, string row, int card_id)
+        private static int StrengthOf(PlayerState info, Row row, int card_id)
         {
             int index = info.UnitRow(row).LastIndexOf(card_id);
             List<int> strengths = info.ModifiedStrengths(row);
@@ -211,7 +211,7 @@ namespace Gwent.Rules
         }
 
         // Row that gives the side the higher total when an agile unit is added
-        public static string BestAgileRow(PlayerState info, int card_id, IList<int> weather, bool double_spies, CardDatabase db)
+        public static Row BestAgileRow(PlayerState info, int card_id, IList<int> weather, bool double_spies, CardDatabase db)
         {
             PlayerState close = info.Clone();
             close.CloseList.Add(card_id);
@@ -219,14 +219,14 @@ namespace Gwent.Rules
             PlayerState range = info.Clone();
             range.RangeList.Add(card_id);
             StrengthCalculator.Recalculate(range, weather, double_spies, db);
-            return range.TotalScore() > close.TotalScore() ? Rows.Range : Rows.Close;
+            return range.TotalScore() > close.TotalScore() ? Row.Range : Row.Close;
         }
 
         //----------------------------------------Weather----------------------------------------//
         // Puts a weather card on the shared weather board; duplicates go straight to the owner's discard pile
         public static void PlayWeather(PlayerState owner, PlayerState opponent, List<int> weather_board, Card card)
         {
-            if (card.ability == Abilities.ClearWeather)
+            if (card.ability == Ability.ClearWeather)
             {
                 ClearWeather(owner, opponent, weather_board);
                 owner.DiscardList.Add(card._id);
@@ -255,7 +255,7 @@ namespace Gwent.Rules
 
         //----------------------------------------Commander's Horn----------------------------------------//
         // Leader horn: no physical card, but shown as a horn in the special slot for the round
-        public static bool PlaceLeaderHorn(PlayerState info, string row)
+        public static bool PlaceLeaderHorn(PlayerState info, Row row)
         {
             if (info.HasHorn(row))
                 return false;

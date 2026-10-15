@@ -11,7 +11,7 @@ namespace Gwent.Rules
         // for the round, as if it had passed)
         public static bool OutOfPlays(PlayerState info, CardDatabase db)
         {
-            return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || db.Get(info.Leader).row != Rows.LeaderActive);
+            return info.HandList.Count == 0 && (!info.canLeader || info.leaderDisabled || db.Get(info.Leader).row != Row.LeaderActive);
         }
 
         // In the battle, an unused leader whose ability would do nothing right now does not keep it going either
@@ -23,15 +23,15 @@ namespace Gwent.Rules
         }
 
         // Higher total wins. Nilfgaard automatically wins a round that ends in a draw (unless both are Nilfgaard).
-        public static RoundWinner DecideRound(int player_total, int enemy_total, string player_faction, string enemy_faction)
+        public static RoundWinner DecideRound(int player_total, int enemy_total, Faction player_faction, Faction enemy_faction)
         {
             if (player_total > enemy_total)
                 return RoundWinner.Player;
             if (enemy_total > player_total)
                 return RoundWinner.Enemy;
 
-            bool player_nf = player_faction == Factions.Nilfgaard;
-            bool enemy_nf = enemy_faction == Factions.Nilfgaard;
+            bool player_nf = player_faction == Faction.Nilfgaard;
+            bool enemy_nf = enemy_faction == Faction.Nilfgaard;
             if (player_nf && !enemy_nf)
                 return RoundWinner.Player;
             if (enemy_nf && !player_nf)
@@ -59,27 +59,27 @@ namespace Gwent.Rules
         {
             // The unit Monsters keep (never a hero or a decoy) is taken off its row while the rest goes
             int kept_card = -1;
-            string kept_row = null;
-            if (info.Faction == Factions.Monsters)
+            Row kept_row = Row.Close; // meaningful only with a kept card
+            if (info.Faction == Faction.Monsters)
             {
-                List<KeyValuePair<string, int>> eligible = new List<KeyValuePair<string, int>>();
-                foreach (string row in Rows.Units)
+                List<KeyValuePair<Row, int>> eligible = new List<KeyValuePair<Row, int>>();
+                foreach (Row row in Rows.Units)
                     for (int i = 0; i < info.UnitRow(row).Count; i++)
                     {
                         Card card = db.Get(info.UnitRow(row)[i]);
                         if (!card.unique && !card.IsSpecial)
-                            eligible.Add(new KeyValuePair<string, int>(row, i));
+                            eligible.Add(new KeyValuePair<Row, int>(row, i));
                     }
                 if (eligible.Count > 0)
                 {
-                    KeyValuePair<string, int> pick = eligible[rnd.Next(eligible.Count)];
+                    KeyValuePair<Row, int> pick = eligible[rnd.Next(eligible.Count)];
                     kept_row = pick.Key;
                     kept_card = info.UnitRow(kept_row)[pick.Value];
                     info.UnitRow(kept_row).RemoveAt(pick.Value);
                 }
             }
 
-            foreach (string row in Rows.Units)
+            foreach (Row row in Rows.Units)
             {
                 List<int> units = info.UnitRow(row);
                 foreach (int card_id in units)

@@ -21,7 +21,7 @@ namespace Gwent.Rules.Tests
 
         private static Card C(int id, string idstr, string name, string faction, bool unique, int strength, string row, string ability, int copies)
         {
-            return new Card { _id = id, _idstr = idstr, name = name, faction = faction, unique = unique, strength = strength, row = row, ability = ability, copies = copies };
+            return new CardEntry { _id = id, _idstr = idstr, name = name, faction = faction, unique = unique, strength = strength, row = row, ability = ability, copies = copies }.ToCard();
         }
 
         private static List<Card> Cards()

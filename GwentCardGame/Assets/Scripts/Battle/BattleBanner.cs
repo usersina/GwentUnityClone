@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Gwent.Core;
+using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
 using UnityEngine;
@@ -55,14 +56,14 @@ namespace Gwent.Battle
         public static bool Busy { get { return instance != null && (instance.age >= 0 || instance.queue.Count > 0); } }
 
         // The faction's crest, for its perk's notice
-        public static string FactionEmblem(string faction)
+        public static string FactionEmblem(Faction faction)
         {
             switch (faction)
             {
-                case Gwent.Rules.Factions.NorthernRealms: return "north";
-                case Gwent.Rules.Factions.Nilfgaard: return "nilfgaard";
-                case Gwent.Rules.Factions.Monsters: return "monsters";
-                case Gwent.Rules.Factions.Scoiatael: return "scoiatael";
+                case Gwent.Rules.Faction.NorthernRealms: return "north";
+                case Gwent.Rules.Faction.Nilfgaard: return "nilfgaard";
+                case Gwent.Rules.Faction.Monsters: return "monsters";
+                case Gwent.Rules.Faction.Scoiatael: return "scoiatael";
                 default: return null;
             }
         }

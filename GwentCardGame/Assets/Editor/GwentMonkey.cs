@@ -346,11 +346,11 @@ namespace Gwent.EditorTools
                 if (c.selectedCard == null)
                     return;
                 Card stats = c.selectedCard.GetComponent<CardFace>().Card;
-                if (stats.ability == Abilities.Decoy)
+                if (stats.ability == Ability.Decoy)
                 {
                     List<GameObject> targets = new List<GameObject>();
-                    foreach (string row in Rows.Units)
-                        foreach (Transform t in c.PlayerField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit"))
+                    foreach (Row row in Rows.Units)
+                        foreach (Transform t in c.PlayerField.transform.Find(row.ToString()).Find("Unit"))
                             if (t.GetComponent<CardSelect>() != null)
                                 targets.Add(t.gameObject);
                     if (targets.Count == 0)
@@ -362,7 +362,7 @@ namespace Gwent.EditorTools
                     targets[rnd.Next(targets.Count)].GetComponent<CardSelect>().OnCardSelect();
                     return;
                 }
-                if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
+                if (stats.row == Row.Weather || stats.ability == Ability.Scorch)
                 {
                     c.WeatherField.GetComponent<WeatherSlot>().OnWeatherClick();
                     return;
@@ -629,9 +629,9 @@ namespace Gwent.EditorTools
                     string side = player ? "player " : "opponent ";
                     if (player)
                         Compare(field.Find("Hand"), CardOrder.Sorted(info.HandList, c.Db), side + "hand", problems);
-                    foreach (string row in Rows.Units)
+                    foreach (Row row in Rows.Units)
                     {
-                        Transform row_t = field.Find(char.ToUpper(row[0]) + row.Substring(1));
+                        Transform row_t = field.Find(row.ToString());
                         Compare(row_t.Find("Unit"), CardOrder.Sorted(info.UnitRow(row), c.Db), side + row, problems);
                         Compare(row_t.Find("Special"), info.SpecialRow(row), side + row + " horn", problems);
                     }

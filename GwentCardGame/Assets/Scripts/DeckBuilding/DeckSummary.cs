@@ -137,7 +137,7 @@ namespace Gwent.DeckBuilding
             deckInfo[0].text = loadedDeck.Cards.Count.ToString();
 
             // Unit Cards number (Minimum: 22)
-            helperNumber = deckBuilder.GetUnitCards(deckCards, "all", "all", false).Count;
+            helperNumber = deckBuilder.GetUnitCards(deckCards, null, null, false).Count;
             if (helperNumber < DeckRules.MinUnits)
             {
                 deckInfo[1].color = UITheme.Current.danger;
@@ -154,10 +154,10 @@ namespace Gwent.DeckBuilding
             deckInfo[2].text = helperNumber.ToString() + "/" + DeckRules.MaxSpecials;
 
             // Total Strengths
-            deckInfo[3].text = deckBuilder.GetUnitsStrength(deckBuilder.GetUnitCards(deckCards, "all", "all", false)).ToString();
+            deckInfo[3].text = deckBuilder.GetUnitsStrength(deckBuilder.GetUnitCards(deckCards, null, null, false)).ToString();
 
             // Hero Cards number
-            deckInfo[4].text = deckBuilder.GetUnitCards(deckCards, "all", "all", true).Count.ToString();
+            deckInfo[4].text = deckBuilder.GetUnitCards(deckCards, null, null, true).Count.ToString();
         }
 
     }

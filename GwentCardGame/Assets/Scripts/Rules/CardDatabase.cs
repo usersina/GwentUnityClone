@@ -37,7 +37,7 @@ namespace Gwent.Rules
             Card card;
             if (byId.TryGetValue(card_id, out card))
                 return card;
-            return new Card { _id = card_id, _idstr = "", name = "", faction = "", row = "", ability = "" };
+            return new Card { _id = card_id, _idstr = "", name = "", faction = Faction.Neutral, row = Row.Special, ability = Ability.None };
         }
 
         public List<Card> GetCards(IEnumerable<int> card_ids)

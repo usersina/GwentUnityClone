@@ -139,7 +139,7 @@ namespace Gwent.DeckBuilding
                 TextAsset deckAsset = Resources.Load<TextAsset>("Decks/__empty__");
                 deck = deckAsset != null ? CardLibrary.ParseDeck(deckAsset.text, path) : null;
                 if (deck == null)
-                    deck = new Deck { Faction = Factions.NorthernRealms, Name = DeckRules.EmptyDeckName, Leader = LeaderIds.FoltestKingOfTemeria };
+                    deck = new Deck { Faction = Faction.NorthernRealms, Name = DeckRules.EmptyDeckName, Leader = LeaderIds.FoltestKingOfTemeria };
             }
             else
                 deck = DeckStorage.Load(path);
@@ -149,19 +149,19 @@ namespace Gwent.DeckBuilding
         // Rescans the deck folders (call every time a deck is added, renamed or deleted)
         public void PopulateDeckAssets()
         {
-            NRDecks = DeckStorage.DeckPaths(Factions.NorthernRealms);
-            NFDecks = DeckStorage.DeckPaths(Factions.Nilfgaard);
-            SCDecks = DeckStorage.DeckPaths(Factions.Scoiatael);
-            MDecks = DeckStorage.DeckPaths(Factions.Monsters);
+            NRDecks = DeckStorage.DeckPaths(Faction.NorthernRealms);
+            NFDecks = DeckStorage.DeckPaths(Faction.Nilfgaard);
+            SCDecks = DeckStorage.DeckPaths(Faction.Scoiatael);
+            MDecks = DeckStorage.DeckPaths(Faction.Monsters);
         }
 
-        public List<string> DeckPathsOf(string faction)
+        public List<string> DeckPathsOf(Faction faction)
         {
             switch (faction)
             {
-                case Factions.Nilfgaard: return NFDecks;
-                case Factions.Scoiatael: return SCDecks;
-                case Factions.Monsters: return MDecks;
+                case Faction.Nilfgaard: return NFDecks;
+                case Faction.Scoiatael: return SCDecks;
+                case Faction.Monsters: return MDecks;
                 default: return NRDecks;
             }
         }
@@ -177,13 +177,14 @@ namespace Gwent.DeckBuilding
         }
 
         //----------------------------------Card Fetching--------------------------------------//
-        // cards_list: Source list | faction: Card faction ("all" for every faction) | row: close/range/siege
-        public List<Card> GetUnitCards(List<Card> cards_list, string faction = "all", string row = "all", bool getUnique = false)
+        // The units of a list: of a faction (null: any), that can go on a row (null: any; agile units go on close and
+        // ranged), heroes only if asked
+        public List<Card> GetUnitCards(List<Card> cards_list, Faction? faction = null, Row? row = null, bool getUnique = false)
         {
             return cards_list.Where(card =>
                 card.IsUnit
-                && (faction == "all" || card.faction == faction)
-                && (row == "all" || (card.row != null && card.row.Contains(row)))
+                && (faction == null || card.faction == faction)
+                && (row == null || card.row == row || (card.row == Row.Agile && (row == Row.Close || row == Row.Range)))
                 && (!getUnique || card.unique)).ToList();
         }
 

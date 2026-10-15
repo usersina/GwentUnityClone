@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using Gwent.Core;
+using Gwent.Rules;
 using Gwent.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -28,17 +29,17 @@ namespace Gwent.Battle
         private static readonly Color Smoke = new Color(0.42f, 0.42f, 0.44f);
 
         // The W3 flare of an ability ("muster", "medic", "morale", "bond", "horn", "spy"), or null
-        public static string FlareFor(string ability)
+        public static string FlareFor(Ability ability)
         {
             switch (ability)
             {
-                case Gwent.Rules.Abilities.Muster: return "muster";
-                case Gwent.Rules.Abilities.Medic: return "medic";
-                case Gwent.Rules.Abilities.MoraleBoost: return "morale";
-                case Gwent.Rules.Abilities.TightBond: return "bond";
-                case Gwent.Rules.Abilities.UnitHorn:
-                case Gwent.Rules.Abilities.CommanderHorn: return "horn";
-                case Gwent.Rules.Abilities.Spy: return "spy";
+                case Gwent.Rules.Ability.Muster: return "muster";
+                case Gwent.Rules.Ability.Medic: return "medic";
+                case Gwent.Rules.Ability.MoraleBoost: return "morale";
+                case Gwent.Rules.Ability.TightBond: return "bond";
+                case Gwent.Rules.Ability.UnitHorn:
+                case Gwent.Rules.Ability.CommanderHorn: return "horn";
+                case Gwent.Rules.Ability.Spy: return "spy";
                 default: return null;
             }
         }

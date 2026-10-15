@@ -36,7 +36,7 @@ namespace Gwent.Battle
             // Change the artwork based on ID
             artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);
 
-            if (card.faction == Factions.Special)
+            if (card.faction == Faction.Special)
             {// Special Card:
                 // Change to the corresponding special Icon
                 natureImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Special/" + card._idstr);
@@ -45,7 +45,7 @@ namespace Gwent.Battle
             }
             else
             {// Unit Card or Leader:
-                if (card.ability == Abilities.Leader)
+                if (card.ability == Ability.Leader)
                 {
                     natureImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
                     rowImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
@@ -66,18 +66,18 @@ namespace Gwent.Battle
                         strengthImage.GetComponent<TextMeshProUGUI>().color = new Color(0, 0, 0);
                     }
                     // Change row Image
-                    rowImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Row/" + card.row);
+                    rowImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Row/" + card.row.Code());
                     // Change the ability image
-                    if (string.IsNullOrEmpty(card.ability))
+                    if (card.ability == Ability.None)
                     {
                         abilityImage.GetComponent<Image>().color = new Color(0, 0, 0, 0);
                     }
                     else
                     {
-                        if (card.ability.Contains("scorch"))
+                        if (card.ability == Ability.Scorch || card.ability.IsRowScorch())
                             abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/scorch");
                         else
-                            abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/" + card.ability);
+                            abilityImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Ability/" + card.ability.Code());
                     }
                 }
             }

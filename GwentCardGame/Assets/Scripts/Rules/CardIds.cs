@@ -16,13 +16,13 @@ namespace Gwent.Rules
         public const int TorrentialRain = 206;
 
         // Weather card affecting each unit row
-        public static int WeatherFor(string row)
+        public static int WeatherFor(Row row)
         {
             switch (row)
             {
-                case Rows.Close: return BitingFrost;
-                case Rows.Range: return ImpenetrableFog;
-                case Rows.Siege: return TorrentialRain;
+                case Row.Close: return BitingFrost;
+                case Row.Range: return ImpenetrableFog;
+                case Row.Siege: return TorrentialRain;
                 default: return -1;
             }
         }

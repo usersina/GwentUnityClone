@@ -14,7 +14,7 @@ namespace Gwent.DeckBuilding
     public class CardGrid : MonoBehaviour
     {
         // The factions of the header's panels, in order, and their perks
-        public static readonly string[] HeaderFactions = { Factions.NorthernRealms, Factions.Nilfgaard, Factions.Scoiatael, Factions.Monsters };
+        public static readonly Faction[] HeaderFactions = { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters };
         private static readonly string[] Perks =
         {
             "Draw a card from your deck whenever you win a round",
@@ -33,7 +33,7 @@ namespace Gwent.DeckBuilding
         public GameObject cardDetails;
 
         public int selectedTab;
-        public string faction = Factions.NorthernRealms;
+        public Faction faction = Faction.NorthernRealms;
         public TextMeshProUGUI factionPerk;
 
         public List<Image> currentSprites;
@@ -46,6 +46,7 @@ namespace Gwent.DeckBuilding
         public DeckSummary deckSummary;
 
         // The Witcher 3's filters: all cards, close, ranged, siege, heroes, weather, special cards
+        private enum Listing { All, Close, Range, Siege, Heroes, Weather, Specials, None }
         public const int WeatherTab = 5;
         public const int SpecialTab = 6;
 
@@ -62,7 +63,7 @@ namespace Gwent.DeckBuilding
             else
                 CardsToDisplay = deckBuilder.allCards;
 
-            SetCardsArea(UnitMergerHelper(faction, "all"));
+            SetCardsArea(UnitMergerHelper(faction, null));
         }
 
         // Reference: Menu Buttons
@@ -83,7 +84,7 @@ namespace Gwent.DeckBuilding
 
         public void Select(int index, bool resetScroll = true)
         {
-            string selected_row;
+            Listing listing;
 
             // UI: Text and Icon
             currentSprites[index].sprite = selectedSprites[index];
@@ -91,39 +92,39 @@ namespace Gwent.DeckBuilding
             {
                 case 0:
                     subtitle.text = "All Cards";
-                    selected_row = "all";
+                    listing = Listing.All;
                     break;
                 case 1:
                     subtitle.text = "Close Units";
-                    selected_row = Rows.Close;
+                    listing = Listing.Close;
                     break;
                 case 2:
                     subtitle.text = "Ranged Units";
-                    selected_row = Rows.Range;
+                    listing = Listing.Range;
                     break;
                 case 3:
                     subtitle.text = "Siege Units";
-                    selected_row = Rows.Siege;
+                    listing = Listing.Siege;
                     break;
                 case 4:
                     subtitle.text = "Heroes";
-                    selected_row = "heroes";
+                    listing = Listing.Heroes;
                     break;
                 case WeatherTab:
                     subtitle.text = "Weather";
-                    selected_row = "weather";
+                    listing = Listing.Weather;
                     break;
                 case SpecialTab:
                     subtitle.text = "Specials";
-                    selected_row = "specials";
+                    listing = Listing.Specials;
                     break;
                 default:
-                    selected_row = "none";
+                    listing = Listing.None;
                     break;
             }
 
             // GAME: Instantiated Cards
-            ManageCardsArea(selected_row, resetScroll);
+            ManageCardsArea(listing, resetScroll);
         }
 
         //------------------------------------------------------------Functions-----------------------------------------------//
@@ -238,49 +239,49 @@ namespace Gwent.DeckBuilding
             scroll.verticalNormalizedPosition = 1; // back to the top, at any resolution
         }
 
-        private void ManageCardsArea(string selected_row, bool resetScroll = true)
+        private void ManageCardsArea(Listing listing, bool resetScroll = true)
         {
             if (resetScroll)
                 ResetScrolling();
 
-            switch (selected_row)
+            switch (listing)
             {
-                case "weather":
-                case "specials":
-                    List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Rows.Weather) == (selected_row == "weather"));
+                case Listing.Weather:
+                case Listing.Specials:
+                    List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Row.Weather) == (listing == Listing.Weather));
                     specials_list.Sort((a, b) => a._id.CompareTo(b._id));
                     SetCardsArea(specials_list);
                     break;
-                case "heroes":
-                    SetCardsArea(UnitMergerHelper(faction, "all", true));
+                case Listing.Heroes:
+                    SetCardsArea(UnitMergerHelper(faction, null, true));
+                    break;
+                case Listing.All:
+                    SetCardsArea(UnitMergerHelper(faction, null));
+                    break;
+                case Listing.Close:
+                    SetCardsArea(UnitMergerHelper(faction, Row.Close));
+                    break;
+                case Listing.Range:
+                    SetCardsArea(UnitMergerHelper(faction, Row.Range));
+                    break;
+                case Listing.Siege:
+                    SetCardsArea(UnitMergerHelper(faction, Row.Siege));
                     break;
                 default:
-                    switch (selected_row)
-                    {
-                        case "all":
-                            SetCardsArea(UnitMergerHelper(faction, "all"));
-                            break;
-                        case Rows.Close:
-                        case Rows.Range:
-                        case Rows.Siege:
-                            SetCardsArea(UnitMergerHelper(faction, selected_row));
-                            break;
-                        default:
-                            Debug.LogError("ManageCardsArea: Unexpected value: " + selected_row);
-                            break;
-                    }
+                    Debug.LogError("ManageCardsArea: Unexpected value: " + listing);
                     break;
             }
         }
 
-        private List<Card> UnitMergerHelper(string fc, string rw, bool ishero = false) // faction | row (to avoid global variables confusion)
+        // The units of a faction (and the neutral ones, if shown) for a row (null: all, with the special cards after)
+        private List<Card> UnitMergerHelper(Faction fc, Row? rw, bool ishero = false)
         {
             List<Card> returned_list;
             if (toggleBtn.isOn)
             {
                 returned_list = deckBuilder.MergedList(
                 deckBuilder.GetUnitCards(CardsToDisplay, fc, rw, ishero),
-                deckBuilder.GetUnitCards(CardsToDisplay, "N", rw, ishero)
+                deckBuilder.GetUnitCards(CardsToDisplay, Faction.Neutral, rw, ishero)
                 );
             }
             else
@@ -299,7 +300,7 @@ namespace Gwent.DeckBuilding
                 return ret;
             });
 
-            if (rw == "all" && !ishero) // Add special Cards to all cards
+            if (rw == null && !ishero) // Add special Cards to all cards
             {
                 List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay);
                 specials_list.Sort((a, b) => a._id.CompareTo(b._id));
@@ -311,7 +312,7 @@ namespace Gwent.DeckBuilding
 
         //----------------------------------------------------Event Handlers---------------------------------------------------//
         // Opens on a faction (the deck's, before the header places itself): its cards and its perk
-        public void OpenOn(string deck_faction)
+        public void OpenOn(Faction deck_faction)
         {
             int panel = System.Array.IndexOf(HeaderFactions, deck_faction);
             if (panel < 0)

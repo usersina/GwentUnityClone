@@ -60,9 +60,9 @@ namespace Gwent.Battle
                         // Not a place for this card: say so instead of doing nothing
                         GameAudio.PlaySfx("invalid");
                         Card selected = controller.selectedCard.GetComponent<CardFace>().Card;
-                        if (selected.ability == Abilities.Decoy)
+                        if (selected.ability == Ability.Decoy)
                             UIOverlay.Toast("Decoy: click one of your units to take it back to your hand");
-                        else if (selected.row == Rows.Weather || selected._id == CardIds.Scorch)
+                        else if (selected.row == Row.Weather || selected._id == CardIds.Scorch)
                             UIOverlay.Toast("Weather and Scorch go on the weather board");
                     }
                 }
@@ -74,10 +74,10 @@ namespace Gwent.Battle
         private GameObject GetPlayableTargetField(List<GameObject> highLightedFields)
         {
             Card selectedStats = controller.selectedCard.GetComponent<CardFace>().Card;
-            if (selectedStats.faction == Factions.Special)
+            if (selectedStats.faction == Faction.Special)
             {
                 // Weather and scorch only go on the weather board
-                if (selectedStats.row == Rows.Special)
+                if (selectedStats.row == Row.Special)
                 {
                     if (highLightedFields.Contains(gameObject))
                         return gameObject;

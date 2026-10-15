@@ -15,19 +15,19 @@ namespace Gwent.Rules.Tests
         [Test]
         public void NilfgaardWinsTies_UnlessBothAreNilfgaard()
         {
-            Assert.AreEqual(RoundWinner.Player, RoundRules.DecideRound(11, 10, Factions.Monsters, Factions.Monsters));
-            Assert.AreEqual(RoundWinner.Player, RoundRules.DecideRound(10, 10, Factions.Nilfgaard, Factions.Monsters));
-            Assert.AreEqual(RoundWinner.Enemy, RoundRules.DecideRound(10, 10, Factions.Scoiatael, Factions.Nilfgaard));
-            Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(10, 10, Factions.Nilfgaard, Factions.Nilfgaard));
-            Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(0, 0, Factions.NorthernRealms, Factions.Monsters));
+            Assert.AreEqual(RoundWinner.Player, RoundRules.DecideRound(11, 10, Faction.Monsters, Faction.Monsters));
+            Assert.AreEqual(RoundWinner.Player, RoundRules.DecideRound(10, 10, Faction.Nilfgaard, Faction.Monsters));
+            Assert.AreEqual(RoundWinner.Enemy, RoundRules.DecideRound(10, 10, Faction.Scoiatael, Faction.Nilfgaard));
+            Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(10, 10, Faction.Nilfgaard, Faction.Nilfgaard));
+            Assert.AreEqual(RoundWinner.Draw, RoundRules.DecideRound(0, 0, Faction.NorthernRealms, Faction.Monsters));
         }
 
         // The Witcher 3 passes a side automatically when its hand is empty and its leader could do nothing right now
         [Test]
         public void AnEmptyHandWithALeaderThatWouldDoNothingIsDone()
         {
-            PlayerState p = TestBoard.Player(Factions.NorthernRealms, LeaderIds.FoltestLordCommander);
-            Board board = new Board { Player = p, Enemy = TestBoard.Player(Factions.Monsters), Db = TestBoard.Db };
+            PlayerState p = TestBoard.Player(Faction.NorthernRealms, LeaderIds.FoltestLordCommander);
+            Board board = new Board { Player = p, Enemy = TestBoard.Player(Faction.Monsters), Db = TestBoard.Db };
             Assert.IsTrue(RoundRules.OutOfPlays(board, true), "no weather to clear: done");
             board.Weather.Add(CardIds.BitingFrost);
             Assert.IsFalse(RoundRules.OutOfPlays(board, true), "weather to clear: the leader is a play");
@@ -41,7 +41,7 @@ namespace Gwent.Rules.Tests
         public void DrawCostsBothALife()
         {
             PlayerState p = TestBoard.Player();
-            PlayerState e = TestBoard.Player(Factions.Monsters);
+            PlayerState e = TestBoard.Player(Faction.Monsters);
             RoundRules.ApplyRoundResult(p, e, RoundWinner.Draw);
             Assert.AreEqual(1, p.Lives);
             Assert.AreEqual(1, e.Lives);
@@ -53,8 +53,8 @@ namespace Gwent.Rules.Tests
         {
             for (int seed = 0; seed < 20; seed++)
             {
-                PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
-                PlayerState e = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
+                PlayerState p = TestBoard.Player(Faction.Monsters, LeaderIds.EredinTheTreacherous);
+                PlayerState e = TestBoard.Player(Faction.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
                 p.CloseList.Add(Fiend);
                 e.SiegeList.Add(EarthElemental);
                 Random rnd = new Random(seed);
@@ -93,7 +93,7 @@ namespace Gwent.Rules.Tests
         [Test]
         public void ACowThatMonstersKeepSummonsNothing()
         {
-            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+            PlayerState p = TestBoard.Player(Faction.Monsters, LeaderIds.EredinTheTreacherous);
             p.RangeList.Add(CardIds.Cow);
             RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
             CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.RangeList);
@@ -117,7 +117,7 @@ namespace Gwent.Rules.Tests
         {
             for (int seed = 0; seed < 20; seed++)
             {
-                PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+                PlayerState p = TestBoard.Player(Faction.Monsters, LeaderIds.EredinTheTreacherous);
                 p.CloseList.AddRange(new[] { Draug, CardIds.Decoy, Fiend });
                 RoundRules.CleanupBoard(p, new Random(seed), TestBoard.Db);
                 CollectionAssert.AreEqual(new[] { Fiend }, p.CloseList);
@@ -127,7 +127,7 @@ namespace Gwent.Rules.Tests
         [Test]
         public void MonstersCanKeepTheDefenseForce()
         {
-            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinTheTreacherous);
+            PlayerState p = TestBoard.Player(Faction.Monsters, LeaderIds.EredinTheTreacherous);
             p.CloseList.Add(CardIds.BovineDefenseForce);
             RoundRules.CleanupBoard(p, new Random(0), TestBoard.Db);
             CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
@@ -163,8 +163,8 @@ namespace Gwent.Rules.Tests
         [Test]
         public void EachRoundsWinnerIsRecorded()
         {
-            PlayerState p = TestBoard.Player(Factions.Nilfgaard);
-            PlayerState e = TestBoard.Player(Factions.Monsters);
+            PlayerState p = TestBoard.Player(Faction.Nilfgaard);
+            PlayerState e = TestBoard.Player(Faction.Monsters);
             RoundRules.ApplyRoundResult(p, e, RoundWinner.Player);
             RoundRules.ApplyRoundResult(p, e, RoundWinner.Draw);
             CollectionAssert.AreEqual(new[] { true, false }, p.RoundsWon);
@@ -179,7 +179,7 @@ namespace Gwent.Rules.Tests
         {
             return new Deck
             {
-                Faction = Factions.NorthernRealms,
+                Faction = Faction.NorthernRealms,
                 Name = "NR Default",
                 Leader = LeaderIds.FoltestTheSiegemaster,
                 Cards = new List<int> { 203, 203, 202, 202, 205, 200, 14, 143, 135, 92, 132, 45, 96, 11, 11, 123, 123, 4, 4, 99, 17, 17, 28, 115, 7, 7, 7, 119 }

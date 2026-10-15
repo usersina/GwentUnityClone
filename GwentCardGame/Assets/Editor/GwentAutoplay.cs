@@ -279,8 +279,8 @@ namespace Gwent.EditorTools
                 else
                 {
                     Deck deck = decks[(match - 1) % decks.Count];
-                    string path = Path.Combine(Application.temporaryCachePath, "autoplay_" + deck.Faction + "_" + deck.Leader + ".json");
-                    File.WriteAllText(path, JsonUtility.ToJson(deck));
+                    string path = Path.Combine(Application.temporaryCachePath, "autoplay_" + deck.Faction.Code() + "_" + deck.Leader + ".json");
+                    File.WriteAllText(path, JsonUtility.ToJson(DeckFile.Of(deck)));
                     DeckStorage.BattleDeckPath = path;
                     currentDeck = deck.Name;
                 }
@@ -594,26 +594,26 @@ namespace Gwent.EditorTools
                 if (c.selectedCard == null)
                     return;
                 Card stats = c.selectedCard.GetComponent<CardFace>().Card;
-                Count("play " + (stats.faction == Factions.Special ? stats._idstr : string.IsNullOrEmpty(stats.ability) ? "unit" : stats.ability));
+                Count("play " + (stats.faction == Faction.Special ? stats._idstr : stats.ability == Ability.None ? "unit" : stats.ability.Code()));
 
                 // Only where the card can go lights up: no rows for a decoy (its targets get a frame) or a weather card
                 List<GameObject> lit = c.PlayerField.GetComponent<RowPicker>().highLightedRows.Concat(c.EnemyField.GetComponent<RowPicker>().highLightedRows).ToList();
                 WeatherSlot weather_board = c.WeatherField.GetComponent<WeatherSlot>();
                 bool weather_lit = c.WeatherField.GetComponent<Image>().sprite == weather_board.weatherSelected;
-                if (stats.ability == Abilities.Decoy)
+                if (stats.ability == Ability.Decoy)
                 {
                     int frames = c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == "DecoyTarget");
                     int swappable = Rows.Units.Sum(row => c.PlayerInfo.UnitRow(row).Count(id => !c.Db.Get(id).unique && !c.Db.Get(id).IsSpecial));
                     Check(lit.Count == 0 && !weather_lit && frames == swappable, "a decoy frames its " + swappable + " targets and lights no row (" + frames + " frames, " + lit.Count + " rows)", "highlight");
                 }
-                else if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
+                else if (stats.row == Row.Weather || stats.ability == Ability.Scorch)
                     Check(lit.Count == 0 && weather_lit, "a weather card lights only the weather board", "highlight");
 
-                if (stats.ability == Abilities.Decoy)
+                if (stats.ability == Ability.Decoy)
                 {
                     List<GameObject> targets = new List<GameObject>();
-                    foreach (string row in Rows.Units)
-                        foreach (Transform t in c.PlayerField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit"))
+                    foreach (Row row in Rows.Units)
+                        foreach (Transform t in c.PlayerField.transform.Find(row.ToString()).Find("Unit"))
                             if (t.GetComponent<CardSelect>() != null)
                                 targets.Add(t.gameObject);
                     if (targets.Count == 0)
@@ -627,7 +627,7 @@ namespace Gwent.EditorTools
                     return;
                 }
 
-                if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
+                if (stats.row == Row.Weather || stats.ability == Ability.Scorch)
                 {
                     c.WeatherField.GetComponent<WeatherSlot>().OnWeatherClick();
                     return;
@@ -706,8 +706,8 @@ namespace Gwent.EditorTools
             {
                 CardGrid browse = UnityEngine.Object.FindObjectsByType<CardGrid>().FirstOrDefault(m => !m.CompareTag("Player"));
                 Check(dc.currentDeckPath == testDeckPath && dc.my_deck.Name == testDeckName, "the deck builder opens on the battle deck");
-                Check(dc.deckCollection.faction == Factions.Monsters && browse != null && browse.faction == Factions.Monsters
-                    && dc.deckCollection.header.CurrentPanel == Array.IndexOf(CardGrid.HeaderFactions, Factions.Monsters)
+                Check(dc.deckCollection.faction == Faction.Monsters && browse != null && browse.faction == Faction.Monsters
+                    && dc.deckCollection.header.CurrentPanel == Array.IndexOf(CardGrid.HeaderFactions, Faction.Monsters)
                     && dc.deckCollection.factionPerk.text.Contains("random unit"),
                     "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.header.CurrentPanel + ")");
                 TMP_Dropdown picker = dc.deckSummary.deckPicker;
@@ -732,8 +732,8 @@ namespace Gwent.EditorTools
             // refused for the 10-special limit)
             private string CreateTestDeck(CardDatabase db)
             {
-                string faction = Factions.Monsters;
-                List<Card> units = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce && (card.faction == faction || card.faction == Factions.Neutral)).ToList();
+                Faction faction = Faction.Monsters;
+                List<Card> units = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
                 List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
                 cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
                 int special_count = 0;
@@ -802,7 +802,7 @@ namespace Gwent.EditorTools
                         "... against the opponent chosen in the menu", "battle from the menu");
 
                     string invalid = Path.Combine(Application.temporaryCachePath, "autoplay_invalid.json");
-                    File.WriteAllText(invalid, JsonUtility.ToJson(new Deck { Faction = Factions.Monsters, Name = "Autoplay invalid", Leader = LeaderIds.ByFaction[Factions.Monsters][0], Cards = new List<int>(mine != null ? mine.Cards.Take(5) : new int[0]) }));
+                    File.WriteAllText(invalid, JsonUtility.ToJson(DeckFile.Of(new Deck { Faction = Faction.Monsters, Name = "Autoplay invalid", Leader = LeaderIds.ByFaction[Faction.Monsters][0], Cards = new List<int>(mine != null ? mine.Cards.Take(5) : new int[0]) })));
                     DeckStorage.BattleDeckPath = invalid;
                     previousBattle = battle;
                     roundTripStage = 1;
@@ -846,7 +846,7 @@ namespace Gwent.EditorTools
             {
                 TMP_InputField input = UnityEngine.Object.FindAnyObjectByType<TMP_InputField>();
                 Check(input != null, "deck name input field found");
-                string faction = dc.my_deck.Faction;
+                Faction faction = dc.my_deck.Faction;
                 string tag = "Autoplay " + seed;
                 Func<int> deck_count = () => DeckStorage.DeckPaths(faction).Count;
                 int before = deck_count();
@@ -889,7 +889,7 @@ namespace Gwent.EditorTools
 
                 // Same name with other letter case / spacing: rejected, nothing overwritten (B3)
                 dc.my_deck.Cards.Add(LeaderIds.ByFaction[faction][0]); // marker that must survive
-                File.WriteAllText(path, JsonUtility.ToJson(new Deck { Faction = faction, Name = tag + " Deck", Leader = dc.my_deck.Leader, Cards = new List<int> { 1 } }));
+                File.WriteAllText(path, JsonUtility.ToJson(DeckFile.Of(new Deck { Faction = faction, Name = tag + " Deck", Leader = dc.my_deck.Leader, Cards = new List<int> { 1 } })));
                 input.text = tag.ToUpperInvariant() + " DECK";
                 dc.AddDeck(input);
                 Deck after_duplicate = DeckStorage.Load(path);
@@ -898,7 +898,7 @@ namespace Gwent.EditorTools
                 // Fill it up to a valid deck: it becomes the battle deck (B9)
                 dc.deckSummary.SelectDeckPath(path);
                 CardDatabase db = dc.Db;
-                dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Factions.Neutral) && !c.unique && c._id != CardIds.BovineDefenseForce)
+                dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Faction.Neutral) && !c.unique && c._id != CardIds.BovineDefenseForce)
                     .SelectMany(c => Enumerable.Repeat(c._id, Math.Min(2, c.copies))).Take(24).ToList();
                 dc.deckCollection.OnDeckEdit();
                 Check(DeckRules.IsValid(DeckStorage.Load(path), db), "edited deck saved and valid");
@@ -984,9 +984,9 @@ namespace Gwent.EditorTools
                     string side = player ? "player " : "opponent ";
                     // Hands and rows are shown in The Witcher 3's order
                     Compare(field.Find("Hand"), CardOrder.Sorted(info.HandList, c.Db), side + "hand", problems);
-                    foreach (string row in Rows.Units)
+                    foreach (Row row in Rows.Units)
                     {
-                        Transform row_t = field.Find(char.ToUpper(row[0]) + row.Substring(1));
+                        Transform row_t = field.Find(row.ToString());
                         Compare(row_t.Find("Unit"), CardOrder.Sorted(info.UnitRow(row), c.Db), side + row, problems);
                         Compare(row_t.Find("Special"), info.SpecialRow(row), side + row + " horn", problems);
                     }
@@ -1083,11 +1083,11 @@ namespace Gwent.EditorTools
             private List<Deck> GenerateDecks(CardDatabase db)
             {
                 List<Deck> generated = new List<Deck>();
-                foreach (string faction in Factions.Playable)
+                foreach (Faction faction in Factions.Playable)
                     foreach (int leader in LeaderIds.ByFaction[faction])
                     {
                         List<Card> pool = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce
-                            && (card.faction == faction || card.faction == Factions.Neutral)).ToList();
+                            && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
                         List<int> cards = new List<int>();
                         foreach (Card card in pool.OrderBy(x => rnd.Next()))
                         {
@@ -1099,7 +1099,7 @@ namespace Gwent.EditorTools
                         foreach (int special in specials.OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)))
                             cards.Add(special);
 
-                        Deck deck = new Deck { Faction = faction, Leader = leader, Name = faction + " / " + db.Get(leader).name, Cards = cards };
+                        Deck deck = new Deck { Faction = faction, Leader = leader, Name = faction.Code() + " / " + db.Get(leader).name, Cards = cards };
                         List<string> problems = DeckRules.Validate(deck, db);
                         if (problems.Count == 0)
                             generated.Add(deck);
@@ -1569,7 +1569,7 @@ namespace Gwent.EditorTools
                 At(0.1, () =>
                 {
                     before = count();
-                    int kinds = dc.my_deck.Cards.Distinct().Count(id => dc.deckCollection.toggleBtn.isOn || dc.Db.Get(id).faction != Factions.Neutral);
+                    int kinds = dc.my_deck.Cards.Distinct().Count(id => dc.deckCollection.toggleBtn.isOn || dc.Db.Get(id).faction != Faction.Neutral);
                     check(Shown(dc.deckCollection).Count == kinds && BadgeOf(dc.deckCollection, CardIds.BitingFrost) == 3,
                         "the deck shows each card once with its count (Biting Frost x" + BadgeOf(dc.deckCollection, CardIds.BitingFrost) + ")");
                 });
@@ -1589,10 +1589,10 @@ namespace Gwent.EditorTools
                 Click(1.3, () => ScreenPoint(browse.currentSprites[4].transform));
                 At(1.8, () => check(Shown(browse).Count == 0, "with every hero in the deck, the collection offers none (" + Shown(browse).Count + " shown)"));
                 Click(2.1, () => ScreenPoint(browse.currentSprites[CardGrid.WeatherTab].transform));
-                At(2.6, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => dc.Db.Get(id).row == Rows.Weather), "the Weather tab lists the weather cards only"));
+                At(2.6, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => dc.Db.Get(id).row == Row.Weather), "the Weather tab lists the weather cards only"));
                 Click(2.9, () => ScreenPoint(browse.currentSprites[CardGrid.SpecialTab].transform));
                 DoubleClickAt(3.4, FirstCardOf(browse));
-                At(4.0, () => check(count() == before + 1 && ToastText().Contains("special cards") && Shown(browse).All(id => dc.Db.Get(id).IsSpecial && dc.Db.Get(id).row != Rows.Weather),
+                At(4.0, () => check(count() == before + 1 && ToastText().Contains("special cards") && Shown(browse).All(id => dc.Db.Get(id).IsSpecial && dc.Db.Get(id).row != Row.Weather),
                     "the Specials tab lists the other special cards, and an 11th special card is refused (\"" + ToastText() + "\")"));
                 Click(4.3, () => ScreenPoint(browse.currentSprites[0].transform));
 
@@ -1616,7 +1616,7 @@ namespace Gwent.EditorTools
                 GameObject picker = dc.deckSummary.leaderGo.GetComponent<CollectionLeader>().LeaderPicker;
                 int leader = -1;
                 DoubleClickAt(7.2, () => ScreenPoint(dc.deckSummary.leaderGo.transform));
-                At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Factions.Monsters].Length,
+                At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Faction.Monsters].Length,
                     "double-clicking the leader opens the faction's leaders"));
                 DoubleClickAt(8.1, () =>
                 {
@@ -1633,9 +1633,9 @@ namespace Gwent.EditorTools
 
                 // The header's arrows: the previous faction (its cards, its perk, its decks), then back
                 Click(9.0, () => ScreenPoint(dc.deckCollection.header.previousButton.transform));
-                At(10.3, () => check(ShowsFaction(dc, browse, Factions.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
+                At(10.3, () => check(ShowsFaction(dc, browse, Faction.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
                 Click(10.6, () => ScreenPoint(dc.deckCollection.header.nextButton.transform));
-                At(11.9, () => check(ShowsFaction(dc, browse, Factions.Monsters, "random unit"), "the right arrow switches back"));
+                At(11.9, () => check(ShowsFaction(dc, browse, Faction.Monsters, "random unit"), "the right arrow switches back"));
 
                 // The deck dropdown
                 Click(12.2, () => ScreenPoint(dc.deckSummary.deckPicker.transform));
@@ -1668,7 +1668,7 @@ namespace Gwent.EditorTools
                     + ", showcase " + CardShowcase.IsShown + ", over " + Hovered() + (c != null ? ", " + c.battleState : "");
             }
 
-            private static bool ShowsFaction(DeckBuilder dc, CardGrid browse, string faction, string perk)
+            private static bool ShowsFaction(DeckBuilder dc, CardGrid browse, Faction faction, string perk)
             {
                 return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
                     && dc.deckCollection.factionPerk.text.Contains(perk)
@@ -1918,7 +1918,7 @@ namespace Gwent.EditorTools
                 foreach (Transform child in c.PlayerField.transform.Find("Hand"))
                 {
                     Card stats = child.GetComponent<CardFace>().Card;
-                    if (stats.faction != Factions.Special && Rows.IsUnitRow(stats.row) && stats.ability != Abilities.Spy)
+                    if (stats.faction != Faction.Special && Rows.IsUnitRow(stats.row) && stats.ability != Ability.Spy)
                     {
                         card = child;
                         plainUnit = true;
@@ -1945,8 +1945,8 @@ namespace Gwent.EditorTools
             {
                 if (!plainUnit || card == null)
                     return CardPosition();
-                string row = card.GetComponent<CardFace>().Card.row;
-                Transform target = c.EnemyField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit");
+                Row row = card.GetComponent<CardFace>().Card.row;
+                Transform target = c.EnemyField.transform.Find(row.ToString()).Find("Unit");
                 return ScreenPoint(target);
             }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Gwent.Core;
+using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
 using UnityEngine;
@@ -31,10 +32,9 @@ namespace Gwent.Menus
             public bool Factions;
         }
 
-        private struct Faction
+        private struct FactionTopic
         {
-            public string Code;
-            public string Name;
+            public Faction Faction;
             public string Perk;
             public int[] Leaders;
         }
@@ -154,12 +154,12 @@ namespace Gwent.Menus
             };
         }
 
-        private static readonly Faction[] FactionList =
+        private static readonly FactionTopic[] FactionList =
         {
-            new Faction { Code = "NR", Name = "Northern Realms", Perk = "Draws a card from the deck each time it wins a round.", Leaders = new[] { 51, 52, 53, 54, 55 } },
-            new Faction { Code = "NF", Name = "Nilfgaardian Empire", Perk = "Wins every round that ends in a draw (against anyone but Nilfgaard).", Leaders = new[] { 33, 34, 35, 36, 37 } },
-            new Faction { Code = "SC", Name = "Scoia'tael", Perk = "Decides who goes first in the battle.", Leaders = new[] { 57, 58, 59, 60, 61 } },
-            new Faction { Code = "M", Name = "Monsters", Perk = "One random unit stays on the board after each round.", Leaders = new[] { 40, 41, 42, 43, 44 } },
+            new FactionTopic { Faction = Faction.NorthernRealms, Perk = "Draws a card from the deck each time it wins a round.", Leaders = new[] { 51, 52, 53, 54, 55 } },
+            new FactionTopic { Faction = Faction.Nilfgaard, Perk = "Wins every round that ends in a draw (against anyone but Nilfgaard).", Leaders = new[] { 33, 34, 35, 36, 37 } },
+            new FactionTopic { Faction = Faction.Scoiatael, Perk = "Decides who goes first in the battle.", Leaders = new[] { 57, 58, 59, 60, 61 } },
+            new FactionTopic { Faction = Faction.Monsters, Perk = "One random unit stays on the board after each round.", Leaders = new[] { 40, 41, 42, 43, 44 } },
         };
 
         // The leaders as The Witcher 3's cards name and describe them
@@ -274,7 +274,7 @@ namespace Gwent.Menus
             int order = 0;
             clusters.Clear();
             if (topic.Factions)
-                foreach (Faction faction in FactionList)
+                foreach (FactionTopic faction in FactionList)
                     FadeIn(AddFaction(faction), order++);
             else
                 foreach (Entry entry in topic.Entries)
@@ -506,10 +506,10 @@ namespace Gwent.Menus
 
         //----------------------------------------Factions----------------------------------------//
         // A faction like any rule (its shield, its name, its perk), its five leaders below the perk
-        private RectTransform AddFaction(Faction faction)
+        private RectTransform AddFaction(FactionTopic faction)
         {
             RectTransform text;
-            RectTransform row = AddEntry(new[] { "shield:" + faction.Code }, faction.Name, faction.Perk, out text);
+            RectTransform row = AddEntry(new[] { "shield:" + faction.Faction.Code() }, faction.Faction.DisplayName(), faction.Perk, out text);
             RectTransform leaders = UIKit.Rect("Leaders", text);
             HorizontalLayoutGroup portraits = leaders.gameObject.AddComponent<HorizontalLayoutGroup>();
             portraits.spacing = 10;

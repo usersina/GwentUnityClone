@@ -19,7 +19,7 @@ namespace Gwent.Rules.Tests
         private static List<Deck> Presets()
         {
             return Directory.GetFiles(PresetFolder, "*.json").OrderBy(path => path)
-                .Select(path => JsonUtility.FromJson<Deck>(File.ReadAllText(path))).ToList();
+                .Select(path => JsonUtility.FromJson<DeckFile>(File.ReadAllText(path)).ToDeck()).ToList();
         }
 
         [Test]
@@ -65,7 +65,7 @@ namespace Gwent.Rules.Tests
             List<Deck> presets = Presets();
             foreach (Deck deck in presets)
             {
-                if (Db.Get(deck.Leader).row != Rows.LeaderActive)
+                if (Db.Get(deck.Leader).row != Row.LeaderActive)
                     continue; // passive: always at work
                 int battles = 0, used = 0;
                 foreach (Deck opponent in presets.Where(other => other != deck))
@@ -147,7 +147,7 @@ namespace Gwent.Rules.Tests
             }
             int cards = CountCards(board);
 
-            bool player_sc = player_deck.Faction == Factions.Scoiatael, enemy_sc = enemy_deck.Faction == Factions.Scoiatael;
+            bool player_sc = player_deck.Faction == Faction.Scoiatael, enemy_sc = enemy_deck.Faction == Faction.Scoiatael;
             bool player_first = player_sc != enemy_sc ? player_sc : rnd.Next(2) == 0;
             RoundWinner winner = BattleSim.PlayOut(board, player_first, false, policy);
 

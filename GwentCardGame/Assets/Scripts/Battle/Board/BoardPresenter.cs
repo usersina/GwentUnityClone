@@ -61,7 +61,7 @@ namespace Gwent.Battle
 
             // A medic's flare over its discard pile, then the card it brings back
             List<BoardChange.Move> revived = change.Moves.Where(m => m.From.From == Place.Discard && m.To.To != Place.Hand).ToList();
-            if (card != null && card.ability == Abilities.Medic && (revived.Count > 0 || medic_choice))
+            if (card != null && card.ability == Ability.Medic && (revived.Count > 0 || medic_choice))
                 yield return CardEffects.MedicPile(revived.Count > 0 && revived[0].From.Ghost != null ? revived[0].From.Ghost : board.PileTop(by_player));
             if (revived.Count > 0)
             {
@@ -126,7 +126,7 @@ namespace Gwent.Battle
                 yield break;
             string flare = CardEffects.FlareFor(card.ability);
             List<IEnumerator> effects = new List<IEnumerator>();
-            if (card.ability == Abilities.TightBond)
+            if (card.ability == Ability.TightBond)
             {
                 List<GameObject> bond = played.Card.transform.parent.Cast<Transform>().Where(c => c.name == played.Card.name).Select(c => c.gameObject).ToList();
                 if (bond.Count > 1)
@@ -134,7 +134,7 @@ namespace Gwent.Battle
             }
             else if (flare != null)
                 effects.Add(CardEffects.Flare(played.Card, flare));
-            if (card.ability == Abilities.CommanderHorn || card.ability == Abilities.UnitHorn)
+            if (card.ability == Ability.CommanderHorn || card.ability == Ability.UnitHorn)
             {
                 Transform row = played.Card.transform.parent;
                 effects.Add(CardEffects.RowGlow((RectTransform)(row.name == "Special" ? row.parent.Find("Unit") : row)));

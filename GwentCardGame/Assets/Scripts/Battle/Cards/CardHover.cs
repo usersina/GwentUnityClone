@@ -199,15 +199,15 @@ namespace Gwent.Battle
         // plain unit, which has none in The Witcher 3 (only abilities, heroes, agile units, special cards and leaders do)
         public static string EffectBoxPath(Card card)
         {
-            if (card.faction == Factions.Special)
+            if (card.faction == Faction.Special)
                 return "Cards/EffectBox/" + card._idstr;
-            if (card.ability == Abilities.Leader)
+            if (card.ability == Ability.Leader)
                 return "Cards/EffectBox/Leader/" + card._id;
-            if (!string.IsNullOrEmpty(card.ability))
-                return "Cards/EffectBox/" + card.ability;
+            if (card.ability != Ability.None)
+                return "Cards/EffectBox/" + card.ability.Code();
             if (card.unique)
                 return "Cards/EffectBox/hero";
-            if (card.row == Rows.Agile)
+            if (card.row == Row.Agile)
                 return "Cards/EffectBox/agile";
             return null;
         }

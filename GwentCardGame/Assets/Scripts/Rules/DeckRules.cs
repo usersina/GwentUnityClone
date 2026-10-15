@@ -22,7 +22,7 @@ namespace Gwent.Rules
                 return errors;
             }
             if (Array.IndexOf(Factions.Playable, deck.Faction) < 0)
-                errors.Add("Unknown faction '" + deck.Faction + "'");
+                errors.Add("Unknown faction '" + deck.Faction.Code() + "'");
             if (!LeaderIds.BelongsTo(deck.Leader, deck.Faction))
                 errors.Add("Leader does not belong to the deck's faction");
 
@@ -41,7 +41,7 @@ namespace Gwent.Rules
                     specials += copies;
                 else
                     units += copies;
-                if (!card.IsSpecial && card.faction != Factions.Neutral && card.faction != deck.Faction)
+                if (!card.IsSpecial && card.faction != Faction.Neutral && card.faction != deck.Faction)
                     errors.Add(card.name + " does not belong to this faction");
                 if (copies > MaxCopies(card))
                     errors.Add(TooManyCopies(card));

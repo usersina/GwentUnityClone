@@ -7,6 +7,6 @@ namespace Gwent.Rules
     [Serializable]
     public class CardsFile
     {
-        public List<Card> Cards = new List<Card>();
+        public List<CardEntry> Cards = new List<CardEntry>();
     }
 }

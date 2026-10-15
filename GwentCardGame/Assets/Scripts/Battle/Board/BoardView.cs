@@ -103,7 +103,7 @@ namespace Gwent.Battle
             public GameObject LeaderHolder;
             public GameObject LeadMarker;   // the laurel around the total of the side that is ahead (as in The Witcher 3)
             public GameObject PassedLabel;  // "Passed" by the total score of a side that has passed
-            public readonly Dictionary<string, RowView> Rows = new Dictionary<string, RowView>();
+            public readonly Dictionary<Row, RowView> Rows = new Dictionary<Row, RowView>();
 
             public FieldView(GameObject root)
             {
@@ -118,9 +118,9 @@ namespace Gwent.Battle
                 LeaderHolder = t.Find("Leader").Find("Holder").gameObject;
                 LeadMarker = t.Find("Stats").Find("Total").Find("Laurel").gameObject;
                 PassedLabel = t.Find("Stats").Find("Passed").gameObject;
-                foreach (string row in Gwent.Rules.Rows.Units)
+                foreach (Row row in Gwent.Rules.Rows.Units)
                 {
-                    Transform row_t = t.Find(char.ToUpper(row[0]) + row.Substring(1));
+                    Transform row_t = t.Find(row.ToString()); // the rows' objects are named Close, Range and Siege
                     RowView view = new RowView
                     {
                         Score = row_t.Find("ScoreCount").Find("Number").GetComponent<TextMeshProUGUI>(),
@@ -131,11 +131,11 @@ namespace Gwent.Battle
                     };
                     switch (row)
                     {
-                        case Gwent.Rules.Rows.Close:
+                        case Gwent.Rules.Row.Close:
                             view.Idle = Picker.close; view.Lit = Picker.closeSelected;
                             view.IdleEmblem = Picker.closeEmblem; view.LitEmblem = Picker.closeEmblemSelected;
                             break;
-                        case Gwent.Rules.Rows.Range:
+                        case Gwent.Rules.Row.Range:
                             view.Idle = Picker.range; view.Lit = Picker.rangeSelected;
                             view.IdleEmblem = Picker.rangeEmblem; view.LitEmblem = Picker.rangeEmblemSelected;
                             break;
@@ -248,7 +248,7 @@ namespace Gwent.Battle
             SetHand(info.HandList, is_player_field);
 
             // Rows in The Witcher 3's order (special cards first, then units by strength)
-            foreach (string row in Rows.Units)
+            foreach (Row row in Rows.Units)
             {
                 RowView row_view = view.Rows[row];
                 SyncCards(row_view.Unit, CardOrder.Sorted(info.UnitRow(row), controller.Db), is_player_field, BoardChange.Place.Row);
@@ -357,7 +357,7 @@ namespace Gwent.Battle
                     card = CreateCardObject(controller.Db.Get(id), is_player_card);
                     card.GetComponent<CardSelect>().isSelectable = hand;
                     card.GetComponent<CardHover>().isHoverable = hand;
-                    card.GetComponent<CardExchange>().isExchangeable = hand && controller.Db.Get(id).ability != Abilities.Leader;
+                    card.GetComponent<CardExchange>().isExchangeable = hand && controller.Db.Get(id).ability != Ability.Leader;
                     card.transform.SetParent(parent, false);
                     if (arrivals != null)
                     {
@@ -455,8 +455,8 @@ namespace Gwent.Battle
         // Where a played card starts its last glide (The Witcher 3): at the right end of the rows, halfway up the board
         public Rect LaunchRect(Vector2 size)
         {
-            Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Rows.Close].Unit.transform);
-            Rect theirs = CardMotion.ScreenRect((RectTransform)enemyView.Rows[Rows.Close].Unit.transform);
+            Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Row.Close].Unit.transform);
+            Rect theirs = CardMotion.ScreenRect((RectTransform)enemyView.Rows[Row.Close].Unit.transform);
             Vector2 center = new Vector2(mine.xMax, (mine.yMax + theirs.yMin) / 2);
             return new Rect(center - size / 2, size);
         }
@@ -464,7 +464,7 @@ namespace Gwent.Battle
         // Where the opponent's card comes in from: above the board, over the middle of the rows
         public Rect EntryRect(Vector2 size)
         {
-            Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Rows.Close].Unit.transform);
+            Rect mine = CardMotion.ScreenRect((RectTransform)playerView.Rows[Row.Close].Unit.transform);
             return new Rect(new Vector2(mine.center.x - size.x / 2, Screen.height + 10), size);
         }
 
@@ -476,7 +476,7 @@ namespace Gwent.Battle
                 GameObject instantiatedCard = CreateCardObject(controller.Db.Get(card_id), is_player_card);
                 instantiatedCard.GetComponent<CardSelect>().isSelectable = isSelectable;
                 instantiatedCard.GetComponent<CardHover>().isHoverable = isSelectable;
-                instantiatedCard.GetComponent<CardExchange>().isExchangeable = controller.Db.Get(card_id).ability != Abilities.Leader;
+                instantiatedCard.GetComponent<CardExchange>().isExchangeable = controller.Db.Get(card_id).ability != Ability.Leader;
                 instantiatedCard.transform.SetParent(my_object.transform, false);
             }
         }
@@ -496,9 +496,9 @@ namespace Gwent.Battle
         private void RefreshWeatherOverlays(FieldView view)
         {
             List<int> weather = controller.weatherList;
-            SetWeatherOverlay(view.Rows[Rows.Close].Unit.transform, weather.Contains(CardIds.BitingFrost), "Cards/EffectBox/overlay_frost", new Color32(108, 198, 255, 78));
-            SetWeatherOverlay(view.Rows[Rows.Range].Unit.transform, weather.Contains(CardIds.ImpenetrableFog), "Cards/EffectBox/overlay_fog", new Color32(185, 190, 188, 86));
-            SetWeatherOverlay(view.Rows[Rows.Siege].Unit.transform, weather.Contains(CardIds.TorrentialRain), "Cards/EffectBox/overlay_rain", new Color32(61, 111, 184, 86));
+            SetWeatherOverlay(view.Rows[Row.Close].Unit.transform, weather.Contains(CardIds.BitingFrost), "Cards/EffectBox/overlay_frost", new Color32(108, 198, 255, 78));
+            SetWeatherOverlay(view.Rows[Row.Range].Unit.transform, weather.Contains(CardIds.ImpenetrableFog), "Cards/EffectBox/overlay_fog", new Color32(185, 190, 188, 86));
+            SetWeatherOverlay(view.Rows[Row.Siege].Unit.transform, weather.Contains(CardIds.TorrentialRain), "Cards/EffectBox/overlay_rain", new Color32(61, 111, 184, 86));
         }
 
         private static void SetWeatherOverlay(Transform unitRow, bool isActive, string spriteResourcePath, Color fallbackColor)
@@ -547,7 +547,7 @@ namespace Gwent.Battle
             FieldView view = View(is_player_field);
 
             // New card objects get their strength labels next frame (coroutine)
-            foreach (string row in Rows.Units)
+            foreach (Row row in Rows.Units)
             {
                 RowView row_view = view.Rows[row];
                 controller.StartCoroutine(row_view.ShowStrengths(info.UnitRow(row), info.BaseStrengths(row), info.ModifiedStrengths(row)));
@@ -569,13 +569,13 @@ namespace Gwent.Battle
             mine.Picker.ResetStored();
             Weather.isWeatherCard = false;
 
-            if (card_stats.faction == Factions.Special)
+            if (card_stats.faction == Faction.Special)
             {
-                if (card_stats.row == Rows.Special)
+                if (card_stats.row == Row.Special)
                 {
                     // Commander's Horn: any special slot that has no horn yet (one per row)
                     PlayerState side = is_player_turn ? (PlayerState)controller.PlayerInfo : controller.EnemyInfo;
-                    foreach (KeyValuePair<string, RowView> row in mine.Rows)
+                    foreach (KeyValuePair<Row, RowView> row in mine.Rows)
                     {
                         if (side.HasHorn(row.Key))
                             continue;
@@ -583,7 +583,7 @@ namespace Gwent.Battle
                         mine.Picker.StoreField(row.Value.Special);
                     }
                 }
-                else if (card_stats.ability == Abilities.Decoy)
+                else if (card_stats.ability == Ability.Decoy)
                 {
                     // Decoy goes on a card, not a row: frame the units it can take back
                     MarkDecoyTargets(mine, true);
@@ -598,10 +598,10 @@ namespace Gwent.Battle
             }
 
             // Spies are played on the opponent's side
-            FieldView target = card_stats.ability == Abilities.Spy ? opp : mine;
+            FieldView target = card_stats.ability == Ability.Spy ? opp : mine;
             target.Picker.ResetStored();
-            string[] rows = card_stats.row == Rows.Agile ? new[] { Rows.Close, Rows.Range } : new[] { card_stats.row };
-            foreach (string row in rows.Where(Rows.IsUnitRow))
+            Row[] rows = card_stats.row == Row.Agile ? new[] { Row.Close, Row.Range } : new[] { card_stats.row };
+            foreach (Row row in rows.Where(Rows.IsUnitRow))
             {
                 target.Rows[row].Light(true);
                 target.Picker.StoreField(target.Rows[row].Unit);
@@ -613,7 +613,7 @@ namespace Gwent.Battle
         {
             FieldView view = View(is_player_turn);
             view.Picker.ResetStored();
-            foreach (KeyValuePair<string, RowView> row in view.Rows)
+            foreach (KeyValuePair<Row, RowView> row in view.Rows)
             {
                 row.Value.SpecialImage.sprite = view.Picker.special;
                 row.Value.Light(false);
@@ -635,8 +635,8 @@ namespace Gwent.Battle
             List<GameObject> targets = new List<GameObject>();
             FieldView mine = View(true);
             FieldView opp = View(false);
-            string horn = LeaderIds.HornRow(leader_id);
-            string scorch = LeaderIds.ScorchRow(leader_id);
+            Row? horn = LeaderIds.HornRow(leader_id);
+            Row? scorch = LeaderIds.ScorchRow(leader_id);
             if (LeaderIds.WeatherPickRow(leader_id) != null || leader_id == LeaderIds.FoltestLordCommander)
             {
                 weatherImage.sprite = Weather.weatherSelected;
@@ -644,17 +644,17 @@ namespace Gwent.Battle
             }
             else if (horn != null)
             {
-                mine.Rows[horn].SpecialImage.sprite = mine.Picker.specialSelected;
-                targets.Add(mine.Rows[horn].Special);
+                mine.Rows[horn.Value].SpecialImage.sprite = mine.Picker.specialSelected;
+                targets.Add(mine.Rows[horn.Value].Special);
             }
             else if (scorch != null)
             {
-                opp.Rows[scorch].Light(true);
-                targets.Add(opp.Rows[scorch].Unit);
+                opp.Rows[scorch.Value].Light(true);
+                targets.Add(opp.Rows[scorch.Value].Unit);
             }
             else if (leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe)
             {
-                foreach (string row in new[] { Rows.Close, Rows.Range })
+                foreach (Row row in new[] { Row.Close, Row.Range })
                 {
                     mine.Rows[row].Light(true);
                     targets.Add(mine.Rows[row].Unit);
@@ -697,7 +697,7 @@ namespace Gwent.Battle
                         continue;
                     Transform frame = card.Find(DecoyFrame);
                     Card stats = display.Card;
-                    bool target = on && !stats.unique && stats.faction != Factions.Special;
+                    bool target = on && !stats.unique && stats.faction != Faction.Special;
                     if (target && frame == null)
                     {
                         // Square, as the card is, and pulsing like the leader's targets

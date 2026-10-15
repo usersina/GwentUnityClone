@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
 using UnityEditor;

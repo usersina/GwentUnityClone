@@ -31,9 +31,9 @@ namespace Gwent.Core
             get { return Path.Combine(Application.persistentDataPath, "Decks"); }
         }
 
-        public static string FactionFolder(string faction)
+        public static string FactionFolder(Faction faction)
         {
-            return Path.Combine(Root, faction);
+            return Path.Combine(Root, faction.Code());
         }
 
         //----------------------------------------The battle deck----------------------------------------//
@@ -69,12 +69,12 @@ namespace Gwent.Core
         //----------------------------------------Files----------------------------------------//
         public static void EnsureDirectories()
         {
-            foreach (string faction in Factions.Playable)
+            foreach (Faction faction in Factions.Playable)
                 Directory.CreateDirectory(FactionFolder(faction));
         }
 
         // All deck files of a faction, sorted by file name
-        public static List<string> DeckPaths(string faction)
+        public static List<string> DeckPaths(Faction faction)
         {
             List<string> paths = new List<string>();
             string folder = FactionFolder(faction);
@@ -112,7 +112,7 @@ namespace Gwent.Core
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 string temp = path + ".tmp";
-                File.WriteAllText(temp, JsonUtility.ToJson(deck));
+                File.WriteAllText(temp, JsonUtility.ToJson(DeckFile.Of(deck)));
                 if (File.Exists(path))
                     File.Replace(temp, path, null); // one step: the deck is never missing, even if the game dies here
                 else
@@ -166,7 +166,7 @@ namespace Gwent.Core
             return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), System.StringComparison.OrdinalIgnoreCase);
         }
 
-        public static string PathFor(string faction, string file_name)
+        public static string PathFor(Faction faction, string file_name)
         {
             return Path.Combine(FactionFolder(faction), file_name + ".json");
         }

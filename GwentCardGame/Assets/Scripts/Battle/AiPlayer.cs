@@ -124,7 +124,7 @@ namespace Gwent.Battle
 
             List<int> to_exchange = new List<int>();
             List<int> kept = new List<int>();
-            IEnumerable<int> musters = ai.HandList.Where(id => db.Get(id).ability == Abilities.Muster)
+            IEnumerable<int> musters = ai.HandList.Where(id => db.Get(id).ability == Ability.Muster)
                 .OrderByDescending(id => ai.HandList.Count(other => AbilityRules.IsMusterRelative(db.Get(id), db.Get(other))));
             foreach (int card_id in musters)
             {
@@ -139,7 +139,7 @@ namespace Gwent.Battle
             to_exchange.AddRange(ai.HandList.Where(id =>
             {
                 Card card = db.Get(id);
-                return card.IsUnit && !card.unique && string.IsNullOrEmpty(card.ability) && card.strength < average - 1;
+                return card.IsUnit && !card.unique && card.ability == Ability.None && card.strength < average - 1;
             }).OrderBy(id => db.Get(id).strength));
 
             foreach (int card_id in to_exchange.ToList())
@@ -259,7 +259,7 @@ namespace Gwent.Battle
                 case AiActionType.PlayCard:
                     if (!ai.HandList.Contains(action.CardId))
                         return false;
-                    if (action.CardId == CardIds.Decoy || controller.Db.Get(action.CardId).ability == Abilities.Decoy)
+                    if (action.CardId == CardIds.Decoy || controller.Db.Get(action.CardId).ability == Ability.Decoy)
                     {
                         if (action.TargetId < 0 || !Rows.IsUnitRow(action.Row))
                             return false;

@@ -115,7 +115,7 @@ namespace Gwent.UI
             if (card != null && !card.isSelectable && card.CompareTag("Player") && battle.selectedCard == null)
             {
                 Card stats = card.GetComponent<CardFace>().Card;
-                if (stats.ability == Gwent.Rules.Abilities.Leader)
+                if (stats.ability == Gwent.Rules.Ability.Leader)
                     return battle.CanUseLeader(true) ? State.Interact : State.Default;
             }
 
@@ -134,13 +134,13 @@ namespace Gwent.UI
 
             // A card is selected: is this a place it can go?
             Card selected = battle.selectedCard.GetComponent<CardFace>().Card;
-            if (selected.ability == Gwent.Rules.Abilities.Decoy)
+            if (selected.ability == Gwent.Rules.Ability.Decoy)
             {
                 if (card == null || card.isSelectable)
                     return row != null || weather != null ? State.Invalid : State.Default;
                 Card target = card.GetComponent<CardFace>().Card;
                 bool swappable = card.CompareTag("Player") && row != null && !target.unique
-                    && target.faction != Gwent.Rules.Factions.Special && target.ability != Gwent.Rules.Abilities.Leader;
+                    && target.faction != Gwent.Rules.Faction.Special && target.ability != Gwent.Rules.Ability.Leader;
                 return swappable ? State.Interact : State.Invalid;
             }
             if (weather != null)

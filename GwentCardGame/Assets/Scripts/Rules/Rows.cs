@@ -2,23 +2,38 @@ namespace Gwent.Rules
 {
     public static class Rows
     {
-        // Unit rows
-        public const string Close = "close";
-        public const string Range = "range";
-        public const string Siege = "siege";
-        // Card.row values that are not board rows
-        public const string Agile = "close_range";
-        public const string Weather = "weather";
-        public const string OneTime = "one_time";
-        public const string Special = "special";
-        public const string LeaderActive = "active";
-        public const string LeaderPassive = "passive";
+        public static readonly Row[] Units = { Row.Close, Row.Range, Row.Siege };
 
-        public static readonly string[] Units = { Close, Range, Siege };
-
-        public static bool IsUnitRow(string row)
+        public static bool IsUnitRow(this Row row)
         {
-            return row == Close || row == Range || row == Siege;
+            return row == Row.Close || row == Row.Range || row == Row.Siege;
+        }
+
+        // Its code in the card database, which also names the rows' art
+        public static string Code(this Row row)
+        {
+            switch (row)
+            {
+                case Row.Close: return "close";
+                case Row.Range: return "range";
+                case Row.Siege: return "siege";
+                case Row.Agile: return "close_range";
+                case Row.Weather: return "weather";
+                case Row.OneTime: return "one_time";
+                case Row.Special: return "special";
+                case Row.LeaderActive: return "active";
+                default: return "passive";
+            }
+        }
+
+        // The row of a code (false for a code no row has)
+        public static bool TryParse(string code, out Row row)
+        {
+            for (row = Row.Close; row <= Row.LeaderPassive; row++)
+                if (row.Code() == code)
+                    return true;
+            row = Row.Close;
+            return false;
         }
     }
 }

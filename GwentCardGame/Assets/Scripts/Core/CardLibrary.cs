@@ -17,18 +17,21 @@ namespace Gwent.Core
             if (source == null)
                 source = Resources.Load<TextAsset>(DefaultResourcePath);
             CardsFile cards_db = JsonUtility.FromJson<CardsFile>(source.text);
-            database = new CardDatabase(cards_db.Cards);
+            database = new CardDatabase(cards_db.Cards.ConvertAll(entry => entry.ToCard()));
             return database;
         }
 
-        // Reads a deck json; returns null (and logs) instead of throwing on a corrupt file
+        // Reads a deck file's JSON; returns null (and logs) instead of throwing on a damaged file
         public static Deck ParseDeck(string json, string source_name)
         {
             try
             {
-                Deck deck = JsonUtility.FromJson<Deck>(json);
-                if (deck == null || deck.Cards == null)
+                DeckFile file = JsonUtility.FromJson<DeckFile>(json);
+                if (file == null || file.Cards == null)
                     throw new System.FormatException("not a deck");
+                Deck deck = file.ToDeck();
+                if (deck == null)
+                    throw new System.FormatException("unknown faction '" + file.Faction + "'");
                 return deck;
             }
             catch (System.Exception e)

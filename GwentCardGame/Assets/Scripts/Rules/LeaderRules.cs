@@ -11,20 +11,20 @@ namespace Gwent.Rules
             PlayerState me = board.Side(is_player);
             PlayerState opp = board.Opponent(is_player);
 
-            string weather_row = LeaderIds.WeatherPickRow(leader_id);
+            Row? weather_row = LeaderIds.WeatherPickRow(leader_id);
             if (weather_row != null)
-                return WeatherCardsFor(me, weather_row, board.Db).Count > 0 ? null : "No matching weather card left in your deck";
+                return WeatherCardsFor(me, weather_row.Value, board.Db).Count > 0 ? null : "No matching weather card left in your deck";
 
-            string horn_row = LeaderIds.HornRow(leader_id);
+            Row? horn_row = LeaderIds.HornRow(leader_id);
             if (horn_row != null)
-                return me.HasHorn(horn_row) ? "That row already has a Commander's Horn" : null;
+                return me.HasHorn(horn_row.Value) ? "That row already has a Commander's Horn" : null;
 
-            string scorch_row = LeaderIds.ScorchRow(leader_id);
+            Row? scorch_row = LeaderIds.ScorchRow(leader_id);
             if (scorch_row != null)
             {
                 board.Recalculate();
-                string row_name = scorch_row == Rows.Close ? "close combat" : scorch_row == Rows.Range ? "ranged" : "siege";
-                return opp.RowScore(scorch_row) >= 10 && AbilityRules.HasScorchTarget(opp, scorch_row, board.Db)
+                string row_name = scorch_row == Row.Close ? "close combat" : scorch_row == Row.Range ? "ranged" : "siege";
+                return opp.RowScore(scorch_row.Value) >= 10 && AbilityRules.HasScorchTarget(opp, scorch_row.Value, board.Db)
                     ? null : "Your opponent's " + row_name + " row needs a strength of 10 or more";
             }
 
@@ -47,15 +47,15 @@ namespace Gwent.Rules
             return "This leader ability is passive";
         }
 
-        // Weather cards a "play a weather card from your deck" leader can pick ("all": any weather, Clear Weather too)
-        public static List<int> WeatherCardsFor(PlayerState info, string row, CardDatabase db)
+        // Weather cards a "play a weather card from your deck" leader can pick (Row.Weather: any weather, Clear Weather too)
+        public static List<int> WeatherCardsFor(PlayerState info, Row row, CardDatabase db)
         {
             List<int> cards = new List<int>();
             foreach (int card_id in info.DeckList)
             {
-                if (cards.Contains(card_id) || db.Get(card_id).row != Rows.Weather)
+                if (cards.Contains(card_id) || db.Get(card_id).row != Row.Weather)
                     continue;
-                if (row == "all" || card_id == CardIds.WeatherFor(row))
+                if (row == Row.Weather || card_id == CardIds.WeatherFor(row))
                     cards.Add(card_id);
             }
             return cards;
@@ -74,18 +74,18 @@ namespace Gwent.Rules
             PlayerState info = board.Side(is_player);
             reason = null;
 
-            string horn_row = LeaderIds.HornRow(leader_id);
+            Row? horn_row = LeaderIds.HornRow(leader_id);
             if (horn_row != null)
             {
                 reason = "That row already has a Commander's Horn";
-                return AbilityRules.PlaceLeaderHorn(info, horn_row);
+                return AbilityRules.PlaceLeaderHorn(info, horn_row.Value);
             }
 
-            string scorch_row = LeaderIds.ScorchRow(leader_id);
+            Row? scorch_row = LeaderIds.ScorchRow(leader_id);
             if (scorch_row != null)
             {
                 board.Recalculate();
-                AbilityRules.ScorchRow(board.Opponent(is_player), scorch_row, board.Db);
+                AbilityRules.ScorchRow(board.Opponent(is_player), scorch_row.Value, board.Db);
                 return true;
             }
 
