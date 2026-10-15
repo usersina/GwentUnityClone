@@ -4,6 +4,30 @@ Every push to `main` is a release: it replaces the one GitHub release, `latest`,
 notes. A push to `main` is only released when this file has a new section since the last release: add one, headed by the
 date, before pushing.
 
+## 2026-10-15
+
+A faster start on the web, the menus rebuilt, and most of the game's insides renewed.
+
+### The web version
+
+- The game starts after downloading about 26 MB instead of about 67: the cards' full art and the music now come when they
+  are first shown or played (a battle fetches its two decks' art as it begins), and the browser keeps them for next time.
+
+### Menus
+
+- The main menu, opponent picker, settings, pause menu, How to play, confirmations and notices are rebuilt on Unity's
+  UI Toolkit, with the same look and smoother highlights.
+
+### Platforms
+
+- The macOS build is for Apple Silicon only (Unity is dropping Intel Macs).
+
+### Under the hood
+
+- The battle's turns and animations run on UniTask and LitMotion; the art and music load through Addressables.
+- The editor and development builds write a game log (`Logs/game.jsonl`): every play, AI decision, round and menu, a JSON
+  line each, for people and AI agents to read. Release builds write none.
+
 ## 2026-10-14
 
 The whole game rebuilt on Unity 6.6, closer to The Witcher 3's Gwent in its rules and its look, with opponents for every
