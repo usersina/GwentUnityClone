@@ -15,9 +15,12 @@ game's insides renewed.
   Mardroeme), their art in the same print style as the others, its two leaders and its perk: as the third round opens, two
   random units of its discard pile return to the battlefield.
 - Crach an Craite shuffles both discard piles back into the decks; under King Bran, bad weather only halves your units.
-- Berserkers turn into bears on a row with a Mardroeme, the special card in the row's horn slot or Ermion; when a bear
-  leaves the board, its Berserker goes to the discard pile. Kambi calls Hemdall as the Cow calls the Bovine Defense Force;
-  Cerys calls the Shield Maidens; the Clan Dimun Pirate scorches the battlefield as he lands.
+- Berserkers turn into bears on a row with a Mardroeme, the special card in the row's horn slot or Ermion; the Berserker
+  goes to the discard pile as it turns, where a medic can find it and bring it back to turn again. Kambi calls Hemdall as
+  the Cow calls the Bovine Defense Force; Cerys calls the Shield Maidens; the Clan Dimun Pirate scorches the battlefield as
+  he lands.
+- Summoned cards are tokens: the Bovine Defense Force, Hemdall and the bears only exist on the board, and a decoy can no
+  longer take them back to your hand.
 - Skellige Storm, weather on the ranged and siege rows, for every faction.
 - Two Skellige opponent decks: the an Craite Warband (Crach an Craite) and the Berserkers of Ard Skellig (King Bran).
 - How to play, the deck builder and the battle's notices know Skellige.
