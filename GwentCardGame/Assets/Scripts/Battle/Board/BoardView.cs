@@ -268,11 +268,13 @@ namespace Gwent.Battle
             View(is_player_deck).Deck.ShowStack(info.DeckBSprite, info.DeckList.Count);
         }
 
-        // Shows the hand in The Witcher 3's order, reusing its card objects (cards slide to make room), and the count
+        // Shows the hand as it was drawn, as The Witcher 3 does (the redraw's carousel shows it the same way): a redrawn
+        // card takes the place of the one it replaces, cards that come later join at the right. Card objects are reused
+        // (cards slide to make room); the count shows too.
         public void SetHand(List<int> hand_list, bool is_player_hand)
         {
             FieldView view = View(is_player_hand);
-            SyncCards(view.Hand, CardOrder.Sorted(hand_list, controller.Db), is_player_hand, BoardChange.Place.Hand);
+            SyncCards(view.Hand, hand_list, is_player_hand, BoardChange.Place.Hand);
             view.Stats.UIUpdateHandCount(hand_list.Count);
         }
 

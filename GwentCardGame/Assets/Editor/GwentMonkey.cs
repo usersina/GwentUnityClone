@@ -629,7 +629,7 @@ namespace Gwent.EditorTools
                     Transform field = (player ? c.PlayerField : c.EnemyField).transform;
                     string side = player ? "player " : "opponent ";
                     if (player)
-                        Compare(field.Find("Hand"), CardOrder.Sorted(info.HandList, c.Db), side + "hand", problems);
+                        Compare(field.Find("Hand"), info.HandList, side + "hand", problems);
                     foreach (Row row in Rows.Units)
                     {
                         Transform row_t = field.Find(row.ToString());

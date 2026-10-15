@@ -993,8 +993,8 @@ namespace Gwent.EditorTools
                     PlayerState info = player ? c.PlayerInfo : c.EnemyInfo;
                     Transform field = (player ? c.PlayerField : c.EnemyField).transform;
                     string side = player ? "player " : "opponent ";
-                    // Hands and rows are shown in The Witcher 3's order
-                    Compare(field.Find("Hand"), CardOrder.Sorted(info.HandList, c.Db), side + "hand", problems);
+                    // Hands as drawn, rows in The Witcher 3's order
+                    Compare(field.Find("Hand"), info.HandList, side + "hand", problems);
                     foreach (Row row in Rows.Units)
                     {
                         Transform row_t = field.Find(row.ToString());
