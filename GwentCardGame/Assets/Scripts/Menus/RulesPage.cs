@@ -12,8 +12,8 @@ namespace Gwent.Menus
     // "How to play" (main menu): the rules of The Witcher 3's Gwent, one topic at a time. Topics on the left, the topic's
     // rules on the right (they scroll when long), each beside the game's own pieces as on the printed Gwent rule cards
     // (matt77hias/Gwent): faction shields, the hand count, row emblems, the abilities' medallions, life gems, The Witcher 3's
-    // notices, cards, keys. The factions show their perk and five leaders (hover a leader, or hold a finger on it, to read
-    // its ability). A UI Toolkit dialog: Assets/UI/Toolkit/RulesPage.uxml, the topics and their rules made here.
+    // notices, cards, keys. The factions show their perk and leaders (hover a leader, or hold a finger on it, to read its
+    // ability). A UI Toolkit dialog: Assets/UI/Toolkit/RulesPage.uxml, the topics and their rules made here.
     public static class RulesPage
     {
         // A rule: its pieces (see Piece), a term and its explanation
@@ -56,7 +56,7 @@ namespace Gwent.Menus
                     Intro = "Gwent is a card game for two players. Win two rounds out of three: a round goes to the side whose cards on the board add up to more.",
                     Entries = new[]
                     {
-                        E("Factions", "Each deck belongs to one of four factions, with its own perk and cards; neutral cards fit any deck.", "shield:NR", "shield:SC", "shield:M", "shield:NF"),
+                        E("Factions", "Each deck belongs to one of five factions, with its own perk and cards; neutral cards fit any deck.", "shield:NR", "shield:SC", "shield:M", "shield:NF", "shield:SK"),
                         E("Hand cards", "You draw 10 cards and may redraw up to 2 of them before the first round. Nobody draws between rounds, so every card you play is one fewer for the rounds ahead; only spies, a few leaders and the Northern Realms perk bring more.", "cards", "num:10"),
                         E("Your turn", "Do one thing: play a card, use your leader's ability, or pass. Playing a card ends your turn.", "notice:me_turn"),
                         E("Combat rows", "Units go on the close combat, ranged or siege row, as shown on the card.", "emblem:0", "emblem:1", "emblem:2"),
@@ -75,7 +75,7 @@ namespace Gwent.Menus
                         E("Rows", "Close combat, ranged and siege, from the middle of the table out. A unit goes on the row shown on its card.", "emblem:0", "emblem:1", "emblem:2"),
                         E("Strength", "A unit's strength is the number in its corner. Each row's total is on its left, each side's total by its portrait, the side ahead in a laurel.", "score:24", "total:61"),
                         E("Agile", "An agile unit can go on the close combat or the ranged row.", "medal:agile"),
-                        E("Horn slot", "The slot at the left of each row takes a Commander's Horn, one per row.", "medal:commander_horn"),
+                        E("Horn slot", "The slot at the left of each row takes one card: a Commander's Horn, or Skellige's Mardroeme.", "medal:commander_horn", "medal:mardroeme"),
                         E("Weather board", "Weather cards and Scorch are played on the weather board, at the left of the table. Weather affects both sides.", "medal:biting_frost", "medal:impenetrable_fog", "medal:torrential_rain"),
                         E("Whose turn", "The panel of the side whose turn it is is edged with glowing gold lines; a side that has passed is greyed out.", "notice:op_turn"),
                         E("Discard piles", "Cards that leave the board go to their owner's discard pile, next to the deck. " + (touch ? "Tap" : "Click") + " a pile to look through it.", "back:NR", "back:M"),
@@ -105,9 +105,10 @@ namespace Gwent.Menus
                         E("Tight bond", "Copies of this card on the same row multiply each other's strength: two double it, three triple it.", "medal:tight_bond"),
                         E("Morale boost", "Adds 1 to every other unit on its row.", "medal:morale_boost"),
                         E("Commander's horn", "Doubles the other units on its row, unless the row already has a Commander's Horn.", "medal:commander_horn"),
-                        E("Scorch", "Destroys your opponent's strongest unit(s) on that row, if the row totals 10 or more.", "medal:scorch"),
+                        E("Scorch", "Destroys your opponent's strongest unit(s) on that row, if the row totals 10 or more. The Clan Dimun Pirate's scorch is the Scorch card's: the strongest unit(s) on the whole battlefield as he lands (never himself).", "medal:scorch"),
                         E("Agile", "Close combat or ranged, your choice.", "medal:agile"),
-                        E("Avenger", "The Cow: killed by a scorch, it is avenged at once, the Bovine Defense Force (8) taking the field in your close combat row. Discarded any other way (cleared at the end of a round, or from your hand by Destroyer of Worlds), the Defense Force joins your close combat row at the start of the next round; if the battle ends first, it never comes. A decoy taking the Cow back to your hand calls nothing.", "card:16"),
+                        E("Berserker", "Skellige's Berserkers turn into bears on a row with a Mardroeme (the special card in its horn slot, or Ermion on it), whether it came first or they did: the Berserker (4) into the Transformed Vildkaarl (14, morale boost), the Young Berserker (2) into the Transformed Young Vildkaarl (8, tight bond). When a bear leaves the board (scorched, or at the end of the round), it leaves the game and its Berserker goes to your discard pile.", "medal:berserker", "medal:mardroeme"),
+                        E("Avenger", "The Cow and Skellige's Kambi: killed by a scorch, they are avenged at once, the Bovine Defense Force (8) or Hemdall (11, a hero) taking the field in your close combat row. Discarded any other way (cleared at the end of a round, or from your hand by Destroyer of Worlds), the avenger joins your close combat row at the start of the next round; if the battle ends first, it never comes. A decoy taking them back to your hand calls nothing. Avengers leave the game at the end of their round.", "card:16", "card:164", "medal:avenger"),
                     },
                 },
                 new Topic
@@ -119,16 +120,18 @@ namespace Gwent.Menus
                         E("Biting Frost", "Weather on both close combat rows.", "medal:biting_frost"),
                         E("Impenetrable Fog", "Weather on both ranged rows.", "medal:impenetrable_fog"),
                         E("Torrential Rain", "Weather on both siege rows.", "medal:torrential_rain"),
+                        E("Skellige Storm", "Weather on both ranged and siege rows.", "medal:skellige_storm"),
                         E("Clear Weather", "Removes all weather.", "medal:clear_weather"),
                         E("Commander's Horn", "Doubles the strength of the units on a row of yours, one horn per row.", "medal:commander_horn"),
                         E("Decoy", "Takes the place of one of your units, which goes back to your hand to be played again (not a hero).", "medal:decoy"),
                         E("Scorch", "Destroys the strongest unit(s) on the whole battlefield, yours included (not heroes).", "medal:scorch"),
+                        E("Mardroeme", "Skellige's own: in a row's horn slot, it turns that row's Berserkers into bears.", "medal:mardroeme"),
                     },
                 },
                 new Topic
                 {
                     Name = "Factions",
-                    Intro = "Every faction has its own perk, always in effect, and five leaders to choose from. " + (touch ? "Hold a finger on" : "Rest the pointer on") + " a leader to read its ability.",
+                    Intro = "Every faction has its own perk, always in effect, and its leaders to choose from (Skellige's two came with Blood and Wine). " + (touch ? "Hold a finger on" : "Rest the pointer on") + " a leader to read its ability.",
                     Factions = true,
                 },
                 new Topic
@@ -162,6 +165,7 @@ namespace Gwent.Menus
             new FactionTopic { Faction = Faction.Nilfgaard, Perk = "Wins every round that ends in a draw (against anyone but Nilfgaard).", Leaders = new[] { 33, 34, 35, 36, 37 } },
             new FactionTopic { Faction = Faction.Scoiatael, Perk = "Decides who goes first in the battle.", Leaders = new[] { 57, 58, 59, 60, 61 } },
             new FactionTopic { Faction = Faction.Monsters, Perk = "One random unit stays on the board after each round.", Leaders = new[] { 40, 41, 42, 43, 44 } },
+            new FactionTopic { Faction = Faction.Skellige, Perk = "Two random units of its discard pile (no heroes or spies) return to the board at the start of the third round.", Leaders = new[] { 157, 165 } },
         };
 
         // The leaders as The Witcher 3's cards name them (their abilities: CardDescription, as on their cards)
@@ -187,6 +191,8 @@ namespace Gwent.Menus
             { 42, "Eredin: Commander of the Red Riders" },
             { 43, "Eredin: Destroyer of Worlds" },
             { 44, "Eredin: King of the Wild Hunt" },
+            { 157, "Crach an Craite" },
+            { 165, "King Bran" },
         };
 
         // The pieces are drawn at this scale, so they sit in the page's icon column as its icons did
@@ -475,7 +481,7 @@ namespace Gwent.Menus
         }
 
         //----------------------------------------Factions----------------------------------------//
-        // A faction like any rule (its shield, its name, its perk), its five leaders below the perk
+        // A faction like any rule (its shield, its name, its perk), its leaders below the perk
         private static VisualElement AddFaction(VisualElement parent, FactionTopic faction, Columns columns)
         {
             VisualElement text;

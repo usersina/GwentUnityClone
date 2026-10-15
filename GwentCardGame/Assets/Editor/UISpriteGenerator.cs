@@ -376,7 +376,7 @@ namespace Gwent.EditorTools
         // disc with a black glyph), set in a bevelled gold ring over a soft shadow, as The Witcher 3's rule cards show them
         public const string RulesFolder = "Assets/Resources/UI/Rules";
         public static readonly string[] RuleMedallions = { "spy", "medic", "muster", "tight_bond", "morale_boost", "commander_horn", "scorch", "agile",
-            "biting_frost", "impenetrable_fog", "torrential_rain", "clear_weather", "decoy" };
+            "biting_frost", "impenetrable_fog", "torrential_rain", "clear_weather", "decoy", "skellige_storm", "mardroeme", "berserker", "avenger" };
 
         [MenuItem("Gwent/UI/Regenerate Rules Page Art")]
         public static void GenerateRulesArt()
