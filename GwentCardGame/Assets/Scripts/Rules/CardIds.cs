@@ -44,10 +44,22 @@ namespace Gwent.Rules
         }
 
         // Cards no deck holds, which only a card's ability brings: the Cow's Bovine Defense Force, Kambi's Hemdall and the
-        // Berserkers' bears. They leave the game instead of going to a discard pile (no medic or leader brings them back).
+        // Berserkers' bears. They leave the game instead of going to a discard pile (no medic or leader brings them back);
+        // a bear's Berserker goes there instead.
         public static bool IsSummoned(int card_id)
         {
             return card_id == BovineDefenseForce || card_id == Hemdall || card_id == TransformedVildkaarl || card_id == TransformedYoungVildkaarl;
+        }
+
+        // The Berserker a bear was (-1 for any other card)
+        public static int BerserkerOf(int card_id)
+        {
+            switch (card_id)
+            {
+                case TransformedVildkaarl: return Berserker;
+                case TransformedYoungVildkaarl: return YoungBerserker;
+                default: return -1;
+            }
         }
 
         // The bear a Berserker turns into on a row with a Mardroeme (-1 for any other card)

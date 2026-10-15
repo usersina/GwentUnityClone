@@ -129,11 +129,13 @@ namespace Gwent.Rules
         }
 
         // A summoned card (an avenger, a Berserker's bear) is not a real card: it vanishes instead of going to the discard
-        // pile, so no medic or leader brings it back
+        // pile, so no medic or leader brings it back. A bear's Berserker, set aside while it was one, goes there instead.
         private static void ToDiscardPile(PlayerState info, int card_id)
         {
             if (!CardIds.IsSummoned(card_id))
                 info.DiscardList.Add(card_id);
+            else if (info.Transformed.Remove(CardIds.BerserkerOf(card_id)))
+                info.DiscardList.Add(CardIds.BerserkerOf(card_id));
         }
 
         //----------------------------------------Muster----------------------------------------//
@@ -275,8 +277,8 @@ namespace Gwent.Rules
         }
 
         // The Berserkers on this side's rows that have a Mardroeme turn into their bears, in their places: whether the
-        // Mardroeme came first or they did. The Berserker leaves the game (Transformed), as its bear will. Returns how
-        // many turned.
+        // Mardroeme came first or they did. The Berserker is set aside (Transformed) until its bear leaves the board: then
+        // the bear leaves the game, and the Berserker goes to the discard pile. Returns how many turned.
         public static int Transform(PlayerState info, CardDatabase db)
         {
             int turned = 0;

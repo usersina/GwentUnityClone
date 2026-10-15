@@ -38,7 +38,7 @@ namespace Gwent.Rules
         public List<int> WeatherPlayed = new List<int>();     // Weather cards this side put on the board
         public List<Row> LeaderHornRows = new List<Row>(); // Rows whose horn comes from the leader (no physical card)
         public List<int> PendingSummons = new List<int>();    // Cards summoned when the board clears (a discarded Cow's defenders)
-        public List<int> Transformed = new List<int>();       // Berserkers turned into bears: out of the game, as the bears are
+        public List<int> Transformed = new List<int>();       // Berserkers turned into bears: set aside until their bears leave
 
         public bool CanExchange = true;
         public int CardsExchanged = 0;

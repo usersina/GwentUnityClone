@@ -144,7 +144,7 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
-        public void TheBearsAndTheMardroemeLeaveAtTheRoundsEnd()
+        public void AtTheRoundsEndABearLeavesTheGameAndItsBerserkerIsDiscarded()
         {
             Board board = NewBoard();
             PlayerState p = board.Player;
@@ -155,10 +155,28 @@ namespace Gwent.Rules.Tests
             RoundRules.CleanupBoard(p, new Random(0), Db);
 
             Assert.IsEmpty(p.CloseList);
-            CollectionAssert.AreEqual(new[] { CardIds.Mardroeme }, p.DiscardList, "the bear leaves the game, the Mardroeme is discarded");
-            CollectionAssert.AreEqual(new[] { Berserker }, p.Transformed);
+            CollectionAssert.AreEquivalent(new[] { Berserker, CardIds.Mardroeme }, p.DiscardList, "the Berserker and the Mardroeme are discarded");
+            Assert.IsEmpty(p.Transformed);
             Assert.AreEqual(cards, p.AllCards().Count(id => !CardIds.IsSummoned(id)), "no real card lost");
-            Assert.IsEmpty(AbilityRules.MedicCandidates(p.DiscardList, Db), "no bear for a medic");
+            CollectionAssert.AreEqual(new[] { Berserker }, AbilityRules.MedicCandidates(p.DiscardList, Db), "a medic can bring the Berserker back, never the bear");
+        }
+
+        [Test]
+        public void AScorchedBearLeavesTheGameAndItsBerserkerIsDiscarded()
+        {
+            Board board = NewBoard();
+            PlayerState p = board.Player, e = board.Enemy;
+            p.RangeList.Add(YoungBerserker);
+            p.SpRangeList.Add(CardIds.Mardroeme);
+            board.Recalculate();
+            AbilityRules.Transform(p, Db);
+            e.CloseList.Add(Fiend);
+            board.Recalculate();
+
+            Assert.AreEqual(1, AbilityRules.Scorch(p, e, Db), "the bear (8) is the strongest");
+            Assert.IsEmpty(p.RangeList);
+            CollectionAssert.AreEqual(new[] { YoungBerserker }, p.DiscardList);
+            Assert.IsEmpty(p.Transformed);
         }
 
         //----------------------------------------Skellige Storm and King Bran----------------------------------------//
