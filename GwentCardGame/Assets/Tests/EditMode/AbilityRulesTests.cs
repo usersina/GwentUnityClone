@@ -199,7 +199,7 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
-        public void AScorchedCowSummonsTheDefenseForceForTheNextRound()
+        public void AScorchedCowCallsTheDefenseForceAtOnce()
         {
             PlayerState p = TestBoard.Player();
             PlayerState e = TestBoard.Player(Faction.Monsters);
@@ -209,11 +209,43 @@ namespace Gwent.Rules.Tests
 
             Assert.AreEqual(1, AbilityRules.Scorch(p, e, Db));
             Assert.IsEmpty(p.RangeList);
-            Assert.IsEmpty(p.CloseList);
+            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList, "the Defense Force, not burned by the same scorch");
             CollectionAssert.AreEqual(new[] { CardIds.Cow }, p.DiscardList);
+            Assert.IsEmpty(p.PendingSummons);
+            TestBoard.Recalc(null, p, e);
+            Assert.AreEqual(8, p.RowScore(Row.Close));
 
             RoundRules.CleanupBoard(p, new Random(0), Db);
-            CollectionAssert.AreEqual(new[] { CardIds.BovineDefenseForce }, p.CloseList);
+            Assert.IsEmpty(p.CloseList, "nothing more next round: the Defense Force came already");
+        }
+
+        [Test]
+        public void ARowScorchedCowCallsTheDefenseForceAtOnce()
+        {
+            PlayerState e = TestBoard.Player(Faction.Monsters);
+            e.CloseList.AddRange(new[] { CardIds.Cow, Draug }); // the hero makes the row's 10; the Cow is its strongest unit
+            TestBoard.Recalc(null, e);
+
+            Assert.AreEqual(1, AbilityRules.ScorchRow(e, Row.Close, Db));
+            CollectionAssert.AreEqual(new[] { Draug, CardIds.BovineDefenseForce }, e.CloseList);
+            Assert.AreEqual(e.CloseList.Count, e.CloseStrengthL.Count);
+            Assert.AreEqual(e.CloseList.Count, e.MCloseStrength.Count);
+        }
+
+        [Test]
+        public void ADecoyedCowCallsNothing()
+        {
+            Board board = new Board { Player = TestBoard.Player(), Enemy = TestBoard.Player(Faction.Monsters), Db = Db };
+            board.Player.RangeList.Add(CardIds.Cow);
+            board.Recalculate();
+
+            PlayRules.Decoy(board, CardIds.Cow, Row.Range, true, CardIds.Decoy);
+            CollectionAssert.AreEqual(new[] { CardIds.Cow }, board.Player.HandList, "back in the hand, not in the discard pile");
+            Assert.IsEmpty(board.Player.CloseList);
+            Assert.IsEmpty(board.Player.PendingSummons);
+
+            RoundRules.CleanupBoard(board.Player, new Random(0), Db);
+            Assert.IsEmpty(board.Player.CloseList);
         }
 
         [Test]

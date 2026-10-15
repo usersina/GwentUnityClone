@@ -87,9 +87,12 @@ saved with more copies than that loses the extra ones when it is loaded.
   in the deck...) can't be used, so it is never wasted. Passive leaders (The Treacherous, Invader of the North, The White Flame,
   Daisy of the Valley) work from the start; The White Flame cancels the other leader, passive ones included.
 - A decoy on a row is not a unit: morale, horns and scorch ignore it, and Monsters never keep it (nor a hero) at the end of a round.
-- The Cow summons the Bovine Defense Force when it goes to the discard pile (scorched, or cleared at a round's end); the Defense
-  Force arrives when the board is cleared for the next round (never, if the battle ends first), and vanishes instead of going to
-  the discard pile. The game says so when a Cow leaves during a round, and the Cow's description box explains it.
+- The Cow summons the Bovine Defense Force (8, close combat). Killed by a scorch, it is avenged at once: the Defense Force takes the
+  field as soon as the scorch is over (The Witcher 3 holds it until the next round, so it never comes if the battle ends first).
+  Discarded any other way (cleared at a round's end, or from the hand by Destroyer of Worlds), it arrives when the board is cleared
+  for the next round, never if the battle ends first. A decoy taking the Cow back to the hand calls nothing, and the Defense Force
+  vanishes instead of going to the discard pile. The game says so when a Cow leaves during a round, and the Cow's description box
+  explains it.
 - Muster also pulls the matching cards from your hand, not only from your deck (The Witcher 3 does this too, although the card only
   says "deck"). The Arachas Behemoth calls the Arachas and Gaunter O'Dimm calls the Darkness, but not the other way round.
 - Francesca, Hope of the Aen Seidhe moves an agile unit when its own strength would be higher on the other row (ranged row first),
@@ -99,7 +102,8 @@ saved with more copies than that loses the extra ones when it is loaded.
   your choice, King of the Wild Hunt plays any weather card from your deck.
 
 Differences that remain: a revived agile unit goes where you put it (The Witcher 3 puts it on the row where it is stronger), a
-leader's horn leaves no card in the discard pile, and the Skellige faction (Blood and Wine) is not in the game.
+leader's horn leaves no card in the discard pile, and the Skellige faction (Blood and Wine) is not in the game. One is a choice: a
+scorched Cow's Bovine Defense Force comes at once, not next round.
 
 ## The AI
 

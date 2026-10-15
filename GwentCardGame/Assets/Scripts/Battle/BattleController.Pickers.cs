@@ -90,7 +90,7 @@ namespace Gwent.Battle
 
             GameAudio.PlaySfx("card_discard");
             GameLog.Event(LogCategory.Battle, "card_discarded", "side", is_player_card ? "player" : "enemy", "card", Db.Get(card_id).name);
-            AbilityRules.Discard(info, card_id); // a discarded Cow still calls the Bovine Defense Force (The Witcher 3)
+            AbilityRules.Discard(info, card_id); // a discarded Cow still calls the Bovine Defense Force, next round (The Witcher 3)
             SetHandObject(info.HandList, is_player_card);
             SetDiscardObject(info.DiscardList, is_player_card);
         }

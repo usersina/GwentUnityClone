@@ -20,8 +20,12 @@ namespace Gwent.Rules
 
             int destroyed = 0;
             foreach (PlayerState info in new[] { first, second })
+            {
+                List<int> avengers = new List<int>();
                 foreach (Row row in Rows.Units)
-                    destroyed += DestroyWithStrength(info, row, top_strength, db);
+                    destroyed += DestroyWithStrength(info, row, top_strength, db, avengers);
+                Avenge(info, avengers, db);
+            }
             return destroyed;
         }
 
@@ -33,7 +37,10 @@ namespace Gwent.Rules
             int top_strength = StrongestNonHero(target, row, db);
             if (top_strength < 0)
                 return 0;
-            return DestroyWithStrength(target, row, top_strength, db);
+            List<int> avengers = new List<int>();
+            int destroyed = DestroyWithStrength(target, row, top_strength, db, avengers);
+            Avenge(target, avengers, db);
+            return destroyed;
         }
 
         private static int StrongestNonHero(PlayerState info, Row row, CardDatabase db)
@@ -59,7 +66,8 @@ namespace Gwent.Rules
             return !card.unique && !card.IsSpecial;
         }
 
-        private static int DestroyWithStrength(PlayerState info, Row row, int strength, CardDatabase db)
+        // Destroys the row's non-hero units of that strength; the cards their killing calls are added to avengers
+        private static int DestroyWithStrength(PlayerState info, Row row, int strength, CardDatabase db, List<int> avengers)
         {
             List<int> units = info.UnitRow(row);
             List<int> base_strengths = info.BaseStrengths(row);
@@ -74,7 +82,10 @@ namespace Gwent.Rules
                 if (i < base_strengths.Count)
                     base_strengths.RemoveAt(i);
                 strengths.RemoveAt(i);
-                Discard(info, card_id);
+                if (card_id != CardIds.BovineDefenseForce)
+                    info.DiscardList.Add(card_id);
+                if (AvengerOf(card_id) != -1)
+                    avengers.Add(AvengerOf(card_id)); // killed: its avenger comes at once (Avenge)
                 destroyed++;
             }
             return destroyed;
@@ -82,15 +93,28 @@ namespace Gwent.Rules
 
         //----------------------------------------Avenger----------------------------------------//
         // The card a unit summons when it goes to the discard pile (-1 if none): the Cow calls the Bovine Defense Force.
-        // As in The Witcher 3, the summoned card arrives when the board is cleared for the next round (a decoy taking
-        // the Cow back to the hand summons nothing).
+        // Killed (scorched: by the Scorch card, a unit's or a leader's row scorch), it takes the Cow's place at once, in the
+        // close combat row: kill the Cow, get the punishment. Discarded any other way (cleared at a round's end, discarded
+        // from the hand by Destroyer of Worlds), it arrives when the board clears for the next round, so never if the battle
+        // ends first. A decoy taking the Cow back to the hand calls nothing.
         public static int AvengerOf(int card_id)
         {
             return card_id == CardIds.Cow ? CardIds.BovineDefenseForce : -1;
         }
 
-        // A unit leaving the battlefield goes to the discard pile. A summoned card is not a real card: it vanishes
-        // (so a medic cannot bring it back).
+        // The cards a scorch's killing called, on the close combat row now (once the scorch is over: never scorched by it)
+        private static void Avenge(PlayerState info, List<int> avengers, CardDatabase db)
+        {
+            foreach (int card_id in avengers)
+            {
+                info.CloseList.Add(card_id);
+                info.CloseStrengthL.Add(db.Get(card_id).strength); // until the next recalculation
+                info.MCloseStrength.Add(db.Get(card_id).strength);
+            }
+        }
+
+        // A unit leaving the battlefield goes to the discard pile, a Cow's avenger coming next round. A summoned card is
+        // not a real card: it vanishes (so a medic cannot bring it back).
         public static void Discard(PlayerState info, int card_id)
         {
             if (card_id != CardIds.BovineDefenseForce)

@@ -106,7 +106,7 @@ namespace Gwent.Menus
                         E("Commander's horn", "Doubles the other units on its row, unless the row already has a Commander's Horn.", "medal:commander_horn"),
                         E("Scorch", "Destroys your opponent's strongest unit(s) on that row, if the row totals 10 or more.", "medal:scorch"),
                         E("Agile", "Close combat or ranged, your choice.", "medal:agile"),
-                        E("Avenger", "The Cow: when it goes to the discard pile, scorched or cleared at the end of a round, the Bovine Defense Force (8) joins your close combat row at the start of the next round; if the battle ends first, it never comes. A decoy taking the Cow back to your hand calls nothing.", "card:16"),
+                        E("Avenger", "The Cow: killed by a scorch, it is avenged at once, the Bovine Defense Force (8) taking the field in your close combat row. Discarded any other way (cleared at the end of a round, or from your hand by Destroyer of Worlds), the Defense Force joins your close combat row at the start of the next round; if the battle ends first, it never comes. A decoy taking the Cow back to your hand calls nothing.", "card:16"),
                     },
                 },
                 new Topic

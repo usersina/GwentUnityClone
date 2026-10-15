@@ -589,7 +589,7 @@ namespace Gwent.Battle
                 }
             }
 
-            RefreshBoard();
+            RefreshBoard(round_clear: true);
             BoardChange change = board.EndChange();
 
             // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
@@ -969,33 +969,44 @@ namespace Gwent.Battle
             StrengthCalculator.Recalculate(EnemyInfo, weatherList, doubleSpies, Db);
         }
 
-        // Recalculates the strengths, then shows both sides from the lists
-        private void RefreshBoard()
+        // Recalculates the strengths, then shows both sides from the lists (round_clear: the board cleared for a new round)
+        private void RefreshBoard(bool round_clear = false)
         {
             RecalculateStrengths();
             board.Refresh();
-            AnnounceSummons();
+            AnnounceCows(round_clear);
         }
 
-        // A Cow gone to the discard pile during a round (scorched): its Bovine Defense Force is held until the board clears
-        // for the next round (The Witcher 3), and never comes if the battle ends first. Said at once, or the player looks
-        // for it in vain. (At the end of a round it arrives in the same clearing: nothing to say.)
-        private readonly int[] summonsAnnounced = new int[2];
+        // A Cow gone to the discard pile during a round, said at once (AbilityRules.AvengerOf): killed (scorched), its
+        // Bovine Defense Force takes the field now, or the player wonders where it came from; discarded (Destroyer of
+        // Worlds), it is held until the board clears for the next round, never coming if the battle ends first, or the
+        // player looks for it in vain. (At the end of a round it arrives in the same clearing: nothing to say.)
+        private readonly int[] cowsDiscarded = new int[2];
+        private readonly int[] summonsPending = new int[2];
 
-        private void AnnounceSummons()
+        private void AnnounceCows(bool round_clear)
         {
             foreach (bool is_player in new[] { true, false })
             {
-                int pending = Info(is_player).PendingSummons.Count;
+                BattleSide info = Info(is_player);
                 int index = is_player ? 0 : 1;
-                if (pending > summonsAnnounced[index])
+                int cows = info.DiscardList.Count(id => id == CardIds.Cow);
+                int pending = info.PendingSummons.Count;
+                if (!round_clear && cows > cowsDiscarded[index])
                 {
-                    GameLog.Event(LogCategory.Battle, "summon_pending", "side", is_player ? "player" : "enemy", "cards", pending);
-                    UIOverlay.Toast(is_player
-                        ? "Your Cow is gone: the Bovine Defense Force joins your close combat row next round, if the battle goes on"
-                        : "The opponent's Cow is gone: their Bovine Defense Force comes next round, if the battle goes on", 4f);
+                    bool killed = pending <= summonsPending[index];
+                    GameLog.Event(LogCategory.Battle, killed ? "cow_avenged" : "summon_pending", "side", is_player ? "player" : "enemy");
+                    if (killed)
+                        UIOverlay.Toast(is_player
+                            ? "Your Cow was killed: the Bovine Defense Force takes the field to avenge it"
+                            : "You killed the opponent's Cow: their Bovine Defense Force takes the field to avenge it", 4f);
+                    else
+                        UIOverlay.Toast(is_player
+                            ? "Your Cow is discarded: the Bovine Defense Force joins your close combat row next round, if the battle goes on"
+                            : "The opponent's Cow is discarded: their Bovine Defense Force comes next round, if the battle goes on", 4f);
                 }
-                summonsAnnounced[index] = pending;
+                cowsDiscarded[index] = cows;
+                summonsPending[index] = pending;
             }
         }
 
