@@ -14,13 +14,14 @@ namespace Gwent.DeckBuilding
     public class CardGrid : MonoBehaviour
     {
         // The factions of the header's panels, in order, and their perks
-        public static readonly Faction[] HeaderFactions = { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters };
+        public static readonly Faction[] HeaderFactions = { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters, Faction.Skellige };
         private static readonly string[] Perks =
         {
             "Draw a card from your deck whenever you win a round",
             "Automatically win the round that ends in a draw",
             "Choose who goes first at the start of the battle",
             "Keep one random unit on the board after each round",
+            "Two random discarded units return in the third round",
         };
 
         public DeckBuilder deckBuilder;
@@ -350,7 +351,7 @@ namespace Gwent.DeckBuilding
             {
                 case Listing.Weather:
                 case Listing.Specials:
-                    List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay).FindAll(card => (card.row == Row.Weather) == (listing == Listing.Weather));
+                    List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay, faction).FindAll(card => (card.row == Row.Weather) == (listing == Listing.Weather));
                     specials_list.Sort((a, b) => a._id.CompareTo(b._id));
                     SetCardsArea(specials_list);
                     break;
@@ -404,7 +405,7 @@ namespace Gwent.DeckBuilding
 
             if (rw == null && !ishero) // Add special Cards to all cards
             {
-                List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay);
+                List<Card> specials_list = deckBuilder.GetSpecialCards(CardsToDisplay, faction);
                 specials_list.Sort((a, b) => a._id.CompareTo(b._id));
                 returned_list = deckBuilder.MergedList(returned_list, specials_list);
             }

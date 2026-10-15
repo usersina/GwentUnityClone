@@ -1,3 +1,7 @@
+using Gwent.Core;
+using Gwent.Rules;
+using Gwent.UI;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
@@ -7,7 +11,8 @@ namespace Gwent.DeckBuilding
 {
     // The deck builder's header: the factions' banners in a row, the chosen one in the middle and the others smaller, fainter
     // and turned away the further they are. A click on a neighbour (on the buttons laid over them), on a dot below, or a swipe
-    // brings another banner to the middle; the change is announced once it has nearly arrived.
+    // brings another banner to the middle; the change is announced once it has nearly arrived. The banners (each faction's
+    // shield and its name, written live) and their dots are made here, one for each of CardGrid.HeaderFactions.
     public class FactionHeader : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         private const float Spacing = 1.1f;           // from one banner's centre to the next, in banner widths
@@ -27,8 +32,11 @@ namespace Gwent.DeckBuilding
         public int CurrentPanel { get; private set; }
         public int TargetPanel { get; private set; }
 
+        private const float BannerWidth = 446, BannerHeight = 112, ShieldWidth = 100;
+        private const float DotSpacing = 40;
+
         private RectTransform[] panels;
-        private Graphic[] graphics;
+        private CanvasGroup[] groups;
         private Toggle[] dots;
         private Canvas canvas;
         private float step;
@@ -38,12 +46,13 @@ namespace Gwent.DeckBuilding
         private void Awake()
         {
             canvas = GetComponentInParent<Canvas>();
+            BuildBanners(CardGrid.HeaderFactions);
             panels = new RectTransform[content.childCount];
-            graphics = new Graphic[panels.Length];
+            groups = new CanvasGroup[panels.Length];
             for (int i = 0; i < panels.Length; i++)
             {
                 panels[i] = (RectTransform)content.GetChild(i);
-                graphics[i] = panels[i].GetComponent<Graphic>();
+                groups[i] = panels[i].GetComponent<CanvasGroup>();
             }
             step = panels.Length > 0 ? panels[0].rect.width * Spacing : 1f;
             for (int i = 0; i < panels.Length; i++)
@@ -73,6 +82,44 @@ namespace Gwent.DeckBuilding
             content.anchoredPosition = new Vector2(PositionOf(TargetPanel), content.anchoredPosition.y);
             LightDots();
             ShapePanels();
+        }
+
+        // A banner for each faction: its shield (the battle's side panel shows it too) and its name in the menus' heading
+        // lettering, a long name made smaller to fit; and a dot below for each, the first dot's copies, centred
+        private void BuildBanners(Faction[] factions)
+        {
+            foreach (Faction faction in factions)
+            {
+                RectTransform banner = UIKit.Rect(faction.Code(), content);
+                banner.sizeDelta = new Vector2(BannerWidth, BannerHeight);
+                banner.gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;
+                Image shield = UIKit.NewImage(banner, "Shield", SpriteCache.Load("Stats/faction/" + faction.Code()), Color.white);
+                shield.preserveAspect = true;
+                RectTransform shield_rect = shield.rectTransform;
+                shield_rect.anchorMin = shield_rect.anchorMax = shield_rect.pivot = new Vector2(0, 0.5f);
+                shield_rect.anchoredPosition = Vector2.zero;
+                shield_rect.sizeDelta = new Vector2(ShieldWidth, BannerHeight);
+                TextMeshProUGUI name = UIKit.Text(banner, faction.DisplayName(), UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
+                name.rectTransform.Stretch(ShieldWidth + 8, 0, 0, 0);
+                name.enableAutoSizing = true;
+                name.fontSizeMin = 26;
+                name.fontSizeMax = name.fontSize;
+            }
+
+            if (pagination == null || pagination.childCount == 0)
+                return;
+            Transform first = pagination.GetChild(0);
+            while (pagination.childCount < factions.Length)
+                Instantiate(first, pagination, false).name = (pagination.childCount).ToString();
+            RectTransform dot = (RectTransform)first;
+            float span = (factions.Length - 1) * DotSpacing + dot.rect.width;
+            ((RectTransform)pagination).sizeDelta = new Vector2(span, ((RectTransform)pagination).sizeDelta.y);
+            for (int i = 0; i < pagination.childCount; i++)
+            {
+                RectTransform each = (RectTransform)pagination.GetChild(i);
+                each.anchorMin = each.anchorMax = new Vector2(0, 0.5f);
+                each.anchoredPosition = new Vector2(i * DotSpacing + each.pivot.x * each.rect.width, 0);
+            }
         }
 
         public void GoToPanel(int panel)
@@ -148,12 +195,8 @@ namespace Gwent.DeckBuilding
                 float scale = Mathf.Lerp(1f, 0.5f, Ease(far / TurnDistance));
                 panels[i].localScale = new Vector3(scale, scale, 1f);
                 panels[i].localRotation = Quaternion.Euler(0f, Mathf.Lerp(60f, -60f, Ease((from_middle + TurnDistance) / (2f * TurnDistance))), 0f);
-                if (graphics[i] != null)
-                {
-                    Color color = graphics[i].color;
-                    color.a = Mathf.Lerp(1f, 0.05f, Ease(far / FadeDistance));
-                    graphics[i].color = color;
-                }
+                if (groups[i] != null)
+                    groups[i].alpha = Mathf.Lerp(1f, 0.05f, Ease(far / FadeDistance));
             }
         }
 

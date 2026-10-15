@@ -88,9 +88,9 @@ namespace Gwent.DeckBuilding
 
             int occurences = deckBuilder.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
 
-            // Only the deck's faction, neutral and special cards
+            // Only the deck's faction, neutral and special cards (Mardroeme: Skellige's)
             Gwent.Rules.Card card = cardStats;
-            if (!card.IsSpecial && card.faction != Gwent.Rules.Faction.Neutral && card.faction != deckBuilder.my_deck.Faction)
+            if (!Gwent.Rules.DeckRules.Fits(card, deckBuilder.my_deck.Faction))
             {
                 GameAudio.PlaySfx("invalid");
                 UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
@@ -182,8 +182,10 @@ namespace Gwent.DeckBuilding
             Image patch = transform.Find("Patch").GetComponent<Image>();
             name_text.text = Card.DisplayNameOf(stats.name);
 
-            // Neutral and special cards have no faction banner: their name is centered on a wider patch
-            bool bannerless = stats.faction == Faction.Neutral || stats.faction == Faction.Special;
+            // Neutral and special cards have no faction banner: their name is centered on a wider patch (Blood and Wine's
+            // Mardroeme and Skellige Storm carry Skellige's)
+            bool bannerless = (stats.faction == Faction.Neutral || stats.faction == Faction.Special)
+                && stats._id != CardIds.Mardroeme && stats._id != CardIds.SkelligeStorm;
             if (bannerless)
             {
                 RectTransform name_rect = name_text.rectTransform;

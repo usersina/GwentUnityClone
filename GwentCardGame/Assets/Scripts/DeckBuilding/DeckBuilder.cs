@@ -29,6 +29,7 @@ namespace Gwent.DeckBuilding
         public List<string> NFDecks;
         public List<string> SCDecks;
         public List<string> MDecks;
+        public List<string> SKDecks;
 
         // Runtime state, never saved with the scene: every card (each card has unique stats), the deck being edited
         [System.NonSerialized] public List<Card> allCards;
@@ -151,6 +152,7 @@ namespace Gwent.DeckBuilding
             NFDecks = DeckStorage.DeckPaths(Faction.Nilfgaard);
             SCDecks = DeckStorage.DeckPaths(Faction.Scoiatael);
             MDecks = DeckStorage.DeckPaths(Faction.Monsters);
+            SKDecks = DeckStorage.DeckPaths(Faction.Skellige);
         }
 
         public List<string> DeckPathsOf(Faction faction)
@@ -160,6 +162,7 @@ namespace Gwent.DeckBuilding
                 case Faction.Nilfgaard: return NFDecks;
                 case Faction.Scoiatael: return SCDecks;
                 case Faction.Monsters: return MDecks;
+                case Faction.Skellige: return SKDecks;
                 default: return NRDecks;
             }
         }
@@ -186,9 +189,10 @@ namespace Gwent.DeckBuilding
                 && (!getUnique || card.unique)).ToList();
         }
 
-        public List<Card> GetSpecialCards(List<Card> cards_list)
+        // The special cards of a list, those a deck of the faction can hold if one is given (Mardroeme is Skellige's)
+        public List<Card> GetSpecialCards(List<Card> cards_list, Faction? faction = null)
         {
-            return cards_list.Where(card => card.IsSpecial).ToList();
+            return cards_list.Where(card => card.IsSpecial && (faction == null || DeckRules.Fits(card, faction.Value))).ToList();
         }
 
         public List<Card> MergedList(params List<Card>[] lists)
