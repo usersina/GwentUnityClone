@@ -1078,7 +1078,6 @@ MonoBehaviour:
   middleManager: {fileID: 1346127328}
   deckCollection: {fileID: 310488422}
   currentDeckPath: 
-  DecksPath: []
   NRDecks: []
   NFDecks: []
   SCDecks: []
@@ -1649,7 +1648,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 399892827}
-  - component: {fileID: 399892829}
   - component: {fileID: 399892828}
   m_Layer: 5
   m_Name: Header
@@ -1692,477 +1690,41 @@ MonoBehaviour:
   m_GameObject: {fileID: 399892826}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 54aaa385a9b88e84e9d50b9804aaa24e, type: 3}
+  m_Script: {fileID: 11500000, guid: 235e341119ea9db749a86f822d131f8f, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: 
-  movementType: 0
-  movementAxis: 0
-  automaticallyLayout: 1
-  sizeControl: 0
-  size: {x: 446, y: 112}
-  automaticLayoutSpacing: 0.1
-  leftMargin: 0
-  rightMargin: 0
-  topMargin: 0
-  bottomMargin: 0
-  infinitelyScroll: 0
-  infiniteScrollingEndSpacing: 0.1
-  startingPanel: 0
-  swipeGestures: 1
-  minimumSwipeSpeed: 0
+  m_EditorClassIdentifier: Assembly-CSharp::FactionHeader
+  content: {fileID: 109361564}
   previousButton: {fileID: 1474553651}
   nextButton: {fileID: 480266672}
-  pagination: {fileID: 1789252825}
-  toggleNavigation: 1
-  snapTarget: 0
-  snappingSpeed: 10
-  thresholdSnappingSpeed: 150
-  hardSnap: 1
-  useUnscaledTime: 0
+  pagination: {fileID: 1789252826}
+  startingPanel: 0
   onPanelChanged:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 478145757}
-        m_TargetAssemblyTypeName: 
+        m_TargetAssemblyTypeName: CollectionManager, Assembly-CSharp
         m_MethodName: UpdateSelectedFaction
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_ObjectArgumentAssemblyTypeName: 
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
       - m_Target: {fileID: 310488422}
-        m_TargetAssemblyTypeName: 
+        m_TargetAssemblyTypeName: CollectionManager, Assembly-CSharp
         m_MethodName: UpdateSelectedFaction
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_ObjectArgumentAssemblyTypeName: 
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-  onPanelSelecting:
-    m_PersistentCalls:
-      m_Calls: []
-  onPanelSelected:
-    m_PersistentCalls:
-      m_Calls: []
-  onPanelChanging:
-    m_PersistentCalls:
-      m_Calls: []
-  transitionEffects:
-  - minDisplacement: -1000
-    maxDisplacement: 1000
-    minValue: 0.5
-    maxValue: 1
-    defaultMinValue: 0.5
-    defaultMaxValue: 1
-    defaultMinDisplacement: -1000
-    defaultMaxDisplacement: 1000
-    showPanel: 0
-    showDisplacement: 0
-    showValue: 0
-    label: localScale.x
-    function:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -1.3422813
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    defaultFunction:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -1.3422813
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    simpleScrollSnap: {fileID: 399892828}
-  - minDisplacement: -1000
-    maxDisplacement: 1000
-    minValue: 0.5
-    maxValue: 1
-    defaultMinValue: 0.5
-    defaultMaxValue: 1
-    defaultMinDisplacement: -1000
-    defaultMaxDisplacement: 1000
-    showPanel: 0
-    showDisplacement: 0
-    showValue: 0
-    label: localScale.y
-    function:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -1.3422813
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    defaultFunction:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -1.3422813
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1000
-        value: 0.5
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    simpleScrollSnap: {fileID: 399892828}
-  - minDisplacement: -600
-    maxDisplacement: 600
-    minValue: 0.05
-    maxValue: 1
-    defaultMinValue: 0.05
-    defaultMaxValue: 1
-    defaultMinDisplacement: -600
-    defaultMaxDisplacement: 600
-    showPanel: 0
-    showDisplacement: 0
-    showValue: 0
-    label: color.a
-    function:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -600
-        value: 0.05
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -0.80536914
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 600
-        value: 0.05
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    defaultFunction:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -600
-        value: 0.05
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -0.80536914
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 600
-        value: 0.05
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    simpleScrollSnap: {fileID: 399892828}
-  - minDisplacement: -1000
-    maxDisplacement: 1000
-    minValue: -60
-    maxValue: 60
-    defaultMinValue: -60
-    defaultMaxValue: 60
-    defaultMinDisplacement: -1000
-    defaultMaxDisplacement: 1000
-    showPanel: 0
-    showDisplacement: 0
-    showValue: 0
-    label: localRotation.y
-    function:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 60
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1000
-        value: -60
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    defaultFunction:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 60
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1000
-        value: -60
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    simpleScrollSnap: {fileID: 399892828}
-  - minDisplacement: -1000
-    maxDisplacement: 1000
-    minValue: 0
-    maxValue: 500
-    defaultMinValue: 0
-    defaultMaxValue: 500
-    defaultMinDisplacement: -1000
-    defaultMaxDisplacement: 1000
-    showPanel: 0
-    showDisplacement: 0
-    showValue: 0
-    label: localPosition.z
-    function:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 500
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -1.3422818
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1000
-        value: 500
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    defaultFunction:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: -1000
-        value: 500
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: -1.3422818
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
-      - serializedVersion: 3
-        time: 1000
-        value: 500
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
-    simpleScrollSnap: {fileID: 399892828}
---- !u!114 &399892829
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 399892826}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1aa08ab6e0800fa44ae55d278d1423e3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Content: {fileID: 109361564}
-  m_Horizontal: 1
-  m_Vertical: 0
-  m_MovementType: 0
-  m_Elasticity: 0.1
-  m_Inertia: 1
-  m_DecelerationRate: 0.01
-  m_ScrollSensitivity: 0
-  m_Viewport: {fileID: 2130914053}
-  m_HorizontalScrollbar: {fileID: 0}
-  m_VerticalScrollbar: {fileID: 0}
-  m_HorizontalScrollbarVisibility: 0
-  m_VerticalScrollbarVisibility: 0
-  m_HorizontalScrollbarSpacing: 0
-  m_VerticalScrollbarSpacing: 0
-  m_OnValueChanged:
-    m_PersistentCalls:
-      m_Calls: []
 --- !u!1 &400845001
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,4 +1,3 @@
-﻿using DanielLochner.Assets.SimpleScrollSnap;
 using System.Collections;
 using System.Collections.Generic;
 using Gwent.Rules;
@@ -20,7 +19,7 @@ public class CollectionManager : MonoBehaviour
     };
 
     public DeckController deckController;
-    public SimpleScrollSnap headerSnap;
+    public FactionHeader headerSnap;
     public Toggle toggleBtn;
 
     public TextMeshProUGUI subtitle;
@@ -326,7 +325,7 @@ public class CollectionManager : MonoBehaviour
             headerSnap.startingPanel = panel;
     }
 
-    // Reference: ScrollSnap Header On Panel Changed
+    // Reference: FactionHeader On Panel Changed
     public void UpdateSelectedFaction()
     {
         int panel = headerSnap.CurrentPanel;
