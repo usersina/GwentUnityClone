@@ -1,5 +1,5 @@
-using System.Collections;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
@@ -49,12 +49,13 @@ namespace Gwent.DeckBuilding
         public const int WeatherTab = 5;
         public const int SpecialTab = 6;
 
-        IEnumerator Start()
+        private async UniTaskVoid Start()
         {
             AddWeatherTab();
             ClearCardsArea();
             // DeckBuilder loads everything in Awake; this only guards against a disabled controller
-            yield return new WaitUntil(() => deckBuilder.IsReady);
+            if (!deckBuilder.IsReady)
+                await UniTask.WaitUntil(() => deckBuilder.IsReady, cancellationToken: destroyCancellationToken);
 
             // Collection Cards or player deck
             if (transform.CompareTag("Player"))

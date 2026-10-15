@@ -1,5 +1,5 @@
-using System.Collections;
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
@@ -23,7 +23,7 @@ namespace Gwent.DeckBuilding
         [System.NonSerialized] public List<Deck> myDecks = new List<Deck>();
         public List<string> myPaths = new List<string>();
 
-        IEnumerator Start()
+        private async UniTaskVoid Start()
         {
             // Long names ("Siege Engines of Temeria (preset)") shrink to fit rather than lose their end
             foreach (TMP_Text text in new[] { deckPicker.captionText, deckPicker.itemText })
@@ -34,7 +34,8 @@ namespace Gwent.DeckBuilding
                     text.fontSizeMin = 14;
                 }
             // DeckBuilder loads everything in Awake; this only guards against a disabled controller
-            yield return new WaitUntil(() => deckBuilder.IsReady);
+            if (!deckBuilder.IsReady)
+                await UniTask.WaitUntil(() => deckBuilder.IsReady, cancellationToken: destroyCancellationToken);
             string selected_path = deckBuilder.currentDeckPath;
             InitializeDeck();
             LoadDecks(false);

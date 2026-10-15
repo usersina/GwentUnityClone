@@ -1,6 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.UI;
 using TMPro;
@@ -128,7 +129,7 @@ namespace Gwent.Battle
             int redrawn = replaced >= 0 ? shown[replaced] : -1;
             Rebuild(controller.PlayerInfo.HandList);
             if (replaced >= 0)
-                StartCoroutine(RedrawFlight(redrawn, slot, replaced));
+                RedrawFlight(redrawn, slot, replaced, destroyCancellationToken).Forget();
         }
 
         private int ReplacedIndex()
@@ -147,16 +148,16 @@ namespace Gwent.Battle
             return changed;
         }
 
-        private IEnumerator RedrawFlight(int redrawn, Rect slot, int index)
+        private async UniTaskVoid RedrawFlight(int redrawn, Rect slot, int index, CancellationToken ct)
         {
             flights++;
             hidden = index;
             Rect deck = controller.DeckScreenRect(true);
-            yield return Glide(Ghost(redrawn, slot), () => deck, true);
+            await Glide(Ghost(redrawn, slot), () => deck, ct);
             if (index < CardCount)
             {
                 RectTransform target = CardAt(index);
-                yield return Glide(Ghost(shown[index], deck), () => target != null ? CardMotion.ScreenRect(target) : deck, true);
+                await Glide(Ghost(shown[index], deck), () => target != null ? CardMotion.ScreenRect(target) : deck, ct);
             }
             if (hidden == index)
                 hidden = -1;
@@ -173,7 +174,7 @@ namespace Gwent.Battle
         }
 
         // Glides a ghost to a screen rectangle (easing out), then removes it
-        private IEnumerator Glide(RectTransform ghost, Func<Rect> to, bool remove)
+        private async UniTask Glide(RectTransform ghost, Func<Rect> to, CancellationToken ct)
         {
             Rect from = CardMotion.ScreenRect(ghost);
             float age = 0;
@@ -184,9 +185,9 @@ namespace Gwent.Battle
                 float eased = 1 - (1 - t) * (1 - t) * (1 - t);
                 Rect target = to();
                 PlaceOnScreen(ghost, new Rect(Vector2.LerpUnclamped(from.position, target.position, eased), Vector2.LerpUnclamped(from.size, target.size, eased)));
-                yield return null;
+                await UniTask.Yield(PlayerLoopTiming.Update, ct);
             }
-            if (remove && ghost != null)
+            if (ghost != null)
                 Destroy(ghost.gameObject);
         }
 

@@ -1,6 +1,7 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
@@ -47,10 +48,11 @@ namespace Gwent.Battle
 
             // The strength labels of the row's cards. The row shows its cards sorted (The Witcher 3's order) while the
             // game keeps them in play order, so each card takes the strength of a game entry with its id.
-            public IEnumerator ShowStrengths(List<int> card_ids, List<int> base_strengths, List<int> strengths)
+            public async UniTaskVoid ShowStrengths(List<int> card_ids, List<int> base_strengths, List<int> strengths, CancellationToken ct)
             {
                 // New card objects are only there from the next frame (the destroyed ones are still children until then)
-                yield return null;
+                if (await UniTask.NextFrame(ct).SuppressCancellationThrow())
+                    return;
 
                 // Only card children: the row also holds the weather overlay
                 List<CardFace> cards = new List<CardFace>();
@@ -64,7 +66,7 @@ namespace Gwent.Battle
                 {
                     Debug.LogError("ShowStrengths: params mismatch (cards " + cards.Count + ", ids " + card_ids.Count
                         + ", base " + base_strengths.Count + ", modified " + strengths.Count + ")");
-                    yield break;
+                    return;
                 }
 
                 bool[] used = new bool[card_ids.Count];
@@ -546,11 +548,11 @@ namespace Gwent.Battle
             BattleController.BattleSide info = Info(is_player_field);
             FieldView view = View(is_player_field);
 
-            // New card objects get their strength labels next frame (coroutine)
+            // New card objects get their strength labels next frame
             foreach (Row row in Rows.Units)
             {
                 RowView row_view = view.Rows[row];
-                controller.StartCoroutine(row_view.ShowStrengths(info.UnitRow(row), info.BaseStrengths(row), info.ModifiedStrengths(row)));
+                row_view.ShowStrengths(info.UnitRow(row), info.BaseStrengths(row), info.ModifiedStrengths(row), controller.destroyCancellationToken).Forget();
                 row_view.ShowScore(info.ModifiedStrengths(row));
             }
 
