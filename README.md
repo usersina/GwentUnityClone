@@ -146,7 +146,7 @@ Gameplay logging (`GameLog.Info`) only runs in the editor and debug builds (or w
 
 ### Release builds
 
-Menu **Gwent > Build > All platforms** (or one platform) builds the game for Linux, Windows, macOS (Intel and Apple Silicon),
+Menu **Gwent > Build > All platforms** (or one platform) builds the game for Linux, Windows, macOS (Apple Silicon),
 Android and the web, each from the same editor, into `GwentCardGame/Builds/<version>/` with archives ready to hand out
 (`GwentLegacy-Linux.tar.gz`, `-Windows.zip`, `-macOS.zip`, `-Android.apk`, `-Web.zip`) and `build-report.txt`. A platform
 whose build support is not installed (Unity Hub > Installs > Add modules) is skipped. The run goes on with the editor in the

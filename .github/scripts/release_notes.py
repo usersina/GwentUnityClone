@@ -13,9 +13,9 @@ import sys
 PLATFORMS = [
     ("Windows", "GwentLegacy-Windows.zip",
      "Unzip, run `GwentLegacy.exe`. Windows warns about an unknown publisher once: **More info > Run anyway**."),
-    ("macOS (Intel and Apple Silicon)", "GwentLegacy-macOS.zip",
+    ("macOS (Apple Silicon)", "GwentLegacy-macOS.zip",
      "Unzip, open `GwentLegacy.app`. macOS blocks it once: **System Settings > Privacy & Security > Open Anyway**."),
-    ("macOS (Intel and Apple Silicon)", "GwentLegacy-macOS.tar.gz",
+    ("macOS (Apple Silicon)", "GwentLegacy-macOS.tar.gz",
      "Open the archive, then `GwentLegacy.app`. macOS blocks it once: **System Settings > Privacy & Security > Open Anyway**."),
     ("Linux", "GwentLegacy-Linux.tar.gz", "Extract, run `GwentLegacy.x86_64`."),
     ("Android (8 and later, 64-bit)", "GwentLegacy-Android.apk",

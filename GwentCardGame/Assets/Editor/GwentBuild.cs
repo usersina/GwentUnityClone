@@ -170,6 +170,12 @@ namespace Gwent.EditorTools
             }
             BuildSummary summary = report.summary;
             string line = target.Name + ": " + summary.result + " in " + watch.Elapsed.TotalMinutes.ToString("F1") + " min, " + summary.totalErrors + " errors, " + summary.totalWarnings + " warnings";
+            // What it warned about, each message once by its first line (the counts alone say nothing)
+            foreach (string problem in report.steps.SelectMany(step => step.messages)
+                .Where(message => message.type != LogType.Log)
+                .Select(message => "  " + message.type.ToString().ToLowerInvariant() + ": " + message.content.Split('\n')[0].Trim())
+                .Distinct().Take(40))
+                line += "\n" + problem;
             if (summary.result != BuildResult.Succeeded)
                 return line;
 
@@ -183,7 +189,7 @@ namespace Gwent.EditorTools
             switch (target.Build)
             {
                 case BuildTarget.StandaloneOSX:
-                    SetMacArchitecture(OSArchitecture.x64ARM64); // Intel and Apple Silicon
+                    SetMacArchitecture(OSArchitecture.ARM64); // Apple Silicon (Unity deprecates Intel support)
                     break;
                 case BuildTarget.Android:
                     EditorUserBuildSettings.buildAppBundle = false; // an .apk, to install directly
