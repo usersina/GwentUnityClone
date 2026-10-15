@@ -20,7 +20,8 @@ namespace Gwent.Battle
         public const float HeroSeconds = 1.6f;
         public const float MedicSeconds = 1.15f;
         public const float GlowSeconds = 0.8f;
-        public const float BurnSeconds = 0.7f;
+        public const float BurnSeconds = 1.05f;
+        private const float ClimbSeconds = 0.55f; // the scorch's fire, from a card's bottom edge to its top
         public const float GemPulseSeconds = 0.55f;
         public const float ShardSeconds = 0.75f;
 
@@ -360,29 +361,107 @@ namespace Gwent.Battle
             Object.Destroy(glow.gameObject);
         }
 
-        // Scorch: flames over each card about to be destroyed
+        // Scorch: each card about to be destroyed burns. Fire climbs it from its bottom edge, charring it as it passes:
+        // flames, a hot glow and sparks run along the fire's front and lick over what has burnt; as the fire dies down at
+        // the top, smoke and embers rise off it. The charred card then goes to its discard pile (the char goes with it,
+        // a part of the card's ghost), the last smoke and embers fading on their own.
+        private sealed class Burning
+        {
+            public RectTransform Card;
+            public Image Char;
+            public float Width, Height;
+            public ParticleFx Back, Front;
+            public ParticleSystem Smoke, Flames, Glow, Sparks, Embers;
+            public float EmitFront, EmitBurnt, EmitGlow, EmitSparks, EmitSmoke, EmitEmbers;
+        }
+
         public static async UniTask Burn(RectTransform[] cards, CancellationToken ct = default)
         {
-            Image[] flames = new Image[cards.Length];
-            for (int i = 0; i < cards.Length; i++)
-                if (cards[i] != null)
-                {
-                    Rect rect = CardMotion.ScreenRect(cards[i]);
-                    flames[i] = Overlay("Scorch", SpriteCache.Load("W3/Effects/scorch"), new Color(1, 1, 1, 0), Grow(rect, 1.15f));
-                }
-            await Animate(ct, BurnSeconds, t =>
+            System.Collections.Generic.List<Burning> burns = new System.Collections.Generic.List<Burning>();
+            foreach (RectTransform card in cards)
             {
-                float a = t < 0.2f ? t / 0.2f : 1;
-                foreach (Image flame in flames)
-                    if (flame != null)
+                if (card == null)
+                    continue;
+                Vector2 center, size;
+                CardMotion.ToLayout(CardMotion.ScreenRect(card), out center, out size);
+                Burning burn = new Burning { Card = card, Width = size.x, Height = size.y };
+                burn.Char = UIKit.NewImage(card, "Char", null, new Color(0.09f, 0.05f, 0.03f, 0.88f));
+                RectTransform char_rect = burn.Char.rectTransform;
+                char_rect.anchorMin = Vector2.zero;
+                char_rect.anchorMax = new Vector2(1, 0);
+                char_rect.offsetMin = char_rect.offsetMax = Vector2.zero;
+                burn.Back = ParticleFx.At("ScorchSmoke", center);
+                burn.Smoke = burn.Back.Add("Smoke", ParticleFx.Colors((0, new Color(1, 1, 1, 0)), (0.2f, new Color(1, 1, 1, 0.75f)), (1, new Color(1, 1, 1, 0))),
+                    ParticleFx.Sizes((0, 0.7f), (1, 1.5f)), gravity: -30, spin: 0.6f, turbulence: 14, frames: true);
+                burn.Front = ParticleFx.At("ScorchFire", center);
+                burn.Glow = burn.Front.Add("Blaze", ParticleFx.Colors((0, new Color(1, 0.5f, 0.1f, 0)), (0.3f, new Color(1, 0.48f, 0.08f, 0.55f)), (1, new Color(0.9f, 0.25f, 0.02f, 0))),
+                    ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), gravity: -40);
+                burn.Flames = burn.Front.Add("Fire", ParticleFx.Colors((0, new Color(1, 0.94f, 0.65f, 0.95f)), (0.35f, new Color(1, 0.6f, 0.15f, 0.85f)), (1, new Color(0.75f, 0.18f, 0.02f, 0))),
+                    ParticleFx.Sizes((0, 0.55f), (0.3f, 1f), (1, 0.5f)), gravity: -260, turbulence: 8, frames: true);
+                burn.Sparks = burn.Front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.97f, 0.82f, 1)), (0.4f, new Color(1, 0.7f, 0.25f, 1)), (1, new Color(1, 0.35f, 0.05f, 0))),
+                    ParticleFx.Sizes((0, 1f), (1, 0.5f)), gravity: 200);
+                burn.Embers = burn.Front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.88f, 0.5f, 1)), (1, new Color(1, 0.4f, 0.05f, 0))),
+                    ParticleFx.Sizes((0, 1f), (1, 0.6f)), gravity: -45, turbulence: 22);
+                burns.Add(burn);
+            }
+
+            Color smoke_grey = new Color(0.32f, 0.3f, 0.3f, 1f);
+            try
+            {
+                float age = 0;
+                while (age < BurnSeconds)
+                {
+                    float dt = Time.deltaTime;
+                    age += dt;
+                    float climbed = Mathf.SmoothStep(0, 1, Mathf.Clamp01(age / ClimbSeconds)); // the front's height, a share of the card
+                    float dying = 1 - Mathf.Clamp01((age - ClimbSeconds) / (BurnSeconds - ClimbSeconds));
+                    bool climbing = age < ClimbSeconds;
+                    foreach (Burning burn in burns)
                     {
-                        flame.color = new Color(1, 1, 1, a);
-                        flame.rectTransform.localScale = new Vector3(1, Mathf.Lerp(0.6f, 1.05f, t), 1);
+                        if (burn.Card == null)
+                            continue;
+                        float w = burn.Width, h = burn.Height;
+                        float front = -h / 2 + h * climbed;
+                        if (burn.Char != null)
+                            burn.Char.rectTransform.anchorMax = new Vector2(1, Mathf.Clamp01(climbed + 0.04f));
+
+                        // Along the front: tall flames, a soft glow, sparks thrown up (dense on a big card, as many per width)
+                        float density = w / 70f;
+                        for (burn.EmitFront += (climbing ? 230 : 120 * dying) * density * dt; burn.EmitFront >= 1; burn.EmitFront--)
+                        {
+                            Vector2 at = new Vector2(Random.Range(-0.5f, 0.5f) * w, Mathf.Min(front, h / 2) + Random.Range(-6f, 3f));
+                            ParticleFx.Emit(burn.Flames, at, new Vector2(Random.Range(-10f, 10f), Random.Range(25f, 60f)), Random.Range(0.22f, 0.36f) * w,
+                                Random.Range(0.18f, 0.34f), Color.white, Random.Range(-15f, 15f));
+                        }
+                        for (burn.EmitBurnt += 70 * density * dying * dt; burn.EmitBurnt >= 1; burn.EmitBurnt--) // what has burnt still licks with fire
+                            ParticleFx.Emit(burn.Flames, new Vector2(Random.Range(-0.45f, 0.45f) * w, Random.Range(-h / 2, Mathf.Min(front, h / 2))),
+                                new Vector2(0, Random.Range(15f, 35f)), Random.Range(0.14f, 0.24f) * w, Random.Range(0.15f, 0.25f), Color.white, Random.Range(-15f, 15f));
+                        for (burn.EmitGlow += (climbing ? 40 : 25 * dying) * density * dt; burn.EmitGlow >= 1; burn.EmitGlow--)
+                            ParticleFx.Emit(burn.Glow, new Vector2(Random.Range(-0.4f, 0.4f) * w, Mathf.Min(front, h / 2) - Random.Range(0f, 0.2f) * h),
+                                Vector2.zero, Random.Range(0.5f, 0.75f) * w, Random.Range(0.25f, 0.4f), Color.white);
+                        for (burn.EmitSparks += (climbing ? 260 : 80 * dying) * density * dt; burn.EmitSparks >= 1; burn.EmitSparks--)
+                            ParticleFx.Emit(burn.Sparks, new Vector2(Random.Range(-0.5f, 0.5f) * w, Mathf.Min(front, h / 2)),
+                                new Vector2(Random.Range(-70f, 70f), Random.Range(60f, 170f)), Random.Range(8f, 14f), Random.Range(0.3f, 0.7f), Color.white);
+
+                        // Off the top, as the fire reaches it and dies down: smoke, then drifting embers
+                        for (burn.EmitSmoke += (climbed > 0.6f ? 22 * density : 0) * dt; burn.EmitSmoke >= 1; burn.EmitSmoke--)
+                            ParticleFx.Emit(burn.Smoke, new Vector2(Random.Range(-0.4f, 0.4f) * w, h * Random.Range(0.2f, 0.5f)), new Vector2(Random.Range(-10f, 10f), Random.Range(25f, 50f)),
+                                Random.Range(0.55f, 0.8f) * w, Random.Range(0.9f, 1.3f), Color.Lerp(smoke_grey, Color.black, Random.Range(0f, 0.4f)), Random.Range(0f, 360f));
+                        for (burn.EmitEmbers += (climbed > 0.8f ? 40 * density : 0) * dt; burn.EmitEmbers >= 1; burn.EmitEmbers--)
+                            ParticleFx.Emit(burn.Embers, new Vector2(Random.Range(-0.45f, 0.45f) * w, h * Random.Range(0.1f, 0.5f)), new Vector2(Random.Range(-15f, 15f), Random.Range(30f, 70f)),
+                                Random.Range(7f, 12f), Random.Range(0.6f, 1.1f), Color.white);
                     }
-            });
-            foreach (Image flame in flames)
-                if (flame != null)
-                    Object.Destroy(flame.gameObject);
+                    await UniTask.Yield(PlayerLoopTiming.Update, ct);
+                }
+            }
+            finally
+            {
+                foreach (Burning burn in burns)
+                {
+                    burn.Back.Finish().Forget(); // the smoke and embers fade on their own
+                    burn.Front.Finish().Forget();
+                }
+            }
         }
 
         // A lost round: the gem pulses, then bursts into shards that fall away, leaving it grey
