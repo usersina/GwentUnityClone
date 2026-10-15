@@ -1313,7 +1313,7 @@ namespace Gwent.EditorTools
                 else if (scenario == InputScenario.MainMenuSettings)
                 {
                     Move(0.3, Named("Item Deck builder"));
-                    At(0.6, () => check(EventSystem.current.currentSelectedGameObject == GameObject.Find("Item Deck builder"), "hovering a menu entry highlights it"));
+                    At(0.6, () => check(Highlighted("Item Deck builder"), "hovering a menu entry highlights it"));
                     Click(0.9, Named("Item Settings"));
                     At(1.4, () => check(SettingsPanel.IsOpen, "clicking Settings opens the settings"));
                     Click(1.7, MasterVolumeAt(0.25f));
@@ -1984,14 +1984,26 @@ namespace Gwent.EditorTools
             }
 
             // An active UI object by name (looked up when the click happens)
+            // An object by name, or an element of a UI Toolkit screen
             private Func<Vector2> Named(string name)
             {
                 return () =>
                 {
                     GameObject target = GameObject.Find(name);
-                    check(target != null, "\"" + name + "\" is on screen");
-                    return target != null ? ScreenPoint(target.transform) : Vector2.zero;
+                    UnityEngine.UIElements.VisualElement element = target == null ? UIScreens.Find(name) : null;
+                    check(target != null || element != null, "\"" + name + "\" is on screen");
+                    return target != null ? ScreenPoint(target.transform) : element != null ? ScreenPoint(element) : Vector2.zero;
                 };
+            }
+
+            // The object or UI Toolkit element of that name has the keyboard's focus (the highlight menus share with the mouse)
+            private static bool Highlighted(string name)
+            {
+                GameObject target = GameObject.Find(name);
+                if (target != null)
+                    return EventSystem.current != null && EventSystem.current.currentSelectedGameObject == target;
+                UnityEngine.UIElements.VisualElement element = UIScreens.Find(name);
+                return element != null && element.focusController != null && element.focusController.focusedElement == element;
             }
 
             // An object by name under an active root object (a name with a slash would be a path for GameObject.Find)
@@ -2021,6 +2033,18 @@ namespace Gwent.EditorTools
                     area.GetWorldCorners(corners);
                     return RectTransformUtility.WorldToScreenPoint(null, Vector3.Lerp(corners[0], corners[3], fraction) + (corners[1] - corners[0]) / 2);
                 };
+            }
+
+            // The middle of a UI Toolkit element, in the input's screen pixels (from the bottom left). Solved from where screen
+            // points land on the panel, so it holds whatever the panel's scaling; ScreenToPanel counts from the top left.
+            private static Vector2 ScreenPoint(UnityEngine.UIElements.VisualElement element)
+            {
+                UnityEngine.UIElements.IPanel panel = element.panel;
+                Vector2 origin = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.zero);
+                Vector2 x = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.right) - origin;
+                Vector2 y = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.up) - origin;
+                Vector2 center = element.worldBound.center;
+                return new Vector2((center.x - origin.x) / x.x, Screen.height - (center.y - origin.y) / y.y);
             }
 
             private static Vector2 ScreenPoint(Transform target)

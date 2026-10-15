@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Gwent.UI
 {
@@ -60,6 +61,10 @@ namespace Gwent.UI
         public Sprite gem;            // a life
         public Sprite scoreDisc;      // a row's score
         public Sprite scoreTotal;     // a side's total
+
+        [Header("UI Toolkit screens (Assets/UI/Toolkit)")]
+        public PanelSettings panelSettings; // shared by the screens' panels (UIScreens)
+        public VisualTreeAsset mainMenu;
 
         [Header("Cursors (tip at 5, 4)")]
         public Texture2D cursorDefault;

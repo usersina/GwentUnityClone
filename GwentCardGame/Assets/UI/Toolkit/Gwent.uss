@@ -1,0 +1,118 @@
+/* The menus' look in UI Toolkit: The Witcher 3's dark panels, gold rules and serif small caps.
+   The colours are UITheme's; the sprites are Assets/UI/Sprites (Gwent > UI > Regenerate Sprites and Theme). */
+
+:root {
+    --gold: #C9A45C;
+    --gold-bright: #E3C27E;
+    --gold-clear: rgba(201, 164, 92, 0);
+    --gold-band: rgba(201, 164, 92, 0.2);
+    --gold-band-pressed: rgba(201, 164, 92, 0.3);
+    --text: #ECE1C9;
+    --text-bright: #F6ECD4;
+    --text-secondary: #B9AD95;
+    --text-muted: #8F826C;
+    --background: #16120E;
+    --panel: rgba(32, 26, 21, 0.96);
+    --panel-raised: #2A2219;
+    --line: #4D3F2C;
+    --line-soft: #3A2F22;
+    --dimmer: rgba(0, 0, 0, 0.65);
+
+    --heading-font: url("project://database/Assets/Fonts/Cinzel.ttf");
+    --body-font: url("project://database/Assets/Fonts/AlegreyaSans-Regular.ttf");
+}
+
+/* A screen fills the panel and lets clicks through where it shows nothing */
+.screen {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    picking-mode: ignore;
+}
+
+.caption {
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-muted);
+}
+
+/*---------------------------------------- Menu entries ----------------------------------------*/
+/* Serif text that lights up with a gold rule and a fading band when hovered or focused (hovering focuses: the mouse and
+   the keyboard share one highlight, as in The Witcher 3) */
+.menu-item {
+    height: 76px;
+    margin: 0 0 12px 0;
+    padding: 0 0 2px 36px;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("project://database/Assets/UI/Sprites/GradientH.png");
+    -unity-background-image-tint-color: var(--gold-clear);
+    -unity-font-definition: var(--heading-font);
+    font-size: 40px;
+    letter-spacing: 2.9px; /* TMP's character spacing 4 at this size */
+    -unity-text-align: middle-left;
+    color: var(--text-secondary);
+    transition-property: color, -unity-background-image-tint-color;
+    transition-duration: 0.12s;
+}
+
+.menu-item__rule {
+    position: absolute;
+    left: 0;
+    top: 12%;
+    bottom: 12%;
+    width: 4px;
+    background-color: var(--gold);
+    opacity: 0;
+    transition-property: opacity, background-color;
+    transition-duration: 0.12s;
+}
+
+.menu-item:hover,
+.menu-item:focus {
+    color: var(--text-bright);
+    -unity-background-image-tint-color: var(--gold-band);
+}
+
+.menu-item:hover > .menu-item__rule,
+.menu-item:focus > .menu-item__rule {
+    opacity: 1;
+}
+
+.menu-item:active {
+    color: var(--gold-bright);
+    -unity-background-image-tint-color: var(--gold-band-pressed);
+}
+
+.menu-item:active > .menu-item__rule {
+    background-color: var(--gold-bright);
+}
+
+/*---------------------------------------- Main menu ----------------------------------------*/
+/* Darkens the left of the key art so the entries read on top of it */
+.main-menu__scrim {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 840px;
+    background-image: url("project://database/Assets/UI/Sprites/GradientH.png");
+    -unity-background-scale-mode: stretch-to-fill;
+    -unity-background-image-tint-color: rgba(0, 0, 0, 0.9);
+}
+
+/* Five entries' room (the web build has no Quit), a little below the middle */
+.main-menu__entries {
+    position: absolute;
+    left: 120px;
+    top: 50%;
+    margin-top: -180px;
+    width: 600px;
+    height: 440px;
+}
+
+.main-menu__note {
+    position: absolute;
+    left: 156px;
+    bottom: 48px;
+}
