@@ -176,6 +176,8 @@ namespace Gwent.DeckBuilding
                 instantiatedCard.transform.SetParent(cardsArea.transform, false);
                 AddCountBadge(instantiatedCard.transform, count);
             }
+            foreach (int card_id in arriving.Keys)
+                ShowArrivals(card_id); // made anew while copies are still on their way
         }
 
         // "x2" near the bottom of the card, as in The Witcher 3: at the right of the art, just above the name strip
@@ -253,6 +255,83 @@ namespace Gwent.DeckBuilding
             rect.sizeDelta = new Vector2(UIKit.ScrollbarWidth, shown.height);
             scroll.verticalScrollbar = bar;
             scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+        }
+
+        // The card object this grid shows for a card, or null (laid out: where it is drawn is known at once)
+        public GameObject CardShown(int card_id)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)cardsArea.transform);
+            Transform card = cardsArea.transform.Find(card_id.ToString());
+            return card != null ? card.gameObject : null;
+        }
+
+        //----------------------------------------Cards on their way here----------------------------------------//
+        // A card added to the deck (or put back in the collection) flies to its place: until each copy lands, the grid
+        // shows one fewer (a card all of whose copies are still on their way is not shown yet). Counted by card, so quick
+        // clicks and the rebuilds they cause keep it right.
+        private readonly Dictionary<int, int> arriving = new Dictionary<int, int>();
+
+        public void Arriving(int card_id, int copies)
+        {
+            int count;
+            arriving.TryGetValue(card_id, out count);
+            count += copies;
+            if (count > 0)
+                arriving[card_id] = count;
+            else
+                arriving.Remove(card_id);
+            ShowArrivals(card_id);
+        }
+
+        // How many copies this grid counts of a card: those in the deck, or (the collection) those left to add
+        private int CopiesOf(int card_id)
+        {
+            int used = 0;
+            foreach (int id in deckBuilder.my_deck.Cards)
+                if (id == card_id)
+                    used++;
+            return transform.CompareTag("Player") ? used : DeckRules.MaxCopies(deckBuilder.Db.Get(card_id)) - used;
+        }
+
+        private void ShowArrivals(int card_id)
+        {
+            GameObject card = CardShown(card_id);
+            if (card == null)
+                return;
+            int on_the_way;
+            arriving.TryGetValue(card_id, out on_the_way);
+            int shown = CopiesOf(card_id) - on_the_way;
+            CardMotion.Hide(card, shown <= 0);
+            TextMeshProUGUI count = CountText(card);
+            if (count != null && shown > 0)
+                count.text = "x" + shown;
+        }
+
+        private static TextMeshProUGUI CountText(GameObject card)
+        {
+            Transform badge = card.transform.Find(CountBadge);
+            return badge != null ? badge.GetComponentInChildren<TextMeshProUGUI>() : null;
+        }
+
+        // Where a card arrives on screen: its own place, kept within the grid's view (a card scrolled out of sight, or
+        // not shown at all, arrives at the view's edge or its middle)
+        public Rect ArrivalRect(GameObject card, Vector2 size)
+        {
+            Rect view = CardMotion.ScreenRect((RectTransform)Scroll.transform);
+            Rect place = card != null ? CardMotion.ScreenRect((RectTransform)card.transform) : CardMotion.Around(view.center, size);
+            Vector2 center = new Vector2(Mathf.Clamp(place.center.x, view.xMin + place.width / 2, view.xMax - place.width / 2),
+                Mathf.Clamp(place.center.y, view.yMin + place.height / 2, view.yMax - place.height / 2));
+            return CardMotion.Around(center, place.size);
+        }
+
+        // Whether the whole card shows in the grid's view
+        public bool InView(GameObject card)
+        {
+            if (card == null)
+                return false;
+            Rect view = CardMotion.ScreenRect((RectTransform)Scroll.transform);
+            Rect place = CardMotion.ScreenRect((RectTransform)card.transform);
+            return place.yMin >= view.yMin - 1 && place.yMax <= view.yMax + 1;
         }
 
         private void ResetScrolling()

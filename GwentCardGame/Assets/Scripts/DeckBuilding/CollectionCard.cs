@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
@@ -64,8 +66,10 @@ namespace Gwent.DeckBuilding
                 // Remove card from deck
                 GameAudio.PlaySfx("deck_remove");
                 GameLog.Event(LogCategory.Deck, "card_removed", "deck", deckBuilder.my_deck.Name, "card", cardStats.name);
+                RectTransform ghost = TakeOff();
                 deckBuilder.my_deck.Cards.Remove(cardStats._id);
                 deckCollection.OnDeckEdit();
+                Land(ghost, FindObjectsByType<CardGrid>().First(grid => grid != deckCollection), cardStats._id, deckBuilder.destroyCancellationToken).Forget();
             }
             else
             {
@@ -115,9 +119,59 @@ namespace Gwent.DeckBuilding
 
             // If all checks don't match, add the card to deck
             GameAudio.PlaySfx("deck_add");
+            RectTransform ghost = TakeOff();
             deckBuilder.my_deck.Cards.Add(cardStats._id);
             GameLog.Event(LogCategory.Deck, "card_added", "deck", deckBuilder.my_deck.Name, "card", cardStats.name);
             deckCollection.OnDeckEdit();
+            Land(ghost, deckCollection, cardStats._id, deckBuilder.destroyCancellationToken).Forget();
+        }
+
+        //----------------------------------------A card's flight----------------------------------------//
+        // A card added or removed flies from where it was clicked to its place in the other grid (the deck, or back to the
+        // collection). The edit makes both grids anew, this object with them: a copy of it flies, taken off first. Where
+        // copies are left, the card stays (one fewer) and the copy leaves it; the last copy is the card itself leaving.
+        private const float FlightSeconds = 0.35f;
+
+        private RectTransform TakeOff()
+        {
+            RectTransform ghost = CardMotion.Copy(gameObject, CardMotion.ScreenRect((RectTransform)transform));
+            Transform badge = ghost.Find(CardGrid.CountBadge);
+            if (badge != null)
+                Destroy(badge.gameObject); // one copy flies, not the count
+            return ghost;
+        }
+
+        // The copy glides to the card's place in the grid, which counts it once it lands (CardGrid.Arriving): a card the
+        // grid showed already stays, its count going up as the copy joins it; a card new there shows when it lands. A card
+        // out of the grid's view (scrolled away, or not in the tab shown) is met at the view's edge, where the copy fades.
+        private static async UniTaskVoid Land(RectTransform ghost, CardGrid grid, int card_id, CancellationToken ct)
+        {
+            grid.Arriving(card_id, 1);
+            bool landed = false;
+            try
+            {
+                GameObject target = grid.CardShown(card_id);
+                bool in_view = grid.InView(target);
+                Vector2 size = CardMotion.ScreenRect(ghost).size;
+                await CardMotion.Glide(ghost, () =>
+                {
+                    if (target == null)
+                        target = grid.CardShown(card_id); // made anew by another edit on the way
+                    return grid.ArrivalRect(target, size);
+                }, FlightSeconds, ct: ct);
+                landed = true;
+                if (in_view)
+                    Destroy(ghost.gameObject);
+                else
+                    CardMotion.FadeOut(ghost, 0.15f, ct).Forget();
+            }
+            finally
+            {
+                if (grid != null)
+                    grid.Arriving(card_id, -1);
+                if (!landed && ghost != null)
+                    Destroy(ghost.gameObject); // the deck builder closed on the way
+            }
         }
 
         //------------------------------------------------------Functions---------------------------------------------------//
