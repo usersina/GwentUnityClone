@@ -87,6 +87,49 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void NormalPlaysTheCowWhileTheBattleGoesOn()
+        {
+            // Round 1, the AI 2 ahead with units to spare: the Cow costs nothing now and brings the Defense Force (8) next
+            // round, the weakest move that still pays
+            PlayerState me = Ai(CardIds.Cow, Fiend, Fiend, EarthElemental, Nekker);
+            me.CloseList.Add(Fiend); // 6
+            PlayerState opp = Opponent(7); // 4
+            AiAction action = AiBrain.Decide(Context(me, opp));
+            Assert.AreEqual(AiActionType.PlayCard, action.Type);
+            Assert.AreEqual(CardIds.Cow, action.CardId);
+        }
+
+        [Test]
+        public void NormalKeepsTheCowOutOfARoundThatMayEndTheBattle()
+        {
+            // The deciding round: no next round for its Defense Force, so the Cow is worth nothing; a Fiend pays now
+            PlayerState me = Ai(CardIds.Cow, Fiend);
+            me.CloseList.Add(Fiend); // 6
+            me.Lives = 1;
+            PlayerState opp = Opponent(7); // 4
+            opp.Lives = 1;
+            AiAction action = AiBrain.Decide(Context(me, opp));
+            Assert.AreEqual(AiActionType.PlayCard, action.Type);
+            Assert.AreEqual(Fiend, action.CardId);
+        }
+
+        [Test]
+        public void TheAiSeesThatScorchingTheEnemysCowArmsIt()
+        {
+            // Every unit a hero but the enemy's Cow: a Scorch would kill only it, and its Defense Force (8) comes at once
+            PlayerState me = Ai(CardIds.Scorch);
+            me.CloseList.Add(Imlerith); // hero 10
+            PlayerState opp = TestBoard.Player();
+            opp.RangeList.Add(CardIds.Cow);
+            opp.HandList.AddRange(new[] { 7, 7 });
+            AiContext ctx = Context(me, opp);
+            ctx.Considered = new List<AiOption>();
+            AiBrain.Decide(ctx);
+            AiOption scorch = ctx.Considered.First(o => o.Action.CardId == CardIds.Scorch);
+            Assert.AreEqual(-8, scorch.Board, "the enemy gains the Defense Force's 8");
+        }
+
+        [Test]
         public void AlwaysReturnsALegalAction()
         {
             ReturnsLegalActions(AiDifficulty.Normal, 400);

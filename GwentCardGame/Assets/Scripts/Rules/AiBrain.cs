@@ -246,7 +246,22 @@ namespace Gwent.Rules
                 if (best == null || gain > best.Gain)
                     best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Board = board, Cost = card.strength + (card.unique ? 5 : 0), IsUnit = true };
             }
+            if (best != null)
+                best.Gain += AvengerValue(ctx, card);
             return best;
+        }
+
+        // A unit that calls a defender when it goes to the discard pile (the Cow: the Bovine Defense Force) brings that
+        // defender next round, when the board clears, if the battle goes on. Worth its strength in the move's gain (never
+        // in its board change: nothing of it shows this round): in full while both sides have two lives, half when one
+        // of them does, nothing in a round that may end the battle.
+        private static int AvengerValue(AiContext ctx, Card card)
+        {
+            int avenger = AbilityRules.AvengerOf(card._id);
+            if (avenger == -1)
+                return 0;
+            int sides_going_on = (ctx.Me.Lives > 1 ? 1 : 0) + (ctx.Opponent.Lives > 1 ? 1 : 0);
+            return ctx.Db.Get(avenger).strength * sides_going_on / 2;
         }
 
         // Unit placement with the abilities that change the board right away; a medic's unit is played the same way

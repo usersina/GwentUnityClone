@@ -32,6 +32,9 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
 - Kill the Cow, get the punishment: a Cow killed by a scorch calls the Bovine Defense Force at once (The Witcher 3 waits
   for the next round); discarded any other way, it still comes next round. A notice says which.
 - The decks' card counts are back under the decks.
+- The weather looks as in The Witcher 3: its own art of the frost, the fog and the rain lies over the row and its cards, fades in
+  with the card and out once cleared; the fog billows up and drifts along the row.
+- On Normal and Hard the opponent now plays its Cow while the battle goes on, for the Bovine Defense Force it brings next round.
 
 ### Fixes
 
