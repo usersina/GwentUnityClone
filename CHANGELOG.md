@@ -6,7 +6,16 @@ date, before pushing.
 
 ## 2026-10-15
 
-A faster start on the web, the menus rebuilt, and most of the game's insides renewed.
+A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle, and most of the game's insides renewed.
+
+### The battle, closer to The Witcher 3
+
+- Your hand stays in the order the cards were drawn, as the redraw shows it: a redrawn card takes the place of the one
+  it replaces, new cards join at the right.
+- The leader: click it and it leaves its place for the right, like a card about to be played, and its crown glows
+  orange; the crown uses it (X, then X again or Enter, still works). Its empty place, right-click or Esc puts it back.
+- A played card appears at the end of its row already as it looks on the board and glides into place; a card put back
+  turns at once into its hand version; drawn cards fly in as hand cards.
 
 ### The web version
 
