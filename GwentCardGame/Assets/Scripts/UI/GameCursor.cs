@@ -17,8 +17,8 @@ namespace Gwent.UI
     {
         public enum State { Default, Interact, Invalid, GiveUp }
 
-        private static readonly Vector2 Hotspot = new Vector2(5, 4);       // the arrows' tip
-        private static readonly Vector2 HandHotspot = new Vector2(30, 40); // the hand's palm
+        public static readonly Vector2 Hotspot = new Vector2(5, 4);       // the arrows' tip (UISpriteGenerator draws them)
+        public static readonly Vector2 HandHotspot = new Vector2(30, 40); // the hand's palm
         private static GameCursor instance;
         private State current = (State)(-1);
 
@@ -72,6 +72,11 @@ namespace Gwent.UI
             if (hovered == null)
                 return State.Default;
 
+            // A UI Toolkit screen or dialog: its panel's event handler stands for all of it, so ask the panel what is there
+            UnityEngine.UIElements.PanelEventHandler panel = hovered.GetComponentInParent<UnityEngine.UIElements.PanelEventHandler>();
+            if (panel != null)
+                return EvaluatePanel(panel.panel, mouse.position.ReadValue());
+
             // Dialogs and menus first: anything with a button (a disabled one is just a picture)
             Selectable selectable = hovered.GetComponentInParent<Selectable>();
             if (selectable != null)
@@ -104,6 +109,22 @@ namespace Gwent.UI
                 if (card != null && !card.isSelectable)
                     return State.Default;
                 return State.Interact;
+            }
+            return State.Default;
+        }
+
+        // Over a UI Toolkit panel: a button (a menu entry, a dialog's, a stepper's arrow), a switch or a slider takes a
+        // click while enabled; the rest (text, the dimmer, the gaps between entries) does not
+        private static State EvaluatePanel(UnityEngine.UIElements.IPanel panel, Vector2 screen)
+        {
+            if (panel == null)
+                return State.Default;
+            Vector2 at = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, new Vector2(screen.x, Screen.height - screen.y)); // from the top left
+            for (UnityEngine.UIElements.VisualElement element = panel.Pick(at); element != null; element = element.parent)
+            {
+                if (element is UnityEngine.UIElements.Button || element is UnityEngine.UIElements.Toggle
+                    || element is UnityEngine.UIElements.Slider || element is UnityEngine.UIElements.SliderInt)
+                    return element.enabledInHierarchy ? State.Interact : State.Default;
             }
             return State.Default;
         }

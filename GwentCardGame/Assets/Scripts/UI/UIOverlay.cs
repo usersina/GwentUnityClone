@@ -10,10 +10,11 @@ using UIElements = UnityEngine.UIElements;
 
 namespace Gwent.UI
 {
-    // Runtime-built UI on top of the current scene: menus, dialogs, toasts and extra buttons, in the UI theme.
-    // Two canvases with the 1920x1080 reference of the scene canvases: Root (menus and dialogs, scaled by the
-    // "menu size" setting) and FixedRoot (labels that must keep their place in the scene's layout).
-    // Also routes Escape / right click: the top dialog closes first, otherwise the scene's escape action runs.
+    // Runtime-built uGUI on top of the current scene: the battle's pickers, discard viewer, redraw prompt and tooltips,
+    // on two canvases with the 1920x1080 reference of the scene canvases: Root (scaled by the "menu size" setting) and
+    // FixedRoot (what must keep its place in the scene's layout, such as the card effects' layer). Also the toasts and
+    // confirmations (UI Toolkit) and the stack of modal dialogs, UI Toolkit ones included, routing Escape / right
+    // click: the top dialog closes first, otherwise the scene's escape action runs.
     public static class UIOverlay
     {
         private static readonly Vector2 ReferenceResolution = new Vector2(1920, 1080);
@@ -71,7 +72,7 @@ namespace Gwent.UI
         }
 
         //----------------------------------------Toast----------------------------------------//
-        // Short message at the top of the screen, replaced by the next one; never blocks clicks. Above the dialogs
+        // Short message at the top of the screen, replaced by the next one; never blocks clicks. On the dialogs' panel
         // (UI Toolkit, Toast.uxml); it fades in and out by USS transitions.
         public static void Toast(string message, float seconds = 2.5f)
         {
@@ -97,6 +98,8 @@ namespace Gwent.UI
         // A question with two answers (UI Toolkit, ConfirmDialog.uxml); Enter on a keyboard picks the safe one
         public static void Confirm(string message, string yes_text, string no_text, Action on_yes)
         {
+            // The focus goes back where it was (a pause menu's entry) when the dialog closes
+            UIElements.VisualElement previous = UIScreens.Focused();
             GameObject dialog = null;
             dialog = UIScreens.ShowDialog("ConfirmDialog", UITheme.Current.confirmDialog, root =>
             {
@@ -112,7 +115,7 @@ namespace Gwent.UI
                 };
                 no.clicked += () => CloseModal(dialog);
                 root.schedule.Execute(() => UIScreens.Focus(no));
-            });
+            }, () => UIScreens.Focus(previous));
         }
 
         //----------------------------------------Modal dialogs and Escape----------------------------------------//

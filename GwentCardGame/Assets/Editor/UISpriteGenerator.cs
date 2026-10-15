@@ -31,9 +31,8 @@ namespace Gwent.EditorTools
             // Panels: 96 px texture, 20 px corner radius (10 px on screen), 24 px nine-slice border
             Write("Panel", 96, 96, (x, y) => RoundedBox(x, y, 96, 96, 20), new Vector4(24, 24, 24, 24));
             Write("PanelOutline", 96, 96, (x, y) => Mathf.Abs(RoundedBox(x, y, 96, 96, 20, 1.5f)) - 1.5f, new Vector4(24, 24, 24, 24));
-            // Pills (slider tracks, switches): fully rounded ends
+            // A pill: fully rounded ends
             Write("Pill", 64, 32, (x, y) => RoundedBox(x, y, 64, 32, 16), new Vector4(16, 16, 16, 16));
-            Write("PillOutline", 64, 32, (x, y) => Mathf.Abs(RoundedBox(x, y, 64, 32, 16, 1.5f)) - 1.5f, new Vector4(16, 16, 16, 16));
             Write("Circle", 64, 64, (x, y) => Circle(x, y, 32, 32, 31), Vector4.zero);
             Write("Ring", 64, 64, (x, y) => Mathf.Abs(Circle(x, y, 32, 32, 28.5f)) - 2.5f, Vector4.zero);
             Write("Diamond", 24, 24, (x, y) => (Mathf.Abs(x - 12) + Mathf.Abs(y - 12) - 11) * 0.7071f, Vector4.zero);
@@ -56,7 +55,6 @@ namespace Gwent.EditorTools
             Write("ChevronLeft", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 29, 13, 18, 24), Segment(x, y, 18, 24, 29, 35)) - 2.5f, Vector4.zero);
             Write("ChevronRight", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 19, 13, 30, 24), Segment(x, y, 30, 24, 19, 35)) - 2.5f, Vector4.zero);
             Write("IconMenu", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 12, 14, 36, 14), Mathf.Min(Segment(x, y, 12, 24, 36, 24), Segment(x, y, 12, 34, 36, 34))) - 2.5f, Vector4.zero);
-            Write("IconClose", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 14, 14, 34, 34), Segment(x, y, 14, 34, 34, 14)) - 2.5f, Vector4.zero);
             Write("IconPlus", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 24, 11, 24, 37), Segment(x, y, 11, 24, 37, 24)) - 2.5f, Vector4.zero);
             Write("IconCheck", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 12, 25, 20, 33), Segment(x, y, 20, 33, 36, 15)) - 2.5f, Vector4.zero);
             Write("IconBack", 48, 48, (x, y) => Mathf.Min(Segment(x, y, 13, 24, 36, 24), Mathf.Min(Segment(x, y, 23, 14, 13, 24), Segment(x, y, 13, 24, 23, 34))) - 2.5f, Vector4.zero);
@@ -521,8 +519,7 @@ namespace Gwent.EditorTools
 
         //----------------------------------------Cursors----------------------------------------//
         // Witcher-style pointers, 64 px: a silver arrow, a gold one over things that react to a click, and the silver
-        // one with a red "no" badge where a selected card cannot go. The tip is at (CursorTip) for the hotspot.
-        public static readonly Vector2 CursorTip = new Vector2(5, 4);
+        // one with a red "no" badge where a selected card cannot go. The tip is GameCursor's hotspot.
         private static readonly Vector2[] Arrow =
         {
             new Vector2(5, 4), new Vector2(5, 36), new Vector2(12.5f, 29), new Vector2(18, 41),
@@ -544,8 +541,7 @@ namespace Gwent.EditorTools
 
         // A gold hand laid flat, seen from its back: four fingers up, the thumb out to the left. Over the player's own deck in
         // their turn: laying a hand on the deck gives up the battle (Yu-Gi-Oh's surrender). Its hotspot is the palm
-        // (CursorHandHotspot).
-        public static readonly Vector2 CursorHandHotspot = new Vector2(30, 40);
+        // (GameCursor.HandHotspot).
         private static readonly Vector2[] Palm =
         {
             new Vector2(16.5f, 31), new Vector2(43.5f, 31), new Vector2(45, 45), new Vector2(40, 55), new Vector2(22, 55), new Vector2(16, 46),
@@ -730,7 +726,6 @@ namespace Gwent.EditorTools
             theme.panelSprite = sprite("Panel");
             theme.panelOutline = sprite("PanelOutline");
             theme.pill = sprite("Pill");
-            theme.pillOutline = sprite("PillOutline");
             theme.circle = sprite("Circle");
             theme.ring = sprite("Ring");
             theme.diamond = sprite("Diamond");
@@ -738,16 +733,8 @@ namespace Gwent.EditorTools
             theme.gradientV = sprite("GradientV");
             theme.radial = sprite("Radial");
             theme.rule = sprite("Rule");
-            theme.chevronDown = sprite("ChevronDown");
             theme.chevronLeft = sprite("ChevronLeft");
             theme.chevronRight = sprite("ChevronRight");
-            theme.iconMenu = sprite("IconMenu");
-            theme.iconClose = sprite("IconClose");
-            theme.iconPlus = sprite("IconPlus");
-            theme.iconCheck = sprite("IconCheck");
-            theme.iconBack = sprite("IconBack");
-            theme.iconTrash = sprite("IconTrash");
-            theme.iconEdit = sprite("IconEdit");
             theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
             theme.glowRing = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GlowRing.png");
             theme.leaderReady = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/AbilityButtonReady.png");

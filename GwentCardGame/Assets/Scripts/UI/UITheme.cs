@@ -4,7 +4,8 @@ using UnityEngine.UIElements;
 
 namespace Gwent.UI
 {
-    // Fonts, colors and sprites of the menus, dialogs and buttons (the battle board keeps its own art).
+    // Fonts, colors and sprites of the uGUI overlays and the battle's generated art, the cursors, and the UI Toolkit
+    // documents and panel settings (the menus' and dialogs' look itself is Assets/UI/Toolkit/Gwent.uss).
     // The asset lives in Resources/UITheme.asset; Gwent > UI > Regenerate Sprites and Theme rebuilds its sprites and fonts.
     [CreateAssetMenu(menuName = "Gwent/UI Theme", fileName = "UITheme")]
     public class UITheme : ScriptableObject
@@ -28,13 +29,11 @@ namespace Gwent.UI
         public Color textSecondary = new Color32(0xB9, 0xAD, 0x95, 0xFF);
         public Color textMuted = new Color32(0x8F, 0x82, 0x6C, 0xFF);
         public Color danger = new Color32(0xC9, 0x5E, 0x4E, 0xFF);
-        public Color dimmer = new Color(0, 0, 0, 0.65f);
 
         [Header("Sprites")]
         public Sprite panelSprite;
         public Sprite panelOutline;
         public Sprite pill;
-        public Sprite pillOutline;
         public Sprite circle;
         public Sprite ring;
         public Sprite diamond;
@@ -42,16 +41,8 @@ namespace Gwent.UI
         public Sprite gradientV;
         public Sprite radial;
         public Sprite rule;
-        public Sprite chevronDown;
         public Sprite chevronLeft;
         public Sprite chevronRight;
-        public Sprite iconMenu;
-        public Sprite iconClose;
-        public Sprite iconPlus;
-        public Sprite iconCheck;
-        public Sprite iconBack;
-        public Sprite iconTrash;
-        public Sprite iconEdit;
         public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
         public Sprite glowRing;   // a glow around a rectangle, clear inside (nine-sliced, reaching 32 px out)
         public Sprite leaderReady; // the leader ability's crown, glowing: the leader is lifted and the crown uses it

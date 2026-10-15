@@ -8,8 +8,9 @@ using UnityEngine.UI;
 
 namespace Gwent.UI
 {
-    // Builds the themed menus and dialogs in code: text styles, panels, buttons, menu items, sliders, switches and
-    // option steppers. Sizes are in the 1920x1080 reference space of the overlay canvas.
+    // Builds the battle's uGUI overlays in code (the pickers' bands, the discard viewer, the redraw prompt, tooltips): text
+    // styles, panels, buttons, frames. Sizes are in the 1920x1080 reference space of the overlay canvas. (The menus and
+    // dialogs are UI Toolkit: UIScreens.)
     public static class UIKit
     {
         public enum TextStyle { Title, Heading, Tab, Button, Body, Label, Caption }
@@ -46,15 +47,6 @@ namespace Gwent.UI
             rect.offsetMin = new Vector2(left, bottom);
             rect.offsetMax = new Vector2(-right, -top);
             return rect;
-        }
-
-        // Shrinks a dialog that would not fit its area (a big menu size, a narrow screen), keeping a margin around it
-        public static RectTransform FitInside(this RectTransform panel, RectTransform area, float margin = 24)
-        {
-            Vector2 room = area.rect.size - Vector2.one * 2 * margin;
-            float scale = Mathf.Min(1f, room.x / panel.sizeDelta.x, room.y / panel.sizeDelta.y);
-            panel.localScale = Vector3.one * Mathf.Max(0.1f, scale);
-            return panel;
         }
 
         // A plain rectangular frame (square corners) around its parent: four bars, outset by the given margin

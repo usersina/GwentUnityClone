@@ -52,6 +52,7 @@ namespace Gwent.UI
                 root.style.top = 0;
                 root.style.right = 0;
                 root.style.bottom = 0;
+                roots.RemoveAll(shown => shown.panel == null); // closed, or gone with their scene
                 roots.Add(root);
                 bind(root);
             });
@@ -69,8 +70,8 @@ namespace Gwent.UI
         }
 
         // Gives the element the keyboard's focus. Keys reach a panel through the EventSystem only while its handler is the
-        // selected object (focusing an element does not select it): a dialog's keys would go on moving the menu behind it.
-        // A new panel's handler appears a frame or so after the panel.
+        // selected object, or a dialog's keys would go on moving the menu behind it; focusing an element selects it only
+        // once the panel has its handler, which appears a frame or so after the panel: so it is selected here too.
         public static void Focus(VisualElement element)
         {
             if (element == null || element.panel == null)
@@ -99,6 +100,17 @@ namespace Gwent.UI
             PanelRenderer renderer = PanelRenderer.FindPanelRenderer(element);
             if (renderer != null)
                 UIOverlay.CloseModal(renderer.gameObject);
+        }
+
+        // The element with the keyboard's focus in the screens and dialogs shown, or null
+        public static VisualElement Focused()
+        {
+            for (int i = roots.Count - 1; i >= 0; i--)
+            {
+                if (roots[i].panel != null && roots[i].panel.focusController.focusedElement is VisualElement focused)
+                    return focused;
+            }
+            return null;
         }
 
         // An element of a document on show, by name (the newest document first), or null: tools and tests reach the
