@@ -45,10 +45,11 @@ namespace Gwent.Battle
                 Object.Destroy(child.gameObject);
         }
 
-        // Screen rectangle of a UI element, whatever canvas it is on
+        // Screen rectangle of a UI element, whatever canvas it is on (asked every frame for each card in flight)
+        private static readonly Vector3[] corners = new Vector3[4];
+
         public static Rect ScreenRect(RectTransform rect)
         {
-            Vector3[] corners = new Vector3[4];
             rect.GetWorldCorners(corners);
             Canvas canvas = rect.GetComponentInParent<Canvas>();
             Camera camera = canvas == null || canvas.rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.rootCanvas.worldCamera;

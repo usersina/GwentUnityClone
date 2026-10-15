@@ -68,6 +68,7 @@ namespace Gwent.UI
             backdrop.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2300, CardHeight + 260));
             T carousel = root.gameObject.AddComponent<T>();
             carousel.details = UIKit.NewImage(root, "Details", null, Color.white); // the description box's place
+            carousel.details.enabled = false; // until a card with a description is in front (DescriptionBox.Show)
             return carousel;
         }
 

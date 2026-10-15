@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using Gwent.Core;
@@ -16,7 +15,7 @@ namespace Gwent.Battle
     // (ParticleFx).
     public static class CardEffects
     {
-        public const float SparkleSeconds = 0.35f;
+        public const float WispSeconds = 0.35f; // a landing waits this long for its wisps (they fade on their own)
         public const float FlareSeconds = 1.05f;
         public const float HeroSeconds = 1.6f;
         public const float MedicSeconds = 1.15f;
@@ -28,7 +27,6 @@ namespace Gwent.Battle
         private static readonly Color Blaze = new Color(1f, 0.55f, 0.15f);
         private static readonly Color FireLine = new Color(1f, 0.66f, 0.18f);
         private static readonly Color FireGlow = new Color(1f, 0.45f, 0.05f, 0.35f);
-        private static readonly Color Smoke = new Color(0.42f, 0.42f, 0.44f);
 
         // The W3 flare of an ability ("muster", "morale", "bond", "horn", "spy"), or null (a medic's sign shows on its
         // discard pile instead: MedicPile)
@@ -47,7 +45,7 @@ namespace Gwent.Battle
         }
 
         // A card landing, as in The Witcher 3: wisps of white smoke puff out of its sides and fade
-        public static async UniTask Sparkle(GameObject card, CancellationToken ct = default)
+        public static async UniTask Wisps(GameObject card, CancellationToken ct = default)
         {
             if (card == null)
                 return;
@@ -63,8 +61,8 @@ namespace Gwent.Battle
                 ParticleFx.Emit(wisps, at, new Vector2(side * Random.Range(12f, 40f), Random.Range(4f, 18f)), size.x * Random.Range(0.28f, 0.42f),
                     Random.Range(0.4f, 0.6f), Color.white, Random.Range(0f, 360f));
             }
-            fx.Finish(ct).Forget(); // the wisps fade on their own
-            await Wait(SparkleSeconds, ct);
+            fx.Finish().Forget(); // the wisps fade on their own
+            await Wait(WispSeconds, ct);
         }
 
         // An ability's icon blazing over its card
@@ -127,9 +125,9 @@ namespace Gwent.Battle
             finally
             {
                 fx.Destroy();
-                Object.Destroy(glow.gameObject);
-                Object.Destroy(tint.gameObject);
-                Object.Destroy(heart.gameObject);
+                Remove(glow);
+                Remove(tint);
+                Remove(heart);
             }
         }
 
@@ -195,10 +193,10 @@ namespace Gwent.Battle
             finally
             {
                 fx.Destroy();
-                Object.Destroy(halo.gameObject);
-                Object.Destroy(wash.gameObject);
-                Object.Destroy(icon.gameObject);
-                Object.Destroy(shadow.gameObject);
+                Remove(halo);
+                Remove(wash);
+                Remove(icon);
+                Remove(shadow);
             }
         }
 
@@ -255,7 +253,7 @@ namespace Gwent.Battle
                         Color.Lerp(grey, Color.white, Random.Range(0f, 0.15f)), Random.Range(0f, 360f));
                 }
 
-                float age = 0, emit_sparks = 0, emit_flames = 0, emit_smoke = 0, emit_embers = 0;
+                float age = 0, emit_sparks = 0, emit_glow = 0, emit_flames = 0, emit_smoke = 0, emit_embers = 0;
                 const float burn_from = 0.07f, burn_seconds = 1f;
                 while (age < HeroSeconds && card != null)
                 {
@@ -270,13 +268,14 @@ namespace Gwent.Battle
 
                     // The fire's way around the edge, and the outline it leaves
                     float burnt = Mathf.Clamp01((age - burn_from) / burn_seconds) * perimeter;
-                    float[] lengths = { Mathf.Clamp(burnt, 0, h), Mathf.Clamp(burnt - h, 0, w), Mathf.Clamp(burnt - h - w, 0, h), Mathf.Clamp(burnt - 2 * h - w, 0, w) };
                     float outline = 1 - Mathf.Clamp01((age - 1.15f) / 0.2f);
                     for (int e = 0; e < 4; e++)
                     {
                         bool upright = e % 2 == 0;
-                        lines[e].rectTransform.sizeDelta = upright ? new Vector2(2.5f, lengths[e]) : new Vector2(lengths[e], 2.5f);
-                        glows[e].rectTransform.sizeDelta = upright ? new Vector2(11, lengths[e]) : new Vector2(lengths[e], 11);
+                        float start = e == 0 ? 0 : e == 1 ? h : e == 2 ? h + w : 2 * h + w; // left, bottom, right, top
+                        float length = Mathf.Clamp(burnt - start, 0, upright ? h : w);
+                        lines[e].rectTransform.sizeDelta = upright ? new Vector2(2.5f, length) : new Vector2(length, 2.5f);
+                        glows[e].rectTransform.sizeDelta = upright ? new Vector2(11, length) : new Vector2(length, 11);
                         lines[e].color = new Color(FireLine.r, FireLine.g, FireLine.b, outline * Random.Range(0.85f, 1f));
                         glows[e].color = new Color(FireGlow.r, FireGlow.g, FireGlow.b, FireGlow.a * outline);
                     }
@@ -290,7 +289,7 @@ namespace Gwent.Battle
                         Vector2 velocity = Random.insideUnitCircle * 80 + Outward(at, w, h) * 20 + (top ? new Vector2(0, Random.Range(30f, 90f)) : Vector2.zero);
                         ParticleFx.Emit(sparks, at, velocity, Random.Range(9f, 17f), Random.Range(0.25f, 0.65f), Color.white); // the art's hot core is a tenth of it
                     }
-                    if (burning) // the burning stretch glows softly
+                    for (emit_glow += (burning ? 60 : 0) * dt; emit_glow >= 1; emit_glow--) // the burning stretch glows softly
                         ParticleFx.Emit(glow, Around(Mathf.Max(0, burnt - Random.Range(0f, 24f)), w, h), Vector2.zero, Random.Range(20f, 28f), Random.Range(0.12f, 0.2f), Color.white);
                     for (emit_flames += (burning ? (top ? 170 : 90) : 0) * dt; emit_flames >= 1; emit_flames--)
                     {
@@ -308,11 +307,11 @@ namespace Gwent.Battle
             }
             finally
             {
-                Object.Destroy(shade.gameObject);
-                Object.Destroy(frame.gameObject);
+                Remove(shade);
+                Remove(frame);
                 back.Destroy();
+                front.Finish().Forget(); // the last embers fade on their own
             }
-            front.Finish(ct).Forget(); // the last embers fade on their own
         }
 
         // Out of a card's edge from a point on it (from the card's centre)
@@ -474,6 +473,13 @@ namespace Gwent.Battle
         {
             Vector2 size = rect.size * factor;
             return new Rect(rect.center - size / 2, size);
+        }
+
+        // Destroys an effect's part, unless it went already (the layer cleared at the end of a battle)
+        private static void Remove(Component part)
+        {
+            if (part != null)
+                Object.Destroy(part.gameObject);
         }
 
         // A wait in game time (the pause stops it)

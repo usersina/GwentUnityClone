@@ -10,11 +10,11 @@ using UnityEngine;
 namespace Gwent.Battle
 {
     // Plays a change of the board the way The Witcher 3 does (the rules resolved it already; the board still shows it as
-    // it was): the played card, in its board look from the start, glides in from the right end of its row and lands with
-    // a sparkle (a hero in smoke and fire), its ability flares, then what it caused follows: scorched cards burn and go
-    // to the discard piles (a killed Cow's Bovine Defense Force appearing in its place), a medic's flare over the discard
-    // pile brings a card back, called and drawn cards fly in from the deck, a decoyed card goes back to the hand. In game
-    // time: the pause menu stops it.
+    // it was): the played card, in its board look from the start, glides in from the right end of its row and lands in
+    // white wisps (a hero in smoke and fire), its ability flares, then what it caused follows: scorched cards burn and go
+    // to the discard piles (a killed Cow's Bovine Defense Force appearing in its side's close combat row), a medic's flare
+    // over the discard pile brings a card back, called and drawn cards fly in from the deck, a decoyed card goes back to
+    // the hand. In game time: the pause menu stops it.
     public class BoardPresenter
     {
         public const float LandSeconds = 0.22f; // the played card's glide along its row (The Witcher 3: about 0.2 s)
@@ -58,7 +58,7 @@ namespace Gwent.Battle
             if (burned.Length > 0)
                 await CardEffects.Burn(burned, ct);
 
-            // A killed Cow's Bovine Defense Force takes the field where it stands
+            // A killed Cow's Bovine Defense Force takes the field, in its side's close combat row
             List<BoardChange.Arrival> avengers = change.New.Where(a => a.CardId == CardIds.BovineDefenseForce && a.To == Place.Row && !shown.Contains(a)).ToList();
             if (avengers.Count > 0)
             {
@@ -122,7 +122,7 @@ namespace Gwent.Battle
             if (card.IsUnit && card.unique)
                 await CardEffects.Hero(played.Card, ct);
             else
-                await CardEffects.Sparkle(played.Card, ct);
+                await CardEffects.Wisps(played.Card, ct);
         }
 
         // Its ability's icon blazes over it (a tight bond over all its cards, once there are two); a horn lights its row
@@ -178,7 +178,7 @@ namespace Gwent.Battle
             CardMotion.SettleIn(arrival.Card);
         }
 
-        // A summoned card (not from the deck) appears in its place with a sparkle
+        // A summoned card (not from the deck) appears in its place, in white wisps
         private static async UniTask Summon(BoardChange.Arrival arrival, CancellationToken ct)
         {
             LaneHold.Release(arrival.Card);
@@ -186,7 +186,7 @@ namespace Gwent.Battle
                 return;
             CardMotion.Hide(arrival.Card, false);
             CardMotion.SettleIn(arrival.Card);
-            await CardEffects.Sparkle(arrival.Card, ct);
+            await CardEffects.Wisps(arrival.Card, ct);
         }
 
         private static async UniTask Vanish(BoardChange.Departure departure, CancellationToken ct)

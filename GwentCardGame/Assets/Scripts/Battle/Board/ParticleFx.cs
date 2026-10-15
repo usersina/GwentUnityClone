@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading;
 using Coffee.UIExtensions;
 using Cysharp.Threading.Tasks;
 using Gwent.UI;
@@ -135,18 +134,13 @@ namespace Gwent.Battle
             }
         }
 
-        // The host goes once its last particle has died
-        public async UniTask Finish(CancellationToken ct)
+        // The host goes once its last particle has died (or with the layer, cleared at the end of a battle). Not tied to
+        // the play's presentation: its particles outlive it.
+        public async UniTask Finish()
         {
-            try
-            {
-                while (host != null && Alive)
-                    await UniTask.Yield(PlayerLoopTiming.Update, ct);
-            }
-            finally
-            {
-                Destroy();
-            }
+            while (host != null && Alive)
+                await UniTask.Yield(PlayerLoopTiming.Update);
+            Destroy();
         }
 
         public void Destroy()

@@ -738,6 +738,8 @@ namespace Gwent.Battle
                 }
                 catch (Exception e)
                 {
+                    if (ct.IsCancellationRequested)
+                        return; // the battle went on without it (given up, or over): an effect's part may have gone first
                     Debug.LogException(e);
                 }
                 finally

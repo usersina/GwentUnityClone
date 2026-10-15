@@ -7,8 +7,8 @@ namespace Gwent.EditorTools
 {
     // The particle effects' art (ParticleFx), drawn from noise, and its materials, in Resources/W3/Particles: Spark (a hot
     // point in a soft glow), Smoke (four billowing puffs, lit from the top left, blended over), Blaze (the same puffs,
-    // added on: churning fire, flashes) and Fire (four flame tongues, added on). The materials use UI shaders (ParticleEffectForUGUI's UI/Additive, UI/Default), which also
-    // brings UI/Additive into the builds.
+    // added on: churning fire, flashes) and Fire (four flame tongues, added on). The materials use UI shaders
+    // (ParticleEffectForUGUI's UI/Additive, Unity's UI/Default), which also brings UI/Additive into the builds.
     public static class ParticleArtGenerator
     {
         public const string Folder = "Assets/Resources/W3/Particles";
