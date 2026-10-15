@@ -159,8 +159,8 @@ namespace Gwent.DeckBuilding
             HashSet<int> shown = new HashSet<int>();
             foreach (Card card in cards_list)
             {
-                // Bovine defense force cannot be added to a deck (it is summoned by the Cow)
-                if (card._id == CardIds.BovineDefenseForce || !shown.Add(card._id))
+                // A summoned card (the Bovine Defense Force, Hemdall, a bear) cannot be added to a deck
+                if (CardIds.IsSummoned(card._id) || !shown.Add(card._id))
                     continue;
                 in_deck.TryGetValue(card._id, out int used);
                 int count = deck ? used : DeckRules.MaxCopies(card) - used;

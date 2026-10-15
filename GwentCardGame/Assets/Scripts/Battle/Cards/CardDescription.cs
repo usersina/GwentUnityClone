@@ -36,8 +36,9 @@ namespace Gwent.Battle
                 return Leaders.TryGetValue(card._id, out string text) ? new CardDescription("Leader Ability", text) : null;
             if (card.ability != Ability.None)
                 return Abilities.TryGetValue(card.ability, out description) ? description : null;
-            if (AbilityRules.AvengerOf(card._id) != -1)
-                return Avenger;
+            int avenger = AbilityRules.AvengerOf(card._id);
+            if (avenger != -1)
+                return Avenger(avenger == CardIds.Hemdall ? "Hemdall" : "the Bovine Defense Force");
             if (card.unique)
                 return Hero;
             if (card.row == Row.Agile)
@@ -51,9 +52,15 @@ namespace Gwent.Battle
         private static readonly CardDescription Agile = new CardDescription("Agile",
             "Can be placed in either the Close Combat or the Ranged Combat row.", "agile"); // Francesca, Hope of the Aen Seidhe moves it later
 
-        private static readonly CardDescription Avenger = new CardDescription("Avenger",
-            "Killed by a scorch, it calls the Bovine Defense Force to your Close Combat row at once. Discarded any other way, "
-            + "the Defense Force comes at the start of the next round.");
+        // The Cow's and Kambi's
+        private static CardDescription Avenger(string avenger)
+        {
+            return new CardDescription("Avenger", "Killed by a scorch, it calls " + avenger + " to your Close Combat row at once. "
+                + "Discarded any other way, " + (avenger == "Hemdall" ? "he" : "it") + " comes at the start of the next round.", "avenger");
+        }
+
+        private static readonly CardDescription Mardroeme = new CardDescription("Mardroeme",
+            "Triggers transformation of all Berserker cards on the same row.", "mardroeme");
 
         private static readonly CardDescription CommanderHorn = new CardDescription("Commander's Horn",
             "Doubles the strength of all unit cards in that row. Limited to 1 per row.", "commander_horn");
@@ -68,7 +75,9 @@ namespace Gwent.Battle
             { "biting_frost", new CardDescription("Biting Frost", "Sets the strength of all Close Combat cards to 1 for both players.", "biting_frost") },
             { "impenetrable_fog", new CardDescription("Impenetrable Fog", "Sets the strength of all Ranged Combat cards to 1 for both players.", "impenetrable_fog") },
             { "torrential_rain", new CardDescription("Torrential Rain", "Sets the strength of all Siege Combat cards to 1 for both players.", "torrential_rain") },
-            { "clear_weather", new CardDescription("Clear Weather", "Removes all weather effects (Biting Frost, Impenetrable Fog and Torrential Rain).", "clear_weather") },
+            { "skellige_storm", new CardDescription("Skellige Storm", "Sets the strength of all Ranged and Siege Combat cards to 1 for both players.", "skellige_storm") },
+            { "clear_weather", new CardDescription("Clear Weather", "Removes all weather effects (Biting Frost, Impenetrable Fog, Torrential Rain and Skellige Storm).", "clear_weather") },
+            { "mardroeme", Mardroeme }, // in a row's horn slot
             { "commander_horn", CommanderHorn },
             { "decoy", new CardDescription("Decoy", "Swap with a card on the battlefield to return it to your hand.", "decoy") },
             { "scorch", new CardDescription("Scorch", "Discard after playing. Kills the strongest card(s) on the battlefield.", "scorch") },
@@ -86,6 +95,9 @@ namespace Gwent.Battle
             { Ability.ScorchClose, RowScorch("Close Combat") },
             { Ability.ScorchRange, RowScorch("Ranged Combat") },
             { Ability.ScorchSiege, RowScorch("Siege") },
+            { Ability.Scorch, new CardDescription("Scorch", "Kills the strongest card(s) on the battlefield as it is played (never itself).", "scorch") }, // the Clan Dimun Pirate
+            { Ability.Berserker, new CardDescription("Berserker", "Transforms into a bear when a Mardroeme card is on its row.", "berserker") },
+            { Ability.Mardroeme, Mardroeme }, // Ermion
         };
 
         private static CardDescription RowScorch(string row)
@@ -108,7 +120,7 @@ namespace Gwent.Battle
             { LeaderIds.EredinDestroyerOfWorlds, "Discard 2 cards and draw 1 card of your choice from your deck." },
             { LeaderIds.EredinKingOfTheWildHunt, "Pick any weather card from your deck and play it instantly." },
             { LeaderIds.FoltestKingOfTemeria, "Pick an Impenetrable Fog card from your deck and play it instantly." },
-            { LeaderIds.FoltestLordCommander, "Clears all weather effects (Biting Frost, Impenetrable Fog and Torrential Rain)." },
+            { LeaderIds.FoltestLordCommander, "Clears all weather effects (Biting Frost, Impenetrable Fog, Torrential Rain and Skellige Storm)." },
             { LeaderIds.FoltestSonOfMedell, "Destroys your enemy's strongest Ranged Combat unit(s) if the combined strength of all their Ranged Combat units is 10 or more." },
             { LeaderIds.FoltestTheSiegemaster, "Doubles the strength of all your Siege units (unless a Commander's Horn is also on that row)." },
             { LeaderIds.FoltestTheSteelForged, "Destroys your enemy's strongest Siege unit(s) if the combined strength of all their Siege units is 10 or more." },
@@ -117,6 +129,8 @@ namespace Gwent.Battle
             { LeaderIds.FrancescaPurebloodElf, "Pick a Biting Frost card from your deck and play it instantly." },
             { LeaderIds.FrancescaQueenOfDolBlathanna, "Destroys your enemy's strongest Close Combat unit(s) if the combined strength of all their Close Combat units is 10 or more." },
             { LeaderIds.FrancescaTheBeautiful, "Doubles the strength of all your Ranged Combat units (unless a Commander's Horn is also on that row)." },
+            { LeaderIds.CrachAnCraite, "Shuffles all cards from each player's discard pile back into their decks." },
+            { LeaderIds.KingBran, "Your units only lose half their strength in bad weather." },
         };
     }
 }

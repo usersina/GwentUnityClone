@@ -251,8 +251,8 @@ namespace Gwent.Rules
             return best;
         }
 
-        // A unit that calls a defender when it goes to the discard pile (the Cow: the Bovine Defense Force) brings that
-        // defender next round, when the board clears, if the battle goes on. Worth its strength in the move's gain (never
+        // A unit that calls a defender when it goes to the discard pile (the Cow: the Bovine Defense Force; Kambi: Hemdall)
+        // brings that defender next round, when the board clears, if the battle goes on. Worth its strength in the move's gain (never
         // in its board change: nothing of it shows this round): in full while both sides have two lives, half when one
         // of them does, nothing in a round that may end the battle.
         private static int AvengerValue(AiContext ctx, Card card)
@@ -272,13 +272,22 @@ namespace Gwent.Rules
             me.HandList.Remove(card._id);
             if (card.ability == Ability.Muster)
                 AbilityRules.Muster(me, card, row, ctx.Db);
+            if (card.ability == Ability.Scorch) // the Clan Dimun Pirate scorches as he lands (never himself)
+            {
+                StrengthCalculator.Recalculate(me, weather, ctx.DoubleSpies, ctx.Db);
+                StrengthCalculator.Recalculate(opp, weather, ctx.DoubleSpies, ctx.Db);
+                AbilityRules.Scorch(me, opp, ctx.Db);
+            }
             if (card.ability == Ability.Spy)
             {
                 opp.UnitRow(row).Add(card._id);
                 drawn += Math.Min(2, me.DeckList.Count);
             }
             else
+            {
                 me.UnitRow(row).Add(card._id);
+                AbilityRules.Transform(me, ctx.Db); // a Berserker on a Mardroeme's row, Ermion on theirs
+            }
 
             // A medic brings back the best unit (not counted under Invader of the North: then the unit is random)
             if (card.ability == Ability.Medic && depth < 5 && !ctx.RandomMedic)
@@ -305,15 +314,20 @@ namespace Gwent.Rules
 
         private static Candidate SpecialCandidate(AiContext ctx, Card card)
         {
-            if (card.ability == Ability.CommanderHorn)
+            if (card.ability == Ability.CommanderHorn || card.ability == Ability.Mardroeme)
             {
+                // In a row's free slot: a horn doubles it, a Mardroeme turns its Berserkers into bears
                 Candidate best = null;
                 foreach (Row row in Rows.Units)
                 {
-                    if (ctx.Me.HasHorn(row))
+                    if (ctx.Me.SlotTaken(row))
                         continue;
                     Row chosen_row = row;
-                    int gain = Simulate(ctx, (me, opp, weather) => me.SpecialRow(chosen_row).Add(CardIds.CommanderHorn));
+                    int gain = Simulate(ctx, (me, opp, weather) =>
+                    {
+                        me.SpecialRow(chosen_row).Add(card._id);
+                        AbilityRules.Transform(me, ctx.Db);
+                    });
                     if (best == null || gain > best.Gain)
                         best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Board = gain, Cost = SpecialCost };
                 }
@@ -381,7 +395,7 @@ namespace Gwent.Rules
             }
             else if (horn_row != null)
             {
-                if (!me.HasHorn(horn_row.Value))
+                if (!me.SlotTaken(horn_row.Value))
                     gain = Simulate(ctx, (m, o, w) => AbilityRules.PlaceLeaderHorn(m, horn_row.Value));
             }
             else if (scorch_row != null)
@@ -400,6 +414,16 @@ namespace Gwent.Rules
                 Card card = ctx.Db.Get(target);
                 int value = DrawValue + card.strength / 2 + (card.ability == Ability.Spy || card.ability == Ability.Medic ? DrawValue : 0);
                 return new Candidate { Action = AiAction.Leader(), Gain = value, Cost = LeaderCost, OffBoard = true };
+            }
+            else if (leader == LeaderIds.CrachAnCraite)
+            {
+                // Both discard piles back into the decks: no strength now. In the last round (Skellige's perk has taken
+                // its two units by then), it takes the opponent's units out of its medics' reach; not while our own
+                // medics need our pile.
+                if (me.RoundsScore.Count < 2 || me.HandList.Exists(id => ctx.Db.Get(id).ability == Ability.Medic)
+                    || AbilityRules.MedicCandidates(ctx.Opponent.DiscardList, ctx.Db).Count < 3)
+                    return null;
+                return new Candidate { Action = AiAction.Leader(), Gain = DrawValue, Cost = LeaderCost, OffBoard = true };
             }
 
             if (gain < MinLeaderGain)

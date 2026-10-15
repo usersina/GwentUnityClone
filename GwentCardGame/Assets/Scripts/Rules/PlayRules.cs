@@ -16,12 +16,15 @@ namespace Gwent.Rules
 
             switch (card.row)
             {
-                case Row.Special: // Commander's Horn on the chosen row (one per row)
+                case Row.Special: // Commander's Horn or Mardroeme in the chosen row's slot (one card per slot)
                     Row row = Rows.IsUnitRow(field_row) ? field_row : Row.Close;
-                    if (me.HasHorn(row))
+                    if (me.SlotTaken(row))
                         me.DiscardList.Add(card._id);
                     else
+                    {
                         me.SpecialRow(row).Add(card._id);
+                        AbilityRules.Transform(me, board.Db); // a Mardroeme: the row's Berserkers turn
+                    }
                     break;
                 case Row.Weather:
                     AbilityRules.PlayWeather(me, opp, board.Weather, card);
@@ -76,7 +79,15 @@ namespace Gwent.Rules
                 }
             }
 
+            // The Clan Dimun Pirate scorches the battlefield as he lands (the strongest units but himself)
+            if (card.ability == Ability.Scorch)
+            {
+                board.Recalculate();
+                AbilityRules.Scorch(board.Player, board.Enemy, board.Db);
+            }
+
             owner.UnitRow(row).Add(card._id);
+            AbilityRules.Transform(owner, board.Db); // a Berserker on a Mardroeme's row, or Ermion on theirs
             board.Recalculate();
 
             Row? scorch_row = Abilities.RowScorchTarget(card.ability);

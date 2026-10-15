@@ -17,7 +17,8 @@ namespace Gwent.Rules
 
             Row? horn_row = LeaderIds.HornRow(leader_id);
             if (horn_row != null)
-                return me.HasHorn(horn_row.Value) ? "That row already has a Commander's Horn" : null;
+                return me.HasHorn(horn_row.Value) ? "That row already has a Commander's Horn"
+                    : me.SlotTaken(horn_row.Value) ? "That row's horn slot holds a Mardroeme" : null;
 
             Row? scorch_row = LeaderIds.ScorchRow(leader_id);
             if (scorch_row != null)
@@ -43,6 +44,8 @@ namespace Gwent.Rules
                     return me.HandList.Count >= 2 && me.DeckList.Count > 0 ? null : "You need 2 cards in your hand and 1 in your deck";
                 case LeaderIds.EredinBringerOfDeath: // restore a unit from your discard pile to your hand
                     return AbilityRules.MedicCandidates(me.DiscardList, board.Db).Count > 0 ? null : "No unit in your discard pile to restore";
+                case LeaderIds.CrachAnCraite: // both discard piles back into the decks
+                    return me.DiscardList.Count + opp.DiscardList.Count > 0 ? null : "Both discard piles are empty";
             }
             return "This leader ability is passive";
         }
@@ -65,7 +68,8 @@ namespace Gwent.Rules
         public static bool IsInstant(int leader_id)
         {
             return LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
-                || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe;
+                || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe
+                || leader_id == LeaderIds.CrachAnCraite;
         }
 
         // Returns false (nothing happened) when the ability cannot be used right now
@@ -77,7 +81,7 @@ namespace Gwent.Rules
             Row? horn_row = LeaderIds.HornRow(leader_id);
             if (horn_row != null)
             {
-                reason = "That row already has a Commander's Horn";
+                reason = info.HasHorn(horn_row.Value) ? "That row already has a Commander's Horn" : "That row's horn slot holds a Mardroeme";
                 return AbilityRules.PlaceLeaderHorn(info, horn_row.Value);
             }
 
@@ -97,6 +101,14 @@ namespace Gwent.Rules
                     return true;
                 case LeaderIds.FrancescaHopeOfTheAenSeidhe:
                     AbilityRules.OptimizeAgile(info, board.Weather, board.DoubleSpies, board.Db);
+                    return true;
+                case LeaderIds.CrachAnCraite:
+                    if (Unavailable(board, leader_id, is_player) != null)
+                    {
+                        reason = "Both discard piles are empty";
+                        return false;
+                    }
+                    AbilityRules.ShuffleDiscardsIntoDecks(board);
                     return true;
             }
             reason = "This leader ability needs a choice";

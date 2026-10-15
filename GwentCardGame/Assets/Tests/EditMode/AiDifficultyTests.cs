@@ -158,7 +158,7 @@ namespace Gwent.Rules.Tests
 
         private static int CountCards(Board board)
         {
-            return new[] { board.Player, board.Enemy }.Sum(p => p.AllCards().Count(id => id != CardIds.BovineDefenseForce) - p.LeaderHornRows.Count);
+            return new[] { board.Player, board.Enemy }.Sum(p => p.AllCards().Count(id => !CardIds.IsSummoned(id)) - p.LeaderHornRows.Count);
         }
     }
 }

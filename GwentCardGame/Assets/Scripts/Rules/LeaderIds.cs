@@ -26,6 +26,8 @@ namespace Gwent.Rules
         public const int FrancescaPurebloodElf = 59;        // Play a Biting Frost from your deck
         public const int FrancescaQueenOfDolBlathanna = 60; // Scorch the enemy close row (if it totals 10+)
         public const int FrancescaTheBeautiful = 61;        // Commander's Horn on your range row
+        public const int CrachAnCraite = 157;               // Shuffle both discard piles back into their decks
+        public const int KingBran = 165;                    // Passive: bad weather only halves your units
 
         public static readonly Dictionary<Faction, int[]> ByFaction = new Dictionary<Faction, int[]>
         {
@@ -33,6 +35,7 @@ namespace Gwent.Rules
             { Faction.Nilfgaard, new[] { 33, 34, 35, 36, 37 } },
             { Faction.Scoiatael, new[] { 57, 58, 59, 60, 61 } },
             { Faction.Monsters, new[] { 40, 41, 42, 43, 44 } },
+            { Faction.Skellige, new[] { 157, 165 } }, // Blood and Wine brought two
         };
 
         public static int DefaultFor(Faction faction)

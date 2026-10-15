@@ -115,6 +115,10 @@ namespace Gwent.Rules
             board.Weather.Clear();
             if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
                 RoundRules.Draw(board.Side(winner == RoundWinner.Player), 1);
+            foreach (bool is_player in new[] { true, false })
+                if (RoundRules.SkelligeReinforces(board.Side(is_player)))
+                    RoundRules.SkelligeReinforcements(board, is_player);
+            board.Recalculate();
 
             player_turn = winner == RoundWinner.Player || (winner == RoundWinner.Draw && last_passer_player);
             // A side that starts a round with no card in hand sits it out

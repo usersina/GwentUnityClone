@@ -2,7 +2,7 @@ namespace Gwent.Rules
 {
     public static class Factions
     {
-        public static readonly Faction[] Playable = { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters };
+        public static readonly Faction[] Playable = { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters, Faction.Skellige };
 
         // Its code in the card database and the deck files, which also names the deck folders and the factions' art
         public static string Code(this Faction faction)
@@ -13,6 +13,7 @@ namespace Gwent.Rules
                 case Faction.Nilfgaard: return "NF";
                 case Faction.Scoiatael: return "SC";
                 case Faction.Monsters: return "M";
+                case Faction.Skellige: return "SK";
                 case Faction.Neutral: return "N";
                 default: return "Special";
             }
@@ -21,7 +22,7 @@ namespace Gwent.Rules
         // The faction of a code (false for a code no faction has)
         public static bool TryParse(string code, out Faction faction)
         {
-            foreach (Faction f in new[] { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters, Faction.Neutral, Faction.Special })
+            foreach (Faction f in new[] { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters, Faction.Skellige, Faction.Neutral, Faction.Special })
                 if (f.Code() == code)
                 {
                     faction = f;
@@ -39,6 +40,7 @@ namespace Gwent.Rules
                 case Faction.Nilfgaard: return "Nilfgaardian Empire";
                 case Faction.NorthernRealms: return "Northern Realms";
                 case Faction.Scoiatael: return "Scoia'tael";
+                case Faction.Skellige: return "Skellige";
                 default: return faction.Code();
             }
         }

@@ -41,8 +41,8 @@ namespace Gwent.Rules
                     specials += copies;
                 else
                     units += copies;
-                if (!card.IsSpecial && card.faction != Faction.Neutral && card.faction != deck.Faction)
-                    errors.Add(card.name + " does not belong to this faction");
+                if (!Fits(card, deck.Faction))
+                    errors.Add(card.DisplayName + " does not belong to this faction");
                 if (copies > MaxCopies(card))
                     errors.Add(TooManyCopies(card));
             }
@@ -58,12 +58,21 @@ namespace Gwent.Rules
             return Validate(deck, db).Count == 0;
         }
 
+        // Whether a card can go in a deck of the faction: its own units, the neutral ones and the special cards, but
+        // Mardroeme, a special card, only in Skellige's
+        public static bool Fits(Card card, Faction faction)
+        {
+            if (card._id == CardIds.Mardroeme)
+                return faction == Faction.Skellige;
+            return card.IsSpecial || card.faction == Faction.Neutral || card.faction == faction;
+        }
+
         // As in The Witcher 3, a deck holds at most the copies of a card that exist in the game: one of a hero or of a
-        // single card such as Dandelion, up to five Mahakaman Defenders. The Bovine Defense Force (summoned by the Cow)
-        // has none.
+        // single card such as Dandelion, up to five Mahakaman Defenders. The summoned cards (the Bovine Defense Force,
+        // Hemdall, the Berserkers' bears) have none.
         public static int MaxCopies(Card card)
         {
-            return card.unique ? 1 : card.copies;
+            return card.unique ? Math.Min(1, card.copies) : card.copies;
         }
 
         public static string TooManyCopies(Card card)

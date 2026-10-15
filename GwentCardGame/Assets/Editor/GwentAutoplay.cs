@@ -751,7 +751,7 @@ namespace Gwent.EditorTools
             private string CreateTestDeck(CardDatabase db)
             {
                 Faction faction = Faction.Monsters;
-                List<Card> units = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
+                List<Card> units = db.All.Where(card => card.IsUnit && !CardIds.IsSummoned(card._id) && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
                 List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
                 cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
                 int special_count = 0;
@@ -916,7 +916,7 @@ namespace Gwent.EditorTools
                 // Fill it up to a valid deck: it becomes the battle deck (B9)
                 dc.deckSummary.SelectDeckPath(path);
                 CardDatabase db = dc.Db;
-                dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Faction.Neutral) && !c.unique && c._id != CardIds.BovineDefenseForce)
+                dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Faction.Neutral) && !c.unique && !CardIds.IsSummoned(c._id))
                     .SelectMany(c => Enumerable.Repeat(c._id, Math.Min(2, c.copies))).Take(24).ToList();
                 dc.deckCollection.OnDeckEdit();
                 Check(DeckRules.IsValid(DeckStorage.Load(path), db), "edited deck saved and valid");
@@ -973,7 +973,7 @@ namespace Gwent.EditorTools
             {
                 int total = 0;
                 foreach (PlayerState info in new PlayerState[] { c.PlayerInfo, c.EnemyInfo })
-                    total += info.AllCards().Count(id => id != CardIds.BovineDefenseForce) - info.LeaderHornRows.Count;
+                    total += info.AllCards().Count(id => !CardIds.IsSummoned(id)) - info.LeaderHornRows.Count;
                 return total;
             }
 
@@ -1106,7 +1106,7 @@ namespace Gwent.EditorTools
                 foreach (Faction faction in Factions.Playable)
                     foreach (int leader in LeaderIds.ByFaction[faction])
                     {
-                        List<Card> pool = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce
+                        List<Card> pool = db.All.Where(card => card.IsUnit && !CardIds.IsSummoned(card._id)
                             && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
                         List<int> cards = new List<int>();
                         foreach (Card card in pool.OrderBy(x => rnd.Next()))

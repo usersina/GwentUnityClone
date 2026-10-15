@@ -91,29 +91,36 @@ namespace Gwent.Rules
         }
 
         //----------------------------------------Avenger----------------------------------------//
-        // The card a unit summons when it goes to the discard pile (-1 if none): the Cow calls the Bovine Defense Force.
-        // Killed (scorched: by the Scorch card, a unit's or a leader's row scorch), it takes the Cow's place at once, in the
-        // close combat row: kill the Cow, get the punishment. Discarded any other way (cleared at a round's end, discarded
-        // from the hand by Destroyer of Worlds), it arrives when the board clears for the next round, so never if the battle
-        // ends first. A decoy taking the Cow back to the hand calls nothing.
+        // The card a unit summons when it goes to the discard pile (-1 if none): the Cow calls the Bovine Defense Force,
+        // Kambi calls Hemdall. Killed (scorched: by the Scorch card, the Clan Dimun Pirate, a unit's or a leader's row
+        // scorch), its avenger takes its place at once, on the avenger's own row: kill the Cow, get the punishment.
+        // Discarded any other way (cleared at a round's end, discarded from the hand by Destroyer of Worlds), it arrives
+        // when the board clears for the next round, so never if the battle ends first. A decoy taking it back to the hand
+        // calls nothing.
         public static int AvengerOf(int card_id)
         {
-            return card_id == CardIds.Cow ? CardIds.BovineDefenseForce : -1;
+            switch (card_id)
+            {
+                case CardIds.Cow: return CardIds.BovineDefenseForce;
+                case CardIds.Kambi: return CardIds.Hemdall;
+                default: return -1;
+            }
         }
 
-        // The cards a scorch's killing called, on the close combat row now (once the scorch is over: never scorched by it)
+        // The cards a scorch's killing called, on their rows now (once the scorch is over: never scorched by it)
         private static void Avenge(PlayerState info, List<int> avengers, CardDatabase db)
         {
             foreach (int card_id in avengers)
             {
-                info.CloseList.Add(card_id);
-                info.CloseStrengthL.Add(db.Get(card_id).strength); // until the next recalculation
-                info.MCloseStrength.Add(db.Get(card_id).strength);
+                Row row = db.Get(card_id).row;
+                info.UnitRow(row).Add(card_id);
+                info.BaseStrengths(row).Add(db.Get(card_id).strength); // until the next recalculation
+                info.ModifiedStrengths(row).Add(db.Get(card_id).strength);
             }
         }
 
         // A card discarded without being killed (cleared at a round's end, or from the hand by Destroyer of Worlds) goes
-        // to the discard pile, a Cow's avenger coming next round
+        // to the discard pile, a Cow's or Kambi's avenger coming next round
         public static void Discard(PlayerState info, int card_id)
         {
             ToDiscardPile(info, card_id);
@@ -121,11 +128,11 @@ namespace Gwent.Rules
                 info.PendingSummons.Add(AvengerOf(card_id));
         }
 
-        // A summoned card is not a real card: it vanishes instead of going to the discard pile (so a medic cannot bring
-        // it back)
+        // A summoned card (an avenger, a Berserker's bear) is not a real card: it vanishes instead of going to the discard
+        // pile, so no medic or leader brings it back
         private static void ToDiscardPile(PlayerState info, int card_id)
         {
-            if (card_id != CardIds.BovineDefenseForce)
+            if (!CardIds.IsSummoned(card_id))
                 info.DiscardList.Add(card_id);
         }
 
@@ -143,6 +150,9 @@ namespace Gwent.Rules
         {
             if (other._id == played._id)
                 return true;
+            // Cerys calls the Clan Drummond Shield Maidens (bonded, not mustering: they call nobody)
+            if (played._id == CardIds.Cerys)
+                return other._id == CardIds.ClanDrummondShieldMaiden;
             // The Arachas Behemoth and Gaunter O'Dimm call their family, but the family does not call them
             if (other._id == CardIds.ArachasBehemoth || other._id == CardIds.GaunterODimm)
                 return false;
@@ -252,6 +262,42 @@ namespace Gwent.Rules
             return range.TotalScore() > close.TotalScore() ? Row.Range : Row.Close;
         }
 
+        //----------------------------------------Mardroeme----------------------------------------//
+        // Whether a row of this side has a Mardroeme: the special card in its slot, or Ermion on it
+        public static bool HasMardroeme(PlayerState info, Row row, CardDatabase db)
+        {
+            if (info.SpecialRow(row).Contains(CardIds.Mardroeme))
+                return true;
+            foreach (int card_id in info.UnitRow(row))
+                if (db.Get(card_id).ability == Ability.Mardroeme)
+                    return true;
+            return false;
+        }
+
+        // The Berserkers on this side's rows that have a Mardroeme turn into their bears, in their places: whether the
+        // Mardroeme came first or they did. The Berserker leaves the game (Transformed), as its bear will. Returns how
+        // many turned.
+        public static int Transform(PlayerState info, CardDatabase db)
+        {
+            int turned = 0;
+            foreach (Row row in Rows.Units)
+            {
+                List<int> units = info.UnitRow(row);
+                if (!units.Exists(id => CardIds.TransformedOf(id) != -1) || !HasMardroeme(info, row, db))
+                    continue;
+                for (int i = 0; i < units.Count; i++)
+                {
+                    int bear = CardIds.TransformedOf(units[i]);
+                    if (bear == -1)
+                        continue;
+                    info.Transformed.Add(units[i]);
+                    units[i] = bear;
+                    turned++;
+                }
+            }
+            return turned;
+        }
+
         //----------------------------------------Weather----------------------------------------//
         // Puts a weather card on the shared weather board; duplicates go straight to the owner's discard pile
         public static void PlayWeather(PlayerState owner, PlayerState opponent, List<int> weather_board, Card card)
@@ -284,14 +330,26 @@ namespace Gwent.Rules
         }
 
         //----------------------------------------Commander's Horn----------------------------------------//
-        // Leader horn: no physical card, but shown as a horn in the special slot for the round
+        // Leader horn: no physical card, but shown as a horn in the special slot for the round (not on a Mardroeme)
         public static bool PlaceLeaderHorn(PlayerState info, Row row)
         {
-            if (info.HasHorn(row))
+            if (info.SlotTaken(row))
                 return false;
             info.SpecialRow(row).Add(CardIds.CommanderHorn);
             info.LeaderHornRows.Add(row);
             return true;
+        }
+
+        //----------------------------------------Crach an Craite----------------------------------------//
+        // Each side's discard pile goes back into its deck, which is shuffled
+        public static void ShuffleDiscardsIntoDecks(Board board)
+        {
+            foreach (PlayerState info in new[] { board.Player, board.Enemy })
+            {
+                info.DeckList.AddRange(info.DiscardList);
+                info.DiscardList.Clear();
+                Rng.Shuffle(info.DeckList, board.Rnd);
+            }
         }
     }
 }

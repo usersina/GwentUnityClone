@@ -194,10 +194,10 @@ namespace Gwent.Rules
                                 moves.Add(AiAction.Play(card_id, row, target));
                         }
                 }
-                else if (card.row == Row.Special)
+                else if (card.row == Row.Special) // a horn or a Mardroeme, in a free slot
                 {
                     foreach (Row row in Rows.Units)
-                        if (!me.HasHorn(row))
+                        if (!me.SlotTaken(row))
                             moves.Add(AiAction.Play(card_id, row));
                 }
                 else if (!card.IsLeader)

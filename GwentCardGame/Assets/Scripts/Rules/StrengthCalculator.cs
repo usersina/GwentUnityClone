@@ -5,7 +5,8 @@ namespace Gwent.Rules
 {
     // Computes the modified strength of every unit on the board, in The Witcher 3's order:
     // weather -> Eredin's doubled spies -> tight bond -> morale boost -> Dandelion / Commander's Horn.
-    // Heroes take no modifier, and neither does a decoy lying on a row.
+    // Heroes take no modifier, and neither does a decoy lying on a row. Under King Bran, bad weather only halves a side's
+    // units instead of making them 1.
     public static class StrengthCalculator
     {
         // The strength lists are filled in place (the AI recalculates thousands of times a move)
@@ -28,7 +29,7 @@ namespace Gwent.Rules
                 base_strengths.Clear();
                 foreach (Card card in cards)
                     base_strengths.Add(card.strength);
-                ComputeRow(cards, IsWeathered(row, weather), info.HasHorn(row), double_spies, modified);
+                ComputeRow(cards, IsWeathered(row, weather), info.HasHorn(row), double_spies, modified, HalvesWeather(info));
             }
             cards.Clear();
         }
@@ -37,27 +38,38 @@ namespace Gwent.Rules
 
         public static bool IsWeathered(Row row, IList<int> weather)
         {
-            return weather != null && weather.Contains(CardIds.WeatherFor(row));
+            if (weather == null)
+                return false;
+            for (int i = 0; i < weather.Count; i++)
+                if (CardIds.Weathers(weather[i], row))
+                    return true;
+            return false;
         }
 
-        public static List<int> ComputeRow(IList<Card> cards, bool weathered, bool has_horn, bool double_spies)
+        // King Bran's passive (unless the White Flame cancels it)
+        public static bool HalvesWeather(PlayerState info)
         {
-            return ComputeRow(cards, weathered, has_horn, double_spies, new List<int>(cards.Count));
+            return info.Leader == LeaderIds.KingBran && !info.leaderDisabled;
+        }
+
+        public static List<int> ComputeRow(IList<Card> cards, bool weathered, bool has_horn, bool double_spies, bool half_weather = false)
+        {
+            return ComputeRow(cards, weathered, has_horn, double_spies, new List<int>(cards.Count), half_weather);
         }
 
         // Into the given list
-        private static List<int> ComputeRow(IList<Card> cards, bool weathered, bool has_horn, bool double_spies, List<int> strengths)
+        private static List<int> ComputeRow(IList<Card> cards, bool weathered, bool has_horn, bool double_spies, List<int> strengths, bool half_weather)
         {
             int count = cards.Count;
             strengths.Clear();
             for (int i = 0; i < count; i++)
                 strengths.Add(cards[i].strength);
 
-            // Weather: non-hero units drop to 1
+            // Weather: non-hero units drop to 1 (under King Bran, to half their strength, rounded down, at least 1)
             if (weathered)
                 for (int i = 0; i < count; i++)
                     if (!cards[i].unique && strengths[i] > 1)
-                        strengths[i] = 1;
+                        strengths[i] = half_weather ? Math.Max(1, strengths[i] / 2) : 1;
 
             // Eredin, The Treacherous: spies are doubled (both players)
             if (double_spies)

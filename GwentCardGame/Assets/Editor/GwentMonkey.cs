@@ -622,7 +622,7 @@ namespace Gwent.EditorTools
             {
                 int total = 0;
                 foreach (PlayerState info in new PlayerState[] { c.PlayerInfo, c.EnemyInfo })
-                    total += info.AllCards().Count(id => id != CardIds.BovineDefenseForce) - info.LeaderHornRows.Count;
+                    total += info.AllCards().Count(id => !CardIds.IsSummoned(id)) - info.LeaderHornRows.Count;
                 return total;
             }
 

@@ -24,6 +24,9 @@ namespace Gwent.Rules
                 case Ability.ScorchClose: return "scorch_close";
                 case Ability.ScorchRange: return "scorch_range";
                 case Ability.ScorchSiege: return "scorch_siege";
+                case Ability.ReduceRangeSiege: return "reduce_range_siege";
+                case Ability.Berserker: return "berserker";
+                case Ability.Mardroeme: return "mardroeme";
                 default: return "";
             }
         }
@@ -31,7 +34,7 @@ namespace Gwent.Rules
         // The ability of a code: none for null or "" (false for a code no ability has)
         public static bool TryParse(string code, out Ability ability)
         {
-            for (ability = Ability.None; ability <= Ability.ScorchSiege; ability++)
+            for (ability = Ability.None; ability <= Ability.Mardroeme; ability++)
                 if (ability.Code() == (code ?? ""))
                     return true;
             ability = Ability.None;

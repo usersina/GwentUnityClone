@@ -54,7 +54,7 @@ namespace Gwent.Rules
 
         // Sends one side's board to its discard pile at the end of a round.
         // Monsters keep one random unit on the board; each Cow that leaves summons a Bovine Defense Force for the
-        // next round. Returns the unit Monsters kept (-1 if none).
+        // next round, each Kambi a Hemdall. Returns the unit Monsters kept (-1 if none).
         public static int CleanupBoard(PlayerState info, Random rnd, CardDatabase db)
         {
             // The unit Monsters keep (never a hero or a decoy) is taken off its row while the rest goes
@@ -102,10 +102,43 @@ namespace Gwent.Rules
                 info.UnitRow(kept_row).Add(kept_card);
 
             // Cards summoned by a discard during the round (a Cow discarded by Destroyer of Worlds) or by this cleanup
-            // arrive now (a killed Cow's came at once)
-            info.CloseList.AddRange(info.PendingSummons);
+            // arrive now, on their rows (a killed Cow's came at once)
+            foreach (int card_id in info.PendingSummons)
+                info.UnitRow(db.Get(card_id).row).Add(card_id);
             info.PendingSummons.Clear();
             return kept_card;
+        }
+
+        // Whether a side's faction perk brings units back as this round opens: Skellige's, at the start of the third
+        public static bool SkelligeReinforces(PlayerState info)
+        {
+            return info.Faction == Faction.Skellige && info.RoundsScore.Count == 2;
+        }
+
+        // Skellige's perk, at the start of the third round: two random units of the side's discard pile come back onto
+        // the battlefield, each on its own row (an agile one on the row where it is stronger). No heroes, and no spies
+        // (they would fight for the other side). They don't use their abilities as they come (no medic, muster or
+        // scorch), but count as usual (bonds, morale). Returns the units placed.
+        public static List<int> SkelligeReinforcements(Board board, bool is_player)
+        {
+            PlayerState info = board.Side(is_player);
+            List<int> units = AbilityRules.MedicCandidates(info.DiscardList, board.Db);
+            units.RemoveAll(id => board.Db.Get(id).ability == Ability.Spy);
+            List<int> placed = new List<int>();
+            while (placed.Count < 2 && units.Count > 0)
+            {
+                int index = board.Rnd.Next(units.Count);
+                int card_id = units[index];
+                units.RemoveAt(index);
+                Card card = board.Db.Get(card_id);
+                Row row = card.row == Row.Agile ? AbilityRules.BestAgileRow(info, card_id, board.Weather, board.DoubleSpies, board.Db) : card.row;
+                info.DiscardList.Remove(card_id);
+                info.UnitRow(row).Add(card_id);
+                placed.Add(card_id);
+            }
+            AbilityRules.Transform(info, board.Db);
+            board.Recalculate();
+            return placed;
         }
 
         // Redraw at the start of the battle, as in The Witcher 3: the top card of the deck takes the card's place in the

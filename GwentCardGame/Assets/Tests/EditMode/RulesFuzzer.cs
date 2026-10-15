@@ -65,11 +65,11 @@ public static class RulesFuzzer
     }
 
     //------------------------------------------ Decks ------------------------------------------//
-    static readonly string[] Themes = { "random", "random", "spies", "medics", "muster", "weather", "decoys", "heroes", "bond", "morale", "agile", "scorch", "horns", "tiny", "chaos" };
+    static readonly string[] Themes = { "random", "random", "spies", "medics", "muster", "weather", "decoys", "heroes", "bond", "morale", "agile", "scorch", "horns", "berserkers", "tiny", "chaos" };
 
     static Deck MakeDeck(Random rnd, Faction faction, int leader, string theme)
     {
-        var pool = Db.All.Where(c => c.IsUnit && c._id != CardIds.BovineDefenseForce && (c.faction == faction || c.faction == Faction.Neutral)).ToList();
+        var pool = Db.All.Where(c => c.IsUnit && !CardIds.IsSummoned(c._id) && DeckRules.Fits(c, faction)).ToList();
         Func<Card, bool> themed;
         switch (theme)
         {
@@ -80,7 +80,8 @@ public static class RulesFuzzer
             case "bond": themed = c => c.ability == Ability.TightBond; break;
             case "morale": themed = c => c.ability == Ability.MoraleBoost || c.ability == Ability.UnitHorn; break;
             case "agile": themed = c => c.row == Row.Agile; break;
-            case "scorch": themed = c => Abilities.IsRowScorch(c.ability); break;
+            case "scorch": themed = c => Abilities.IsRowScorch(c.ability) || c.ability == Ability.Scorch; break;
+            case "berserkers": themed = c => c.ability == Ability.Berserker || c.ability == Ability.Mardroeme || AbilityRules.AvengerOf(c._id) != -1; break;
             default: themed = c => true; break;
         }
         var cards = new List<int>();
@@ -94,15 +95,17 @@ public static class RulesFuzzer
                 for (int i = 0; i < copies && cards.Count < target; i++)
                     cards.Add(card._id);
             }
-        int[] specials = { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather };
-        int nspecials = theme == "weather" ? 10 : theme == "decoys" || theme == "horns" ? 8 : rnd.Next(11);
+        int[] specials = { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather, CardIds.SkelligeStorm, CardIds.Mardroeme };
+        int nspecials = theme == "weather" ? 10 : theme == "decoys" || theme == "horns" || theme == "berserkers" ? 8 : rnd.Next(11);
         for (int i = 0; i < nspecials; i++)
         {
             int s = specials[rnd.Next(specials.Length)];
-            if (theme == "weather") s = new[] { 200, 201, 204, 206 }[rnd.Next(4)];
+            if (theme == "weather") s = new[] { 200, 201, 204, 206, 208 }[rnd.Next(5)];
             if (theme == "decoys") s = CardIds.Decoy;
             if (theme == "horns") s = CardIds.CommanderHorn;
+            if (theme == "berserkers") s = rnd.Next(2) == 0 ? CardIds.Mardroeme : CardIds.CommanderHorn;
             if (theme == "scorch" && rnd.Next(2) == 0) s = CardIds.Scorch;
+            if (!DeckRules.Fits(Db.Get(s), faction)) s = CardIds.CommanderHorn; // Mardroeme is Skellige's
             cards.Add(s);
         }
         return new Deck { Faction = faction, Leader = leader, Name = faction + "/" + leader + "/" + theme, Cards = cards };
@@ -114,7 +117,7 @@ public static class RulesFuzzer
         Random rnd = new Random(seed);
         Rng.Seed(seed);
         Faction f1 = Factions.Playable[rnd.Next(Factions.Playable.Length)], f2 = Factions.Playable[rnd.Next(Factions.Playable.Length)];
-        int l1 = LeaderIds.ByFaction[f1][rnd.Next(5)], l2 = LeaderIds.ByFaction[f2][rnd.Next(5)];
+        int l1 = LeaderIds.ByFaction[f1][rnd.Next(LeaderIds.ByFaction[f1].Length)], l2 = LeaderIds.ByFaction[f2][rnd.Next(LeaderIds.ByFaction[f2].Length)];
         string t1 = Themes[rnd.Next(Themes.Length)], t2 = Themes[rnd.Next(Themes.Length)];
         Deck d1 = MakeDeck(rnd, f1, l1, t1), d2 = MakeDeck(rnd, f2, l2, t2);
         context = "seed " + seed + ": " + d1.Name + " vs " + d2.Name;
@@ -171,9 +174,10 @@ public static class RulesFuzzer
                 {
                     PlayerState side = board.Side(p);
                     int units_before = Rows.Units.Sum(r => side.UnitRow(r).Count(id => !Db.Get(id).unique && !Db.Get(id).IsSpecial));
-                    int cows = Rows.Units.Sum(r => side.UnitRow(r).Count(id => id == CardIds.Cow)) + side.PendingSummons.Count;
+                    // Cows and Kambis call their avengers
+                    int cows = Rows.Units.Sum(r => side.UnitRow(r).Count(id => AbilityRules.AvengerOf(id) != -1)) + side.PendingSummons.Count;
                     int kept = RoundRules.CleanupBoard(side, rnd, Db);
-                    if (kept == CardIds.Cow) cows--; // a kept Cow stays: nothing summoned for it
+                    if (kept != -1 && AbilityRules.AvengerOf(kept) != -1) cows--; // a kept Cow stays: nothing summoned for it
                     if (side.Faction == Faction.Monsters && units_before > 0 && kept == -1) Fail("Monsters kept no unit although it had some");
                     if (side.Faction != Faction.Monsters && kept != -1) Fail("non-Monsters kept a unit");
                     if (kept != -1 && (Db.Get(kept).unique || Db.Get(kept).IsSpecial)) Fail("Monsters kept a hero/special: " + kept);
@@ -185,6 +189,23 @@ public static class RulesFuzzer
                 board.Weather.Clear();
                 if (winner == RoundWinner.Player && board.Player.Faction == Faction.NorthernRealms) RoundRules.Draw(board.Player, 1);
                 if (winner == RoundWinner.Enemy && board.Enemy.Faction == Faction.NorthernRealms) RoundRules.Draw(board.Enemy, 1);
+                // Skellige, as the third round opens: two random units of the discard pile (no heroes, no spies) on the board
+                foreach (bool p in new[] { true, false })
+                {
+                    PlayerState side = board.Side(p);
+                    if (!RoundRules.SkelligeReinforces(side))
+                    {
+                        if (side.Faction == Faction.Skellige && side.RoundsScore.Count != 1) Fail("Skellige reinforced outside the third round");
+                        continue;
+                    }
+                    int eligible = AbilityRules.MedicCandidates(side.DiscardList, Db).Count(id => Db.Get(id).ability != Ability.Spy);
+                    int on_board = Rows.Units.Sum(r => side.UnitRow(r).Count);
+                    List<int> placed = RoundRules.SkelligeReinforcements(board, p);
+                    Count("Skellige reinforcements");
+                    if (placed.Count != Math.Min(2, eligible)) Fail("Skellige placed " + placed.Count + " of " + eligible + " units");
+                    if (placed.Any(id => Db.Get(id).unique || Db.Get(id).ability == Ability.Spy || !Db.Get(id).IsUnit)) Fail("Skellige placed a hero, spy or special");
+                    if (Rows.Units.Sum(r => side.UnitRow(r).Count) != on_board + placed.Count) Fail("Skellige's units are not on the board");
+                }
                 player_turn = winner == RoundWinner.Player || (winner == RoundWinner.Draw && last_passer_player);
                 // The Witcher 3: a side starting a round with no card in hand sits it out
                 foreach (bool p in new[] { true, false })
@@ -266,7 +287,7 @@ public static class RulesFuzzer
         if (card.row == Row.Agile) field = rnd.Next(2) == 0 ? Row.Close : Row.Range;
         if (card.row == Row.Special)
         {
-            var free = Rows.Units.Where(row => !me.HasHorn(row)).ToList();
+            var free = Rows.Units.Where(row => !me.SlotTaken(row)).ToList();
             if (free.Count == 0) { me.hasPassed = true; return "passes (horn, no free slot)"; }
             field = free[rnd.Next(free.Count)];
         }
@@ -326,7 +347,7 @@ public static class RulesFuzzer
                     Count("AI decoy");
                     return "AI decoys " + a.TargetId;
                 }
-                if (c.row == Row.Special && Rows.IsUnitRow(a.Row) && me.HasHorn(a.Row)) Fail("AI plays a horn on a row that has one: " + a.Row);
+                if (c.row == Row.Special && Rows.IsUnitRow(a.Row) && me.SlotTaken(a.Row)) Fail("AI plays a horn or Mardroeme on a row whose slot is taken: " + a.Row);
                 return Play(board, a.CardId, a.Row, p, rnd, "AI plays");
             case AiActionType.UseLeader:
                 if (!LeaderUsable(board, p)) Fail("AI uses an unusable leader " + me.Leader + ": " + LeaderRules.Unavailable(board, me.Leader, p));
@@ -364,8 +385,11 @@ public static class RulesFuzzer
             string reason;
             Row? scorch_row = LeaderIds.ScorchRow(leader);
             int row_units = scorch_row != null ? opp.UnitRow(scorch_row.Value).Count : 0; // a killed Cow's defender joins another row
+            int deck_cards = me.DeckList.Count + me.DiscardList.Count;
             if (!LeaderRules.ApplyInstant(board, leader, p, out reason)) Fail("instant leader " + leader + " failed after Unavailable said yes: " + reason);
             if (scorch_row != null && opp.UnitRow(scorch_row.Value).Count >= row_units) Fail("leader row scorch " + leader + " destroyed nothing although allowed");
+            if (leader == LeaderIds.CrachAnCraite && (me.DiscardList.Count + opp.DiscardList.Count > 0 || me.DeckList.Count != deck_cards))
+                Fail("Crach an Craite left a discard pile or lost cards");
             return "leader " + leader + " (instant)";
         }
         switch (leader)
@@ -408,7 +432,7 @@ public static class RulesFuzzer
             for (int i = 0; i < side.LeaderHornRows.Count; i++) all.Remove(CardIds.CommanderHorn);
             foreach (int id in all)
             {
-                if (id == CardIds.BovineDefenseForce) continue;
+                if (CardIds.IsSummoned(id)) continue; // avengers and bears come and go
                 int v; m.TryGetValue(id, out v); m[id] = v + 1;
             }
         }
@@ -439,7 +463,8 @@ public static class RulesFuzzer
             foreach (Row row in Rows.Units)
             {
                 if (side.SpecialRow(row).Count > 1) Fail("more than one card in a horn slot");
-                if (side.SpecialRow(row).Any(id => id != CardIds.CommanderHorn)) Fail("non-horn card in a horn slot");
+                if (side.SpecialRow(row).Any(id => id != CardIds.CommanderHorn && id != CardIds.Mardroeme)) Fail("a card other than a horn or Mardroeme in a horn slot");
+                if (side.UnitRow(row).Any(id => CardIds.TransformedOf(id) != -1) && AbilityRules.HasMardroeme(side, row, Db)) Fail("a Berserker untransformed on a Mardroeme's row");
                 foreach (int id in side.UnitRow(row))
                 {
                     Card c = Db.Get(id);
@@ -459,7 +484,7 @@ public static class RulesFuzzer
             if (side.Lives < 0 || side.Lives > 2) Fail("lives out of range " + side.Lives);
             if (side.LeaderHornRows.Any(r => !side.HasHorn(r))) Fail("leader horn row without a horn");
             if (side.HandList.Any(id => !Db.Contains(id))) Fail("unknown id in hand");
-            if (side.DiscardList.Contains(CardIds.BovineDefenseForce)) Fail("Bovine Defense Force in a discard pile");
+            if (side.DiscardList.Concat(side.DeckList).Any(CardIds.IsSummoned)) Fail("a summoned card (avenger, bear) in a discard pile or deck");
         }
     }
 
@@ -469,8 +494,9 @@ public static class RulesFuzzer
     static List<int> Oracle(PlayerState side, Row row, Board board)
     {
         var ids = side.UnitRow(row);
-        bool weather = board.Weather.Contains(CardIds.WeatherFor(row));
-        bool horn_card = side.SpecialRow(row).Count > 0;
+        bool weather = board.Weather.Any(w => w == CardIds.WeatherFor(row) || w == CardIds.SkelligeStorm && row != Row.Close);
+        bool king_bran = side.Leader == LeaderIds.KingBran && !side.leaderDisabled;
+        bool horn_card = side.SpecialRow(row).Contains(CardIds.CommanderHorn);
         var result = new List<int>();
         for (int i = 0; i < ids.Count; i++)
         {
@@ -486,7 +512,7 @@ public static class RulesFuzzer
                 if (o.ability == Ability.TightBond && o._id == c._id) bonds++;
             }
             int total = c.strength;
-            if (weather) total = Math.Min(1, total);
+            if (weather) total = king_bran ? Math.Max(Math.Min(1, total), total / 2) : Math.Min(1, total);
             if (board.DoubleSpies && c.ability == Ability.Spy) total *= 2;
             int additional = total * bonds + morale;
             if (horn > 0) additional += total + additional;
