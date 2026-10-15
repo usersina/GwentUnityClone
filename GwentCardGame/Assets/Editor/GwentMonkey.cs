@@ -348,11 +348,17 @@ namespace Gwent.EditorTools
                 Card stats = c.selectedCard.GetComponent<CardFace>().Card;
                 if (stats.ability == Ability.Decoy)
                 {
+                    // What a decoy can swap (BattleController.TryPlaySelectedDecoyOnCard): a unit, not a hero, not a
+                    // special card such as another decoy
                     List<GameObject> targets = new List<GameObject>();
                     foreach (Row row in Rows.Units)
                         foreach (Transform t in c.PlayerField.transform.Find(row.ToString()).Find("Unit"))
-                            if (t.GetComponent<CardSelect>() != null)
+                        {
+                            CardFace face = t.GetComponent<CardFace>();
+                            if (t.GetComponent<CardSelect>() != null && face != null && face.Card.faction != Faction.Special && !face.Card.unique
+                                && face.Card.ability != Ability.Leader)
                                 targets.Add(t.gameObject);
+                        }
                     if (targets.Count == 0)
                     {
                         c.PutBackSelectedCard(false);
