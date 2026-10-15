@@ -52,6 +52,7 @@ namespace Gwent.DeckBuilding
         private async UniTaskVoid Start()
         {
             AddWeatherTab();
+            AddScrollbar();
             ClearCardsArea();
             // DeckBuilder loads everything in Awake; this only guards against a disabled controller
             if (!deckBuilder.IsReady)
@@ -232,9 +233,31 @@ namespace Gwent.DeckBuilding
             button.onClick.AddListener(() => HandleClick(tab));
         }
 
+        private ScrollRect Scroll { get { return cardsArea.transform.parent.GetComponent<ScrollRect>(); } }
+
+        // A scroll bar just right of the cards (beside the view, which masks what it holds), shown while they overflow
+        private const float ScrollbarGap = 8;
+
+        private void AddScrollbar()
+        {
+            ScrollRect scroll = Scroll;
+            RectTransform view = (RectTransform)scroll.transform;
+            Scrollbar bar = UIKit.VerticalScrollbar(view.parent, "Scrollbar");
+            RectTransform rect = (RectTransform)bar.transform;
+            rect.SetSiblingIndex(view.GetSiblingIndex() + 1);
+            rect.anchorMin = view.anchorMin;
+            rect.anchorMax = view.anchorMax;
+            rect.pivot = new Vector2(0, 1);
+            Rect shown = view.rect;
+            rect.anchoredPosition = view.anchoredPosition + new Vector2((1 - view.pivot.x) * shown.width + ScrollbarGap, (1 - view.pivot.y) * shown.height);
+            rect.sizeDelta = new Vector2(UIKit.ScrollbarWidth, shown.height);
+            scroll.verticalScrollbar = bar;
+            scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+        }
+
         private void ResetScrolling()
         {
-            ScrollRect scroll = cardsArea.transform.parent.GetComponent<ScrollRect>();
+            ScrollRect scroll = Scroll;
             scroll.StopMovement();
             scroll.verticalNormalizedPosition = 1; // back to the top, at any resolution
         }

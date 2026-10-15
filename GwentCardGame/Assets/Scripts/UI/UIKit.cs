@@ -120,6 +120,41 @@ namespace Gwent.UI
             return fill.rectTransform;
         }
 
+        // A vertical scroll bar in the menus' look (the same as the UI Toolkit screens' in Gwent.uss): a thin dark track
+        // the whole height, a gold handle with rounded ends that brightens under the pointer and while dragged; no arrows.
+        // Width: its own; the caller places it and gives it to its ScrollRect.
+        public const float ScrollbarWidth = 16;
+
+        public static Scrollbar VerticalScrollbar(Transform parent, string name)
+        {
+            UITheme theme = Theme;
+            RectTransform root = Rect(name, parent);
+            root.sizeDelta = new Vector2(ScrollbarWidth, 0);
+            Image track = NewImage(root, "Track", theme.pill, theme.lineSoft);
+            track.rectTransform.Stretch(6, 6, 0, 0); // 4 wide
+            track.pixelsPerUnitMultiplier = 8; // the pill's ends, scaled to the track's width
+            RectTransform area = Rect("Sliding Area", root).Stretch();
+            Image handle = NewImage(area, "Handle", theme.pill, Color.white, true);
+            handle.rectTransform.Stretch(3, 3, 0, 0); // 10 wide; its height and place are the Scrollbar's
+            handle.pixelsPerUnitMultiplier = 3.2f;
+
+            Scrollbar bar = root.gameObject.AddComponent<Scrollbar>();
+            bar.direction = Scrollbar.Direction.BottomToTop;
+            bar.handleRect = handle.rectTransform;
+            bar.targetGraphic = handle;
+            bar.navigation = new Navigation { mode = Navigation.Mode.None }; // the keys stay with the cards and menus
+            ColorBlock colors = bar.colors;
+            colors.normalColor = theme.gold;
+            colors.selectedColor = theme.gold;
+            colors.highlightedColor = theme.goldBright;
+            colors.pressedColor = theme.goldBright;
+            colors.disabledColor = UITheme.WithAlpha(theme.gold, 0.35f);
+            colors.colorMultiplier = 1;
+            colors.fadeDuration = 0.12f;
+            bar.colors = colors;
+            return bar;
+        }
+
         // Thin gold rule with a diamond in the middle
         public static Image Ornament(Transform parent, Vector2 anchor, Vector2 position, float width = 420)
         {

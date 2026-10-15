@@ -7,7 +7,7 @@
             <ui:VisualElement class="ornament rules__ornament" />
             <ui:VisualElement class="rules__body">
                 <ui:VisualElement name="Topics" class="rules__topics" />
-                <ui:ScrollView name="Topic" class="rules__view" vertical-scroller-visibility="Hidden" horizontal-scroller-visibility="Hidden" />
+                <ui:ScrollView name="Topic" class="rules__view scroll" vertical-scroller-visibility="Auto" horizontal-scroller-visibility="Hidden" />
             </ui:VisualElement>
             <Gwent.UI.DialogButton name="Button Close" text="Close" class="button--secondary rules__close" />
         </ui:VisualElement>

@@ -798,6 +798,61 @@
     height: 620px;
 }
 
+/* A scroll bar, the deck builder's too (UIKit.VerticalScrollbar): a thin dark track the whole height and a gold handle
+   with rounded ends that brightens under the pointer and while dragged; no arrows */
+.scroll .unity-scroller--vertical {
+    width: 16px;
+    margin-left: 8px;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.scroll .unity-scroller__low-button,
+.scroll .unity-scroller__high-button {
+    display: none;
+}
+
+.scroll .unity-scroller--vertical > .unity-scroller__slider {
+    margin: 0;
+    flex-grow: 1;
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__drag-container {
+    margin: 0;
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__tracker {
+    left: 6px;
+    width: 4px;
+    right: auto;
+    top: 0;
+    bottom: 0;
+    margin: 0;
+    border-width: 0;
+    border-radius: 2px;
+    background-color: var(--line-soft);
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__dragger {
+    left: 3px;
+    width: 10px;
+    margin: 0;
+    border-width: 0;
+    border-radius: 5px;
+    background-color: var(--gold);
+    transition-property: background-color;
+    transition-duration: 0.12s;
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__dragger:hover,
+.scroll .unity-scroller--vertical .unity-base-slider__dragger:active {
+    background-color: var(--gold-bright);
+}
+
+.scroll .unity-base-slider__dragger-border {
+    display: none;
+}
+
 .rules__view .unity-scroll-view__content-container {
     padding: 0 24px 24px 0;
 }
