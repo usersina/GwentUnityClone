@@ -36,6 +36,12 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
   with the card and out once cleared; the fog billows up and drifts along the row.
 - On Normal and Hard the opponent now plays its Cow while the battle goes on, for the Bovine Defense Force it brings next round.
 
+### The deck builder
+
+- A card you add or remove flies to its place in the other grid: one copy leaves while others are left, the last copy is
+  the card itself; where it lands, the count goes up as it arrives.
+- Its two grids show a scroll bar in the menus' gold while their cards overflow.
+
 ### Fixes
 
 - Editing a preset deck with a long name (such as Riders of the Wild Hunt) a second time no longer freezes the game.
@@ -49,6 +55,8 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
 
 - The main menu, opponent picker, settings, pause menu, How to play, confirmations and notices are rebuilt on Unity's
   UI Toolkit, with the same look and smoother highlights.
+- How to play's topics show a scroll bar while they overflow (the Monsters' part was out of reach without a mouse
+  wheel).
 
 ### Platforms
 
