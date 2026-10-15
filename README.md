@@ -30,7 +30,7 @@ Sorry, no multiplayer :/ (yet)
 <h3 align="center">A card in the spotlight, a medic's choice</h3>
 
 <p align="center">
-  <img src="Screenshots/showcase.jpg" width="49%" alt="Ciri selected, shown on the right with her description, her row lit">
+  <img src="Screenshots/showcase.jpg" width="49%" alt="Philippa Eilhart selected, shown on the right with her description, her row lit; Biting Frost on the close rows">
   <img src="Screenshots/medic.jpg" width="49%" alt="Yennefer's revival: units from the discard pile in the card carousel">
 </p>
 
