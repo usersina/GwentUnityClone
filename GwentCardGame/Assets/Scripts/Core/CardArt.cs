@@ -10,6 +10,8 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
+using Image = UnityEngine.UI.Image;
 
 namespace Gwent.Core
 {
@@ -27,7 +29,7 @@ namespace Gwent.Core
         }
 
         private static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
-        private static readonly Dictionary<Image, int> waiting = new Dictionary<Image, int>(); // the card each image waits for
+        private static readonly Dictionary<object, int> waiting = new Dictionary<object, int>(); // the card each image or element waits for
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Init()
@@ -46,24 +48,35 @@ namespace Gwent.Core
         // Shows the card's art on the image: at once when it is loaded, otherwise the card's back until it is
         public static void Show(Image image, int card_id)
         {
-            Entry entry = Request(card_id, image.gameObject.scene);
+            Show(image, image.gameObject.scene, card_id, sprite => image.sprite = sprite, () => image != null);
+        }
+
+        // The same as the background of a UI Toolkit element
+        public static void Show(VisualElement element, int card_id)
+        {
+            Show(element, SceneManager.GetActiveScene(), card_id, sprite => element.style.backgroundImage = new StyleBackground(sprite), () => true);
+        }
+
+        private static void Show(object target, Scene scene, int card_id, Action<Sprite> show, Func<bool> alive)
+        {
+            Entry entry = Request(card_id, scene);
             if (entry.handle.IsDone)
             {
-                waiting.Remove(image);
-                image.sprite = entry.handle.Status == AsyncOperationStatus.Succeeded ? entry.handle.Result : Back(card_id);
+                waiting.Remove(target);
+                show(entry.handle.Status == AsyncOperationStatus.Succeeded ? entry.handle.Result : Back(card_id));
                 return;
             }
-            image.sprite = Back(card_id);
-            waiting[image] = card_id;
+            show(Back(card_id));
+            waiting[target] = card_id;
             entry.handle.Completed += loaded =>
             {
                 // The image may be gone, or show another card by now
                 int wanted;
-                if (image == null || !waiting.TryGetValue(image, out wanted) || wanted != card_id)
+                if (!alive() || !waiting.TryGetValue(target, out wanted) || wanted != card_id)
                     return;
-                waiting.Remove(image);
+                waiting.Remove(target);
                 if (loaded.Status == AsyncOperationStatus.Succeeded)
-                    image.sprite = loaded.Result;
+                    show(loaded.Result);
             };
         }
 
@@ -123,8 +136,17 @@ namespace Gwent.Core
                 Addressables.Release(entry.handle);
                 entries.Remove(card_id);
             }
-            foreach (Image gone in waiting.Keys.Where(image => image == null).ToList())
+            foreach (object gone in waiting.Keys.Where(Gone).ToList())
                 waiting.Remove(gone);
+        }
+
+        // A destroyed image, or an element no longer on a panel
+        private static bool Gone(object target)
+        {
+            VisualElement element = target as VisualElement;
+            if (element != null)
+                return element.panel == null;
+            return target as UnityEngine.Object == null; // Unity's null: destroyed
         }
 
         // The back of the card's faction (special cards have the plain one)

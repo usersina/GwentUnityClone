@@ -63,8 +63,10 @@ namespace Gwent.UI
         public Sprite scoreTotal;     // a side's total
 
         [Header("UI Toolkit screens (Assets/UI/Toolkit)")]
-        public PanelSettings panelSettings; // shared by the screens' panels (UIScreens)
+        public PanelSettings panelSettings; // the screens' and dialogs' panels are copies of it (UIScreens)
         public VisualTreeAsset mainMenu;
+        public VisualTreeAsset opponentPicker;
+        public VisualTreeAsset opponentEntry;
 
         [Header("Cursors (tip at 5, 4)")]
         public Texture2D cursorDefault;

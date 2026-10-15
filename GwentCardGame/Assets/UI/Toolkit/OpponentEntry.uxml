@@ -1,0 +1,15 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/Toolkit/Gwent.uss" />
+    <!-- One opponent of the picker: portrait (the leader's art, or "?" for a random opponent), name, faction and leader -->
+    <Gwent.UI.MenuEntry name="Opponent" class="opponent">
+        <ui:VisualElement name="Portrait" class="opponent__portrait" picking-mode="Ignore">
+            <ui:VisualElement name="Art" class="opponent__art" picking-mode="Ignore" />
+            <ui:Label name="Question" text="?" class="opponent__question" picking-mode="Ignore" />
+        </ui:VisualElement>
+        <ui:VisualElement class="opponent__text" picking-mode="Ignore">
+            <ui:Label name="Title" class="opponent__title" picking-mode="Ignore" />
+            <ui:Label name="Detail" class="opponent__detail" picking-mode="Ignore" />
+        </ui:VisualElement>
+        <ui:VisualElement name="Chosen" class="opponent__chosen" picking-mode="Ignore" />
+    </Gwent.UI.MenuEntry>
+</ui:UXML>

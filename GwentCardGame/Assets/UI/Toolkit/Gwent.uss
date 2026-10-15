@@ -116,3 +116,201 @@
     left: 156px;
     bottom: 48px;
 }
+
+/*---------------------------------------- Dialogs ----------------------------------------*/
+/* Darkens the whole screen behind a dialog and takes its clicks */
+.dimmer {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    background-color: var(--dimmer);
+    align-items: center;
+    justify-content: center;
+}
+
+/* A rounded panel with a thin bronze outline */
+.panel {
+    background-color: var(--panel);
+    border-width: 2px;
+    border-color: var(--line);
+    border-radius: 10px;
+}
+
+.title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 44px;
+    letter-spacing: 3.2px;
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
+/* A thin gold rule with a diamond in the middle */
+.ornament {
+    width: 420px;
+    height: 12px;
+    background-image: url("project://database/Assets/UI/Sprites/Rule.png");
+    -unity-background-scale-mode: stretch-to-fill;
+    -unity-background-image-tint-color: rgba(201, 164, 92, 0.85);
+}
+
+/*---------------------------------------- Buttons ----------------------------------------*/
+.button {
+    width: 280px;
+    height: 68px;
+    margin: 0;
+    padding: 0 12px 2px 12px;
+    border-width: 2px;
+    border-radius: 10px;
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 2px;
+    -unity-text-align: middle-center;
+    transition-property: color, background-color, border-color;
+    transition-duration: 0.12s;
+}
+
+/* Gold outline and text: Back, No, Cancel */
+.button--secondary {
+    background-color: rgba(201, 164, 92, 0);
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+.button--secondary:hover,
+.button--secondary:focus {
+    background-color: rgba(201, 164, 92, 0.16);
+    border-color: var(--gold-bright);
+    color: var(--gold-bright);
+}
+
+.button--secondary:active {
+    background-color: rgba(201, 164, 92, 0.28);
+}
+
+/* Gold fill, dark text: the choice a dialog is about */
+.button--primary {
+    background-color: var(--gold);
+    border-color: var(--gold);
+    color: var(--background);
+}
+
+.button--primary:hover,
+.button--primary:focus {
+    background-color: var(--gold-bright);
+    border-color: var(--gold-bright);
+}
+
+.button--primary:active {
+    background-color: #AB8B4E;
+    border-color: #AB8B4E;
+}
+
+/*---------------------------------------- Opponent picker ----------------------------------------*/
+.opponent-picker {
+    width: 1300px;
+    padding: 34px 40px 36px 40px;
+    align-items: center;
+}
+
+.opponent-picker__ornament {
+    margin: 14px 0 30px 0;
+}
+
+/* Two entries a row */
+.opponent-picker__entries {
+    width: 1220px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.opponent-picker__back {
+    width: 240px;
+    height: 64px;
+    margin-top: 22px;
+}
+
+/* One opponent: the leader's portrait in a gold ring, the deck's name, its faction and leader; lights up like a menu
+   entry (it is one: .menu-item gives the band, the rule and the focus on hover) */
+.opponent {
+    width: 600px;
+    height: 104px;
+    margin: 0 0 12px 0;
+    padding: 0 0 0 20px;
+    flex-direction: row;
+    align-items: center;
+}
+
+.opponent__portrait {
+    width: 88px;
+    height: 88px;
+    border-width: 4px;
+    border-color: var(--gold);
+    border-radius: 44px;
+    overflow: hidden;
+    background-color: var(--panel-raised);
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* The leader's card, its face in the circle (the point 28% down the card at the circle's middle) */
+.opponent__art {
+    position: absolute;
+    left: -30px;
+    top: -21px;
+    width: 140px;
+    height: 218px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+.opponent__question {
+    -unity-font-definition: var(--heading-font);
+    font-size: 44px;
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    padding: 0 0 4px 0;
+}
+
+.opponent__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-left: 22px;
+}
+
+.opponent__title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 30px;
+    letter-spacing: 2.2px;
+    color: var(--text);
+    padding: 0;
+    margin: 0;
+    transition-property: color;
+    transition-duration: 0.12s;
+}
+
+.opponent:hover .opponent__title,
+.opponent:focus .opponent__title {
+    color: var(--gold-bright);
+}
+
+.opponent__detail {
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.opponent__chosen {
+    width: 32px;
+    height: 32px;
+    margin: 0 18px 0 8px;
+    flex-shrink: 0;
+    background-image: url("project://database/Assets/UI/Sprites/IconCheck.png");
+    -unity-background-image-tint-color: var(--gold);
+}

@@ -1286,7 +1286,7 @@ namespace Gwent.EditorTools
                     string entry = opponent != null ? "Opponent " + CardLibrary.ParseDeck(opponent.text, opponent.name).Name : "(no opponent deck)";
                     Click(0.3, Named("Item Play"));
                     At(0.8, () => check(GameObject.Find("OpponentPicker") != null, "Play opens the opponent picker"));
-                    Click(1.1, NamedUnder("OpponentPicker", entry));
+                    Click(1.1, Named(entry));
                     At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && SceneManager.GetActiveScene().name == SceneNames.Game,
                         "choosing an opponent remembers it and starts the battle"));
                 }

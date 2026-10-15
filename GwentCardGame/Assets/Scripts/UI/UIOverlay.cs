@@ -166,6 +166,7 @@ namespace Gwent.UI
         // Registers a dialog: Escape (and right click, unless disabled) closes it, keyboard navigation stays inside it
         public static void PushModal(GameObject root, Action on_close = null, bool close_on_right_click = true)
         {
+            _ = Root; // its runner closes the dialogs on Escape (a UI Toolkit dialog may be the scene's first use of the overlay)
             Modal modal = new Modal
             {
                 root = root,

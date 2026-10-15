@@ -50,7 +50,7 @@ namespace Gwent.Menus
         private void Focus(int index)
         {
             if (index < items.Count)
-                items[index].Focus();
+                UIScreens.Focus(items[index]);
         }
 
         private void CoverWithKeyArt()
