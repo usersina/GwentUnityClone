@@ -1,7 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Rules;
 using Place = Gwent.Battle.BoardChange.Place;
 using UnityEngine;
@@ -21,20 +22,18 @@ namespace Gwent.Battle
         private const float ClearStagger = 0.03f;
         private const float Arc = 50f;        // the bend of a played card's glide (overlay units)
 
-        private readonly MonoBehaviour host;
         private readonly BoardView board;
         private readonly CardDatabase db;
 
-        public BoardPresenter(MonoBehaviour host, BoardView board, CardDatabase db)
+        public BoardPresenter(BoardView board, CardDatabase db)
         {
-            this.host = host;
             this.board = board;
             this.db = db;
         }
 
         // played_id: the card played (-1: none, a leader ability); medic_choice: the player is about to pick the card a
         // medic brings back
-        public IEnumerator Play(BoardChange change, int played_id, bool by_player, bool medic_choice)
+        public async UniTask Play(BoardChange change, int played_id, bool by_player, bool medic_choice, CancellationToken ct)
         {
             HashSet<object> shown = new HashSet<object>();
 
@@ -49,50 +48,50 @@ namespace Gwent.Battle
                     shown.Add(from_hand);
                     Drop(from_hand.From);
                 }
-                yield return Land(played, card);
-                yield return Flare(played, card);
+                await Land(played, card, ct);
+                await Flare(played, card, ct);
             }
 
             // Scorched cards burn (then go to the discard piles with the rest)
             RectTransform[] burned = change.Moves.Where(m => m.From.From == Place.Row && m.To.To == Place.Discard).Select(m => m.From.Ghost)
                 .Concat(change.Gone.Where(d => d.From == Place.Row).Select(d => d.Ghost)).ToArray();
             if (burned.Length > 0)
-                yield return CardEffects.Burn(burned);
+                await CardEffects.Burn(burned, ct);
 
             // A medic's flare over its discard pile, then the card it brings back
             List<BoardChange.Move> revived = change.Moves.Where(m => m.From.From == Place.Discard && m.To.To != Place.Hand).ToList();
             if (card != null && card.ability == Ability.Medic && (revived.Count > 0 || medic_choice))
-                yield return CardEffects.MedicPile(revived.Count > 0 && revived[0].From.Ghost != null ? revived[0].From.Ghost : board.PileTop(by_player));
+                await CardEffects.MedicPile(revived.Count > 0 && revived[0].From.Ghost != null ? revived[0].From.Ghost : board.PileTop(by_player), ct);
             if (revived.Count > 0)
             {
                 shown.UnionWith(revived.Cast<object>());
-                yield return All(revived.Select((move, i) => Move(move, i * Stagger)));
+                await UniTask.WhenAll(revived.Select((move, i) => Move(move, i * Stagger, ct)));
             }
 
             // Everything else, together
-            List<IEnumerator> rest = new List<IEnumerator>();
+            List<UniTask> rest = new List<UniTask>();
             foreach (BoardChange.Move move in change.Moves.Where(m => !shown.Contains(m)))
-                rest.Add(Move(move, rest.Count * Stagger));
+                rest.Add(Move(move, rest.Count * Stagger, ct));
             foreach (BoardChange.Arrival arrival in change.New.Where(a => !shown.Contains(a)))
-                rest.Add(Arrive(arrival, rest.Count * Stagger, arrival.To == Place.Hand || arrival.To == Place.Row));
+                rest.Add(Arrive(arrival, rest.Count * Stagger, arrival.To == Place.Hand || arrival.To == Place.Row, ct));
             foreach (BoardChange.Departure departure in change.Gone)
-                rest.Add(Vanish(departure));
-            yield return All(rest);
+                rest.Add(Vanish(departure, ct));
+            await UniTask.WhenAll(rest);
         }
 
         // The end of a round: every card on the board leaves for its discard pile at once (the Monsters' kept unit
         // stays). A card the new round brings flies from the deck to the hand (the Northern Realms' draw); a summoned one
         // (the Bovine Defense Force) appears in its place.
-        public IEnumerator Clear(BoardChange change)
+        public async UniTask Clear(BoardChange change, CancellationToken ct)
         {
-            List<IEnumerator> all = new List<IEnumerator>();
+            List<UniTask> all = new List<UniTask>();
             foreach (BoardChange.Move move in change.Moves)
-                all.Add(Move(move, all.Count * ClearStagger));
+                all.Add(Move(move, all.Count * ClearStagger, ct));
             foreach (BoardChange.Arrival arrival in change.New)
-                all.Add(Arrive(arrival, all.Count * ClearStagger, arrival.To == Place.Hand));
+                all.Add(Arrive(arrival, all.Count * ClearStagger, arrival.To == Place.Hand, ct));
             foreach (BoardChange.Departure departure in change.Gone)
-                all.Add(Vanish(departure));
-            yield return All(all);
+                all.Add(Vanish(departure, ct));
+            await UniTask.WhenAll(all);
         }
 
         // The played card's arrival. Copies called with it are the same card: the player's played card is the one
@@ -108,71 +107,71 @@ namespace Gwent.Battle
             return arrival;
         }
 
-        private IEnumerator Land(BoardChange.Arrival played, Card card)
+        private async UniTask Land(BoardChange.Arrival played, Card card, CancellationToken ct)
         {
             LaneHold.Release(played.Card);
             Rect slot = CardMotion.ScreenRect((RectTransform)played.Card.transform);
-            yield return CardMotion.Fly(CardMotion.Ghost(played.CardId, board.LaunchRect(slot.size)), played.Card, LandSeconds, Arc);
+            await CardMotion.Fly(CardMotion.Ghost(played.CardId, board.LaunchRect(slot.size)), played.Card, LandSeconds, Arc, ct);
             if (card.IsUnit && card.unique)
-                yield return CardEffects.Hero(played.Card);
+                await CardEffects.Hero(played.Card, ct);
             else
-                yield return CardEffects.Sparkle(played.Card);
+                await CardEffects.Sparkle(played.Card, ct);
         }
 
         // Its ability's icon blazes over it (a tight bond over all its cards, once there are two); a horn lights its row
-        private IEnumerator Flare(BoardChange.Arrival played, Card card)
+        private async UniTask Flare(BoardChange.Arrival played, Card card, CancellationToken ct)
         {
             if (played.Card == null)
-                yield break;
+                return;
             string flare = CardEffects.FlareFor(card.ability);
-            List<IEnumerator> effects = new List<IEnumerator>();
+            List<UniTask> effects = new List<UniTask>();
             if (card.ability == Ability.TightBond)
             {
                 List<GameObject> bond = played.Card.transform.parent.Cast<Transform>().Where(c => c.name == played.Card.name).Select(c => c.gameObject).ToList();
                 if (bond.Count > 1)
-                    effects.AddRange(bond.Select(c => CardEffects.Flare(c, flare)));
+                    effects.AddRange(bond.Select(c => CardEffects.Flare(c, flare, ct)));
             }
             else if (flare != null)
-                effects.Add(CardEffects.Flare(played.Card, flare));
+                effects.Add(CardEffects.Flare(played.Card, flare, ct));
             if (card.ability == Ability.CommanderHorn || card.ability == Ability.UnitHorn)
             {
                 Transform row = played.Card.transform.parent;
-                effects.Add(CardEffects.RowGlow((RectTransform)(row.name == "Special" ? row.parent.Find("Unit") : row)));
+                effects.Add(CardEffects.RowGlow((RectTransform)(row.name == "Special" ? row.parent.Find("Unit") : row), ct));
             }
-            yield return All(effects);
+            await UniTask.WhenAll(effects);
         }
 
         // A card that left a place flies to its new one
-        private static IEnumerator Move(BoardChange.Move move, float delay)
+        private static async UniTask Move(BoardChange.Move move, float delay, CancellationToken ct)
         {
             if (delay > 0)
-                yield return new WaitForSeconds(delay);
+                await Wait(delay, ct);
             LaneHold.Release(move.From.Spacer);
             LaneHold.Release(move.To.Card);
-            yield return CardMotion.Fly(move.From.Ghost, move.To.Card, MoveSeconds);
+            await CardMotion.Fly(move.From.Ghost, move.To.Card, MoveSeconds, ct: ct);
         }
 
         // A card from off the board: from the deck, or appearing where it is
-        private IEnumerator Arrive(BoardChange.Arrival arrival, float delay, bool from_deck)
+        private async UniTask Arrive(BoardChange.Arrival arrival, float delay, bool from_deck, CancellationToken ct)
         {
             if (delay > 0)
-                yield return new WaitForSeconds(delay);
+                await Wait(delay, ct);
             LaneHold.Release(arrival.Card);
             if (arrival.Card == null)
-                yield break;
+                return;
             if (from_deck)
             {
-                yield return CardMotion.Fly(CardMotion.Ghost(arrival.CardId, board.DeckRect(arrival.IsPlayer)), arrival.Card, MoveSeconds);
-                yield break;
+                await CardMotion.Fly(CardMotion.Ghost(arrival.CardId, board.DeckRect(arrival.IsPlayer)), arrival.Card, MoveSeconds, ct: ct);
+                return;
             }
             CardMotion.Hide(arrival.Card, false);
             CardMotion.SettleIn(arrival.Card);
         }
 
-        private static IEnumerator Vanish(BoardChange.Departure departure)
+        private static async UniTask Vanish(BoardChange.Departure departure, CancellationToken ct)
         {
             LaneHold.Release(departure.Spacer);
-            yield return CardMotion.FadeOut(departure.Ghost, 0.25f);
+            await CardMotion.FadeOut(departure.Ghost, 0.25f, ct);
         }
 
         // A departure that is not shown (the opponent's played card leaving its hand: it comes in from the showcase)
@@ -183,23 +182,10 @@ namespace Gwent.Battle
             LaneHold.Release(departure.Spacer);
         }
 
-        // Runs these together, until the last one ends
-        private IEnumerator All(IEnumerable<IEnumerator> routines)
+        // A wait in game time (the pause stops it)
+        private static UniTask Wait(float seconds, CancellationToken ct)
         {
-            int running = 0;
-            foreach (IEnumerator routine in routines.ToList())
-            {
-                running++;
-                host.StartCoroutine(Run(routine, () => running--));
-            }
-            while (running > 0)
-                yield return null;
-        }
-
-        private static IEnumerator Run(IEnumerator routine, Action done)
-        {
-            yield return routine;
-            done();
+            return UniTask.Delay(TimeSpan.FromSeconds(seconds), DelayType.DeltaTime, PlayerLoopTiming.Update, ct);
         }
     }
 }

@@ -1,5 +1,6 @@
-using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
@@ -45,12 +46,12 @@ namespace Gwent.Battle
         }
 
         // A soft white light around a card that just landed (around it: its art stays clear)
-        public static IEnumerator Sparkle(GameObject card)
+        public static async UniTask Sparkle(GameObject card, CancellationToken ct = default)
         {
             if (card == null)
-                yield break;
+                return;
             Image glow = Halo("Sparkle", new Color(1f, 0.95f, 0.8f, 0), CardMotion.ScreenRect((RectTransform)card.transform));
-            yield return Animate(SparkleSeconds, t =>
+            await Animate(ct, SparkleSeconds, t =>
             {
                 float a = t < 0.3f ? t / 0.3f : 1 - (t - 0.3f) / 0.7f;
                 glow.color = new Color(1f, 0.95f, 0.8f, 0.9f * a);
@@ -60,19 +61,19 @@ namespace Gwent.Battle
         }
 
         // An ability's icon blazing over its card
-        public static IEnumerator Flare(GameObject card, string flare)
+        public static async UniTask Flare(GameObject card, string flare, CancellationToken ct = default)
         {
             if (card == null || flare == null)
-                yield break;
-            yield return FlareAt(CardMotion.ScreenRect((RectTransform)card.transform), flare, Blaze);
+                return;
+            await FlareAt(ct, CardMotion.ScreenRect((RectTransform)card.transform), flare, Blaze);
         }
 
         // The medic's sign on its discard pile (The Witcher 3): the card turns green under a large white heart, in a green
         // glow with green flames licking its left and bottom edges; then the heart flashes out
-        public static IEnumerator MedicPile(RectTransform pile_card)
+        public static async UniTask MedicPile(RectTransform pile_card, CancellationToken ct = default)
         {
             if (pile_card == null)
-                yield break;
+                return;
             Rect rect = CardMotion.ScreenRect(pile_card);
             Vector2 center, size;
             CardMotion.ToLayout(rect, out center, out size);
@@ -101,7 +102,7 @@ namespace Gwent.Battle
                         new Color(0.65f, 1f, 0.65f, 0.75f), new Color(0.1f, 0.75f, 0.3f, 0.35f), 0.8f));
                 }
                 Step(wisps, dt, -25);
-                yield return null;
+                await UniTask.Yield(PlayerLoopTiming.Update, ct);
             }
             Clear(wisps);
             Object.Destroy(glow.gameObject);
@@ -109,12 +110,12 @@ namespace Gwent.Battle
             Object.Destroy(heart.gameObject);
         }
 
-        private static IEnumerator FlareAt(Rect rect, string flare, Color tint)
+        private static async UniTask FlareAt(CancellationToken ct, Rect rect, string flare, Color tint)
         {
             Image blaze = Overlay("FlareGlow", UITheme.Current.radial, tint, Grow(rect, 2.0f));
             Image icon = Overlay("Flare", SpriteCache.Load("W3/Effects/" + flare), Color.white, Grow(rect, 0.95f));
             icon.preserveAspect = true;
-            yield return Animate(FlareSeconds, t =>
+            await Animate(ct, FlareSeconds, t =>
             {
                 float a = t < 0.15f ? t / 0.15f : t > 0.65f ? 1 - (t - 0.65f) / 0.35f : 1;
                 float pulse = 1 + 0.06f * Mathf.Sin(t * Mathf.PI * 3);
@@ -131,10 +132,10 @@ namespace Gwent.Battle
         // A hero landing, as in The Witcher 3: grey smoke covers the card and a flame runs once around its edge (down the
         // left side, along the bottom, up the right side, back along the top), leaving a glowing outline and throwing
         // sparks; then the smoke clears, the card shows and a few embers drift up
-        public static IEnumerator Hero(GameObject card)
+        public static async UniTask Hero(GameObject card, CancellationToken ct = default)
         {
             if (card == null)
-                yield break;
+                return;
             Vector2 center, size;
             CardMotion.ToLayout(CardMotion.ScreenRect((RectTransform)card.transform), out center, out size);
             float w = size.x, h = size.y, perimeter = 2 * (w + h);
@@ -225,7 +226,7 @@ namespace Gwent.Battle
                 }
                 Step(sparks, dt, 220);
                 Step(embers, dt, -20);
-                yield return null;
+                await UniTask.Yield(PlayerLoopTiming.Update, ct);
             }
             CardMotion.SetAlpha(card, 1);
             Clear(sparks);
@@ -266,12 +267,12 @@ namespace Gwent.Battle
         }
 
         // A horn's warm golden glow around its row (the cards in it stay clear)
-        public static IEnumerator RowGlow(RectTransform row)
+        public static async UniTask RowGlow(RectTransform row, CancellationToken ct = default)
         {
             if (row == null)
-                yield break;
+                return;
             Image glow = Halo("HornGlow", new Color(1f, 0.72f, 0.28f, 0), CardMotion.ScreenRect(row));
-            yield return Animate(GlowSeconds, t =>
+            await Animate(ct, GlowSeconds, t =>
             {
                 glow.color = new Color(1f, 0.72f, 0.28f, 0.9f * Mathf.Sin(t * Mathf.PI));
             });
@@ -279,7 +280,7 @@ namespace Gwent.Battle
         }
 
         // Scorch: flames over each card about to be destroyed
-        public static IEnumerator Burn(RectTransform[] cards)
+        public static async UniTask Burn(RectTransform[] cards, CancellationToken ct = default)
         {
             Image[] flames = new Image[cards.Length];
             for (int i = 0; i < cards.Length; i++)
@@ -288,7 +289,7 @@ namespace Gwent.Battle
                     Rect rect = CardMotion.ScreenRect(cards[i]);
                     flames[i] = Overlay("Scorch", SpriteCache.Load("W3/Effects/scorch"), new Color(1, 1, 1, 0), Grow(rect, 1.15f));
                 }
-            yield return Animate(BurnSeconds, t =>
+            await Animate(ct, BurnSeconds, t =>
             {
                 float a = t < 0.2f ? t / 0.2f : 1;
                 foreach (Image flame in flames)
@@ -304,16 +305,16 @@ namespace Gwent.Battle
         }
 
         // A lost round: the gem pulses, then bursts into shards that fall away, leaving it grey
-        public static IEnumerator Shatter(Image gem, Sprite broken)
+        public static async UniTask Shatter(Image gem, Sprite broken, CancellationToken ct = default)
         {
             if (gem == null)
-                yield break;
+                return;
             Rect rect = CardMotion.ScreenRect(gem.rectTransform);
             Color red = new Color(0.86f, 0.12f, 0.1f);
             Image glow = Overlay("GemGlow", UITheme.Current.radial, new Color(red.r, red.g, red.b, 0), Grow(rect, 2.6f));
             Image pulse = Overlay("Gem", gem.sprite, Color.white, rect);
             pulse.preserveAspect = true;
-            yield return Animate(GemPulseSeconds, t =>
+            await Animate(ct, GemPulseSeconds, t =>
             {
                 float beat = Mathf.Abs(Mathf.Sin(t * Mathf.PI * 2)); // two beats
                 pulse.rectTransform.localScale = Vector3.one * (1 + 0.22f * beat);
@@ -340,7 +341,7 @@ namespace Gwent.Battle
                 spin[i] = Random.Range(-600f, 600f);
                 shards[i].rectTransform.localEulerAngles = new Vector3(0, 0, Random.Range(0f, 360f));
             }
-            yield return Animate(ShardSeconds, t =>
+            await Animate(ct, ShardSeconds, t =>
             {
                 float seconds = t * ShardSeconds;
                 for (int i = 0; i < count; i++)
@@ -478,14 +479,14 @@ namespace Gwent.Battle
             return new Rect(rect.center - size / 2, size);
         }
 
-        private static IEnumerator Animate(float seconds, System.Action<float> step)
+        private static async UniTask Animate(CancellationToken ct, float seconds, System.Action<float> step)
         {
             float age = 0;
             while (age < seconds)
             {
                 age += Time.deltaTime;
                 step(Mathf.Clamp01(age / seconds));
-                yield return null;
+                await UniTask.Yield(PlayerLoopTiming.Update, ct);
             }
         }
     }

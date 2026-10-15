@@ -1,5 +1,6 @@
 using System;
-using System.Collections;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
@@ -48,11 +49,11 @@ namespace Gwent.Battle
         }
 
         // The opponent's card: in from above the board, then a moment in the showcase
-        public static IEnumerator Opponent(Card card, Rect from)
+        public static async UniTask Opponent(Card card, Rect from, CancellationToken ct = default)
         {
             Clear();
             Show(card, from, false);
-            yield return new WaitForSeconds(GlideSeconds + HoldSeconds);
+            await UniTask.Delay(TimeSpan.FromSeconds(GlideSeconds + HoldSeconds), Cysharp.Threading.Tasks.DelayType.DeltaTime, PlayerLoopTiming.Update, ct);
         }
 
         // The showcase's size on screen

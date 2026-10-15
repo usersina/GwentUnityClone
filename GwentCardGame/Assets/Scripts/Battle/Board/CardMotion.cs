@@ -1,5 +1,6 @@
-using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.UI;
 using LitMotion;
@@ -115,12 +116,12 @@ namespace Gwent.Battle
 
         // Glides a ghost to the card object (followed as it moves) along a slight arc, shows the object and removes the
         // ghost. Eases out, as The Witcher 3's cards do.
-        public static IEnumerator Fly(RectTransform ghost, GameObject target, float seconds, float arc = 0)
+        public static async UniTask Fly(RectTransform ghost, GameObject target, float seconds, float arc = 0, CancellationToken ct = default)
         {
             if (target != null)
             {
                 Rect last = ScreenRect((RectTransform)target.transform);
-                yield return Glide(ghost, () => target != null ? last = ScreenRect((RectTransform)target.transform) : last, seconds, arc);
+                await Glide(ghost, () => target != null ? last = ScreenRect((RectTransform)target.transform) : last, seconds, arc, ct);
             }
             Hide(target, false);
             if (ghost != null)
@@ -128,12 +129,12 @@ namespace Gwent.Battle
         }
 
         // Glides a ghost to a screen rectangle (asked again every frame, as it may move), easing out along a slight arc
-        public static IEnumerator Glide(RectTransform ghost, System.Func<Rect> to, float seconds, float arc = 0)
+        public static UniTask Glide(RectTransform ghost, System.Func<Rect> to, float seconds, float arc = 0, CancellationToken ct = default)
         {
             if (ghost == null)
-                yield break;
+                return UniTask.CompletedTask;
             Vector2 from_pos = ghost.anchoredPosition, from_size = ghost.sizeDelta;
-            yield return LMotion.Create(0f, 1f, seconds).WithEase(Ease.OutCubic).Bind(eased =>
+            return LMotion.Create(0f, 1f, seconds).WithEase(Ease.OutCubic).Bind(eased =>
             {
                 Vector2 to_pos, to_size;
                 ToLayout(to(), out to_pos, out to_size);
@@ -141,7 +142,7 @@ namespace Gwent.Battle
                 Vector2 bend = path.sqrMagnitude > 1 ? new Vector2(path.y, -path.x).normalized * arc * Mathf.Sin(Mathf.PI * eased) : Vector2.zero;
                 ghost.anchoredPosition = Vector2.LerpUnclamped(from_pos, to_pos, eased) + bend;
                 ghost.sizeDelta = Vector2.LerpUnclamped(from_size, to_size, eased);
-            }).AddTo(ghost.gameObject).ToYieldInstruction();
+            }).AddTo(ghost.gameObject).ToUniTask(ct);
         }
 
         // Glides an element of the overlay to a screen rectangle (asked again every frame, as it may move), easing out;
@@ -157,11 +158,11 @@ namespace Gwent.Battle
         }
 
         // Fades a ghost out where it stands (a card leaving the board for good)
-        public static IEnumerator FadeOut(RectTransform ghost, float seconds)
+        public static async UniTask FadeOut(RectTransform ghost, float seconds, CancellationToken ct = default)
         {
             if (ghost == null)
-                yield break;
-            yield return LMotion.Create(1f, 0f, seconds).BindToAlpha(Group(ghost.gameObject)).AddTo(ghost.gameObject).ToYieldInstruction();
+                return;
+            await LMotion.Create(1f, 0f, seconds).BindToAlpha(Group(ghost.gameObject)).AddTo(ghost.gameObject).ToUniTask(ct);
             if (ghost != null)
                 Object.Destroy(ghost.gameObject);
         }

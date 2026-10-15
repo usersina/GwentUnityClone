@@ -1,7 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Menus;
 using Gwent.Rules;
@@ -61,8 +62,8 @@ namespace Gwent.Battle
         private int presenting;           // plays being shown (the rules resolved them already)
         private readonly List<BoardChange> presented = new List<BoardChange>();
         private GameObject mulliganPrompt;
-        private Coroutine turnRoutine;
-        private int turnGeneration;
+        private CancellationTokenSource flow; // the battle's flow: its opening, rounds and plays (giving up cancels it)
+        private CancellationTokenSource turn; // the turn under way (a new turn cancels the one before)
         private bool roundOpening;      // the next turn opens a round (after "Round Start")
         private bool? firstPlayer;      // who takes the battle's first turn
         private bool? lastTurnWasPlayer; // whose turn was announced last in this round
@@ -83,12 +84,16 @@ namespace Gwent.Battle
             Db = CardLibrary.Get(CardsDatabase);
             TempObject = GameObject.Find("Temp");
             board = new BoardView(this);
-            presenter = new BoardPresenter(this, board, Db);
+            presenter = new BoardPresenter(board, Db);
+            flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
             ai = GetComponent<AiPlayer>();
         }
 
         private void OnDestroy()
         {
+            StopTurn();
+            if (flow != null)
+                flow.Dispose();
             if (Instance == this)
             {
                 if (!IsBattleOver)
@@ -113,12 +118,12 @@ namespace Gwent.Battle
             UIOverlay.SetEscapeAction(OnEscape);
             battleState = BattleState.Start;
             SetupBattle();
-            StartCoroutine(BattleOpening());
+            BattleOpening(flow.Token).Forget();
         }
 
         // The Witcher 3's opening: the leaders' notice (The White Flame), who goes first (a coin toss, or the Scoia'tael
         // perk), then the redraw; the first round starts once both sides are done
-        private IEnumerator BattleOpening()
+        private async UniTaskVoid BattleOpening(CancellationToken ct)
         {
             if (whiteFlameNotice != null)
             {
@@ -128,12 +133,10 @@ namespace Gwent.Battle
 
             if (PlayerInfo.Faction == Faction.Scoiatael && EnemyInfo.Faction != Faction.Scoiatael)
             {
-                while (BattleBanner.Busy)
-                    yield return null;
+                await While(() => BattleBanner.Busy, ct);
                 firstPlayer = null;
                 TurnPicker.SetActive(true); // the player's choice comes back through ChooseFirstPlayer
-                while (!firstPlayer.HasValue)
-                    yield return null;
+                await While(() => !(firstPlayer.HasValue), ct);
                 BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
             }
             else if (PlayerInfo.Faction != Faction.Scoiatael && EnemyInfo.Faction == Faction.Scoiatael)
@@ -146,12 +149,11 @@ namespace Gwent.Battle
                 firstPlayer = Rng.Shared.Next(0, 2) != 0;
                 BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
             }
-            while (BattleBanner.Busy)
-                yield return null;
+            await While(() => BattleBanner.Busy, ct);
 
             if (PlayerInfo.CanExchange)
                 mulliganPrompt = RedrawPicker.ShowPhase(this);
-            yield return RoundOpening(firstPlayer.Value);
+            await RoundOpening(firstPlayer.Value, ct);
         }
 
         public Rect DeckScreenRect(bool is_player) { return board.DeckRect(is_player); }
@@ -315,7 +317,7 @@ namespace Gwent.Battle
         //----------------------------------------------TURNS---------------------------------------------------//
         // Picks who takes the first turn of a round: the given side, or for the battle's first round the Scoia'tael perk
         // or a coin toss
-        private IEnumerator RoundOpening(bool player_starts)
+        private async UniTask RoundOpening(bool player_starts, CancellationToken ct)
         {
             if (EnemyInfo.CanExchange)
             {
@@ -326,15 +328,13 @@ namespace Gwent.Battle
 
             // Wait for all players to either redraw or skip (and the last redrawn card to land), and for the end of the last
             // round's notices
-            while (EnemyInfo.CanExchange || PlayerInfo.CanExchange || RedrawPicker.IsAnimating || BattleBanner.Busy)
-                yield return null;
+            await While(() => EnemyInfo.CanExchange || PlayerInfo.CanExchange || RedrawPicker.IsAnimating || BattleBanner.Busy, ct);
 
             if (mulliganPrompt != null)
                 Destroy(mulliganPrompt);
 
             BattleBanner.Show(BattleBanner.RoundStart, "Round Start");
-            while (BattleBanner.Busy)
-                yield return null;
+            await While(() => BattleBanner.Busy, ct);
             roundOpening = true;
             lastTurnWasPlayer = null;
             BattleLog.RoundStart(player_starts);
@@ -345,78 +345,74 @@ namespace Gwent.Battle
             StartTurn(player_starts);
         }
 
-        // Only one turn coroutine at a time: a stale "player turn in 1s" must not fire during a later turn
-        // Each new turn bumps the generation: a coroutine from an older turn gives up after its wait.
-        // (A turn can start another one synchronously, e.g. when the side to play has already passed.)
+        // One turn at a time: starting a turn cancels the one before (a stale "player turn in 0.3 s" must not fire in a
+        // later turn). A turn can start the next one at once, when the side to play has already passed: the token is
+        // made before the turn runs, so the newer turn is the one that stays.
         private void StartTurn(bool is_player)
         {
             StopTurn();
-            int generation = turnGeneration;
-            Coroutine routine = StartCoroutine(is_player ? PlayerTurn(generation) : EnemyTurn(generation));
-            if (generation == turnGeneration)
-                turnRoutine = routine;
+            turn = CancellationTokenSource.CreateLinkedTokenSource(flow.Token);
+            (is_player ? PlayerTurn(turn.Token) : EnemyTurn(turn.Token)).Forget();
         }
 
         private void StopTurn()
         {
-            turnGeneration++;
-            if (turnRoutine != null)
-                StopCoroutine(turnRoutine);
-            turnRoutine = null;
+            if (turn == null)
+                return;
+            turn.Cancel();
+            turn.Dispose();
+            turn = null;
         }
 
-        private IEnumerator PlayerTurn(int generation)
+        private async UniTask PlayerTurn(CancellationToken ct)
         {
             if (!PlayerInfo.hasPassed && OutOfPlays(true))
                 MarkPassed(true, "nothing_to_play");
             if (PlayerInfo.hasPassed)
             {
                 CheckRoundEnd();
-                yield break;
+                return;
             }
             AnnounceTurn(true);
-            yield return new WaitForSeconds(0.3f);
-            while (BattleBanner.Busy)
-                yield return null;
-            if (generation != turnGeneration)
-                yield break;
+            await Wait(0.3f, ct);
+            await While(() => BattleBanner.Busy, ct);
             BattleLog.TurnStart(this, true);
             GameAudio.PlaySfx("turn_player");
             battleState = BattleState.PlayerTurn;
         }
 
-        private IEnumerator EnemyTurn(int generation)
+        private async UniTask EnemyTurn(CancellationToken ct)
         {
             if (!EnemyInfo.hasPassed && OutOfPlays(false))
                 MarkPassed(false, "nothing_to_play");
             if (EnemyInfo.hasPassed)
             {
                 CheckRoundEnd();
-                yield break;
+                return;
             }
             battleState = BattleState.EnemyTurn;
             AnnounceTurn(false);
             BattleLog.TurnStart(this, false);
             GameAudio.PlaySfx("turn_enemy");
-            AiPlayer.Decision decision = ai.StartDecision(); // Hard thinks while the turn's notice shows
-            yield return new WaitForSeconds(0.3f);
-            while (!decision.Done || BattleBanner.Busy)
-                yield return null;
-            yield return new WaitForSeconds(0.15f);
-            if (generation != turnGeneration)
-                yield break;
+            UniTask<AiAction> deciding = ai.Decide(ct); // Hard thinks while the turn's notice shows
+            await Wait(0.3f, ct);
+            AiAction action = await deciding;
+            await While(() => BattleBanner.Busy, ct);
+            await Wait(0.15f, ct);
 
             // The card the opponent plays (or its leader) comes in from above the board to the showcase and stays a
             // moment there, then glides to its place
-            AiAction action = decision.Action;
             int shown = action.Type == AiActionType.PlayCard ? action.CardId : action.Type == AiActionType.UseLeader ? EnemyInfo.Leader : -1;
             if (shown != -1)
             {
-                yield return CardShowcase.Opponent(Db.Get(shown), board.EntryRect(CardShowcase.ScreenSize()));
-                if (generation != turnGeneration)
+                try
+                {
+                    await CardShowcase.Opponent(Db.Get(shown), board.EntryRect(CardShowcase.ScreenSize()), ct);
+                }
+                catch (OperationCanceledException)
                 {
                     CardShowcase.Clear();
-                    yield break;
+                    throw;
                 }
             }
             ai.Play(action);
@@ -512,22 +508,20 @@ namespace Gwent.Battle
             else
                 BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long);
             PlayRoundOutcomeAudio(winner);
-            StartCoroutine(FinishRound(winner, lost));
+            FinishRound(winner, lost, flow.Token).Forget();
         }
 
         // After the result, the gem of each side that lost a life breaks (The Witcher 3), then the battle ends or the
         // board clears for the next round
-        private IEnumerator FinishRound(RoundWinner winner, bool[] lost)
+        private async UniTaskVoid FinishRound(RoundWinner winner, bool[] lost, CancellationToken ct)
         {
-            while (BattleBanner.Busy)
-                yield return null;
+            await While(() => BattleBanner.Busy, ct);
 
-            List<Coroutine> shatters = new List<Coroutine>();
+            List<UniTask> shatters = new List<UniTask>();
             foreach (bool is_player in new[] { true, false })
                 if (lost[is_player ? 0 : 1])
-                    shatters.Add(StartCoroutine(CardEffects.Shatter(View(is_player).Stats.LostGem(Info(is_player).Lives), View(is_player).Stats.greyRuby)));
-            foreach (Coroutine shatter in shatters)
-                yield return shatter;
+                    shatters.Add(CardEffects.Shatter(View(is_player).Stats.LostGem(Info(is_player).Lives), View(is_player).Stats.greyRuby, ct));
+            await UniTask.WhenAll(shatters);
             View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
             View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
 
@@ -593,7 +587,7 @@ namespace Gwent.Battle
 
             // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
             bool player_starts = winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer);
-            Present(change, presenter.Clear(change), () => StartCoroutine(RoundOpening(player_starts)));
+            Present(change, ct => presenter.Clear(change, ct), () => RoundOpening(player_starts, flow.Token).Forget());
         }
 
         public bool IsBattleOver
@@ -611,7 +605,9 @@ namespace Gwent.Battle
             if (IsBattleOver)
                 return;
             StopTurn();
-            StopAllCoroutines();
+            flow.Cancel();
+            flow.Dispose();
+            flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
             EndPresentations();
             BattleBanner.Clear();
             DiscardViewer.Close();
@@ -697,7 +693,7 @@ namespace Gwent.Battle
 
             bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
             BoardChange change = board.EndChange();
-            Present(change, presenter.Play(change, card_id, is_player_turn, medic_choice), () =>
+            Present(change, ct => presenter.Play(change, card_id, is_player_turn, medic_choice, ct), () =>
             {
                 // Medic: the player picks a unit to restore from the discard panel
                 if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
@@ -710,26 +706,40 @@ namespace Gwent.Battle
         }
 
         // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act
-        private void Present(BoardChange change, IEnumerator show, Action then)
+        // A play's presentation, then what follows it. Never left waiting: a presentation that fails or runs past the limit
+        // (game time: the pause stops it) is cut short and the board shows the result at once. Giving up cancels it with
+        // the battle's flow, and what would follow does not happen.
+        private void Present(BoardChange change, Func<CancellationToken, UniTask> show, Action then)
         {
-            StartCoroutine(Presenting(change, show, then));
+            Presenting(change, show, then, flow.Token).Forget();
         }
 
-        private IEnumerator Presenting(BoardChange change, IEnumerator show, Action then)
+        private async UniTaskVoid Presenting(BoardChange change, Func<CancellationToken, UniTask> show, Action then, CancellationToken ct)
         {
             presenting++;
             presented.Add(change);
-            // Never left waiting: a presentation that fails or runs too long is cut short (game time, the pause stops it)
             bool finished = false;
-            Coroutine running = StartCoroutine(Then(show, () => finished = true));
-            float limit = Time.time + PresentationLimit;
-            while (!finished && Time.time < limit)
-                yield return null;
-            if (!finished)
+            using (CancellationTokenSource limit = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
-                StopCoroutine(running);
-                Debug.LogError("A play's presentation did not end, the board shows the result at once");
+                try
+                {
+                    finished = await UniTask.WhenAny(show(limit.Token), Wait(PresentationLimit, limit.Token)) == 0;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+                finally
+                {
+                    limit.Cancel(); // the presentation, if the limit came first (or the limit, if it ended)
+                }
             }
+            if (!finished)
+                Debug.LogError("A play's presentation did not end, the board shows the result at once");
             change.Flush();
             presented.Remove(change);
             presenting--;
@@ -738,10 +748,16 @@ namespace Gwent.Battle
 
         private const float PresentationLimit = 12f;
 
-        private static IEnumerator Then(IEnumerator routine, Action done)
+        // Waits while the condition holds; not at all when it does not (as the coroutines' "while (...) yield return null")
+        private static UniTask While(Func<bool> condition, CancellationToken ct)
         {
-            yield return routine;
-            done();
+            return condition() ? UniTask.WaitWhile(condition, PlayerLoopTiming.Update, ct) : UniTask.CompletedTask;
+        }
+
+        // A wait in game time (the pause stops it, the game speed and the autoplay's speed apply)
+        private static UniTask Wait(float seconds, CancellationToken ct)
+        {
+            return UniTask.Delay(TimeSpan.FromSeconds(seconds), DelayType.DeltaTime, PlayerLoopTiming.Update, ct);
         }
 
         // Plays cut short (giving up): every card shows in its place at once
@@ -842,7 +858,7 @@ namespace Gwent.Battle
             RefreshBoard();
             BattleLog.Played(this, "decoy_played", is_player_card, decoy_id, row);
             BoardChange change = board.EndChange();
-            Present(change, presenter.Play(change, decoy_id, is_player_card, false), () => EndTurn(is_player_card));
+            Present(change, ct => presenter.Play(change, decoy_id, is_player_card, false, ct), () => EndTurn(is_player_card));
         }
 
         // Escape (the back button on Android) puts a selected card (or the chosen leader) back first, as in The Witcher 3;

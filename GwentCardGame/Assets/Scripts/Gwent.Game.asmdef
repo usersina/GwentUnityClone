@@ -4,6 +4,7 @@
         "Gwent.Rules",
         "LitMotion",
         "LitMotion.Extensions",
+        "UniTask",
         "Unity.InputSystem",
         "Unity.TextMeshPro",
         "UnityEngine.UI"

@@ -161,7 +161,7 @@ namespace Gwent.Battle
 
             // Pending abilities end the turn once their choice is made
             if (outcome == LeaderOutcome.Instant)
-                Present(change, presenter.Play(change, -1, is_player_turn, false), () => EndTurn(is_player_turn));
+                Present(change, ct => presenter.Play(change, -1, is_player_turn, false, ct), () => EndTurn(is_player_turn));
             else
                 change.Flush();
         }

@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Rules;
 using UnityEngine;
@@ -12,99 +13,12 @@ namespace Gwent.Battle
     // only executes them, and always ends the AI's turn (falls back to passing if an action cannot be carried out).
     public class AiPlayer : MonoBehaviour
     {
-        // A move being decided. Easy and Normal decide at once; Hard plays battles out on its own copy of the board while
-        // the turn's notice shows: on another thread, or in a browser (no other thread) a few milliseconds every frame.
-        public class Decision
-        {
-            private Task<AiAction> thinking;
-            private AiSearch.Thinking slices;
-            private readonly Func<AiAction> fallback;
-            private AiAction action;
-            private bool failed;
-            private readonly System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-
-            // How long it thought (for the log)
-            public long ThinkMs { get; private set; }
-
-            public Decision(AiAction decided, long think_ms)
-            {
-                action = decided;
-                ThinkMs = think_ms;
-            }
-
-            public Decision(Task<AiAction> task, Func<AiAction> if_it_fails)
-            {
-                thinking = task;
-                fallback = if_it_fails;
-                task.ContinueWith(_ => ThinkMs = watch.ElapsedMilliseconds, TaskContinuationOptions.ExecuteSynchronously);
-            }
-
-            public Decision(AiSearch.Thinking stepped, Func<AiAction> if_it_fails)
-            {
-                slices = stepped;
-                fallback = if_it_fails;
-            }
-
-            public bool Done
-            {
-                get { return thinking != null ? thinking.IsCompleted : slices == null || slices.Done || failed; }
-            }
-
-            // A slice of the thinking (every frame, by AiPlayer.Update)
-            public void Advance()
-            {
-                if (slices == null || slices.Done || failed)
-                    return;
-                try
-                {
-                    if (slices.Step(SliceMs))
-                        ThinkMs = watch.ElapsedMilliseconds;
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError("AI decision failed, playing as on Normal: " + e);
-                    failed = true;
-                }
-            }
-
-            // Once Done
-            public AiAction Action
-            {
-                get
-                {
-                    if (thinking != null)
-                    {
-                        if (thinking.Status == TaskStatus.RanToCompletion)
-                            action = thinking.Result;
-                        else
-                        {
-                            Debug.LogError("AI decision failed, playing as on Normal: " + thinking.Exception);
-                            action = fallback();
-                        }
-                        thinking = null;
-                    }
-                    else if (slices != null)
-                    {
-                        action = failed ? fallback() : slices.Result;
-                        slices = null;
-                    }
-                    return action;
-                }
-            }
-        }
-
         // In a browser: Hard thinks 10 ms a frame, 0.7 s of thinking at most (a few battles fewer per move than elsewhere)
         private const int SliceMs = 10;
         private const int SlicedTimeLimitMs = 700;
-        private Decision pending;
+        private long thinkMs; // how long the last decision took (for the log)
 
         private static bool NoThreads { get { return Application.platform == RuntimePlatform.WebGLPlayer; } }
-
-        private void Update()
-        {
-            if (pending != null)
-                pending.Advance();
-        }
 
         private BattleController controller;
 
@@ -167,36 +81,39 @@ namespace Gwent.Battle
         }
 
         // The AI's turn: exactly one action, decided (the battle shows it), then carried out; the turn then passes
-        public Decision StartDecision()
+        // The move for this turn. Easy and Normal decide at once; Hard plays battles out on its own copy of the board while
+        // the turn's notice shows: on another thread, or in a browser (no other thread) a few milliseconds every frame.
+        // A decision that fails is taken again as on Normal.
+        public async UniTask<AiAction> Decide(CancellationToken ct)
         {
             if (controller == null)
                 Initialize();
             AiContext ctx = BuildContext();
             considered = GameLog.Enabled ? new List<AiOption>() : null;
             ctx.Considered = considered;
-            if (ctx.Difficulty != AiDifficulty.Hard)
+            System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+            try
             {
-                System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-                AiAction decided = Decide(ctx);
-                return pending = new Decision(decided, watch.ElapsedMilliseconds);
+                if (ctx.Difficulty != AiDifficulty.Hard)
+                    return Decide(ctx);
+                AiContext copy = Snapshot(ctx);
+                if (!NoThreads)
+                    return await UniTask.RunOnThreadPool(() => AiBrain.Decide(copy), cancellationToken: ct);
+                AiSearch.Thinking thinking = AiSearch.Begin(copy, SlicedTimeLimitMs);
+                while (!thinking.Step(SliceMs))
+                    await UniTask.Yield(PlayerLoopTiming.Update, ct);
+                return thinking.Result;
             }
-            AiContext copy = Snapshot(ctx);
-            Func<AiAction> as_normal = () =>
+            catch (Exception e) when (!(e is OperationCanceledException))
             {
+                Debug.LogError("AI decision failed, playing as on Normal: " + e);
                 AiContext normal = BuildContext();
                 normal.Difficulty = AiDifficulty.Normal;
                 return Decide(normal);
-            };
-            if (!NoThreads)
-                return pending = new Decision(Task.Run(() => AiBrain.Decide(copy)), as_normal);
-            try
-            {
-                return pending = new Decision(AiSearch.Begin(copy, SlicedTimeLimitMs), as_normal);
             }
-            catch (Exception e)
+            finally
             {
-                Debug.LogError("AI decision failed, playing as on Normal: " + e);
-                return pending = new Decision(as_normal(), 0);
+                thinkMs = watch.ElapsedMilliseconds;
             }
         }
 
@@ -218,7 +135,7 @@ namespace Gwent.Battle
             if (controller == null)
                 Initialize();
             GameLog.Event(LogCategory.Ai, "decision", "difficulty", GameSettings.AiDifficulty, "action", Describe(action),
-                "think_ms", pending != null ? pending.ThinkMs : -1, "considered", Considered());
+                "think_ms", thinkMs, "considered", Considered());
 
             bool done;
             try
