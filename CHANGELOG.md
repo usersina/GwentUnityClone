@@ -36,7 +36,6 @@ A faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle,
 ### Fixes
 
 - Editing a preset deck with a long name (such as Riders of the Wild Hunt) a second time no longer freezes the game.
-- The Linux and Windows downloads no longer carry a folder Unity says not to ship (Burst's code listing).
 
 ### The web version
 
