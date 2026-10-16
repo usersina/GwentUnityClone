@@ -1,5 +1,6 @@
 using System.Collections.Generic;
-using System.Linq;
+using System.Threading;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
@@ -7,12 +8,10 @@ using UnityEngine;
 
 namespace Gwent.Battle
 {
-    // The leaders' abilities: choosing the leader, its targets, using it (the player's and the AI's)
+    // The leaders' abilities: lifting the player's leader, its targets, using it; a side's leader used, shown
     public partial class BattleController
     {
         //----------------------------------------------LEADERS---------------------------------------------------//
-        private enum LeaderOutcome { Unavailable, Instant, Pending }
-
         // The player's leader is lifted like a card about to be played (The Witcher 3): a click on it takes it out of its
         // slot to the right, the slot stays empty and the places its ability acts on light up; its crown glows, and the
         // crown, only the crown, uses it (or X again, Enter). A click on the empty slot, Escape, a right click, another
@@ -134,152 +133,57 @@ namespace Gwent.Battle
             return is_player ? IsPlayerActionAllowed : battleState == BattleState.EnemyTurn;
         }
 
-        // Activate the leader's ACTIVE ability. Does nothing (and keeps the leader) when it would have no effect.
+        // Uses the player's leader ability (the match resolves it: at once, or with a choice to make). Not one that would
+        // do nothing: the leader stays available, and why is said.
         public void ActivateLeader(int leader_id, bool is_player_turn)
         {
-            // Only a side's own leader: clicking the opponent's crown must not apply their ability for the player
-            if (leader_id != Info(is_player_turn).Leader)
+            // Only the player's own leader: clicking the opponent's crown must not apply their ability for the player
+            if (!is_player_turn || leader_id != PlayerInfo.Leader)
             {
                 GameAudio.PlaySfx("invalid");
                 return;
             }
-            if (!CanUseLeader(is_player_turn))
+            if (!CanUseLeader(true))
             {
                 GameAudio.PlaySfx("invalid");
-                if (is_player_turn && Info(true).leaderDisabled)
+                if (PlayerInfo.leaderDisabled)
                     UIOverlay.Toast("Your leader ability was cancelled by the opponent's leader");
                 return;
             }
-
-            string reason;
-            if (is_player_turn)
-                DeselectCard(false); // the chosen leader (or a selected card) leaves the showcase: the ability takes over
-            CardShowcase.Clear();
-            BattleLog.BeforeChange(this);
-            board.BeginChange();
-            LeaderOutcome outcome = ApplyLeader(leader_id, is_player_turn, out reason);
-            if (outcome == LeaderOutcome.Unavailable)
+            string reason = LeaderProblem();
+            if (reason != null)
             {
-                GameLog.Event(LogCategory.Battle, "leader_refused", "side", is_player_turn ? "player" : "enemy", "reason", reason);
-                board.EndChange().Flush();
+                GameLog.Event(LogCategory.Battle, "leader_refused", "side", "player", "reason", reason);
                 GameAudio.PlaySfx("invalid");
-                if (is_player_turn)
-                    UIOverlay.Toast(reason);
+                UIOverlay.Toast(reason);
                 return;
             }
+            DeselectCard(false); // the chosen leader (or a selected card) leaves the showcase: the ability takes over
+            CardShowcase.Clear();
+            Submit(MatchCommand.Leader());
+        }
 
+        // A side used its leader: the opponent's comes in from above the board to the showcase first. Spent, its crown goes
+        // dark; an ability that resolved at once shows its change (a horn, a scorch, the weather cleared...), one that asks
+        // a choice waits for it (ShowChoice).
+        private async UniTask ShowLeader(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            bool is_player = e.Seat;
+            if (!is_player)
+                await ShowcaseOpponent(Db.Get(e.Card), ct);
+            CardShowcase.Clear();
+            BattleLog.BeforeChange(this);
             GameAudio.PlaySfx("leader");
-            Info(is_player_turn).canLeader = false;
-            View(is_player_turn).Leader.MarkUsed();
-
+            View(is_player).Leader.MarkUsed();
+            board.BeginChange();
+            ApplyView(e.State, all);
             RefreshBoard();
-            BattleLog.LeaderUsed(this, is_player_turn, leader_id, outcome == LeaderOutcome.Instant ? "done" : "choice_pending");
+            BattleLog.LeaderUsed(this, is_player, e.Card, e.Flag ? "choice_pending" : "done");
             BoardChange change = board.EndChange();
-
-            // Pending abilities end the turn once their choice is made
-            if (outcome == LeaderOutcome.Instant)
-                Present(change, ct => presenter.Play(change, -1, is_player_turn, false, ct), () => EndTurn(is_player_turn));
-            else
+            if (e.Flag)
                 change.Flush();
-        }
-
-        private LeaderOutcome ApplyLeader(int leader_id, bool is_player_turn, out string reason)
-        {
-            BattleSide info = Info(is_player_turn);
-
-            // An ability that would do nothing is not used (The Witcher 3): the leader stays available
-            reason = LeaderRules.Unavailable(CurrentBoard(), leader_id, is_player_turn);
-            if (reason != null)
-                return LeaderOutcome.Unavailable;
-
-            Row? weather_row = LeaderIds.WeatherPickRow(leader_id);
-            if (weather_row != null)
-            {
-                reason = "No matching weather card left in your deck";
-                return PickWeatherCard(weather_row.Value, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
-            }
-
-            // Horns, scorches, clear weather, agile, Crach an Craite's shuffle: resolved by the rules right away
-            if (LeaderRules.IsInstant(leader_id))
-                return LeaderRules.ApplyInstant(CurrentBoard(), leader_id, is_player_turn, out reason) ? LeaderOutcome.Instant : LeaderOutcome.Unavailable;
-
-            switch (leader_id)
-            {
-                case LeaderIds.EredinDestroyerOfWorlds:
-                    if (!is_player_turn)
-                    {
-                        reason = "The AI does not use this ability";
-                        return LeaderOutcome.Unavailable;
-                    }
-                    info.CanDiscard = true;
-                    info.CardsDiscarded = 0;
-                    pendingAction = PendingAction.DiscardCards;
-                    UIOverlay.Toast((GameInput.IsTouch ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
-                    return LeaderOutcome.Pending;
-                case LeaderIds.EredinBringerOfDeath:
-                    return RestoreToHand(PickSource.Discard, info.DiscardList, is_player_turn, out reason);
-                case LeaderIds.EmhyrTheRelentless:
-                    return RestoreToHand(PickSource.OpponentDiscard, Opponent(is_player_turn).DiscardList, is_player_turn, out reason);
-                case LeaderIds.EmhyrEmperorOfNilfgaard:
-                    reason = "Your opponent has no cards in hand";
-                    return LookHandRandom(3, is_player_turn) ? LeaderOutcome.Pending : LeaderOutcome.Unavailable;
-            }
-            reason = "This leader ability is passive";
-            return LeaderOutcome.Unavailable;
-        }
-
-        // Plays a weather card from deck (Row.Weather: any weather, Clear Weather too); false when there is none
-        public bool PickWeatherCard(Row row, bool is_player_turn)
-        {
-            if (!is_player_turn)
-                return false;
-            List<int> weather_cards = LeaderRules.WeatherCardsFor(PlayerInfo, row, Db);
-            if (weather_cards.Count == 0)
-                return false;
-            OpenPanel().ShowToPlay(PickSource.Deck, weather_cards, true);
-            return true;
-        }
-
-        // A unit from a discard pile (no heroes or special cards) to the hand: chosen in a panel, or at random under
-        // Emhyr, Invader of the North (both players)
-        private LeaderOutcome RestoreToHand(PickSource field, List<int> discard, bool is_player_turn, out string reason)
-        {
-            List<int> units_list = AbilityRules.MedicCandidates(discard, Db);
-            reason = "No unit to restore";
-            if (units_list.Count == 0)
-                return LeaderOutcome.Unavailable;
-            if (randomMedic || !is_player_turn)
-            {
-                int card_id = randomMedic ? units_list[Rng.Shared.Next(units_list.Count)] : AiBrain.ChooseRestoreTarget(units_list, Info(false), Db);
-                TakeToHand(field, card_id, is_player_turn);
-                return LeaderOutcome.Instant;
-            }
-            OpenPanel().ShowToDraw(field, units_list, true);
-            return LeaderOutcome.Pending;
-        }
-
-        // View random cards from the opponent's hand; false when the hand is empty
-        public bool LookHandRandom(int cards_num, bool is_player_turn)
-        {
-            BattleSide opp_info = Opponent(is_player_turn);
-            if (!is_player_turn || opp_info.HandList.Count < 1)
-                return false;
-            List<int> random_list = Rng.Shuffle(opp_info.HandList).Take(cards_num).ToList();
-            OpenPanel().ShowToView(random_list, true);
-            return true;
-        }
-
-        // AI leader that plays a weather card from its deck (chosen by the AI)
-        public bool AiUseWeatherLeader(int weather_card_id)
-        {
-            if (!CanUseLeader(false) || LeaderIds.WeatherPickRow(EnemyInfo.Leader) == null || !EnemyInfo.DeckList.Remove(weather_card_id))
-                return false;
-            EnemyInfo.canLeader = false;
-            View(false).Leader.MarkUsed();
-            GameAudio.PlaySfx("leader");
-            EnemyInfo.HandList.Add(weather_card_id);
-            PlayCard(weather_card_id, Row.Weather, false);
-            return true;
+            else
+                await ShowChange(change, show => presenter.Play(change, -1, is_player, false, show), ct);
         }
     }
 }

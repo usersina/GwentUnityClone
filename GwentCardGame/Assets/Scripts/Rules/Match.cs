@@ -111,8 +111,8 @@ namespace Gwent.Rules
                 return;
             }
             firstPlayer = Board.Rnd.Next(0, 2) != 0;
-            Emit(MatchEventKind.FirstPlayer, firstPlayer);
             BeginRedraw();
+            Emit(MatchEventKind.FirstPlayer, firstPlayer);
         }
 
         private void BeginRedraw()
@@ -167,8 +167,8 @@ namespace Gwent.Rules
                 return false;
             Choice = null;
             firstPlayer = me_first ? seat : !seat;
-            Emit(MatchEventKind.FirstPlayer, firstPlayer, e => e.Flag = true);
             BeginRedraw();
+            Emit(MatchEventKind.FirstPlayer, firstPlayer, e => e.Flag = true);
             return true;
         }
 

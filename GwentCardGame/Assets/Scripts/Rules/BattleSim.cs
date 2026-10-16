@@ -3,12 +3,13 @@ using System.Collections.Generic;
 
 namespace Gwent.Rules
 {
-    // The rest of a battle without the scene, in the same steps as BattleController and AiPlayer: a side's move,
-    // passing, the end of a round and the next round's opening. The Hard AI plays battles out with it (AiSearch).
+    // The rest of a battle in the steps the match takes (Match), made light for the Hard AI, which plays thousands of
+    // battles out with it (AiSearch): a side's move (the AI choosing for both, its medics too), passing, the end of a
+    // round and the next round's opening (the match's own: RoundRules.EndRound, ClearForNextRound, Reinforce).
     public static class BattleSim
     {
-        // One of the AI's actions, as AiPlayer.Execute carries it out (BattleController.PlayCard, PlayDecoy,
-        // AiUseWeatherLeader, ActivateLeader). An action that cannot be carried out passes, as in the battle.
+        // One of the AI's actions, as the match takes it (its choices made at once, as the AI answers them). An action
+        // that cannot be carried out passes.
         public static void Apply(Board board, AiAction action, bool is_player)
         {
             PlayerState me = board.Side(is_player);

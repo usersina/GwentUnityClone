@@ -315,11 +315,8 @@ namespace Gwent.EditorTools
                 {
                     case PendingAction.DiscardCards:
                         List<int> hand = c.PlayerInfo.HandList;
-                        if (hand.Count > 0)
+                        if (hand.Count > 0 && !c.IsPresenting)
                             c.DiscardCard(hand[rnd.Next(hand.Count)], true);
-                        c.PlayerInfo.CardsDiscarded++;
-                        if (c.PlayerInfo.CardsDiscarded >= 2 || hand.Count == 0)
-                            c.OpenDeckPicker(true);
                         return;
                     case PendingAction.PlacePickedCard:
                         PlaceSelected(c);

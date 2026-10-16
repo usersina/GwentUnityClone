@@ -166,6 +166,7 @@ namespace Gwent.EditorTools
             private string currentDeck;
             private InputCheck inputCheck;
             private int redrawChecks;
+            private int redrawsLeft = -1; // this battle's random redraws still to make (-1: not chosen yet)
             private bool selectionChecked;
             private bool pauseChecked;
             private bool giveUpChecked;
@@ -460,15 +461,21 @@ namespace Gwent.EditorTools
                         return;
                     }
 
+                    // Up to two random redraws, one at a time (each shown before the next), then the hand is kept
                     List<int> hand = c.PlayerInfo.HandList;
-                    int exchanges = rnd.Next(3);
-                    for (int i = 0; i < exchanges && hand.Count > 0; i++)
+                    if (c.IsPresenting)
+                        return;
+                    if (redrawsLeft < 0)
+                        redrawsLeft = rnd.Next(3);
+                    if (redrawsLeft > 0 && c.PlayerInfo.CardsExchanged < 2 && hand.Count > 0)
                     {
-                        c.ExchangeCard(hand[rnd.Next(hand.Count)], true);
-                        c.PlayerInfo.CardsExchanged++;
+                        c.RedrawPlayerCard(hand[rnd.Next(hand.Count)]);
+                        redrawsLeft--;
                         Count("exchange");
+                        return;
                     }
                     c.FinishCardExchange();
+                    redrawsLeft = -1;
                     return;
                 }
 
@@ -516,11 +523,9 @@ namespace Gwent.EditorTools
                         PlaceSelected(c);
                         return;
                     case PendingAction.DiscardCards:
+                        // After the second, the match asks for a card of the deck (a picker)
                         List<int> hand = c.PlayerInfo.HandList;
                         c.DiscardCard(hand[rnd.Next(hand.Count)], true);
-                        c.PlayerInfo.CardsDiscarded++;
-                        if (c.PlayerInfo.CardsDiscarded >= 2)
-                            c.OpenDeckPicker(true);
                         Count("leader discard");
                         return;
                     case PendingAction.PanelChoice:
@@ -587,7 +592,7 @@ namespace Gwent.EditorTools
                 if (c.CanUseLeader(true) && rnd.Next(6) == 0)
                 {
                     c.ActivateLeader(c.PlayerInfo.Leader, true);
-                    Count("leader " + c.PlayerInfo.Leader + (c.PlayerInfo.canLeader ? " (unavailable)" : ""));
+                    Count("leader " + c.PlayerInfo.Leader + (c.Match.Board.Player.canLeader ? " (unavailable)" : ""));
                     return;
                 }
 

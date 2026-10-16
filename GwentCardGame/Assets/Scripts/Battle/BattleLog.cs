@@ -89,7 +89,7 @@ namespace Gwent.Battle
         public static void RoundEnd(BattleController c, RoundWinner winner, int player_total, int enemy_total)
         {
             GameLog.Event(LogCategory.Battle, "round_end", "winner", winner, "player_total", player_total, "enemy_total", enemy_total,
-                "player_lives", c.PlayerInfo.Lives, "enemy_lives", c.EnemyInfo.Lives);
+                "player_lives", c.Logged(true).Lives, "enemy_lives", c.Logged(false).Lives);
         }
 
         [Conditional("UNITY_EDITOR"), Conditional("DEBUG"), Conditional("GWENT_VERBOSE_LOGS")]
@@ -116,7 +116,7 @@ namespace Gwent.Battle
 
         private static Dictionary<string, object> Scores(BattleController c)
         {
-            return new Dictionary<string, object> { { "player", c.PlayerInfo.TotalScore() }, { "enemy", c.EnemyInfo.TotalScore() } };
+            return new Dictionary<string, object> { { "player", c.Logged(true).TotalScore() }, { "enemy", c.Logged(false).TotalScore() } };
         }
 
         // Both sides as they stand: scores, lives, the leader, the cards in hand and on the rows (with their strength)
@@ -124,9 +124,9 @@ namespace Gwent.Battle
         {
             return new Dictionary<string, object>
             {
-                { "player", SideState(c, c.PlayerInfo) },
-                { "enemy", SideState(c, c.EnemyInfo) },
-                { "weather", Names(c, c.weatherList) },
+                { "player", SideState(c, c.Logged(true)) },
+                { "enemy", SideState(c, c.Logged(false)) },
+                { "weather", Names(c, c.LoggedWeather) },
             };
         }
 
@@ -170,7 +170,7 @@ namespace Gwent.Battle
             Dictionary<string, List<string>> zones = new Dictionary<string, List<string>>();
             foreach (bool is_player in new[] { true, false })
             {
-                PlayerState side = is_player ? (PlayerState)c.PlayerInfo : c.EnemyInfo;
+                PlayerState side = is_player ? c.Logged(true) : c.Logged(false);
                 string who = Side(is_player) + ".";
                 zones[who + "hand"] = Names(c, side.HandList);
                 zones[who + "discard"] = Names(c, side.DiscardList);
@@ -181,7 +181,7 @@ namespace Gwent.Battle
                     zones[who + row.ToString().ToLowerInvariant() + "_horn"] = Names(c, side.SpecialRow(row));
                 }
             }
-            zones["weather"] = Names(c, c.weatherList);
+            zones["weather"] = Names(c, c.LoggedWeather);
             return zones;
         }
 
