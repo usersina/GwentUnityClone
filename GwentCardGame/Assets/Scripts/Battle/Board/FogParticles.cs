@@ -28,7 +28,7 @@ namespace Gwent.Battle
         {
             width = layer.rect.width;
             height = layer.rect.height;
-            ParticleFx fx = ParticleFx.In("Fog", layer);
+            ParticleFx fx = Host("Fog", layer);
             // Drifting puffs come in and go out slowly (the bank renews itself unseen); the first ones come in at once
             Color clear = new Color(1, 1, 1, 0);
             billow = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.06f, Color.white), (0.65f, Color.white), (1, clear)),

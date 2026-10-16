@@ -5,13 +5,14 @@ namespace Gwent.Battle
     // Torrential Rain on a row (WeatherEffect), as in The Witcher 3's art of it: pale streaks of falling drops all over the
     // row (Streak, tall and thin), splashes along its front edge, a few droplets bouncing off them, and a grey haze of
     // spray low in the row, thickening towards the floor (Mist). It starts light and grows heavy as it comes; as it goes,
-    // the last drops fall as it fades. In layout units and game seconds; one row's rain is about 330 particles.
+    // the last drops fall as it fades. In layout units and game seconds; one row's rain is about 180 particles.
     internal sealed class RainParticles : WeatherLook
     {
-        private const float FallSpeed = 820;          // a drop's
+        private const float FallSpeed = 1640;         // a drop's
         private const float Slant = 0;                // degrees from the vertical, to the right: it falls straight, as in the art
-        private const int Drops = 270, Splashes = 24, Haze = 16; // alive at once, at full strength
-        private const float DropLife = 0.16f, SplashLife = 0.22f, HazeLife = 6; // on average
+        private const int Drops = 135, Splashes = 13, Haze = 16; // alive at once, at full strength
+        private const float DropLife = 0.08f, SplashLife = 0.12f, HazeLife = 6; // on average
+        private const float DropletGravity = 2000;    // the droplets bouncing off the splashes fall back
         private const float BuildSeconds = 0.8f;       // from the first drops to full strength
         private static readonly Color Pale = new Color(0.82f, 0.86f, 0.9f);
 
@@ -27,14 +28,14 @@ namespace Gwent.Battle
             height = layer.rect.height;
             float slant = Slant * Mathf.Deg2Rad;
             fall = new Vector2(Mathf.Sin(slant), -Mathf.Cos(slant)) * FallSpeed;
-            ParticleFx fx = ParticleFx.In("Rain", layer);
+            ParticleFx fx = Host("Rain", layer);
             Color clear = new Color(1, 1, 1, 0);
             haze = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.3f, Color.white), (0.7f, Color.white), (1, clear)),
                 ParticleFx.Sizes((0, 0.9f), (1, 1.15f)), spin: 0.03f, turbulence: 4, frames: true, swirls: 240);
             drops = fx.Add("Streak", ParticleFx.Colors((0, clear), (0.15f, Color.white), (0.8f, Color.white), (1, clear)),
                 ParticleFx.Sizes((0, 1), (1, 1)), stretched: true);
             splashes = fx.Add("Spark", ParticleFx.Colors((0, Color.white), (1, clear)), ParticleFx.Sizes((0, 0.5f), (1, 1.4f)), stretched: true);
-            droplets = fx.Add("Spark", ParticleFx.Colors((0, Color.white), (0.7f, Color.white), (1, clear)), ParticleFx.Sizes((0, 1), (1, 0.6f)), gravity: 900);
+            droplets = fx.Add("Spark", ParticleFx.Colors((0, Color.white), (0.7f, Color.white), (1, clear)), ParticleFx.Sizes((0, 1), (1, 0.6f)), gravity: DropletGravity);
 
             // The haze is there from the start, its puffs living staggered lives so that it neither thins nor swells
             for (int i = 0; i < Haze; i++)
@@ -84,8 +85,8 @@ namespace Gwent.Battle
             ParticleFx.Emit(splashes, at, Vector2.zero, new Vector2(Random.Range(12f, 20f), Random.Range(4f, 7f)),
                 SplashLife * Random.Range(0.8f, 1.25f), new Color(Pale.r, Pale.g, Pale.b, alpha));
             for (int i = Random.Range(0, 3); i > 0; i--)
-                ParticleFx.Emit(droplets, at, new Vector2(Random.Range(-40f, 40f), Random.Range(70f, 130f)), Random.Range(2.5f, 4f),
-                    Random.Range(0.2f, 0.3f), new Color(Pale.r, Pale.g, Pale.b, alpha));
+                ParticleFx.Emit(droplets, at, new Vector2(Random.Range(-60f, 60f), Random.Range(105f, 195f)), Random.Range(2.5f, 4f),
+                    Random.Range(0.13f, 0.2f), new Color(Pale.r, Pale.g, Pale.b, alpha));
         }
 
         // The spray: a veil over the row's lower two thirds, thickest at the floor, drifting with the wind; its puffs are

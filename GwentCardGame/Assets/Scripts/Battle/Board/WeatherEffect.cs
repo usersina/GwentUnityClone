@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
@@ -60,6 +61,7 @@ namespace Gwent.Battle
             effect.look = kind == Kind.Fog ? new FogParticles(root)
                 : kind == Kind.Rain ? new RainParticles(root)
                 : (WeatherLook)new StillWeather(root, kind);
+            effect.look.Hold();
         }
 
         private void Leave()
@@ -75,16 +77,34 @@ namespace Gwent.Battle
             fade = Mathf.Clamp01(fade + (leaving ? -dt : dt) / FadeSeconds);
             group.alpha = fade * fade * (3 - 2 * fade); // eased
             look.Tick(dt, age);
+            look.Hold();
             if (leaving && fade <= 0)
                 Destroy(gameObject);
         }
     }
 
     // What a row's weather shows in its layer (WeatherEffect): made over the layer, run every frame (dt and age in game
-    // seconds), told when the weather goes (the layer then fades it out)
+    // seconds), told when the weather goes (the layer then fades it out). Its particles are in its hosts' systems, held on
+    // pause once it has emitted (ParticleFx.Hold: they age and move at the game's pace).
     internal abstract class WeatherLook
     {
+        private readonly List<ParticleFx> hosts = new List<ParticleFx>();
+
+        // A particle host over the layer, drawn over what the layer had before it
+        protected ParticleFx Host(string name, RectTransform layer)
+        {
+            ParticleFx fx = ParticleFx.In(name, layer);
+            hosts.Add(fx);
+            return fx;
+        }
+
         public virtual void Tick(float dt, float age) { }
+
+        public void Hold()
+        {
+            foreach (ParticleFx fx in hosts)
+                fx.Hold();
+        }
 
         public virtual void Leave() { }
     }

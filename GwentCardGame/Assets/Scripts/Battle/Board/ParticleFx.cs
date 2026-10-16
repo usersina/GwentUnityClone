@@ -173,6 +173,16 @@ namespace Gwent.Battle
             Destroy();
         }
 
+        // Puts the host's systems back on pause. Emitting into a paused system plays it, and a playing system is simulated
+        // by Unity as well as by UIParticle: in a frame something is emitted, its particles would age and move twice. A
+        // host emitting all the time (a row's weather) calls this once it has emitted.
+        public void Hold()
+        {
+            foreach (ParticleSystem system in systems)
+                if (system != null && system.isPlaying)
+                    system.Pause();
+        }
+
         public void Destroy()
         {
             if (host != null)
