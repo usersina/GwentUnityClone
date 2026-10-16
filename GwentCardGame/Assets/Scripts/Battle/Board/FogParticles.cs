@@ -39,11 +39,11 @@ namespace Gwent.Battle
             // Drifting puffs come in and go out slowly (the bank renews itself unseen); the first ones come in at once
             Color clear = new Color(1, 1, 1, 0);
             billow = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.06f, Color.white), (0.65f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.75f), (0.2f, 1f), (1, 1.15f)), spin: 0.015f, turbulence: 5 * churn, frames: true, swirls: 240, stretched: true);
+                ParticleFx.Sizes((0, 0.75f), (0.2f, 1f), (1, 1.15f)), spin: 0.015f, turbulence: 5 * churn, frames: true, swirls: 240, stretched: true, kept_whole: true);
             bank = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.25f, Color.white), (0.7f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), spin: 0.015f, turbulence: 5 * churn, frames: true, swirls: 240, stretched: true);
+                ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), spin: 0.015f, turbulence: 5 * churn, frames: true, swirls: 240, stretched: true, kept_whole: true);
             wisps = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.3f, Color.white), (0.6f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.7f), (1, 1.3f)), spin: 0.02f, turbulence: 8 * churn, frames: true, swirls: 160, stretched: true);
+                ParticleFx.Sizes((0, 0.7f), (1, 1.3f)), spin: 0.02f, turbulence: 8 * churn, frames: true, swirls: 160, stretched: true, kept_whole: true);
 
             // The first puffs start a little lower than they settle, and rise there
             for (int i = 0; i < BodyPuffs + TopPuffs; i++)

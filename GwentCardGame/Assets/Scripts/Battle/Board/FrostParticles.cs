@@ -105,7 +105,7 @@ namespace Gwent.Battle
             band = NewStand(layer, "Band", false, 0.6f, 1);
             veil = NewStand(layer, "Frost", false, 0.8f, 1);
             mist = Host("Frost mist", layer).Add("Mist", ParticleFx.Colors((0, clear), (0.3f, Color.white), (0.7f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.9f), (1, 1.15f)), spin: 0.02f, turbulence: 4, frames: true, swirls: 240);
+                ParticleFx.Sizes((0, 0.9f), (1, 1.15f)), spin: 0.02f, turbulence: 4, frames: true, swirls: 240, kept_whole: true);
             haze = NewStand(layer, "Mist", true, 0.8f, 0.6f);
             rime = NewStand(layer, "Rime", true, 0.6f, 0.5f);
             needles = NewStand(layer, "Shard", true, 0.35f, 0.4f, snaps: true);

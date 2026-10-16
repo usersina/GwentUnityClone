@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Coffee.UIExtensions;
 using Cysharp.Threading.Tasks;
+using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
 
@@ -12,12 +13,39 @@ namespace Gwent.Battle
     // particle's size is capped to a share of the view). A host can also sit in a part of the board (In), drawn in its
     // order and clipped by its masks: a row's weather. The art is Resources/W3/Particles (Gwent > UI > Regenerate
     // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on), "Fire" (added on), "Mist" (blended over)
-    // and "Streak" (blended over). In game time: the pause menu stops them.
+    // and "Streak" (blended over). In game time: the pause menu stops them. Settings > Graphics > Particle density thins
+    // what is emitted (a system added whole is not: clouds, whose look is how many puffs overlap).
     internal sealed class ParticleFx
     {
         private readonly UIParticle host;
         private readonly List<ParticleSystem> systems = new List<ParticleSystem>();
         private static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
+        private static readonly HashSet<ParticleSystem> whole = new HashSet<ParticleSystem>(); // never thinned
+        private static float density = -1; // the settings', kept (read for every particle emitted); -1: not read yet
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void Init()
+        {
+            GameSettings.Changed -= ReadDensity;
+            density = -1;
+            whole.Clear();
+        }
+
+        private static void ReadDensity()
+        {
+            density = GameSettings.ParticleDensity;
+        }
+
+        // Whether a particle is emitted, at the settings' density
+        private static bool Kept(ParticleSystem system)
+        {
+            if (density < 0)
+            {
+                ReadDensity();
+                GameSettings.Changed += ReadDensity;
+            }
+            return density >= 1 || Random.value < density || whole.Contains(system);
+        }
 
         private ParticleFx(UIParticle host)
         {
@@ -52,9 +80,10 @@ namespace Gwent.Battle
         // (layout units per second squared; negative rises), go through the colours over their life (times the colour
         // each is born with) and the sizes (a factor of their size at birth), spin up to spin radians a second either way,
         // drift in a turbulence of that strength (layout units a second) in swirls about that wide (layout units), with
-        // frames show one of the art's 2 x 2 and, stretched, are sized in width and height (Emit with a Vector2 size).
+        // frames show one of the art's 2 x 2 and, stretched, are sized in width and height (Emit with a Vector2 size);
+        // whole, its particles are never thinned.
         public ParticleSystem Add(string material, Gradient colors, AnimationCurve sizes, float gravity = 0, float spin = 0,
-            float turbulence = 0, bool frames = false, float swirls = 80, bool stretched = false)
+            float turbulence = 0, bool frames = false, float swirls = 80, bool stretched = false, bool kept_whole = false)
         {
             GameObject go = new GameObject(material);
             go.transform.SetParent(host.transform, false);
@@ -114,6 +143,11 @@ namespace Gwent.Battle
             renderer.maxParticleSize = 100;
 
             systems.Add(system);
+            if (kept_whole)
+            {
+                whole.RemoveWhere(gone => gone == null);
+                whole.Add(system);
+            }
             host.RefreshParticles();
             system.Play();
             return system;
@@ -123,6 +157,8 @@ namespace Gwent.Battle
         // degrees) at birth
         public static void Emit(ParticleSystem system, Vector2 at, Vector2 velocity, float size, float life, Color color, float angle = 0)
         {
+            if (!Kept(system))
+                return;
             ParticleSystem.EmitParams particle = new ParticleSystem.EmitParams
             {
                 position = at,
@@ -139,6 +175,8 @@ namespace Gwent.Battle
         // One particle of a stretched system (Add), its size in width and height
         public static void Emit(ParticleSystem system, Vector2 at, Vector2 velocity, Vector2 size, float life, Color color, float angle = 0)
         {
+            if (!Kept(system))
+                return;
             ParticleSystem.EmitParams particle = new ParticleSystem.EmitParams
             {
                 position = at,

@@ -1,3 +1,4 @@
+using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -6,7 +7,8 @@ namespace Gwent.Battle
 {
     // The Witcher 3's light on a focused card (the hovered hand card, the selected card in the showcase): a broad, warm
     // band of light rises slowly from the bottom of the card, lingers at its top as it fades, and comes back after a
-    // while. Taken from the game's video, then slowed down.
+    // while. Taken from the game's video, then slowed down. Off with Settings > Graphics > Shine and pulsing (its place
+    // is still made, empty).
     public class CardShine : MonoBehaviour
     {
         private const float RiseSeconds = 1.7f;
@@ -31,6 +33,7 @@ namespace Gwent.Battle
             rect.pivot = new Vector2(0.5f, 0.5f);
             shine.age = -delay;
             shine.period = Mathf.Max(period, RiseSeconds);
+            shine.enabled = GameSettings.Shows(GameSettings.Effect.ShineAndPulsing);
             return area.gameObject;
         }
 

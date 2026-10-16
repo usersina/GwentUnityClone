@@ -38,7 +38,7 @@ namespace Gwent.Battle
             ParticleFx fx = Host("Rain", layer);
             Color clear = new Color(1, 1, 1, 0);
             haze = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.3f, Color.white), (0.7f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.9f), (1, 1.15f)), spin: 0.03f, turbulence: 4, frames: true, swirls: 240);
+                ParticleFx.Sizes((0, 0.9f), (1, 1.15f)), spin: 0.03f, turbulence: 4, frames: true, swirls: 240, kept_whole: true);
             drops = fx.Add("Streak", ParticleFx.Colors((0, clear), (0.15f, Color.white), (0.8f, Color.white), (1, clear)),
                 ParticleFx.Sizes((0, 1), (1, 1)), stretched: true);
             splashes = fx.Add("Spark", ParticleFx.Colors((0, Color.white), (1, clear)), ParticleFx.Sizes((0, 0.5f), (1, 1.4f)), stretched: true);

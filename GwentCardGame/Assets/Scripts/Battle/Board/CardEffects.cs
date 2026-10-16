@@ -12,7 +12,9 @@ namespace Gwent.Battle
     // flare over its card (its white icon over the card burning orange), the medic's sign on the discard pile, the hero's
     // landing (smoke, and a fire running around the card's edge), the horn's golden glow along its row, the flames of a
     // scorch and a lost round's gem breaking. Art: Resources/W3/Effects; smoke, flames and sparks are particles
-    // (ParticleFx).
+    // (ParticleFx). Each but the gem can be turned off (Settings > Graphics): then it does not play and the battle goes on
+    // at once, but for those that tell something, which play a light stand-in without particles: the hero's edge
+    // flashing gold, the ability's icon popping, the scorched cards charring.
     public static class CardEffects
     {
         public const float WispSeconds = 0.35f; // a landing waits this long for its wisps (they fade on their own)
@@ -23,6 +25,7 @@ namespace Gwent.Battle
         public const float BurnSeconds = 1.05f;
         private const float ClimbSeconds = 0.55f; // the scorch's fire, from a card's bottom edge to its top
         public const float GemPulseSeconds = 0.55f;
+        private const float HeroEdgeSeconds = 0.3f, IconPopSeconds = 0.5f, CharSeconds = 0.4f; // the stand-ins'
         public const float ShardSeconds = 0.75f;
 
         private static readonly Color Blaze = new Color(1f, 0.55f, 0.15f);
@@ -48,7 +51,7 @@ namespace Gwent.Battle
         // A card landing, as in The Witcher 3: wisps of white smoke puff out of its sides and fade
         public static async UniTask Wisps(GameObject card, CancellationToken ct = default)
         {
-            if (card == null)
+            if (card == null || !GameSettings.Shows(GameSettings.Effect.LandingWisps))
                 return;
             Vector2 center, size;
             CardMotion.ToLayout(CardMotion.ScreenRect((RectTransform)card.transform), out center, out size);
@@ -71,14 +74,46 @@ namespace Gwent.Battle
         {
             if (card == null || flare == null)
                 return;
-            await FlareAt(ct, CardMotion.ScreenRect((RectTransform)card.transform), flare, Blaze);
+            if (GameSettings.Shows(GameSettings.Effect.AbilityFlares))
+                await FlareAt(ct, CardMotion.ScreenRect((RectTransform)card.transform), flare, Blaze);
+            else
+                await IconPop(ct, CardMotion.ScreenRect((RectTransform)card.transform), flare);
+        }
+
+        // An ability flaring, light (its flare turned off): its icon pops over the card and fades, a faint warm wash under it
+        private static async UniTask IconPop(CancellationToken ct, Rect rect, string flare)
+        {
+            Vector2 center, size;
+            CardMotion.ToLayout(rect, out center, out size);
+            Image wash = Overlay("FlareWash", null, new Color(Blaze.r, Blaze.g, Blaze.b, 0), rect);
+            Sprite sprite = SpriteCache.Load("W3/Effects/" + flare);
+            Image shadow = LayerImage("FlareIconShadow", sprite, new Color(0, 0, 0, 0), center + new Vector2(2, -3), new Vector2(size.x, size.x) * 0.8f);
+            Image icon = LayerImage("FlareIcon", sprite, new Color(1, 1, 1, 0), center, new Vector2(size.x, size.x) * 0.78f);
+            shadow.preserveAspect = icon.preserveAspect = true;
+            try
+            {
+                await Animate(ct, IconPopSeconds, t =>
+                {
+                    float shown = Mathf.Clamp01(t / 0.15f) * (1 - Mathf.Clamp01((t - 0.6f) / 0.4f));
+                    wash.color = new Color(Blaze.r, Blaze.g, Blaze.b, 0.4f * shown);
+                    icon.color = new Color(1, 1, 1, shown);
+                    shadow.color = new Color(0, 0, 0, 0.35f * shown);
+                    icon.rectTransform.localScale = shadow.rectTransform.localScale = Vector3.one * Mathf.Lerp(1.25f, 1f, Mathf.Clamp01(t / 0.25f));
+                });
+            }
+            finally
+            {
+                Remove(wash);
+                Remove(icon);
+                Remove(shadow);
+            }
         }
 
         // The medic's sign on its discard pile (The Witcher 3): the card turns green under a large white heart, in a green
         // glow with green flames licking its left and bottom edges; then the heart flashes out
         public static async UniTask MedicPile(RectTransform pile_card, CancellationToken ct = default)
         {
-            if (pile_card == null)
+            if (pile_card == null || !GameSettings.Shows(GameSettings.Effect.MedicFlames))
                 return;
             Rect rect = CardMotion.ScreenRect(pile_card);
             Vector2 center, size;
@@ -211,6 +246,11 @@ namespace Gwent.Battle
                 return;
             Vector2 center, size;
             CardMotion.ToLayout(CardMotion.ScreenRect((RectTransform)card.transform), out center, out size);
+            if (!GameSettings.Shows(GameSettings.Effect.HeroLanding))
+            {
+                await HeroEdge(center, size, ct);
+                return;
+            }
             float w = size.x, h = size.y, perimeter = 2 * (w + h);
 
             // The card darkened, behind the smoke; then the outline the fire leaves; in front, the fire
@@ -315,6 +355,42 @@ namespace Gwent.Battle
             }
         }
 
+        // A hero landing, light (its landing turned off): the card's edge flashes gold, once
+        private static async UniTask HeroEdge(Vector2 center, Vector2 size, CancellationToken ct)
+        {
+            RectTransform frame = UIKit.Rect("HeroOutline", CardMotion.Layer);
+            frame.anchorMin = frame.anchorMax = frame.pivot = new Vector2(0.5f, 0.5f);
+            frame.anchoredPosition = center;
+            frame.sizeDelta = size;
+            Vector2[] corners = { new Vector2(0, 1), new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1) };
+            Vector2[] pivots = { new Vector2(0.5f, 1), new Vector2(0, 0.5f), new Vector2(0.5f, 0), new Vector2(1, 0.5f) };
+            Image[] glows = new Image[4], lines = new Image[4];
+            for (int e = 0; e < 4; e++)
+            {
+                bool upright = e % 2 == 0;
+                glows[e] = Edge(frame, corners[e], pivots[e], FireGlow);
+                lines[e] = Edge(frame, corners[e], pivots[e], FireLine);
+                glows[e].rectTransform.sizeDelta = upright ? new Vector2(11, size.y) : new Vector2(size.x, 11);
+                lines[e].rectTransform.sizeDelta = upright ? new Vector2(2.5f, size.y) : new Vector2(size.x, 2.5f);
+            }
+            try
+            {
+                await Animate(ct, HeroEdgeSeconds, t =>
+                {
+                    float shown = Mathf.Sin(t * Mathf.PI);
+                    for (int e = 0; e < 4; e++)
+                    {
+                        lines[e].color = new Color(FireLine.r, FireLine.g, FireLine.b, shown);
+                        glows[e].color = new Color(FireGlow.r, FireGlow.g, FireGlow.b, FireGlow.a * shown * 1.5f);
+                    }
+                });
+            }
+            finally
+            {
+                Remove(frame);
+            }
+        }
+
         // Out of a card's edge from a point on it (from the card's centre)
         private static Vector2 Outward(Vector2 at, float w, float h)
         {
@@ -351,7 +427,7 @@ namespace Gwent.Battle
         // A horn's warm golden glow around its row (the cards in it stay clear)
         public static async UniTask RowGlow(RectTransform row, CancellationToken ct = default)
         {
-            if (row == null)
+            if (row == null || !GameSettings.Shows(GameSettings.Effect.HornGlow))
                 return;
             Image glow = Halo("HornGlow", new Color(1f, 0.72f, 0.28f, 0), CardMotion.ScreenRect(row));
             await Animate(ct, GlowSeconds, t =>
@@ -377,6 +453,11 @@ namespace Gwent.Battle
 
         public static async UniTask Burn(RectTransform[] cards, CancellationToken ct = default)
         {
+            if (!GameSettings.Shows(GameSettings.Effect.ScorchFire))
+            {
+                await Char(cards, ct);
+                return;
+            }
             System.Collections.Generic.List<Burning> burns = new System.Collections.Generic.List<Burning>();
             foreach (RectTransform card in cards)
             {
@@ -462,6 +543,29 @@ namespace Gwent.Battle
                     burn.Front.Finish().Forget();
                 }
             }
+        }
+
+        // Scorch, light (its fire turned off): each card chars from its bottom edge up, without fire; the char goes with it
+        // to its discard pile
+        private static async UniTask Char(RectTransform[] cards, CancellationToken ct)
+        {
+            System.Collections.Generic.List<Image> chars = new System.Collections.Generic.List<Image>();
+            foreach (RectTransform card in cards)
+            {
+                if (card == null)
+                    continue;
+                Image char_image = UIKit.NewImage(card, "Char", null, new Color(0.09f, 0.05f, 0.03f, 0.88f));
+                char_image.rectTransform.anchorMin = Vector2.zero;
+                char_image.rectTransform.anchorMax = new Vector2(1, 0);
+                char_image.rectTransform.offsetMin = char_image.rectTransform.offsetMax = Vector2.zero;
+                chars.Add(char_image);
+            }
+            await Animate(ct, CharSeconds, t =>
+            {
+                foreach (Image char_image in chars)
+                    if (char_image != null)
+                        char_image.rectTransform.anchorMax = new Vector2(1, Mathf.SmoothStep(0, 1, t));
+            });
         }
 
         // A lost round: the gem pulses, then bursts into shards that fall away, leaving it grey

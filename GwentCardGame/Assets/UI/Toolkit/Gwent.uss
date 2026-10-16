@@ -361,6 +361,7 @@
 }
 
 .settings__header {
+    flex-shrink: 0;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
@@ -368,6 +369,7 @@
 }
 
 .settings__tabs {
+    flex-shrink: 0;
     flex-direction: row;
     height: 64px;
     margin-bottom: 14px;
@@ -414,12 +416,21 @@
     display: flex;
 }
 
+/* The pages take what is left between the tabs and the footer (a longer page scrolls in it). They reach into the
+   panel's right margin (their rows do not: padding), where a scrolling page has its scroll bar */
 .settings__pages {
     flex-grow: 1;
-    margin-top: 32px;
+    flex-shrink: 1;
+    flex-basis: 0;
+    overflow: hidden;
+    margin: 32px -40px 0 0;
+    padding-right: 40px;
 }
 
+/* Under a divider, as the tabs are over one */
 .settings__footer {
+    flex-shrink: 0;
+    padding-top: 20px;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
@@ -427,14 +438,78 @@
 
 .settings__reset {
     width: 300px;
-    height: 64px;
+    height: 56px;
     -unity-text-align: middle-left;
     padding-left: 0;
 }
 
 .settings__back {
-    width: 240px;
-    height: 68px;
+    width: 200px;
+    height: 56px;
+    font-size: 24px;
+}
+
+/* A page longer than the panel (Graphics) scrolls. Its scroll bar stands in the panel's right margin, so its rows line
+   up with the other pages'; the rows fade out where they are cut */
+.settings__scroll {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin-right: -40px;
+}
+
+.settings__scroll .unity-scroll-view__content-container {
+    padding-right: 28px;
+}
+
+/* (.settings first: these are to win over the shared .scroll rules below) */
+.settings .settings__scroll .unity-scroller--vertical {
+    width: 12px;
+    margin-left: 0;
+}
+
+.settings .settings__scroll .unity-scroller--vertical .unity-base-slider__tracker {
+    left: 4px;
+    width: 4px;
+    border-radius: 2px;
+    background-color: var(--line-soft);
+}
+
+.settings .settings__scroll .unity-scroller--vertical .unity-base-slider__dragger {
+    left: 2px;
+    width: 8px;
+    border-radius: 4px;
+    background-color: var(--gold);
+}
+
+.settings .settings__scroll .unity-scroller--vertical .unity-base-slider__dragger:hover,
+.settings .settings__scroll .unity-scroller--vertical .unity-base-slider__dragger:active {
+    background-color: var(--gold-bright);
+}
+
+.settings__fade {
+    position: absolute;
+    left: 0;
+    right: 12px;
+    height: 56px;
+}
+
+.settings__fade--top {
+    top: 0;
+}
+
+.settings__fade--bottom {
+    bottom: 0;
+    scale: 1 -1;
+}
+
+/* A heading over a group of rows (Graphics: Weather, Battle effects...): gold, smaller than the tabs */
+.setting__group {
+    -unity-font-definition: var(--heading-font);
+    font-size: 24px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    padding: 0;
+    margin: 22px 0 0 0;
 }
 
 /* A labelled row: the label (and a caption under it) on the left, the control on the right */

@@ -511,9 +511,14 @@ namespace Gwent.Menus
         }
 
         //----------------------------------------A little life----------------------------------------//
-        // The rules come in one after another when a topic opens
+        // The rules come in one after another when a topic opens (with Settings > Graphics > Menu animations off, all at once)
         private static void FadeIn(VisualElement row, int order)
         {
+            if (!GameSettings.Shows(GameSettings.Effect.MenuAnimations))
+            {
+                row.AddToClassList("rules__row--shown");
+                return;
+            }
             row.schedule.Execute(() => row.AddToClassList("rules__row--shown")).StartingIn((long)((0.04f + order * 0.05f) * 1000));
         }
     }

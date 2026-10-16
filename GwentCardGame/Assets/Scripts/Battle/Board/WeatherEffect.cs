@@ -11,9 +11,10 @@ namespace Gwent.Battle
     // clips to the row (its ends softened) and fades as one: nothing leaves the row, however it moves. What the layer shows
     // is a WeatherLook, particles: Biting Frost's ice (FrostParticles), Impenetrable Fog rolling along the row
     // (FogParticles), Torrential Rain falling on it (RainParticles). Skellige Storm's fog and rain are wilder, and its
-    // lightning flashes over them (StormFlash, StormLightning). With Settings > Display > Animated weather off, it is The
-    // Witcher 3's still pictures of the weather instead (StillWeather), the storm's too, without lightning; turning the
-    // setting over during a battle redraws the rows' weather at once. In game time: the pause menu stops it.
+    // lightning flashes over them (StormFlash, StormLightning). With Settings > Graphics > Animated weather off, it is
+    // The Witcher 3's still pictures of the weather instead (StillWeather), the storm's too, without lightning; the
+    // storm's lightning has a setting of its own. Turned over during a battle, they redraw the rows' weather at once. In
+    // game time: the pause menu stops it.
     public class WeatherEffect : MonoBehaviour
     {
         public enum Kind { Frost, Fog, Rain }
@@ -25,7 +26,7 @@ namespace Gwent.Battle
         private WeatherLook look;
         private StormFlash flash;  // a storm's lightning
         private Kind kind;
-        private bool storm, animated;
+        private bool storm, animated, lightning;
         private float age, fade; // fade: 0 (gone) to 1 (shown)
         private bool leaving;
         private float wipe = -1;   // as Clear Weather's sun wipes it away: how far through (0 to 1; -1: it fades)
@@ -95,9 +96,16 @@ namespace Gwent.Battle
                 : kind == Kind.Fog ? new FogParticles(root, storm)
                 : (WeatherLook)new RainParticles(root, storm);
             look.Hold();
-            if (storm && animated)
+            Light();
+        }
+
+        // A storm's lightning, if it is animated and its lightning is on
+        private void Light()
+        {
+            lightning = GameSettings.Shows(GameSettings.Effect.StormLightning);
+            if (storm && animated && lightning)
             {
-                flash = new StormFlash(root);
+                flash = new StormFlash((RectTransform)transform);
                 StormLightning.Join(this);
             }
         }
@@ -112,16 +120,28 @@ namespace Gwent.Battle
             GameSettings.Changed -= Restyle;
         }
 
-        // The animation setting turned over: the weather is drawn anew the other way, as it stands (no coming)
+        // The settings turned over: the weather is drawn anew the other way, as it stands (no coming); or only its
+        // lightning comes or goes
         private void Restyle()
         {
-            if (leaving || look == null || animated == GameSettings.AnimatedWeather)
+            if (leaving || look == null)
                 return;
-            StormLightning.Quit(this);
-            flash = null;
-            foreach (Transform part in transform)
-                Destroy(part.gameObject);
-            Build();
+            if (animated != GameSettings.AnimatedWeather)
+            {
+                StormLightning.Quit(this);
+                flash = null;
+                foreach (Transform part in transform)
+                    Destroy(part.gameObject);
+                Build();
+            }
+            else if (lightning != GameSettings.Shows(GameSettings.Effect.StormLightning))
+            {
+                StormLightning.Quit(this);
+                if (flash != null)
+                    flash.Destroy();
+                flash = null;
+                Light();
+            }
         }
 
         // The weather leaving goes in Clear Weather's sun instead of fading: wiped away from the left, just behind its light
@@ -164,7 +184,7 @@ namespace Gwent.Battle
             group.alpha = fade * fade * (3 - 2 * fade); // eased
             look.Tick(dt, age);
             look.Hold();
-            if (storm && animated && !leaving)
+            if (flash != null && !leaving)
                 StormLightning.Tick();
             if (flash != null)
                 flash.Tick(dt);
@@ -268,6 +288,12 @@ namespace Gwent.Battle
             bolt.rectTransform.localEulerAngles = new Vector3(0, 0, Random.Range(-12f, 12f));
             int cell = Random.Range(0, 4);
             bolt.uvRect = new Rect((cell % 2) * 0.5f, (cell / 2) * 0.5f, 0.5f, 0.5f);
+        }
+
+        public void Destroy()
+        {
+            Object.Destroy(glow.gameObject);
+            Object.Destroy(bolt.gameObject);
         }
 
         public void Tick(float dt)

@@ -1,3 +1,4 @@
+using Gwent.Core;
 using Gwent.UI;
 using TMPro;
 using UnityEngine;
@@ -8,6 +9,8 @@ namespace Gwent.Menus
     // "Legacy" under the key art's GWENT logo, set the way the official logo sets "The Witcher Card Game": gold capitals,
     // widely spaced, between fine rules ending in diamonds. When the menu opens the letters come together out of a wide
     // spacing as they fade in and the rules draw outwards; then, every few seconds, a soft light runs across the letters.
+    // With Settings > Graphics > Menu animations off it stands as it ends, still (painted again only when its size
+    // changes).
     public class LegacyTitle : MonoBehaviour
     {
         // Under the logo in the key art (Resources/Background/gwent_cover 1.png, 1920 px wide): centred, the logo's letters
@@ -81,8 +84,22 @@ namespace Gwent.Menus
             Layout(0);
         }
 
+        private Vector2 paintedSize = -Vector2.one; // still: the size it was painted at
+
         private void LateUpdate()
         {
+            if (!GameSettings.Shows(GameSettings.Effect.MenuAnimations))
+            {
+                Vector2 size = ((RectTransform)transform).rect.size;
+                if (size == paintedSize && text.characterSpacing == EndSpacing)
+                    return;
+                paintedSize = size;
+                text.characterSpacing = EndSpacing;
+                Layout(1);
+                Paint(1, float.NaN);
+                return;
+            }
+            paintedSize = -Vector2.one;
             age += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01((age - Delay) / IntroSeconds);
             float eased = 1 - (1 - t) * (1 - t) * (1 - t);
