@@ -14,7 +14,8 @@ namespace Gwent.Battle
     // scorch and a lost round's gem breaking. Art: Resources/W3/Effects; smoke, flames and sparks are particles
     // (ParticleFx). Each but the gem can be turned off (Settings > Graphics): then it does not play and the battle goes on
     // at once, but for those that tell something, which play a light stand-in without particles: the hero's edge
-    // flashing gold, the ability's icon popping, the scorched cards charring.
+    // flashing gold, the ability's icon popping, the scorched cards charring. Their particles' paces (ParticleFx.Add) are
+    // the ones they were made and approved at.
     public static class CardEffects
     {
         public const float WispSeconds = 0.35f; // a landing waits this long for its wisps (they fade on their own)
@@ -122,9 +123,9 @@ namespace Gwent.Battle
             Image tint = Overlay("MedicTint", null, new Color(0.15f, 0.85f, 0.3f, 0), rect);
             ParticleFx fx = ParticleFx.At("MedicFlames", center);
             ParticleSystem haze = fx.Add("Blaze", ParticleFx.Colors((0, new Color(0.5f, 1f, 0.6f, 0)), (0.3f, new Color(0.35f, 0.95f, 0.5f, 0.5f)), (1, new Color(0.1f, 0.6f, 0.25f, 0))),
-                ParticleFx.Sizes((0, 0.8f), (1, 1.3f)), gravity: -20, spin: 1.5f, turbulence: 25, frames: true);
+                ParticleFx.Sizes((0, 0.8f), (1, 1.3f)), gravity: -20, spin: 1.5f, turbulence: 25, frames: true, pace: 1.15f);
             ParticleSystem flames = fx.Add("Fire", ParticleFx.Colors((0, new Color(0.8f, 1f, 0.8f, 0)), (0.2f, new Color(0.55f, 1f, 0.6f, 0.85f)), (1, new Color(0.1f, 0.6f, 0.25f, 0))),
-                ParticleFx.Sizes((0, 0.7f), (0.4f, 1f), (1, 0.6f)), gravity: -50, turbulence: 25, frames: true);
+                ParticleFx.Sizes((0, 0.7f), (0.4f, 1f), (1, 0.6f)), gravity: -50, turbulence: 25, frames: true, pace: 1.1f);
             Image heart = Overlay("Medic", SpriteCache.Load("W3/Effects/medic"), new Color(1, 1, 1, 0), Grow(rect, 1.3f));
             heart.preserveAspect = true;
             float age = 0, emit = 0;
@@ -179,10 +180,10 @@ namespace Gwent.Battle
             Image wash = Overlay("FlareWash", null, new Color(tint.r, tint.g, tint.b, 0), rect);
             ParticleFx fx = ParticleFx.At("FlareFire", center);
             ParticleSystem churn = fx.Add("Blaze", ParticleFx.Colors((0, new Color(1, 0.9f, 0.55f, 0)), (0.25f, new Color(1, 0.78f, 0.32f, 0.6f)), (1, new Color(1, 0.45f, 0.08f, 0))),
-                ParticleFx.Sizes((0, 0.8f), (1, 1.15f)), gravity: -40, spin: 1.2f, turbulence: 20, frames: true);
+                ParticleFx.Sizes((0, 0.8f), (1, 1.15f)), gravity: -40, spin: 1.2f, turbulence: 20, frames: true, pace: 1.15f);
             ParticleSystem fire = fx.Add("Fire", ParticleFx.Colors((0, new Color(1, 0.95f, 0.7f, 0)), (0.15f, new Color(1, 0.85f, 0.45f, 0.8f)),
                 (0.6f, new Color(1, 0.55f, 0.12f, 0.5f)), (1, new Color(0.85f, 0.25f, 0.02f, 0))),
-                ParticleFx.Sizes((0, 0.7f), (0.4f, 1f), (1, 0.75f)), gravity: -60, turbulence: 30, frames: true);
+                ParticleFx.Sizes((0, 0.7f), (0.4f, 1f), (1, 0.75f)), gravity: -60, turbulence: 30, frames: true, pace: 1.25f);
             ParticleSystem flash = fx.Add("Blaze", ParticleFx.Colors((0, new Color(1, 1, 1, 0.9f)), (1, new Color(1, 1, 1, 0))),
                 ParticleFx.Sizes((0, 0.8f), (1, 1.4f)), spin: 1f, frames: true);
             Sprite sprite = SpriteCache.Load("W3/Effects/" + flare);
@@ -272,13 +273,13 @@ namespace Gwent.Battle
             }
             ParticleFx front = ParticleFx.At("HeroFire", center);
             ParticleSystem flames = front.Add("Fire", ParticleFx.Colors((0, new Color(1, 0.92f, 0.6f, 0.95f)), (0.4f, new Color(1, 0.58f, 0.14f, 0.8f)), (1, new Color(0.8f, 0.2f, 0.02f, 0))),
-                ParticleFx.Sizes((0, 0.6f), (0.3f, 1f), (1, 0.45f)), gravity: -220, frames: true);
+                ParticleFx.Sizes((0, 0.6f), (0.3f, 1f), (1, 0.45f)), gravity: -220, frames: true, pace: 1.4f);
             ParticleSystem sparks = front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.97f, 0.82f, 1)), (0.35f, new Color(1, 0.72f, 0.28f, 1)), (1, new Color(1, 0.35f, 0.05f, 0))),
-                ParticleFx.Sizes((0, 1f), (1, 0.5f)), gravity: 240);
+                ParticleFx.Sizes((0, 1f), (1, 0.5f)), gravity: 240, pace: 1.8f);
             ParticleSystem glow = front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.55f, 0.12f, 0.28f)), (1, new Color(1, 0.35f, 0.05f, 0))),
-                ParticleFx.Sizes((0, 1f), (1, 1.3f)));
+                ParticleFx.Sizes((0, 1f), (1, 1.3f)), pace: 1.25f);
             ParticleSystem embers = front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.9f, 0.5f, 1)), (1, new Color(1, 0.4f, 0.05f, 0))),
-                ParticleFx.Sizes((0, 1f), (1, 0.6f)), gravity: -35, turbulence: 20);
+                ParticleFx.Sizes((0, 1f), (1, 0.6f)), gravity: -35, turbulence: 20, pace: 1.2f);
 
             Color grey = new Color(0.55f, 0.55f, 0.58f, 0.95f), dark = new Color(0.16f, 0.16f, 0.18f, 0.7f);
             try
@@ -473,16 +474,16 @@ namespace Gwent.Battle
                 char_rect.offsetMin = char_rect.offsetMax = Vector2.zero;
                 burn.Back = ParticleFx.At("ScorchSmoke", center);
                 burn.Smoke = burn.Back.Add("Smoke", ParticleFx.Colors((0, new Color(1, 1, 1, 0)), (0.2f, new Color(1, 1, 1, 0.75f)), (1, new Color(1, 1, 1, 0))),
-                    ParticleFx.Sizes((0, 0.7f), (1, 1.5f)), gravity: -30, spin: 0.6f, turbulence: 14, frames: true);
+                    ParticleFx.Sizes((0, 0.7f), (1, 1.5f)), gravity: -30, spin: 0.6f, turbulence: 14, frames: true, pace: 1.1f);
                 burn.Front = ParticleFx.At("ScorchFire", center);
                 burn.Glow = burn.Front.Add("Blaze", ParticleFx.Colors((0, new Color(1, 0.5f, 0.1f, 0)), (0.3f, new Color(1, 0.48f, 0.08f, 0.55f)), (1, new Color(0.9f, 0.25f, 0.02f, 0))),
-                    ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), gravity: -40);
+                    ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), gravity: -40, pace: 1.15f);
                 burn.Flames = burn.Front.Add("Fire", ParticleFx.Colors((0, new Color(1, 0.94f, 0.65f, 0.95f)), (0.35f, new Color(1, 0.6f, 0.15f, 0.85f)), (1, new Color(0.75f, 0.18f, 0.02f, 0))),
-                    ParticleFx.Sizes((0, 0.55f), (0.3f, 1f), (1, 0.5f)), gravity: -260, turbulence: 8, frames: true);
+                    ParticleFx.Sizes((0, 0.55f), (0.3f, 1f), (1, 0.5f)), gravity: -260, turbulence: 8, frames: true, pace: 1.7f);
                 burn.Sparks = burn.Front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.97f, 0.82f, 1)), (0.4f, new Color(1, 0.7f, 0.25f, 1)), (1, new Color(1, 0.35f, 0.05f, 0))),
-                    ParticleFx.Sizes((0, 1f), (1, 0.5f)), gravity: 200);
+                    ParticleFx.Sizes((0, 1f), (1, 0.5f)), gravity: 200, pace: 1.6f);
                 burn.Embers = burn.Front.Add("Spark", ParticleFx.Colors((0, new Color(1, 0.88f, 0.5f, 1)), (1, new Color(1, 0.4f, 0.05f, 0))),
-                    ParticleFx.Sizes((0, 1f), (1, 0.6f)), gravity: -45, turbulence: 22);
+                    ParticleFx.Sizes((0, 1f), (1, 0.6f)), gravity: -45, turbulence: 22, pace: 1.2f);
                 burns.Add(burn);
             }
 

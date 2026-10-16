@@ -95,7 +95,6 @@ namespace Gwent.Battle
                 : kind == Kind.Frost ? new FrostParticles(root)
                 : kind == Kind.Fog ? new FogParticles(root, storm)
                 : (WeatherLook)new RainParticles(root, storm);
-            look.Hold();
             Light();
         }
 
@@ -183,7 +182,6 @@ namespace Gwent.Battle
                 fade = Mathf.Clamp01(fade + (leaving ? -dt : dt) / FadeSeconds);
             group.alpha = fade * fade * (3 - 2 * fade); // eased
             look.Tick(dt, age);
-            look.Hold();
             if (flash != null && !leaving)
                 StormLightning.Tick();
             if (flash != null)
@@ -330,7 +328,6 @@ namespace Gwent.Battle
         private static readonly Color Sun = new Color(1f, 0.82f, 0.5f);
 
         private RawImage beam;
-        private ParticleFx fx;
         private ParticleSystem motes;
         private float width, height, age, moteDue;
 
@@ -351,9 +348,9 @@ namespace Gwent.Battle
             sun.beam.color = Color.clear;
             sun.beam.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(Along(0, sun.width), 0), new Vector2(300, sun.height * 1.7f));
             sun.beam.rectTransform.localEulerAngles = new Vector3(0, 0, -18); // the light slants in
-            sun.fx = ParticleFx.In("Motes", root);
+            ParticleFx light = ParticleFx.In("Motes", root);
             Color clear = new Color(1, 1, 1, 0);
-            sun.motes = sun.fx.Add("Spark", ParticleFx.Colors((0, clear), (0.2f, Color.white), (1, clear)), ParticleFx.Sizes((0, 1), (1, 0.4f)),
+            sun.motes = light.Add("Spark", ParticleFx.Colors((0, clear), (0.2f, Color.white), (1, clear)), ParticleFx.Sizes((0, 1), (1, 0.4f)),
                 gravity: -25, turbulence: 10);
         }
 
@@ -378,7 +375,6 @@ namespace Gwent.Battle
                     ParticleFx.Emit(motes, new Vector2(x + Random.Range(-110f, 50f), Random.Range(-height / 2, height / 3)),
                         new Vector2(Random.Range(-8f, 8f), Random.Range(5f, 20f)), Random.Range(4f, 8f), Random.Range(0.6f, MotesLive),
                         new Color(1f, 0.85f, 0.55f, Random.Range(0.4f, 0.8f)));
-                fx.Hold();
             }
             if (age > SweepSeconds + MotesLive)
                 Destroy(gameObject);
@@ -386,28 +382,18 @@ namespace Gwent.Battle
     }
 
     // What a row's weather shows in its layer (WeatherEffect): made over the layer, run every frame (dt and age in game
-    // seconds), told when the weather goes (the layer then fades it out). Its particles are in its hosts' systems, held on
-    // pause once it has emitted (ParticleFx.Hold: they age and move at the game's pace).
+    // seconds), told when the weather goes (the layer then fades it out). Its particles are in its hosts' systems.
     internal abstract class WeatherLook
     {
-        private readonly List<ParticleFx> hosts = new List<ParticleFx>();
         private ParticleSystem.Particle[] buffer = new ParticleSystem.Particle[64];
 
         // A particle host over the layer, drawn over what the layer had before it
         protected ParticleFx Host(string name, RectTransform layer)
         {
-            ParticleFx fx = ParticleFx.In(name, layer);
-            hosts.Add(fx);
-            return fx;
+            return ParticleFx.In(name, layer);
         }
 
         public virtual void Tick(float dt, float age) { }
-
-        public void Hold()
-        {
-            foreach (ParticleFx fx in hosts)
-                fx.Hold();
-        }
 
         public virtual void Leave() { }
 

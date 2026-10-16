@@ -15,6 +15,9 @@ namespace Gwent.Battle
     // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on), "Fire" (added on), "Mist" (blended over)
     // and "Streak" (blended over). In game time: the pause menu stops them. Settings > Graphics > Particle density thins
     // what is emitted (a system added whole is not: clouds, whose look is how many puffs overlap).
+    // UIParticle alone moves the particles: emitting into a paused system plays it, and Unity would then move a playing
+    // system as well (twice as fast in each frame it emits, so faster the higher the frame rate). What emitted is paused
+    // again at the end of the frame's Update, before Unity's own particle update. A system runs at its own pace.
     internal sealed class ParticleFx
     {
         private readonly UIParticle host;
@@ -22,13 +25,38 @@ namespace Gwent.Battle
         private static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
         private static readonly HashSet<ParticleSystem> whole = new HashSet<ParticleSystem>(); // never thinned
         private static float density = -1; // the settings', kept (read for every particle emitted); -1: not read yet
+        private static readonly HashSet<ParticleSystem> emitted = new HashSet<ParticleSystem>(); // this frame, to pause
+        private static int generation; // a play session's: the pausing from an earlier one stops
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        // Before the first scene, once UniTask's player loop is there (it is made as the assemblies load)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
         {
             GameSettings.Changed -= ReadDensity;
             density = -1;
             whole.Clear();
+            emitted.Clear();
+            generation++;
+            PlayerLoopHelper.AddAction(PlayerLoopTiming.LastUpdate, new Pausing(generation));
+        }
+
+        // At the end of every frame's Update: what was emitted into goes back on pause
+        private sealed class Pausing : IPlayerLoopItem
+        {
+            private readonly int of;
+
+            public Pausing(int of) { this.of = of; }
+
+            public bool MoveNext()
+            {
+                if (of != generation)
+                    return false;
+                foreach (ParticleSystem system in emitted)
+                    if (system != null && system.isPlaying)
+                        system.Pause();
+                emitted.Clear();
+                return true;
+            }
         }
 
         private static void ReadDensity()
@@ -81,9 +109,11 @@ namespace Gwent.Battle
         // each is born with) and the sizes (a factor of their size at birth), spin up to spin radians a second either way,
         // drift in a turbulence of that strength (layout units a second) in swirls about that wide (layout units), with
         // frames show one of the art's 2 x 2 and, stretched, are sized in width and height (Emit with a Vector2 size);
-        // whole, its particles are never thinned.
+        // whole, its particles are never thinned. At a pace above 1 its particles live faster: they move that much
+        // quicker and live that much shorter (as the battle's effects were made).
         public ParticleSystem Add(string material, Gradient colors, AnimationCurve sizes, float gravity = 0, float spin = 0,
-            float turbulence = 0, bool frames = false, float swirls = 80, bool stretched = false, bool kept_whole = false)
+            float turbulence = 0, bool frames = false, float swirls = 80, bool stretched = false, bool kept_whole = false,
+            float pace = 1)
         {
             GameObject go = new GameObject(material);
             go.transform.SetParent(host.transform, false);
@@ -97,6 +127,7 @@ namespace Gwent.Battle
             main.startSpeed = 0;
             main.maxParticles = 3000;
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.simulationSpeed = pace;
             main.startSize3D = stretched;
             main.gravityModifier = gravity / -Physics.gravity.y;
             ParticleSystem.EmissionModule emission = system.emission;
@@ -170,6 +201,7 @@ namespace Gwent.Battle
                 applyShapeToPosition = false,
             };
             system.Emit(particle, 1);
+            emitted.Add(system);
         }
 
         // One particle of a stretched system (Add), its size in width and height
@@ -188,6 +220,7 @@ namespace Gwent.Battle
                 applyShapeToPosition = false,
             };
             system.Emit(particle, 1);
+            emitted.Add(system);
         }
 
         // Whether a particle is still alive
@@ -209,16 +242,6 @@ namespace Gwent.Battle
             while (host != null && Alive)
                 await UniTask.Yield(PlayerLoopTiming.Update);
             Destroy();
-        }
-
-        // Puts the host's systems back on pause. Emitting into a paused system plays it, and a playing system is simulated
-        // by Unity as well as by UIParticle: in a frame something is emitted, its particles would age and move twice. A
-        // host emitting all the time (a row's weather) calls this once it has emitted.
-        public void Hold()
-        {
-            foreach (ParticleSystem system in systems)
-                if (system != null && system.isPlaying)
-                    system.Pause();
         }
 
         public void Destroy()
