@@ -1163,7 +1163,7 @@ namespace Gwent.EditorTools
                                       // nothing before, a hand card takes its place, a lit place does not use it, the crown does
             DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
                                       // a held press (touch) shows a card, the leader picker, the header's faction arrows,
-                                      // the deck dropdown
+                                      // the deck dropdown, a card dragged into the deck and out of it, a vertical drag scrolls
             MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
             MenuPlay,                 // Play opens the opponent picker; choosing one remembers it and starts the battle
         }
@@ -1749,7 +1749,30 @@ namespace Gwent.EditorTools
                     check(DeckStorage.SamePath(dc.currentDeckPath, deck_path) && dc.my_deck.Name == wanted, "picking the deck in the dropdown shows it");
                     check(DeckStorage.SamePath(PlayerPrefs.GetString("playerDeckPath", ""), deck_path) && dc.BattleDeckStatus == "Battle deck: " + wanted,
                         "the valid deck picked becomes the battle deck, as the status line says (\"" + dc.BattleDeckStatus + "\")");
+                    before = count();
                 });
+
+                // Dragging: a card of the collection onto the deck's panel goes in; one of the deck onto the collection's
+                // goes out; one dropped back on its own grid stays as it was; a drag up the collection scrolls it
+                int dragged = -1;
+                Drag(13.7, () =>
+                {
+                    Vector2 at = AddableCard();
+                    dragged = addTarget != null ? addTarget.GetComponent<CardRef>().Card._id : -1;
+                    return at;
+                }, () => ScreenPoint(dc.deckCollection.transform));
+                At(14.6, () => check(dragged >= 0 && count() == before + 1 && saved() == before + 1 && dc.my_deck.Cards.Contains(dragged),
+                    "a card dragged from the collection onto the deck goes in (and is saved)"));
+                Drag(14.9, FirstCardOf(dc.deckCollection), () => ScreenPoint(browse.transform));
+                At(15.8, () => check(count() == before && saved() == before, "a card dragged from the deck onto the collection goes out (and is saved)"));
+                Drag(16.1, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(-120, 0));
+                At(17.0, () => check(count() == before && CardMotion.Layer.childCount == 0, "a card dropped back on its own grid stays as it was, its copy gone"));
+                ScrollRect scroll = browse.cardsArea.transform.parent.GetComponent<ScrollRect>();
+                float scrolled = 0;
+                At(17.2, () => scrolled = scroll.verticalNormalizedPosition);
+                Drag(17.3, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(0, 220));
+                At(18.2, () => check(count() == before && (scroll.content.rect.height <= ((RectTransform)scroll.transform).rect.height + 1 || scroll.verticalNormalizedPosition != scrolled),
+                    "a drag up the collection scrolls it and adds nothing (" + scrolled.ToString("0.00") + " to " + scroll.verticalNormalizedPosition.ToString("0.00") + ")"));
             }
 
             // What the pointer is on, and the long press of an element (for failure messages)
@@ -1943,6 +1966,21 @@ namespace Gwent.EditorTools
             private double ClickGap(int first, int second)
             {
                 return second < releases.Count ? releases[second] - releases[first] : 0;
+            }
+
+            // Presses on one point, moves to another in steps (as a hand does) and lets go there
+            private void Drag(double time, Func<Vector2> from, Func<Vector2> to, double seconds = 0.4)
+            {
+                Vector2 a = Vector2.zero, b = Vector2.zero;
+                At(time - 0.05, () => { a = from(); b = to(); });
+                At(time - 0.05, () => Send(a, MouseButton.Left, false));
+                At(time, () => Send(a, MouseButton.Left, true));
+                for (int i = 1; i <= 8; i++)
+                {
+                    float k = i / 8f;
+                    At(time + seconds * k, () => Send(Vector2.Lerp(a, b, k), MouseButton.Left, true));
+                }
+                At(time + seconds + 0.05, () => Send(b, MouseButton.Left, false));
             }
 
             private void Move(double time, Func<Vector2> position)

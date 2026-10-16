@@ -13,12 +13,21 @@ using UnityEngine.UI;
 
 namespace Gwent.DeckBuilding
 {
-    public class CollectionCard : MonoBehaviour, IPointerClickHandler
+    // A card of the deck builder's grids: the collection's (added to the deck by a double click, a tap on touch) or the
+    // deck's (taken out of it the same way). It can also be dragged across: a drag mostly sideways carries a copy of it,
+    // dropped on the other grid's panel it is added or taken out as a double click does (refused: it goes back), dropped
+    // anywhere else it goes back; a drag mostly up or down scrolls the grid, as before.
+    public class CollectionCard : MonoBehaviour, IPointerClickHandler, IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public List<Sprite> normalPatch;
         public List<Sprite> uniquePatch;
 
+        private const float BackSeconds = 0.25f;  // a copy dropped where it does nothing, back to its card
+
         private readonly DoubleClick doubleClick = new DoubleClick();
+        private RectTransform carried;  // the copy a drag carries (null: the drag scrolls the grid, or none)
+        private Vector2 grabbed;        // the copy's centre from the pointer (where the card was taken)
+        private Rect takenFrom;         // the card's place on screen when it was taken
 
         [HideInInspector]
         public DeckBuilder deckBuilder;
@@ -58,32 +67,42 @@ namespace Gwent.DeckBuilding
             return GameInput.IsTouch;
         }
 
-        private void EditDeckWithThisCard()
+        // Whether this card is the deck's (else the collection's)
+        private bool InDeck { get { return transform.parent.parent.parent.CompareTag("Player"); } }
+
+        // The grid on the other side: the collection for a deck card, the deck for a collection card
+        private CardGrid OtherGrid()
+        {
+            return InDeck ? FindObjectsByType<CardGrid>().First(grid => grid != deckCollection) : deckCollection;
+        }
+
+        // Adds the card to the deck, or takes it out (carried: the copy a drag brought, else one flies from the card);
+        // false when the deck cannot take it
+        private bool EditDeckWithThisCard(RectTransform carried = null)
         {
             Card cardStats = GetComponent<CardRef>().Card;
-            if (transform.parent.parent.parent.CompareTag("Player"))
+            if (InDeck)
             {
                 // Remove card from deck
                 GameAudio.PlaySfx("deck_remove");
                 GameLog.Event(LogCategory.Deck, "card_removed", "deck", deckBuilder.my_deck.Name, "card", cardStats.name);
-                RectTransform ghost = TakeOff();
+                RectTransform ghost = carried != null ? carried : TakeOff();
+                CardGrid collection = OtherGrid();
                 deckBuilder.my_deck.Cards.Remove(cardStats._id);
                 deckCollection.OnDeckEdit();
-                Land(ghost, FindObjectsByType<CardGrid>().First(grid => grid != deckCollection), cardStats._id, deckBuilder.destroyCancellationToken).Forget();
+                Land(ghost, collection, cardStats._id, deckBuilder.destroyCancellationToken).Forget();
+                return true;
             }
-            else
-            {
-                AddCardToSelectedDeck(cardStats);
-            }
+            return AddCardToSelectedDeck(cardStats, carried);
         }
 
-        private void AddCardToSelectedDeck(Card cardStats)
+        private bool AddCardToSelectedDeck(Card cardStats, RectTransform carried)
         {
             if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
             {
                 GameAudio.PlaySfx("invalid");
                 UIOverlay.Toast("Create a deck first: type a name and press +");
-                return;
+                return false;
             }
 
             int occurences = deckBuilder.my_deck.Cards.Where(x => x.Equals(cardStats._id)).Count();
@@ -94,7 +113,7 @@ namespace Gwent.DeckBuilding
             {
                 GameAudio.PlaySfx("invalid");
                 UIOverlay.Toast(card.DisplayName + " does not belong to this deck's faction");
-                return;
+                return false;
             }
 
             // The copies of the card that exist in The Witcher 3 (one of a hero)
@@ -102,7 +121,7 @@ namespace Gwent.DeckBuilding
             {
                 GameAudio.PlaySfx("invalid");
                 UIOverlay.Toast(Gwent.Rules.DeckRules.TooManyCopies(card));
-                return;
+                return false;
             }
 
             // At most 10 special cards in a deck
@@ -113,17 +132,97 @@ namespace Gwent.DeckBuilding
                 {
                     GameAudio.PlaySfx("invalid");
                     UIOverlay.Toast("A deck can hold at most " + Gwent.Rules.DeckRules.MaxSpecials + " special cards");
-                    return;
+                    return false;
                 }
             }
 
             // If all checks don't match, add the card to deck
             GameAudio.PlaySfx("deck_add");
-            RectTransform ghost = TakeOff();
+            RectTransform ghost = carried != null ? carried : TakeOff();
             deckBuilder.my_deck.Cards.Add(cardStats._id);
             GameLog.Event(LogCategory.Deck, "card_added", "deck", deckBuilder.my_deck.Name, "card", cardStats.name);
             deckCollection.OnDeckEdit();
             Land(ghost, deckCollection, cardStats._id, deckBuilder.destroyCancellationToken).Forget();
+            return true;
+        }
+
+        //----------------------------------------Dragging----------------------------------------//
+        private ScrollRect Scroll { get { return GetComponentInParent<ScrollRect>(); } }
+
+        // The grid's scroll stops gliding as a finger comes down, as it did before the cards took drags
+        public void OnInitializePotentialDrag(PointerEventData eventData)
+        {
+            ScrollRect scroll = Scroll;
+            if (scroll != null)
+                scroll.OnInitializePotentialDrag(eventData);
+        }
+
+        // Sideways: the card is taken (a copy follows the pointer); otherwise the grid scrolls
+        public void OnBeginDrag(PointerEventData eventData)
+        {
+            Vector2 moved = eventData.position - eventData.pressPosition;
+            if (eventData.button != PointerEventData.InputButton.Left || Mathf.Abs(moved.x) <= Mathf.Abs(moved.y))
+            {
+                ScrollRect scroll = Scroll;
+                if (scroll != null)
+                {
+                    eventData.pointerDrag = scroll.gameObject; // the rest of this drag is the grid's
+                    scroll.OnBeginDrag(eventData);
+                }
+                return;
+            }
+            takenFrom = CardMotion.ScreenRect((RectTransform)transform);
+            grabbed = takenFrom.center - eventData.pressPosition;
+            carried = TakeOff();
+            Details().SetActive(false);
+            GameAudio.PlaySfx("card_select");
+            Follow(eventData.position);
+        }
+
+        public void OnDrag(PointerEventData eventData)
+        {
+            if (carried != null)
+                Follow(eventData.position);
+        }
+
+        // On the other grid's panel, the card goes in (or out of the deck); anywhere else, or refused, it goes back
+        public void OnEndDrag(PointerEventData eventData)
+        {
+            if (carried == null)
+                return;
+            RectTransform ghost = carried;
+            carried = null;
+            RectTransform target = (RectTransform)OtherGrid().transform;
+            bool over = RectTransformUtility.RectangleContainsScreenPoint(target, eventData.position, eventData.pressEventCamera);
+            if (over && EditDeckWithThisCard(ghost))
+                return;
+            GoBack(ghost, this != null ? CardMotion.ScreenRect((RectTransform)transform) : takenFrom, deckBuilder.destroyCancellationToken).Forget();
+        }
+
+        private void Follow(Vector2 pointer)
+        {
+            CardMotion.Place(carried, CardMotion.Around(pointer + grabbed, takenFrom.size));
+        }
+
+        private void OnDisable()
+        {
+            // The grid made anew under a drag (another edit): the copy goes
+            if (carried != null)
+                Destroy(carried.gameObject);
+            carried = null;
+        }
+
+        private static async UniTaskVoid GoBack(RectTransform ghost, Rect home, CancellationToken ct)
+        {
+            try
+            {
+                await CardMotion.Glide(ghost, () => home, BackSeconds, ct: ct);
+            }
+            finally
+            {
+                if (ghost != null)
+                    Destroy(ghost.gameObject);
+            }
         }
 
         //----------------------------------------A card's flight----------------------------------------//
