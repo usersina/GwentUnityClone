@@ -2,13 +2,14 @@ using UnityEngine;
 
 namespace Gwent.Battle
 {
-    // Impenetrable Fog rolling over a row (WeatherEffect): a bank of cloud along the row's floor, thickest in its middle and
-    // thinning towards its ends, its top billowing, as in The Witcher 3's art of it, and never still. Puffs (Mist) are born
-    // across it all the time and drift slowly along the row, swelling and thinning out as they go: big ones make its body
-    // low in the row, smaller ones the rounded billows along its top, and faint wisps run faster in front. As it
-    // comes it billows up from the floor: its first puffs rise and slow to a halt, and live staggered lives, as many ending
-    // each moment as drifting ones are born, so the bank never thins while it fills in. As it goes, it lifts. In layout
-    // units and game seconds; one row's fog is about 75 particles.
+    // Impenetrable Fog rolling over a row (WeatherEffect), as in The Witcher 3's art of it: a bank of cloud densest a
+    // quarter of the way up the row, half as dense at its floor and gone by two thirds of its height, its top billowing;
+    // thickest in the row's middle, a third as thick at its ends; and never still. Puffs (Mist, wide and flat) are born
+    // across it all the time and drift slowly along the row, swelling and thinning out as they go: big ones make its body,
+    // smaller ones the rounded billows along its top, and faint wisps run faster in front. As it comes it billows up from
+    // the floor: its first puffs rise and slow to a halt, and live staggered lives, as many ending each moment as drifting
+    // ones are born, so the bank never thins while it fills in. As it goes, it lifts. In layout units and game seconds;
+    // one row's fog is about 70 particles.
     internal sealed class FogParticles : WeatherLook
     {
         private const float Wind = 12;                    // the drift along the row (to the right)
@@ -31,22 +32,30 @@ namespace Gwent.Battle
             // Drifting puffs come in and go out slowly (the bank renews itself unseen); the first ones come in at once
             Color clear = new Color(1, 1, 1, 0);
             billow = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.06f, Color.white), (0.65f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.75f), (0.2f, 1f), (1, 1.15f)), spin: 0.04f, turbulence: 5, frames: true, swirls: 240);
+                ParticleFx.Sizes((0, 0.75f), (0.2f, 1f), (1, 1.15f)), spin: 0.015f, turbulence: 5, frames: true, swirls: 240, stretched: true);
             bank = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.25f, Color.white), (0.7f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), spin: 0.04f, turbulence: 5, frames: true, swirls: 240);
+                ParticleFx.Sizes((0, 0.8f), (1, 1.2f)), spin: 0.015f, turbulence: 5, frames: true, swirls: 240, stretched: true);
             wisps = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.3f, Color.white), (0.6f, Color.white), (1, clear)),
-                ParticleFx.Sizes((0, 0.7f), (1, 1.3f)), spin: 0.06f, turbulence: 8, frames: true, swirls: 160);
+                ParticleFx.Sizes((0, 0.7f), (1, 1.3f)), spin: 0.02f, turbulence: 8, frames: true, swirls: 160, stretched: true);
 
+            // The first puffs start a little lower than they settle, and rise there
             for (int i = 0; i < BodyPuffs + TopPuffs; i++)
             {
                 bool top = i >= BodyPuffs;
                 float life = Random.Range(1.5f, (top ? TopLife : BodyLife) + 1);
                 float x = Across(life);
-                ParticleFx.Emit(billow, new Vector2(x, Floor + (top ? height * Random.Range(0.1f, 0.22f) : Random.Range(-25f, -5f))),
-                    new Vector2(Wind * Random.Range(0.7f, 1.3f), RiseSpeed * Random.Range(0.6f, 1.2f)),
-                    top ? Random.Range(80f, 130f) : Random.Range(200f, 290f), life,
-                    Shade(x, top ? Random.Range(0.3f, 0.45f) : Random.Range(0.3f, 0.42f)), Random.Range(-8f, 8f));
+                float y = top ? height * Random.Range(0.22f, 0.32f) : Random.Range(0f, 15f);
+                Puff(billow, x, Floor + y, new Vector2(Wind * Random.Range(0.7f, 1.3f), RiseSpeed * Random.Range(0.6f, 1.2f)), top, life);
             }
+        }
+
+        // A puff of the body (wide and flat) or of the billows along its top (smaller, rounder)
+        private void Puff(ParticleSystem system, float x, float y, Vector2 velocity, bool top, float life)
+        {
+            float wide = top ? Random.Range(100f, 150f) : Random.Range(220f, 300f);
+            Vector2 size = new Vector2(wide, wide * (top ? Random.Range(0.55f, 0.7f) : Random.Range(0.4f, 0.5f)));
+            ParticleFx.Emit(system, new Vector2(x, y), velocity, size, life,
+                Shade(x + velocity.x * life / 2, top ? Random.Range(0.33f, 0.5f) : Random.Range(0.31f, 0.43f)), Random.Range(-3f, 3f));
         }
 
         private float Floor { get { return -height / 2; } }
@@ -57,31 +66,27 @@ namespace Gwent.Battle
                 rising = Settle(billow, RiseDrag, dt);
             if (leaving)
                 return;
-            // The body low in the row, the billows along its top: the bank covers about the row's lower 55%, the row seen
-            // through it
+            // The body a quarter of the way up the row, the billows along its top, the row seen through it all
             for (bodyDue += BodyPuffs / BodyLife * dt; bodyDue >= 1; bodyDue--)
             {
                 float life = BodyLife * Random.Range(0.8f, 1.2f);
                 float x = Across(life);
-                ParticleFx.Emit(bank, new Vector2(x, Floor + height * Random.Range(0f, 0.22f)),
-                    new Vector2(Wind * Random.Range(0.7f, 1.3f), Random.Range(-2f, 2f)),
-                    Random.Range(200f, 290f), life, Shade(x, Random.Range(0.3f, 0.42f)), Random.Range(-8f, 8f));
+                Puff(bank, x, Floor + height * Random.Range(0.12f, 0.3f), new Vector2(Wind * Random.Range(0.7f, 1.3f), Random.Range(-2f, 2f)), false, life);
             }
             for (topDue += TopPuffs / TopLife * dt; topDue >= 1; topDue--)
             {
                 float life = TopLife * Random.Range(0.8f, 1.2f);
                 float x = Across(life);
-                ParticleFx.Emit(bank, new Vector2(x, Floor + height * Random.Range(0.3f, 0.45f)),
-                    new Vector2(Wind * Random.Range(0.7f, 1.3f), Random.Range(-2f, 2f)),
-                    Random.Range(80f, 130f), life, Shade(x, Random.Range(0.3f, 0.45f)), Random.Range(-8f, 8f));
+                Puff(bank, x, Floor + height * Random.Range(0.36f, 0.5f), new Vector2(Wind * Random.Range(0.7f, 1.3f), Random.Range(-2f, 2f)), true, life);
             }
             for (wispDue += Wisps / WispLife * dt; wispDue >= 1; wispDue--)
             {
                 float life = WispLife * Random.Range(0.8f, 1.2f);
                 float x = Across(life * 2.2f);
-                ParticleFx.Emit(wisps, new Vector2(x, Floor + height * Random.Range(0.1f, 0.4f)),
+                float wide = Random.Range(140f, 200f);
+                ParticleFx.Emit(wisps, new Vector2(x, Floor + height * Random.Range(0.15f, 0.4f)),
                     new Vector2(Wind * Random.Range(1.8f, 2.6f), Random.Range(-3f, 3f)),
-                    Random.Range(120f, 180f), life, Shade(x, Random.Range(0.2f, 0.32f)), Random.Range(-10f, 10f));
+                    new Vector2(wide, wide * 0.45f), life, Shade(x + Wind * 2.2f * life / 2, Random.Range(0.18f, 0.28f)), Random.Range(-4f, 4f));
             }
         }
 
@@ -100,13 +105,13 @@ namespace Gwent.Battle
             return Random.Range(-width / 2 - 60, width / 2 + 60) - Wind * life / 2;
         }
 
-        // A puff's colour: thinner towards the row's ends, as the fog is in The Witcher 3's art (the horn slot's end barely
-        // clouded)
+        // A puff's colour, by where it is halfway through its drift: thickest in the row's middle, thinning smoothly to a
+        // third at its ends, as the fog is in The Witcher 3's art
         private Color Shade(float x, float alpha)
         {
-            float along = x / width + 0.5f;
-            float thick = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.05f, 0.25f, along)) * Mathf.SmoothStep(0, 1, Mathf.InverseLerp(1, 0.88f, along));
-            return new Color(Grey.r, Grey.g, Grey.b, alpha * Mathf.Lerp(0.25f, 1, thick));
+            float along = Mathf.Clamp01(x / width + 0.5f);
+            float thick = Mathf.Pow(Mathf.Sin(Mathf.PI * along), 1.6f);
+            return new Color(Grey.r, Grey.g, Grey.b, alpha * Mathf.Lerp(0.3f, 1, thick));
         }
     }
 }

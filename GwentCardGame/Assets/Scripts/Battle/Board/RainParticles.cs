@@ -2,16 +2,18 @@ using UnityEngine;
 
 namespace Gwent.Battle
 {
-    // Torrential Rain on a row (WeatherEffect), as in The Witcher 3's art of it: pale streaks of falling drops all over the
-    // row (Streak, tall and thin), splashes along its front edge, a few droplets bouncing off them, and a grey haze of
-    // spray low in the row, thickening towards the floor (Mist). It starts light and grows heavy as it comes; as it goes,
-    // the last drops fall as it fades. In layout units and game seconds; one row's rain is about 180 particles.
+    // Torrential Rain on a row (WeatherEffect), as in The Witcher 3's art of it: many fine, short, faint streaks of falling
+    // drops (Streak), thickest in the row's lower two thirds, splashes along its front edge, a few droplets bouncing off
+    // them, and a grey haze of spray low in the row, thickening towards the floor (Mist). It starts light and grows heavy
+    // as it comes; as it goes, it thins out and stops as it fades. In layout units and game seconds; one row's rain is
+    // about 330 particles.
     internal sealed class RainParticles : WeatherLook
     {
-        private const float FallSpeed = 1640;         // a drop's
+        private const float FallSpeed = 900;          // a drop's: no further a frame than its streak is long, or it flickers
         private const float Slant = 0;                // degrees from the vertical, to the right: it falls straight, as in the art
-        private const int Drops = 135, Splashes = 13, Haze = 16; // alive at once, at full strength
-        private const float DropLife = 0.08f, SplashLife = 0.12f, HazeLife = 6; // on average
+        private const int Drops = 270, Splashes = 13, Haze = 16; // alive at once, at full strength
+        private const float DropLife = 0.15f, SplashLife = 0.12f, HazeLife = 6; // on average
+        private const float StopSeconds = 0.45f;      // as it goes, from full strength to none (the layer fades meanwhile)
         private const float DropletGravity = 2000;    // the droplets bouncing off the splashes fall back
         private const float BuildSeconds = 0.8f;       // from the first drops to full strength
         private static readonly Color Pale = new Color(0.82f, 0.86f, 0.9f);
@@ -19,7 +21,7 @@ namespace Gwent.Battle
         private readonly ParticleSystem haze, drops, splashes, droplets;
         private readonly float width, height;
         private readonly Vector2 fall;
-        private float dropDue, splashDue, hazeDue; // the particles owed since the last frame
+        private float dropDue, splashDue, hazeDue, leftAt = -1; // the particles owed since the last frame; when it went
         private bool leaving;
 
         public RainParticles(RectTransform layer)
@@ -46,32 +48,38 @@ namespace Gwent.Battle
 
         public override void Tick(float dt, float age)
         {
-            if (leaving)
-                return;
             float strength = Mathf.SmoothStep(0.15f, 1, age / BuildSeconds);
+            if (leaving)
+            {
+                if (leftAt < 0)
+                    leftAt = age;
+                strength *= 1 - Mathf.Clamp01((age - leftAt) / StopSeconds);
+            }
             for (dropDue += Drops / DropLife * strength * dt; dropDue >= 1; dropDue--)
                 EmitDrop();
             for (splashDue += Splashes / SplashLife * strength * dt; splashDue >= 1; splashDue--)
                 EmitSplash();
+            if (leaving)
+                return;
             for (hazeDue += Haze / HazeLife * dt; hazeDue >= 1; hazeDue--)
                 EmitHaze(HazeLife * Random.Range(0.8f, 1.2f));
         }
 
-        // No more drops: those falling fall on as it fades
+        // It thins out and stops, its drops falling on as it fades
         public override void Leave()
         {
             leaving = true;
         }
 
-        // A drop falling through the row: born anywhere over it (a little above), gone after its short fall, nearer drops
-        // longer and brighter
+        // A drop falling through the row: born anywhere over it, gone after its fall (so that they gather lower in the row),
+        // a fine short streak, nearer drops a little longer and brighter
         private void EmitDrop()
         {
             float near = Random.value;
             float life = DropLife * Random.Range(0.6f, 1.4f);
-            Vector2 at = new Vector2(Random.Range(-width / 2, width / 2) - fall.x * life / 2, Random.Range(Floor + 10, height / 2 + 30));
-            Vector2 size = new Vector2(Mathf.Lerp(2.2f, 3.4f, near), Mathf.Lerp(12f, 24f, near));
-            Color color = new Color(Pale.r, Pale.g, Pale.b, Mathf.Lerp(0.25f, 0.6f, near));
+            Vector2 at = new Vector2(Random.Range(-width / 2, width / 2) - fall.x * life / 2, Random.Range(Floor + 10, height / 2 + 10));
+            Vector2 size = new Vector2(Mathf.Lerp(1.6f, 2.4f, near), Mathf.Lerp(8f, 15f, near));
+            Color color = new Color(Pale.r, Pale.g, Pale.b, Mathf.Lerp(0.2f, 0.45f, near));
             ParticleFx.Emit(drops, at, fall * Mathf.Lerp(0.85f, 1.1f, near), size, life, color, -Slant);
         }
 
