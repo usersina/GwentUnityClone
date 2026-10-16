@@ -522,5 +522,78 @@ namespace Gwent.Rules
             row = Row.Close; // no target: the row means nothing
             return -1;
         }
+
+        //----------------------------------------The match's questions----------------------------------------//
+        // The cards to redraw from the opening hand, in order (two at most are: a redrawn card goes to the bottom of the
+        // deck, so one still in the hand once its turn comes): the extra members of a muster family (the one kept calls
+        // them from the deck anyway), then plain units weaker than an average unit of the deck. Easy keeps the hand it was
+        // dealt, as a beginner would.
+        public static List<int> Redraws(PlayerState me, CardDatabase db, AiDifficulty difficulty)
+        {
+            List<int> to_exchange = new List<int>();
+            if (difficulty == AiDifficulty.Easy)
+                return to_exchange;
+            List<int> kept = new List<int>();
+            IEnumerable<int> musters = me.HandList.Where(id => db.Get(id).ability == Ability.Muster)
+                .OrderByDescending(id => me.HandList.Count(other => AbilityRules.IsMusterRelative(db.Get(id), db.Get(other))));
+            foreach (int card_id in musters)
+            {
+                if (kept.Any(caller => AbilityRules.IsMusterRelative(db.Get(caller), db.Get(card_id))))
+                    to_exchange.Add(card_id);
+                else
+                    kept.Add(card_id);
+            }
+
+            List<Card> deck_units = me.DeckList.Select(db.Get).Where(card => card.IsUnit).ToList();
+            double average = deck_units.Count > 0 ? deck_units.Average(card => card.strength) : 0;
+            to_exchange.AddRange(me.HandList.Where(id =>
+            {
+                Card card = db.Get(id);
+                return card.IsUnit && !card.unique && card.ability == Ability.None && card.strength < average - 1;
+            }).OrderBy(id => db.Get(id).strength));
+            return to_exchange;
+        }
+
+        // The answer to a choice the match asks of the AI's side (seat): itself first; a medic's unit (ChooseMedicTarget;
+        // an agile one on its better row); a weather leader's card (the one that gains most); a unit taken back
+        // (ChooseRestoreTarget); a card to discard (the weakest) or to draw (the strongest); a look ends at once
+        public static MatchCommand Answer(Board board, bool seat, Choice choice)
+        {
+            PlayerState me = board.Side(seat);
+            CardDatabase db = board.Db;
+            switch (choice.Kind)
+            {
+                case ChoiceKind.FirstPlayer:
+                    return MatchCommand.ChooseFirst(true);
+                case ChoiceKind.Revive:
+                    int unit = ChooseRestoreTarget(choice.Options, me, db);
+                    Card card = db.Get(unit);
+                    Row row = card.row == Row.Agile ? AbilityRules.BestAgileRow(me, unit, board.Weather, board.DoubleSpies, db) : card.row;
+                    return MatchCommand.Choose(unit, row);
+                case ChoiceKind.WeatherFromDeck:
+                    AiContext ctx = board.AiContextFor(seat);
+                    int best = -1, best_gain = int.MinValue;
+                    foreach (int card_id in choice.Options)
+                    {
+                        Card weather = db.Get(card_id);
+                        int gain = Simulate(ctx, (m, o, w) => AbilityRules.PlayWeather(m, o, w, weather));
+                        if (gain > best_gain)
+                        {
+                            best = card_id;
+                            best_gain = gain;
+                        }
+                    }
+                    return MatchCommand.Choose(best, Row.Weather);
+                case ChoiceKind.RestoreFromDiscard:
+                case ChoiceKind.RestoreFromOpponentDiscard:
+                    return MatchCommand.Choose(ChooseRestoreTarget(choice.Options, me, db));
+                case ChoiceKind.Discard:
+                    return MatchCommand.Discard(me.HandList.OrderBy(id => db.Get(id).IsUnit ? db.Get(id).strength : 100).First());
+                case ChoiceKind.DeckPick:
+                    return MatchCommand.Choose(choice.Options.OrderByDescending(id => db.Get(id).IsUnit ? db.Get(id).strength : 0).First());
+                default:
+                    return MatchCommand.Choose(-1); // a look: seen
+            }
+        }
     }
 }
