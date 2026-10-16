@@ -5,12 +5,13 @@ namespace Gwent.Battle
     // Torrential Rain on a row (WeatherEffect), as in The Witcher 3's art of it: many fine, short, faint streaks of falling
     // drops (Streak), thickest in the row's lower two thirds, splashes along its front edge, a few droplets bouncing off
     // them, and a grey haze of spray low in the row, thickening towards the floor (Mist). It starts light and grows heavy
-    // as it comes; as it goes, it thins out and stops as it fades. In layout units and game seconds; one row's rain is
-    // about 330 particles.
+    // as it comes; as it goes, it thins out and stops as it fades. Skellige Storm's is heavier and driven by the wind:
+    // faster, slanting, the slant swaying with the gusts, its spray blown along the row. In layout units and game
+    // seconds; one row's rain is about 330 particles (a storm's 420).
     internal sealed class RainParticles : WeatherLook
     {
         private const float FallSpeed = 900;          // a drop's: no further a frame than its streak is long, or it flickers
-        private const float Slant = 0;                // degrees from the vertical, to the right: it falls straight, as in the art
+        private const float StormSpeed = 1150, StormSlant = 18; // a storm's (degrees from the vertical, to the right); calm, it falls straight, as in the art
         private const int Drops = 270, Splashes = 13, Haze = 16; // alive at once, at full strength
         private const float DropLife = 0.15f, SplashLife = 0.12f, HazeLife = 6; // on average
         private const float StopSeconds = 0.45f;      // as it goes, from full strength to none (the layer fades meanwhile)
@@ -20,16 +21,20 @@ namespace Gwent.Battle
 
         private readonly ParticleSystem haze, drops, splashes, droplets;
         private readonly float width, height;
-        private readonly Vector2 fall;
+        private readonly bool storm;
+        private readonly float heavy;  // more drops in a storm
+        private float slant;           // degrees from the vertical, to the right (a storm's sways)
+        private Vector2 fall;
         private float dropDue, splashDue, hazeDue, leftAt = -1; // the particles owed since the last frame; when it went
         private bool leaving;
 
-        public RainParticles(RectTransform layer)
+        public RainParticles(RectTransform layer, bool storm = false)
         {
             width = layer.rect.width;
             height = layer.rect.height;
-            float slant = Slant * Mathf.Deg2Rad;
-            fall = new Vector2(Mathf.Sin(slant), -Mathf.Cos(slant)) * FallSpeed;
+            this.storm = storm;
+            heavy = storm ? 1.3f : 1;
+            Gust(0);
             ParticleFx fx = Host("Rain", layer);
             Color clear = new Color(1, 1, 1, 0);
             haze = fx.Add("Mist", ParticleFx.Colors((0, clear), (0.3f, Color.white), (0.7f, Color.white), (1, clear)),
@@ -46,9 +51,18 @@ namespace Gwent.Battle
 
         private float Floor { get { return -height / 2; } }
 
+        // The way the drops fall: a storm's slant sways with its gusts
+        private void Gust(float age)
+        {
+            slant = storm ? StormSlant + 7 * Mathf.Sin(age * 0.8f) + 3 * Mathf.Sin(age * 2.1f) : 0;
+            float angle = slant * Mathf.Deg2Rad;
+            fall = new Vector2(Mathf.Sin(angle), -Mathf.Cos(angle)) * (storm ? StormSpeed : FallSpeed);
+        }
+
         public override void Tick(float dt, float age)
         {
-            float strength = Mathf.SmoothStep(0.15f, 1, age / BuildSeconds);
+            Gust(age);
+            float strength = Mathf.SmoothStep(0.15f, 1, age / BuildSeconds) * heavy;
             if (leaving)
             {
                 if (leftAt < 0)
@@ -71,6 +85,12 @@ namespace Gwent.Battle
             leaving = true;
         }
 
+        // Wiped away by the sun: it rains on as it was
+        public override void Wiped()
+        {
+            leaving = false;
+        }
+
         // A drop falling through the row: born anywhere over it, gone after its fall (so that they gather lower in the row),
         // a fine short streak, nearer drops a little longer and brighter
         private void EmitDrop()
@@ -78,9 +98,9 @@ namespace Gwent.Battle
             float near = Random.value;
             float life = DropLife * Random.Range(0.6f, 1.4f);
             Vector2 at = new Vector2(Random.Range(-width / 2, width / 2) - fall.x * life / 2, Random.Range(Floor + 10, height / 2 + 10));
-            Vector2 size = new Vector2(Mathf.Lerp(1.6f, 2.4f, near), Mathf.Lerp(8f, 15f, near));
+            Vector2 size = new Vector2(Mathf.Lerp(1.6f, 2.4f, near), Mathf.Lerp(8f, 15f, near) * (storm ? 1.25f : 1));
             Color color = new Color(Pale.r, Pale.g, Pale.b, Mathf.Lerp(0.2f, 0.45f, near));
-            ParticleFx.Emit(drops, at, fall * Mathf.Lerp(0.85f, 1.1f, near), size, life, color, -Slant);
+            ParticleFx.Emit(drops, at, fall * Mathf.Lerp(0.85f, 1.1f, near), size, life, color, -slant);
         }
 
         // A drop landing: a small bright splash spreading on the floor, mostly along the row's front edge, now and then a
@@ -101,9 +121,10 @@ namespace Gwent.Battle
         // large and faint, so that they blend into one
         private void EmitHaze(float life)
         {
-            Vector2 at = new Vector2(Random.Range(-width / 2 - 100, width / 2 + 100) - 6 * life / 2, Floor + Random.Range(-40f, 10f));
-            ParticleFx.Emit(haze, at, new Vector2(Random.Range(4f, 8f), Random.Range(-1f, 1f)), Random.Range(420f, 560f), life,
-                new Color(0.75f, 0.78f, 0.82f, Random.Range(0.12f, 0.18f)), Random.Range(-4f, 4f));
+            float drift = storm ? Random.Range(25f, 40f) : Random.Range(4f, 8f); // set back by half its drift: it stays centred
+            Vector2 at = new Vector2(Random.Range(-width / 2 - 100, width / 2 + 100) - drift * life / 2, Floor + Random.Range(-40f, 10f));
+            ParticleFx.Emit(haze, at, new Vector2(drift, Random.Range(-1f, 1f)), Random.Range(420f, 560f), life,
+                new Color(0.75f, 0.78f, 0.82f, storm ? Random.Range(0.15f, 0.22f) : Random.Range(0.12f, 0.18f)), Random.Range(-4f, 4f));
         }
     }
 }

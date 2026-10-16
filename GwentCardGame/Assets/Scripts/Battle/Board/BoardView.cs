@@ -204,10 +204,14 @@ namespace Gwent.Battle
 
         private BattleController.BattleSide Info(bool is_player) { return is_player ? controller.PlayerInfo : controller.EnemyInfo; }
 
+        private bool clearingRound; // the board refreshed is a new round's (the weather goes with the round: no sun)
+
         //----------------------------------------Whole board----------------------------------------//
         // Shows both sides and the weather from the lists, then lights off the rows and updates the scores
-        public void Refresh()
+        // (round_clear: the board cleared for a new round)
+        public void Refresh(bool round_clear = false)
         {
+            clearingRound = round_clear;
             RefreshField(true);
             RefreshField(false);
             SyncCards(controller.WeatherField, controller.weatherList, true, BoardChange.Place.Weather);
@@ -504,20 +508,23 @@ namespace Gwent.Battle
         }
 
         //----------------------------------------Weather and scores----------------------------------------//
-        // Each row's weather, The Witcher 3's art over its cards (WeatherEffect): it fades in with its weather card, out once
-        // cleared. Skellige Storm is the fog over the ranged row and the rain over the siege row.
+        // Each row's weather over its cards (WeatherEffect): it fades in with its weather card, out once cleared. Skellige
+        // Storm is a stormy fog over the ranged row and a stormy rain over the siege row. Weather cleared during a round
+        // (Clear Weather, Foltest's order) goes in the sun's light (SunSweep).
         private void RefreshWeather(FieldView view)
         {
             List<int> weather = controller.weatherList;
             bool storm = weather.Contains(CardIds.SkelligeStorm);
-            ShowWeather(view.Rows[Row.Close], WeatherEffect.Kind.Frost, weather.Contains(CardIds.BitingFrost));
-            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, storm || weather.Contains(CardIds.ImpenetrableFog));
-            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, storm || weather.Contains(CardIds.TorrentialRain));
+            ShowWeather(view.Rows[Row.Close], WeatherEffect.Kind.Frost, weather.Contains(CardIds.BitingFrost), false);
+            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, storm || weather.Contains(CardIds.ImpenetrableFog), storm);
+            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, storm || weather.Contains(CardIds.TorrentialRain), storm);
         }
 
-        private static void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on)
+        private void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on, bool storm)
         {
-            WeatherEffect.Show((RectTransform)row.Special.transform, (RectTransform)row.Unit.transform, kind, on);
+            RectTransform slot = (RectTransform)row.Special.transform, lane = (RectTransform)row.Unit.transform;
+            if (WeatherEffect.Show(slot, lane, kind, on, storm) && !clearingRound)
+                SunSweep.Over(slot, lane);
         }
 
         private void UpdateScores(bool is_player_field)

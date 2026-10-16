@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -11,7 +12,9 @@ namespace Gwent.EditorTools
     // white, blended over), Streak (a falling raindrop's streak, drawn tall and thin, blended over), Glint (a four-pointed
     // sparkle, added on), Flake (a soft snowflake, blended over) and Biting Frost's: Shard (four needles of ice), Snow
     // (four banks of it), Rime (four frosted shrubs), Band (the cold's glow, fading upwards) and Frost (a veil of frost
-    // grain and flakes, fading upwards), all blended over and standing on their sheet cell's middle
+    // grain and flakes, fading upwards), all blended over and standing on their sheet cell's middle; Skellige Storm's
+    // Bolt (four forked bolts of lightning, added on) and Flash (Band's glow, added on); Clear Weather's Beam (a soft
+    // shaft of sunlight, added on)
     // (its lower half the floor below them, so that a particle grows and leans about its foot). The materials use UI shaders (ParticleEffectForUGUI's UI/Additive, Unity's UI/Default), which also brings
     // UI/Additive into the builds.
     public static class ParticleArtGenerator
@@ -35,6 +38,9 @@ namespace Gwent.EditorTools
             Write("Band", 8, 256, (x, y) => Glow(y / 256));
             Write("Frost", 512, 256, Veil);
             Write("Flake", 32, Flake);
+            float[] bolts = Bolts(128, 256);
+            Write("Bolt", 256, 512, (x, y) => new Color(1, 1, 1, Mathf.Clamp01(bolts[(int)y * 256 + (int)x])));
+            Write("Beam", 64, 256, Beam);
             AssetDatabase.Refresh();
             ConfigureImporter("Spark", TextureImporterCompression.Uncompressed); // smooth gradients: no banding
             ConfigureImporter("Smoke", TextureImporterCompression.CompressedHQ);
@@ -48,6 +54,8 @@ namespace Gwent.EditorTools
             ConfigureImporter("Band", TextureImporterCompression.Uncompressed); // a smooth gradient: no banding
             ConfigureImporter("Frost", TextureImporterCompression.CompressedHQ);
             ConfigureImporter("Flake", TextureImporterCompression.Uncompressed);
+            ConfigureImporter("Bolt", TextureImporterCompression.CompressedHQ);
+            ConfigureImporter("Beam", TextureImporterCompression.Uncompressed); // a smooth gradient: no banding
             WriteMaterial("Spark", "UI/Additive");
             WriteMaterial("Fire", "UI/Additive");
             WriteMaterial("Smoke", "UI/Default");
@@ -61,6 +69,9 @@ namespace Gwent.EditorTools
             WriteMaterial("Band", "UI/Default");
             WriteMaterial("Frost", "UI/Default");
             WriteMaterial("Flake", "UI/Default");
+            WriteMaterial("Bolt", "UI/Additive");
+            WriteMaterial("Flash", "UI/Additive", "Band");
+            WriteMaterial("Beam", "UI/Additive");
             AssetDatabase.SaveAssets();
         }
 
@@ -270,13 +281,18 @@ namespace Gwent.EditorTools
         // A soft round dab of alpha (laid over what is there)
         private static void Splat(float[] alpha, int size, Vector2 at, float radius, float strength)
         {
+            Splat(alpha, size, size, at, radius, strength);
+        }
+
+        private static void Splat(float[] alpha, int width, int height, Vector2 at, float radius, float strength)
+        {
             int reach = Mathf.CeilToInt(radius * 2 + 1);
-            for (int y = Mathf.Max(0, (int)at.y - reach); y <= Mathf.Min(size - 1, (int)at.y + reach); y++)
-                for (int x = Mathf.Max(0, (int)at.x - reach); x <= Mathf.Min(size - 1, (int)at.x + reach); x++)
+            for (int y = Mathf.Max(0, (int)at.y - reach); y <= Mathf.Min(height - 1, (int)at.y + reach); y++)
+                for (int x = Mathf.Max(0, (int)at.x - reach); x <= Mathf.Min(width - 1, (int)at.x + reach); x++)
                 {
                     float d = (new Vector2(x + 0.5f, y + 0.5f) - at).magnitude / Mathf.Max(radius, 0.3f);
                     float dab = strength * Mathf.Exp(-d * d);
-                    int index = y * size + x;
+                    int index = y * width + x;
                     alpha[index] += dab * (1 - alpha[index]);
                 }
         }
@@ -318,6 +334,81 @@ namespace Gwent.EditorTools
         {
             float r = new Vector2(x - 16, y - 16).magnitude;
             return new Color(1, 1, 1, Mathf.Clamp01(0.85f * Mathf.Exp(-Sq(r / 7f)) + 0.3f * Mathf.Exp(-Sq(r / 2.5f))));
+        }
+
+        // Four bolts of lightning (a 2 x 2 sheet of cells that size, in pixels): each strikes from its cell's top to its
+        // bottom along a jagged path, forking once or twice; a thin white-hot core in a soft glow, the forks fainter
+        private static float[] Bolts(int cellWidth, int cellHeight)
+        {
+            int width = cellWidth * 2;
+            float[] alpha = new float[width * cellHeight * 2];
+            for (int variant = 0; variant < 4; variant++)
+            {
+                float[] bolt = new float[cellWidth * cellHeight];
+                System.Random random = new System.Random(variant * 104729 + 31);
+                Vector2 top = new Vector2(cellWidth * (0.4f + 0.2f * (float)random.NextDouble()), cellHeight * 0.98f);
+                Vector2 bottom = new Vector2(cellWidth * (0.25f + 0.5f * (float)random.NextDouble()), cellHeight * 0.03f);
+                List<Vector2> path = Jagged(top, bottom, cellHeight * 0.09f, random);
+                Strike(bolt, cellWidth, cellHeight, path, 1.3f, 1f);
+                for (int f = 1 + random.Next(2); f > 0; f--)
+                {
+                    Vector2 from = path[path.Count / 5 + random.Next(path.Count / 2)];
+                    float side = random.NextDouble() < 0.5 ? -1 : 1;
+                    Vector2 to = from + new Vector2(side * cellWidth * (0.2f + 0.2f * (float)random.NextDouble()), -cellHeight * (0.2f + 0.2f * (float)random.NextDouble()));
+                    to.x = Mathf.Clamp(to.x, 6, cellWidth - 6);
+                    Strike(bolt, cellWidth, cellHeight, Jagged(from, to, cellHeight * 0.05f, random), 0.8f, 0.55f);
+                }
+                int ox = (variant % 2) * cellWidth, oy = (variant / 2) * cellHeight;
+                for (int y = 0; y < cellHeight; y++)
+                    for (int x = 0; x < cellWidth; x++)
+                        alpha[(oy + y) * width + ox + x] = bolt[y * cellWidth + x];
+            }
+            return alpha;
+        }
+
+        // A jagged path between two points: each segment's middle pushed aside, a little less at each level
+        private static List<Vector2> Jagged(Vector2 from, Vector2 to, float roughness, System.Random random)
+        {
+            List<Vector2> path = new List<Vector2> { from, to };
+            for (int level = 0; level < 6; level++, roughness *= 0.55f)
+            {
+                List<Vector2> finer = new List<Vector2>();
+                for (int i = 0; i < path.Count - 1; i++)
+                {
+                    Vector2 a = path[i], b = path[i + 1];
+                    Vector2 across = new Vector2(-(b - a).y, (b - a).x).normalized;
+                    finer.Add(a);
+                    finer.Add((a + b) / 2 + across * roughness * ((float)random.NextDouble() * 2 - 1));
+                }
+                finer.Add(path[path.Count - 1]);
+                path = finer;
+            }
+            return path;
+        }
+
+        // A bolt along a path in an alpha map that size: its core (that wide, pixels) and its glow, as bright as strength
+        private static void Strike(float[] alpha, int width, int height, List<Vector2> path, float core, float strength)
+        {
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                float length = (path[i + 1] - path[i]).magnitude;
+                for (float k = 0; k < length; k += 0.5f)
+                {
+                    Vector2 at = Vector2.Lerp(path[i], path[i + 1], k / length);
+                    Splat(alpha, width, height, at, core, strength);
+                    Splat(alpha, width, height, at, core * 5, strength * 0.035f);
+                }
+            }
+        }
+
+        // A shaft of sunlight (x, y in pixels of 64 x 256): soft across, fading at both ends, faint rays along it
+        private static Color Beam(float x, float y)
+        {
+            float u = x / 64, v = y / 256;
+            float across = Mathf.Exp(-Sq((u - 0.5f) / 0.2f));
+            float ends = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0, 0.15f, v)) * Mathf.SmoothStep(0, 1, Mathf.InverseLerp(1, 0.85f, v));
+            float rays = 0.75f + 0.25f * Noise(u * 14, v * 1.5f);
+            return new Color(1, 1, 1, Mathf.Clamp01(across * ends * rays));
         }
 
         private static float Sq(float x) { return x * x; }

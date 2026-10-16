@@ -93,7 +93,7 @@ namespace Gwent.Battle
         private readonly Stand band, veil, haze, rime, needles, beads, snow;
         private readonly float width, height;
         private float mistDue, flakeDue, glintDue, leftAt = -1;
-        private bool shaping = true, leaving;
+        private bool shaping = true, leaving, wiped;
 
         public FrostParticles(RectTransform layer)
         {
@@ -256,13 +256,20 @@ namespace Gwent.Battle
             shaping = true;
         }
 
+        // Wiped away by the sun: it stands as it was, nothing sinking
+        public override void Wiped()
+        {
+            wiped = true;
+        }
+
         // What stands, at its size for now: growing, or once the frost goes, sinking whole into the floor. A needle
         // glints at its tip as it stands. False once all stand still.
         private bool Shape(float age)
         {
             if (leaving && leftAt < 0)
                 leftAt = age;
-            float melt = leaving ? Mathf.Clamp01((age - leftAt) / MeltSeconds) : 0;
+            bool melting = leaving && !wiped;
+            float melt = melting ? Mathf.Clamp01((age - leftAt) / MeltSeconds) : 0;
             float melted = (1 - melt) * (1 - melt);
             bool moving = false;
             foreach (Stand stand in new[] { band, veil, haze, rime, needles, beads, snow })
@@ -276,7 +283,7 @@ namespace Gwent.Battle
                     float narrowed = stand.WidthFrom < 1 ? melted : 1;
                     stand.Images[index].rectTransform.sizeDelta = new Vector2(
                         thing.Size.x * Mathf.Lerp(stand.WidthFrom, 1, Mathf.Min(grown, 1)) * narrowed, thing.Size.y * grown * melted);
-                    moving |= leaving ? melt < 1 : time < 1;
+                    moving |= melting ? melt < 1 : time < 1;
                     if (stand == needles && !thing.Shone && !leaving && time >= 1)
                     {
                         thing.Shone = true;

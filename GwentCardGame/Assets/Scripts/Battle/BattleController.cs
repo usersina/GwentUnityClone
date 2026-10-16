@@ -1057,7 +1057,7 @@ namespace Gwent.Battle
         private void RefreshBoard(bool round_clear = false)
         {
             RecalculateStrengths();
-            board.Refresh();
+            board.Refresh(round_clear);
             AnnounceCows(round_clear);
         }
 
