@@ -783,7 +783,7 @@ namespace Gwent.EditorTools
                     if (++menuPhaseFrames < 60)
                         return;
                     MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
-                    Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
+                    Check(menu != null && menu.Items.Count == 6 && menu.Items[1].name == "Item Play on LAN", "the main menu loads with its 6 entries, Play on LAN second", "main menu");
                     Check(DeckStorage.BattleDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
                     inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
                     menuStage = 1;

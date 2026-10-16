@@ -315,6 +315,490 @@
     -unity-background-image-tint-color: var(--gold);
 }
 
+/*---------------------------------------- Play on LAN ----------------------------------------*/
+.lan {
+    width: 1320px;
+    padding: 34px 50px 36px 50px;
+    align-items: center;
+}
+
+.lan__ornament {
+    margin: 14px 0 26px 0;
+}
+
+/* You: your leader's portrait, your name and the deck you play */
+.lan__you {
+    width: 1220px;
+    flex-direction: row;
+    align-items: center;
+    padding: 14px 22px;
+    margin: 0 0 18px 0;
+    background-color: rgba(10, 8, 6, 0.45);
+    border-width: 1px;
+    border-color: var(--line-soft);
+    border-radius: 10px;
+}
+
+/* Your name: a field with a pencil in it; while it is typed, the count of what is typed instead, and the rule just under
+   it (over the strip's edge: nothing moves) */
+.lan__you-name {
+    width: 400px;
+    margin: 0 30px 0 22px;
+    flex-shrink: 0;
+}
+
+.lan__you-deck {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.lan__deck-name {
+    -unity-font-definition: var(--heading-font);
+    font-size: 26px;
+    letter-spacing: 1.8px;
+    color: var(--text);
+    padding: 0;
+    margin: 0 0 4px 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.lan__hint {
+    position: absolute;
+    top: 58px;
+    left: 2px;
+    -unity-font-definition: var(--body-font);
+    font-size: 20px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+}
+
+.lan__detail {
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+    white-space: normal;
+}
+
+/* A field to type in: a dark well with a bronze outline, gold when it has the keyboard */
+.lan__field {
+    margin: 0;
+    height: 56px;
+}
+
+.lan__field .unity-base-text-field__input {
+    background-color: rgba(10, 8, 6, 0.6);
+    border-width: 2px;
+    border-color: var(--line);
+    border-radius: 8px;
+    padding: 0 16px;
+    -unity-font-definition: var(--body-font);
+    font-size: 28px;
+    color: var(--text);
+    --unity-cursor-color: var(--gold-bright);
+    --unity-selection-color: rgba(201, 164, 92, 0.35);
+}
+
+.lan__field .unity-base-text-field__input--placeholder {
+    color: var(--text-muted);
+}
+
+/* As specific as the default theme's outline on hover and focus (grey, blue), to be the game's instead */
+.lan__field.unity-base-text-field:hover:enabled > .unity-base-text-field__input {
+    border-color: var(--line);
+}
+
+.lan__field.unity-base-text-field:focus:enabled > .unity-base-text-field__input {
+    border-color: var(--gold);
+}
+
+.lan__name-row {
+    height: 56px;
+}
+
+.lan__name {
+    width: 100%;
+}
+
+.lan__name .unity-base-text-field__input {
+    padding: 0 60px 0 16px;
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 1.8px;
+    color: var(--gold-bright);
+}
+
+.lan__name-edit {
+    position: absolute;
+    right: 18px;
+    top: 15px;
+    width: 26px;
+    height: 26px;
+    background-image: url("project://database/Assets/UI/Sprites/IconEdit.png");
+    -unity-background-image-tint-color: var(--text-muted);
+    transition-property: -unity-background-image-tint-color;
+    transition-duration: 0.12s;
+}
+
+.lan__name-row:hover .lan__name-edit {
+    -unity-background-image-tint-color: var(--gold-bright);
+}
+
+.lan__name-count {
+    position: absolute;
+    right: 16px;
+    top: 0;
+    height: 56px;
+    -unity-text-align: middle-right;
+    -unity-font-definition: var(--body-font);
+    font-size: 20px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+    display: none;
+}
+
+/* While the name is typed: its count instead of the pencil */
+.lan__name-row--editing .lan__name-edit {
+    display: none;
+}
+
+.lan__name-row--editing .lan__name-count {
+    display: flex;
+}
+
+.lan__small-button {
+    width: 200px;
+    height: 56px;
+    font-size: 24px;
+    margin-left: 14px;
+    flex-shrink: 0;
+}
+
+/* What went wrong (turned away, the host gone, another version): in place, plainly */
+.lan__problem {
+    width: 1220px;
+    padding: 12px 22px;
+    margin: 0 0 16px 0;
+    border-width: 1px;
+    border-color: rgba(196, 92, 72, 0.7);
+    border-radius: 10px;
+    background-color: rgba(120, 40, 28, 0.25);
+    -unity-font-definition: var(--body-font);
+    font-size: 26px;
+    color: #E8B0A2;
+    white-space: normal;
+}
+
+/* A battle still on: a gold-edged card above the rest */
+.lan__card {
+    width: 1220px;
+    flex-direction: row;
+    align-items: center;
+    padding: 16px 22px;
+    margin: 0 0 18px 0;
+    border-width: 2px;
+    border-color: var(--gold);
+    border-radius: 10px;
+    background-color: var(--gold-band);
+}
+
+.lan__card-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 0 24px;
+}
+
+.lan__card-title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 30px;
+    letter-spacing: 2px;
+    color: var(--gold-bright);
+    padding: 0;
+    margin: 0 0 4px 0;
+    white-space: normal;
+}
+
+/* The battles on your network: a heading with a live dot, the battles two a row, or what to do */
+.lan__browse {
+    width: 1220px;
+    align-items: center;
+}
+
+.lan__section-head {
+    width: 1220px;
+    flex-direction: row;
+    align-items: center;
+    margin: 0 0 12px 0;
+}
+
+.lan__heading {
+    -unity-font-definition: var(--heading-font);
+    font-size: 26px;
+    letter-spacing: 1.8px;
+    color: var(--text-secondary);
+    padding: 0;
+    margin: 0;
+}
+
+.lan__live {
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    margin: 0 10px 0 22px;
+    background-color: var(--gold);
+    transition-property: opacity;
+    transition-duration: 0.6s;
+}
+
+.lan__live--dim {
+    opacity: 0.2;
+}
+
+.lan__live-text {
+    -unity-font-definition: var(--body-font);
+    font-size: 22px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+}
+
+/* The battles found: one a row, in the same frame as the empty list's */
+.lan__games {
+    width: 1220px;
+    padding: 8px 0;
+    border-width: 1px;
+    border-color: var(--line-soft);
+    border-radius: 10px;
+    background-color: rgba(10, 8, 6, 0.3);
+}
+
+.lan__games .opponent {
+    width: 100%;
+    margin: 0;
+    padding-left: 24px;
+}
+
+.lan__game--other .opponent__title,
+.lan__game--other .opponent__detail {
+    color: var(--text-muted);
+}
+
+.lan__join {
+    -unity-font-definition: var(--heading-font);
+    font-size: 24px;
+    letter-spacing: 1.6px;
+    color: var(--gold);
+    margin: 0 22px 0 8px;
+    padding: 0;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.12s;
+}
+
+.opponent:hover .lan__join,
+.opponent:focus .lan__join {
+    opacity: 1;
+}
+
+.lan__empty {
+    width: 1220px;
+    padding: 24px 40px;
+    margin: 0 0 6px 0;
+    align-items: center;
+    border-width: 1px;
+    border-color: var(--line-soft);
+    border-radius: 10px;
+    background-color: rgba(10, 8, 6, 0.3);
+}
+
+.lan__empty-body {
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-muted);
+    -unity-text-align: middle-center;
+    white-space: normal;
+    padding: 0;
+    margin: 0;
+}
+
+.lan__address {
+    width: 1220px;
+    flex-direction: row;
+    align-items: center;
+    margin: 14px 0 0 0;
+}
+
+.lan__address-field {
+    flex-grow: 1;
+}
+
+.lan__link {
+    margin-top: 10px;
+    font-size: 24px;
+    height: 44px;
+}
+
+/* The room: you and the other player face to face */
+.lan__room {
+    width: 1220px;
+    align-items: center;
+}
+
+.lan__versus {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    margin: 18px 0 10px 0;
+}
+
+.lan__seat {
+    width: 470px;
+    height: 330px;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    border-width: 1px;
+    border-color: var(--line-soft);
+    border-radius: 12px;
+    background-color: rgba(10, 8, 6, 0.4);
+}
+
+.lan__seat--filled {
+    border-color: var(--line);
+}
+
+.lan__seat-portrait {
+    width: 150px;
+    height: 150px;
+    border-width: 5px;
+    border-color: var(--gold);
+    border-radius: 75px;
+    overflow: hidden;
+    background-color: var(--panel-raised);
+    margin-bottom: 14px;
+}
+
+/* The leader's card in the big ring, its face in the middle */
+.lan__seat-art {
+    position: absolute;
+    left: -42px;
+    top: -30px;
+    width: 230px;
+    height: 358px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+.lan__seat-crest {
+    position: absolute;
+    right: 16px;
+    top: 16px;
+    width: 98px;
+    height: 70px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.lan__seat-name {
+    -unity-font-definition: var(--heading-font);
+    font-size: 32px;
+    letter-spacing: 2.2px;
+    color: var(--text-bright);
+    padding: 0;
+    margin: 0 0 4px 0;
+    -unity-text-align: middle-center;
+}
+
+.lan__seat-detail {
+    -unity-font-definition: var(--body-font);
+    font-size: 23px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.lan__seat-chip {
+    margin-top: 12px;
+    padding: 2px 16px;
+    border-width: 1px;
+    border-radius: 14px;
+    border-color: var(--gold);
+    -unity-font-definition: var(--body-font);
+    font-size: 20px;
+    color: var(--gold-bright);
+}
+
+/* An empty seat: a ring breathing in and out until someone sits */
+.lan__seat-wait {
+    width: 150px;
+    height: 150px;
+    border-width: 3px;
+    border-color: var(--gold);
+    border-radius: 75px;
+    background-color: rgba(42, 34, 25, 0.7);
+    margin-bottom: 14px;
+    opacity: 0.85;
+    transition-property: opacity, scale;
+    transition-duration: 0.6s;
+}
+
+.lan__seat-wait--dim {
+    opacity: 0.25;
+    scale: 0.92 0.92;
+}
+
+.lan__vs {
+    -unity-font-definition: var(--heading-font);
+    font-size: 54px;
+    letter-spacing: 3px;
+    color: var(--gold);
+    margin: 0 38px;
+    padding: 0 0 10px 0;
+}
+
+.lan__status {
+    -unity-font-definition: var(--body-font);
+    font-size: 28px;
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    white-space: normal;
+    margin: 8px 0 0 0;
+    padding: 0;
+}
+
+.lan__reach {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    margin: 6px 0 0 0;
+}
+
+.lan__copy {
+    width: auto;
+    height: 40px;
+    margin-left: 10px;
+    padding: 0 10px;
+    font-size: 22px;
+    color: var(--gold);
+}
+
+.lan__buttons {
+    flex-direction: row;
+    justify-content: center;
+    margin-top: 26px;
+}
+
+.lan__button {
+    width: 300px;
+    height: 64px;
+    margin: 0 14px;
+}
+
 /* Plain text that lights up: Reset to defaults, the settings' tabs */
 .button--ghost {
     border-width: 0;
