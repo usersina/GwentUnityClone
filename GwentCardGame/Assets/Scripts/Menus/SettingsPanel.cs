@@ -9,12 +9,12 @@ using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
-    // The settings screen (Audio, Display, Graphics, Game), opened from the main menu and the pause menu.
+    // The settings screen (Game, Display, Graphics, Audio; it opens on Game), opened from the main menu and the pause menu.
     // Every change applies and saves at once; Escape, right click or Back closes it.
     // A UI Toolkit dialog: Assets/UI/Toolkit/Settings.uxml; its rows are made here, they depend on the platform.
     public static class SettingsPanel
     {
-        private static readonly string[] Tabs = { "Audio", "Display", "Graphics", "Game" };
+        private static readonly string[] Tabs = { "Game", "Display", "Graphics", "Audio" };
 
         // What each difficulty means, under its name
         private static readonly string[] DifficultyCaptions =
@@ -62,10 +62,10 @@ namespace Gwent.Menus
 
             Focusable[] first =
             {
-                BuildAudioPage(root.Q("Audio")),
+                BuildGamePage(root.Q("Game")),
                 BuildDisplayPage(root.Q("Display")),
                 BuildGraphicsPage(root.Q("Graphics")),
-                BuildGamePage(root.Q("Game")),
+                BuildAudioPage(root.Q("Audio")),
             };
             for (int i = 0; i < Tabs.Length; i++)
             {

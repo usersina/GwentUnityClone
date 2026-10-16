@@ -1345,16 +1345,18 @@ namespace Gwent.EditorTools
                     At(0.6, () => check(Highlighted("Item Deck builder"), "hovering a menu entry highlights it"));
                     Click(0.9, Named("Item Settings"));
                     At(1.4, () => check(SettingsPanel.IsOpen, "clicking Settings opens the settings"));
-                    Click(1.7, MasterVolumeAt(0.25f));
-                    At(2.2, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
-                    Key(2.5, UnityEngine.InputSystem.Key.Escape);
-                    At(3.0, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
-                    Click(3.3, Named("Item How to play"));
-                    At(3.8, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
-                    Click(4.1, Named("Item Abilities"));
-                    At(4.6, () => check(UIScreens.Find("Entry Spy") != null && UIScreens.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
-                    Key(4.9, UnityEngine.InputSystem.Key.Escape);
-                    At(5.4, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
+                    // It opens on Game: the volumes are on the Audio tab
+                    Click(1.7, Named("Button Audio"));
+                    Click(2.2, MasterVolumeAt(0.25f));
+                    At(2.7, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
+                    Key(3.0, UnityEngine.InputSystem.Key.Escape);
+                    At(3.5, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
+                    Click(3.8, Named("Item How to play"));
+                    At(4.3, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
+                    Click(4.6, Named("Item Abilities"));
+                    At(5.1, () => check(UIScreens.Find("Entry Spy") != null && UIScreens.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
+                    Key(5.4, UnityEngine.InputSystem.Key.Escape);
+                    At(5.9, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
                 }
                 else
                 {
