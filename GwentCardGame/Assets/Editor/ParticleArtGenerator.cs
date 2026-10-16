@@ -7,8 +7,9 @@ namespace Gwent.EditorTools
 {
     // The particle effects' art (ParticleFx), drawn from noise, and its materials, in Resources/W3/Particles: Spark (a hot
     // point in a soft glow), Smoke (four billowing puffs, lit from the top left, blended over), Blaze (the same puffs,
-    // added on: churning fire, flashes) and Fire (four flame tongues, added on). The materials use UI shaders
-    // (ParticleEffectForUGUI's UI/Additive, Unity's UI/Default), which also brings UI/Additive into the builds.
+    // added on: churning fire, flashes), Fire (four flame tongues, added on) and Mist (four soft, wide clouds of fog, near
+    // white, blended over). The materials use UI shaders (ParticleEffectForUGUI's UI/Additive, Unity's UI/Default), which
+    // also brings UI/Additive into the builds.
     public static class ParticleArtGenerator
     {
         public const string Folder = "Assets/Resources/W3/Particles";
@@ -20,14 +21,17 @@ namespace Gwent.EditorTools
             Write("Spark", 64, Spark);
             Write("Smoke", 256, (x, y) => Atlas(x, y, 256, Puff));
             Write("Fire", 256, (x, y) => Atlas(x, y, 256, Tongue));
+            Write("Mist", 512, (x, y) => Atlas(x, y, 512, Cloud));
             AssetDatabase.Refresh();
             ConfigureImporter("Spark", TextureImporterCompression.Uncompressed); // smooth gradients: no banding
             ConfigureImporter("Smoke", TextureImporterCompression.CompressedHQ);
             ConfigureImporter("Fire", TextureImporterCompression.CompressedHQ);
+            ConfigureImporter("Mist", TextureImporterCompression.CompressedHQ);
             WriteMaterial("Spark", "UI/Additive");
             WriteMaterial("Fire", "UI/Additive");
             WriteMaterial("Smoke", "UI/Default");
             WriteMaterial("Blaze", "UI/Additive", "Smoke");
+            WriteMaterial("Mist", "UI/Default");
             AssetDatabase.SaveAssets();
         }
 
@@ -64,6 +68,21 @@ namespace Gwent.EditorTools
             float ends = (1 - Smooth(0f, 0.1f, v)) * Smooth(0.5f, 1f, v);
             float alpha = inside * ends * (0.5f + 0.5f * detail);
             return new Color(1, 1, 1, Mathf.Clamp01(alpha * 1.25f));
+        }
+
+        // A cloud of fog (v up): a bank half again as wide as it is tall, dense in its middle, its top billowing in rounded
+        // lumps, its folds shaded, near white and lighter on top
+        private static Color Cloud(float u, float v, int seed)
+        {
+            float n = Fbm(u * 4f + seed * 13.1f, v * 4f + seed * 7.7f);
+            float dx = (u - 0.5f) / 0.45f, dy = (v - 0.5f) / 0.3f;
+            float d = Mathf.Sqrt(dx * dx + dy * dy);
+            float billow = (n - 0.5f) * Mathf.Lerp(0.5f, 1.1f, Mathf.SmoothStep(0, 1, v)); // lumpy on top, flatter below
+            float shape = Smooth(0.45f, 1f, d + billow);
+            float folds = Fbm(u * 8f + seed * 2.3f + 60, v * 8f + seed * 4.1f + 60);
+            float alpha = shape * (0.6f + 0.4f * n);
+            float light = 0.84f + 0.16f * folds + 0.08f * (v - 0.5f);
+            return new Color(light, light, light, Mathf.Clamp01(alpha));
         }
 
         // Four variants in a 2 x 2 sheet (ParticleSystem texture sheet animation picks one per particle)

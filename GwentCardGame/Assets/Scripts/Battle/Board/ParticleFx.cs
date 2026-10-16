@@ -9,9 +9,10 @@ namespace Gwent.Battle
     // Particle effects on the effects layer (CardMotion.Layer), drawn in the canvas by ParticleEffectForUGUI: a host at a
     // point of the layer holds particle systems made here, and particles are emitted where they belong. One particle unit
     // is one layout unit, as for the rest of the layer (the host keeps UIParticle's Transform scaling at scale 1, and no
-    // particle's size is capped to a share of the view). The art is Resources/W3/Particles (Gwent > UI > Regenerate
-    // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on) and "Fire" (added on). In game time: the
-    // pause menu stops them.
+    // particle's size is capped to a share of the view). A host can also sit in a part of the board (In), drawn in its
+    // order and clipped by its masks: a row's weather. The art is Resources/W3/Particles (Gwent > UI > Regenerate
+    // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on), "Fire" (added on) and "Mist" (blended
+    // over). In game time: the pause menu stops them.
     internal sealed class ParticleFx
     {
         private readonly UIParticle host;
@@ -26,7 +27,18 @@ namespace Gwent.Battle
         // A host centred at a point of the layer (particles are placed from there)
         public static ParticleFx At(string name, Vector2 center)
         {
-            RectTransform rect = UIKit.Rect(name, CardMotion.Layer);
+            return Host(name, CardMotion.Layer, center);
+        }
+
+        // A host at the middle of a part of the board (particles are placed from there), drawn with it
+        public static ParticleFx In(string name, RectTransform parent)
+        {
+            return Host(name, parent, Vector2.zero);
+        }
+
+        private static ParticleFx Host(string name, Transform parent, Vector2 center)
+        {
+            RectTransform rect = UIKit.Rect(name, parent);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = center;
             rect.sizeDelta = Vector2.zero;
@@ -39,9 +51,10 @@ namespace Gwent.Battle
         // A system drawn with one of the art's materials, over the ones added before it. Its particles fall by gravity
         // (layout units per second squared; negative rises), go through the colours over their life (times the colour
         // each is born with) and the sizes (a factor of their size at birth), spin up to spin radians a second either way,
-        // drift in a turbulence of that strength (layout units a second) and, with frames, show one of the art's 2 x 2.
+        // drift in a turbulence of that strength (layout units a second) in swirls about that wide (layout units) and, with
+        // frames, show one of the art's 2 x 2.
         public ParticleSystem Add(string material, Gradient colors, AnimationCurve sizes, float gravity = 0, float spin = 0,
-            float turbulence = 0, bool frames = false)
+            float turbulence = 0, bool frames = false, float swirls = 80)
         {
             GameObject go = new GameObject(material);
             go.transform.SetParent(host.transform, false);
@@ -78,7 +91,7 @@ namespace Gwent.Battle
                 ParticleSystem.NoiseModule noise = system.noise;
                 noise.enabled = true;
                 noise.strength = turbulence;
-                noise.frequency = 0.012f; // swirls about 80 layout units across
+                noise.frequency = 0.012f * 80 / swirls; // 0.012: swirls about 80 layout units across
                 noise.scrollSpeed = 0.6f;
                 noise.damping = false;
                 noise.quality = ParticleSystemNoiseQuality.Medium;

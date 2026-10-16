@@ -1,5 +1,3 @@
-using System.Threading;
-using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
@@ -7,20 +5,20 @@ using UnityEngine.UI;
 
 namespace Gwent.Battle
 {
-    // A row's weather, as The Witcher 3 draws it: its own art of the weather (Biting Frost's ice, Impenetrable Fog's
-    // clouds, Torrential Rain), a capture of a whole row, laid over the row's horn slot and lane and their cards. It fades in with its weather card and out once cleared
-    // (half a second, as gwent-classic does). The fog billows up as it comes, then drifts and swells for as long as it
-    // lasts, as in The Witcher 3; the frost and the rain keep still. In game time: the pause menu stops them.
+    // A row's weather, laid over the row's horn slot and lane and their cards, as The Witcher 3 does. It fades in with its
+    // weather card and out once cleared (half a second, as gwent-classic does). Everything of it is drawn in one layer that
+    // clips to the row (its ends softened) and fades as one: nothing leaves the row, however it moves. What the layer shows
+    // is a WeatherLook: Impenetrable Fog rolls along the row as particles (FogParticles); Biting Frost and Torrential Rain
+    // are still The Witcher 3's own art of them (StillWeather). In game time: the pause menu stops it.
     public class WeatherEffect : MonoBehaviour
     {
         public enum Kind { Frost, Fog, Rain }
 
         private const float FadeSeconds = 0.5f;
-        private const float ArriveSeconds = 0.9f; // the fog's billowing arrival
+        private static readonly Vector2Int EdgeSoftness = new Vector2Int(24, 6); // the clip's soft edges: the ends, the top and bottom
 
-        private Kind kind;
-        private Image art;
-        private Image drift; // the fog's second layer, mirrored, swelling and fading in its own time
+        private CanvasGroup group; // the whole layer's fade
+        private WeatherLook look;
         private float age, fade; // fade: 0 (gone) to 1 (shown)
         private bool leaving;
 
@@ -34,7 +32,7 @@ namespace Gwent.Battle
             if (on && current == null)
                 Create(slot, lane, kind);
             else if (!on && current != null)
-                current.leaving = true;
+                current.Leave();
         }
 
         private static void Create(RectTransform slot, RectTransform lane, Kind kind)
@@ -52,26 +50,19 @@ namespace Gwent.Battle
             root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
             root.localPosition = new Vector3(bounds.center.x, bounds.center.y, 0);
             root.sizeDelta = new Vector2(bounds.size.x, bounds.size.y);
+            root.gameObject.AddComponent<RectMask2D>().softness = EdgeSoftness;
             WeatherEffect effect = root.gameObject.AddComponent<WeatherEffect>();
-            effect.kind = kind;
-            Sprite sprite = SpriteCache.Load("Cards/EffectBox/overlay_" + (kind == Kind.Frost ? "frost" : kind == Kind.Fog ? "fog" : "rain"));
-            effect.art = Layer(root, "Art", sprite);
-            if (kind == Kind.Fog)
-            {
-                effect.drift = Layer(root, "Drift", sprite);
-                effect.drift.rectTransform.localScale = new Vector3(-1, 1, 1); // mirrored: its clouds are elsewhere
-            }
-            effect.Apply();
+            effect.group = root.gameObject.AddComponent<CanvasGroup>();
+            effect.group.blocksRaycasts = false; // the cards under it stay clickable
+            effect.group.interactable = false;
+            effect.group.alpha = 0;
+            effect.look = kind == Kind.Fog ? new FogParticles(root) : (WeatherLook)new StillWeather(root, kind);
         }
 
-        // The art over the whole row, from its bottom edge (the fog rises from there)
-        private static Image Layer(RectTransform root, string name, Sprite sprite)
+        private void Leave()
         {
-            Image image = UIKit.NewImage(root, name, sprite, new Color(1, 1, 1, 0));
-            image.rectTransform.Stretch();
-            image.rectTransform.pivot = new Vector2(0.5f, 0);
-            image.rectTransform.anchoredPosition = Vector2.zero;
-            return image;
+            leaving = true;
+            look.Leave();
         }
 
         private void Update()
@@ -79,36 +70,30 @@ namespace Gwent.Battle
             float dt = Time.deltaTime;
             age += dt;
             fade = Mathf.Clamp01(fade + (leaving ? -dt : dt) / FadeSeconds);
-            Apply();
+            group.alpha = fade * fade * (3 - 2 * fade); // eased
+            look.Tick(dt, age);
             if (leaving && fade <= 0)
                 Destroy(gameObject);
         }
+    }
 
-        private void Apply()
+    // What a row's weather shows in its layer (WeatherEffect): made over the layer, run every frame (dt and age in game
+    // seconds), told when the weather goes (the layer then fades it out)
+    internal abstract class WeatherLook
+    {
+        public virtual void Tick(float dt, float age) { }
+
+        public virtual void Leave() { }
+    }
+
+    // The Witcher 3's own art of the weather (Biting Frost's ice, Impenetrable Fog's clouds, Torrential Rain), a capture of
+    // a whole row, laid still over it: its horn and emblem on the row's own
+    internal sealed class StillWeather : WeatherLook
+    {
+        public StillWeather(RectTransform layer, WeatherEffect.Kind kind)
         {
-            if (art == null)
-                return;
-            float shown = fade * fade * (3 - 2 * fade); // eased
-            if (kind != Kind.Fog)
-            {
-                art.color = new Color(1, 1, 1, shown);
-                return;
-            }
-
-            // The fog billows up from the row's floor as it comes, thick at first, then settles into a drifting layer
-            float arrive = Mathf.Clamp01(age / ArriveSeconds);
-            float rise = 1 - (1 - arrive) * (1 - arrive);
-            float swell = 1 + 0.18f * Mathf.Sin(Mathf.PI * arrive) * (1 - arrive * 0.5f);
-            art.rectTransform.localScale = new Vector3(1, Mathf.Lerp(0.55f, 1f, rise) * swell, 1);
-            art.color = new Color(1, 1, 1, shown);
-
-            // Its second layer drifts the other way and swells and thins slowly: the clouds seem to roll along the row
-            float wave = Mathf.Sin(age * 0.9f) * 0.5f + 0.5f;
-            float width = ((RectTransform)transform).rect.width;
-            drift.rectTransform.anchoredPosition = new Vector2(Mathf.Sin(age * 0.35f) * width * 0.03f, 0);
-            art.rectTransform.anchoredPosition = new Vector2(-Mathf.Sin(age * 0.27f) * width * 0.02f, 0);
-            drift.rectTransform.localScale = new Vector3(-1, Mathf.Lerp(0.55f, 1f, rise) * (0.9f + 0.15f * wave), 1);
-            drift.color = new Color(1, 1, 1, shown * Mathf.Lerp(0.2f, 0.55f, wave) * rise);
+            string name = kind == WeatherEffect.Kind.Frost ? "frost" : kind == WeatherEffect.Kind.Fog ? "fog" : "rain";
+            UIKit.NewImage(layer, "Art", SpriteCache.Load("Cards/EffectBox/overlay_" + name), Color.white).rectTransform.Stretch();
         }
     }
 }
