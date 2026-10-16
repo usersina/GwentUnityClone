@@ -148,6 +148,29 @@ namespace Gwent.Rules.Tests
                 string.Join(",", p.CloseList), string.Join(",", p.RangeList), string.Join(",", p.SiegeList), p.Lives)));
         }
 
+        //----------------------------------------On the wire----------------------------------------//
+        [Test]
+        public void EveryEventAsTheGuestSeesItTravelsAsBytesUnchanged()
+        {
+            Match match = New(Monsters(), Monsters(LeaderIds.EredinBringerOfDeath), 11);
+            PlayOut(match, 11);
+            int largest = 0;
+            foreach (MatchEvent e in match.Events)
+            {
+                byte[] sent = MatchWire.Bytes(w => MatchWire.Write(w, e.For(false)));
+                MatchEvent received = MatchWire.ReadEvent(new System.IO.BinaryReader(new System.IO.MemoryStream(sent)));
+                CollectionAssert.AreEqual(sent, MatchWire.Bytes(w => MatchWire.Write(w, received)), e.ToString());
+                largest = Math.Max(largest, sent.Length);
+            }
+            Assert.Less(largest, 32 * 1024, "an event fits a LAN message");
+
+            byte[] setup = MatchWire.Bytes(w => MatchWire.Write(w, match.Setup));
+            MatchSetup read = MatchWire.ReadSetup(new System.IO.BinaryReader(new System.IO.MemoryStream(setup)));
+            Assert.AreEqual(match.Setup.Seed, read.Seed);
+            CollectionAssert.AreEqual(match.Setup.Enemy.Cards, read.Enemy.Cards);
+            Assert.AreEqual(match.Setup.Enemy.Leader, read.Enemy.Leader);
+        }
+
         //----------------------------------------What a side sees----------------------------------------//
         [Test]
         public void ASideSeesItsHandButNotTheOpponentsNorAnyDecksOrder()
