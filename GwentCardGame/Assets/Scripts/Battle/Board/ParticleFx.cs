@@ -250,6 +250,32 @@ namespace Gwent.Battle
                 Object.Destroy(host.gameObject);
         }
 
+        // Every art's material, each loaded and drawn once (unseen, plainly and clipped as the weather is) as a battle
+        // begins: their textures and shaders are ready before the first effect, which would otherwise wait for them in the
+        // middle of a play
+        private static readonly string[] AllArt =
+        {
+            "Spark", "Smoke", "Blaze", "Fire", "Mist", "Streak", "Shard", "Snow", "Rime", "Band", "Frost", "Flake", "Glint",
+            "Bolt", "Flash", "Beam",
+        };
+
+        public static void Prepare()
+        {
+            Color unseen = new Color(1, 1, 1, 0.004f);
+            foreach (bool clipped in new[] { false, true })
+            {
+                RectTransform root = UIKit.Rect(clipped ? "PrepareClipped" : "Prepare", CardMotion.Layer);
+                root.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64, 64));
+                if (clipped)
+                    root.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+                ParticleFx fx = Host("Art", root, Vector2.zero);
+                foreach (string art in AllArt)
+                    Emit(fx.Add(art, Colors((0, Color.white), (1, Color.white)), Sizes((0, 1), (1, 1)), kept_whole: true),
+                        Vector2.zero, Vector2.zero, 4, 0.2f, unseen);
+                Object.Destroy(root.gameObject, 0.5f);
+            }
+        }
+
         // The art itself, for what is drawn with it but not as particles (a weather's ice and snow, as images)
         public static Texture Art(string name)
         {

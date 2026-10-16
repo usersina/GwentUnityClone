@@ -118,6 +118,7 @@ namespace Gwent.Battle
             UIOverlay.SetEscapeAction(OnEscape);
             battleState = BattleState.Start;
             SetupBattle();
+            CardEffects.Prepare(); // no effect waits for its art the first time it plays
             BattleOpening(flow.Token).Forget();
         }
 

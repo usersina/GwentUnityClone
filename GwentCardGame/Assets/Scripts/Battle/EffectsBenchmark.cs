@@ -14,18 +14,19 @@ namespace Gwent.Battle
 {
     // What the battle's heaviest effects cost, measured in a build. Started only by a flag: on the web "?bench=effects" in
     // the address, on Android the launch extra "bench" ("adb shell am start ... --es bench effects"), on the desktop
-    // "-bench effects". It opens a battle, lays a hero on your close combat row and three units on the opponent's, then
-    // times the frames: first with the board at rest, then while the hero lands and the three burn in a scorch at once
-    // (the moment the effects cost most). Three runs; then the weather, settled: frost, fog and rain on both sides' rows,
-    // then Skellige Storm (as Settings > Display > Animated weather has it). Each is logged ("[bench]"), and the result
-    // shows as a notice.
+    // "-bench effects". It opens a battle as choosing an opponent does, timing how long until its first frame shows and the
+    // frames of its opening (the effects' art made ready, the first banner coming in). It lays a hero on your close combat
+    // row and three units on the opponent's, then times the frames: first with the board at rest, then while the hero lands
+    // and the three burn in a scorch at once (the moment the effects cost most). Three runs; then the weather, settled:
+    // frost, fog and rain on both sides' rows, then Skellige Storm (as Settings > Display > Animated weather has it). Each
+    // is logged ("[bench]"), and the result shows as a notice.
     public class EffectsBenchmark : MonoBehaviour
     {
         private const string Flag = "effects";
         private const int Runs = 3;
         private const int Hero = 67;      // Geralt of Rivia
         private const int Unit = 134;     // Vesemir (6)
-        private const float RestSeconds = 1.5f, EffectSeconds = 2.8f, WeatherSeconds = 3f, WeatherSettles = 2f;
+        private const float RestSeconds = 1.5f, EffectSeconds = 2.8f, WeatherSeconds = 3f, WeatherSettles = 2f, OpeningSeconds = 1.5f;
 
         private static bool started;
 
@@ -91,13 +92,20 @@ namespace Gwent.Battle
 
         private async UniTaskVoid Run(CancellationToken ct)
         {
+            float asked = Time.realtimeSinceStartup;
             SceneManager.LoadScene(SceneNames.Game);
             await UniTask.WaitUntil(() => BattleController.Instance != null, cancellationToken: ct);
+            await UniTask.Yield(PlayerLoopTiming.Update, ct); // its first frame has been drawn
+            float loading = (Time.realtimeSinceStartup - asked) * 1000;
+            Frames opening = await Measure(OpeningSeconds, null, ct);
             BattleController battle = BattleController.Instance;
             battle.FinishCardExchange();
             await UniTask.WaitUntil(() => battle.battleState == BattleState.PlayerTurn && battle.IsPlayerActionAllowed, cancellationToken: ct);
 
             StringBuilder summary = new StringBuilder("Effects benchmark (" + Application.platform + ", " + Screen.width + "x" + Screen.height + ")");
+            string loaded = "battle shown in " + loading.ToString("0") + " ms; its opening: " + opening;
+            Debug.Log("[bench] " + loaded);
+            summary.Append('\n').Append(loaded);
             for (int run = 1; run <= Runs; run++)
             {
                 Stage(battle, false); // the last run's card objects (charred by its scorch) go

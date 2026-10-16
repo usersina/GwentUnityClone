@@ -33,6 +33,15 @@ namespace Gwent.Battle
         private static readonly Color FireLine = new Color(1f, 0.66f, 0.18f);
         private static readonly Color FireGlow = new Color(1f, 0.45f, 0.05f, 0.35f);
 
+        // As a battle begins: the effects' art loaded, the particles' drawn once unseen (ParticleFx.Prepare), so that no
+        // effect waits for its art the first time it plays
+        public static void Prepare()
+        {
+            foreach (string art in new[] { "muster", "morale", "bond", "horn", "spy", "medic" })
+                SpriteCache.Load("W3/Effects/" + art);
+            ParticleFx.Prepare();
+        }
+
         // The W3 flare of an ability ("muster", "morale", "bond", "horn", "spy"), or null (a medic's sign shows on its
         // discard pile instead: MedicPile)
         public static string FlareFor(Ability ability)
