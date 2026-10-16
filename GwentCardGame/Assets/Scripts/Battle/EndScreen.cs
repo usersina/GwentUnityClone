@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Gwent.Core;
+using Gwent.Net;
 using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
@@ -18,7 +19,8 @@ namespace Gwent.Battle
         private const float RoundColumn = 170;
         private const float RowHeight = 116;
 
-        public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false)
+        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player)
+        public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false, bool opponent_left = false)
         {
             UITheme theme = UITheme.Current;
             foreach (Transform child in transform)
@@ -37,6 +39,8 @@ namespace Gwent.Battle
                 : "Neither side came out ahead" + drawn_text;
             if (gave_up)
                 tally = "You gave up the battle";
+            else if (opponent_left)
+                tally = opponent.Name + " left the battle";
 
             // A faint light behind the emblem lifts it off the dimmed board (the emblem brings its own colour)
             Image glow = UIKit.NewImage(content, "Glow", theme.radial, UITheme.WithAlpha(theme.textBright, 0.1f));
@@ -51,10 +55,17 @@ namespace Gwent.Battle
 
             BuildScoreboard(content, player, opponent);
 
+            // A LAN battle ends there: back to the main menu only
+            bool lan = LanSession.Current != null;
+            Button menu = UIKit.Button(content, "Main menu", lan ? UIKit.ButtonStyle.Primary : UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
+            ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(lan ? 0 : 170, -350), new Vector2(300, 72));
+            if (lan)
+            {
+                UIKit.Focus(menu);
+                return;
+            }
             Button again = UIKit.Button(content, "Play again", UIKit.ButtonStyle.Primary, PlayAgain, new Vector2(300, 72));
             ((RectTransform)again.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
-            Button menu = UIKit.Button(content, "Main menu", UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
-            ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(170, -350), new Vector2(300, 72));
             UIKit.Focus(again);
         }
 
@@ -73,9 +84,9 @@ namespace Gwent.Battle
             }
             UIKit.Divider(board, -70, 30);
 
-            AddRow(board, 0, player, "Player", opponent);
+            AddRow(board, 0, player, player.Name, opponent);
             UIKit.Divider(board, -70 - RowHeight, 30);
-            AddRow(board, 1, opponent, "Opponent", player);
+            AddRow(board, 1, opponent, opponent.Name, player);
         }
 
         private static string Rounds(int count)
@@ -135,6 +146,7 @@ namespace Gwent.Battle
         public void ToMainMenu()
         {
             Time.timeScale = 1f;
+            LanSession.Current?.Leave();
             LoadingScreen.Load(SceneNames.Menu);
         }
     }

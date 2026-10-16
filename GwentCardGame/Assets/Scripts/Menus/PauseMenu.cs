@@ -75,6 +75,7 @@ namespace Gwent.Menus
         // The battle stays paused under the loading screen (leaving it sets the time going again, OnDestroy)
         private static void LeaveBattle()
         {
+            Gwent.Net.LanSession.Current?.Leave();
             LoadingScreen.Load(SceneNames.Menu);
         }
 

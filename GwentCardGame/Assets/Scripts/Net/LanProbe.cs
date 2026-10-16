@@ -16,7 +16,8 @@ namespace Gwent.Net
     // send. A guest finds a game (or joins the address given) and checks the link: round trips, one large message (split
     // into packets and put back together), a burst of small ones sent at once (all back, in order), then leaves ("join")
     // or stays until the host goes ("stay": to see how a lost player is noticed). Each step is logged ("[lan]") and shown
-    // on screen.
+    // on screen. "bothost" and "botjoin [address]" play a whole LAN battle instead, the AI on both devices (LanBot);
+    // "botrejoin" takes up the battle kept on disk (LanSave).
     public class LanProbe : MonoBehaviour
     {
         private const float SearchFor = 15f;
@@ -39,6 +40,10 @@ namespace Gwent.Net
             (string role, string address) = ReadFlag();
             if (role == "host" || role == "join" || role == "stay")
                 Begin(role, address);
+            else if (role == "bothost" || role == "botjoin")
+                LanBot.Begin(role == "bothost", address);
+            else if (role == "botrejoin")
+                LanBot.Rejoin();
         }
 
         // Runs it ("host", or "join" or "stay" with the address to join or null to search)
@@ -61,6 +66,28 @@ namespace Gwent.Net
         {
             if (instance != null)
                 Destroy(instance.gameObject);
+        }
+
+        // A launch option of the test's: "-name value" on the desktop, the extra "name" on Android (null when not given)
+        internal static string Option(string name)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using (AndroidJavaClass player = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (AndroidJavaObject activity = player.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (AndroidJavaObject intent = activity.Call<AndroidJavaObject>("getIntent"))
+                    return intent.Call<string>("getStringExtra", name);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+#else
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, "-" + name);
+            return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
+#endif
         }
 
         private static (string role, string address) ReadFlag()

@@ -222,7 +222,8 @@ namespace Gwent.Battle
         }
 
         // The laurel on the side that is ahead, "Passed" on a side that has passed, the gold lines on the band of the
-        // side whose turn it is, the lit crown of a leader ability that can still be used this round (every frame)
+        // side whose turn it is, the opponent greyed out while its device is away (a LAN battle), the lit crown of a leader
+        // ability that can still be used this round (every frame)
         public void UpdateMarkers()
         {
             foreach (bool is_player in new[] { true, false })
@@ -230,8 +231,8 @@ namespace Gwent.Battle
                 BattleController.BattleSide info = Info(is_player);
                 View(is_player).Leader.UISetReady(info.canLeader && !info.leaderDisabled && !info.hasPassed);
             }
-            playerView.Stats.UISetTurnState(controller.battleState == BattleState.PlayerTurn, controller.PlayerInfo.hasPassed);
-            enemyView.Stats.UISetTurnState(controller.battleState == BattleState.EnemyTurn, controller.EnemyInfo.hasPassed);
+            playerView.Stats.UISetTurnState(controller.battleState == BattleState.PlayerTurn && !controller.PlayerInfo.hasPassed, false);
+            enemyView.Stats.UISetTurnState(controller.battleState == BattleState.EnemyTurn && !controller.EnemyInfo.hasPassed, controller.OpponentAway);
             int player_total = controller.PlayerInfo.TotalScore(), enemy_total = controller.EnemyInfo.TotalScore();
             SetActiveIfChanged(playerView.LeadMarker, player_total > enemy_total);
             SetActiveIfChanged(enemyView.LeadMarker, enemy_total > player_total);

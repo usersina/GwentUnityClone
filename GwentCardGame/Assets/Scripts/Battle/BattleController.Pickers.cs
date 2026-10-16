@@ -25,7 +25,12 @@ namespace Gwent.Battle
             ApplyView(e.State, all);
             Choice choice = e.State.Choice;
             if (choice == null || !choice.Seat)
+            {
+                // A LAN battle's other player choosing who goes first takes its time (the AI answers at once)
+                if (choice != null && choice.Kind == ChoiceKind.FirstPlayer && lan != null)
+                    OpponentsMove("Your opponent is choosing who goes first");
                 return;
+            }
             switch (choice.Kind)
             {
                 case ChoiceKind.FirstPlayer:
@@ -99,7 +104,7 @@ namespace Gwent.Battle
             GameAudio.PlaySfx("ui_click");
             DeselectCard();
             RefreshBoard();
-            if (match.Phase == MatchPhase.Choice && match.Awaits(Me))
+            if (latest != null && latest.Phase == MatchPhase.Choice && latest.Choice != null && latest.Choice.Seat)
                 Submit(MatchCommand.Skip());
             else
                 pendingAction = PendingAction.None;
