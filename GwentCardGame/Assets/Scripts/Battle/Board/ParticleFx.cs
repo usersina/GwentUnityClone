@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Coffee.UIExtensions;
 using Cysharp.Threading.Tasks;
+using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
 
@@ -9,14 +10,70 @@ namespace Gwent.Battle
     // Particle effects on the effects layer (CardMotion.Layer), drawn in the canvas by ParticleEffectForUGUI: a host at a
     // point of the layer holds particle systems made here, and particles are emitted where they belong. One particle unit
     // is one layout unit, as for the rest of the layer (the host keeps UIParticle's Transform scaling at scale 1, and no
-    // particle's size is capped to a share of the view). The art is Resources/W3/Particles (Gwent > UI > Regenerate
-    // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on) and "Fire" (added on). In game time: the
-    // pause menu stops them.
+    // particle's size is capped to a share of the view). A host can also sit in a part of the board (In), drawn in its
+    // order and clipped by its masks: a row's weather. The art is Resources/W3/Particles (Gwent > UI > Regenerate
+    // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on), "Fire" (added on), "Mist" (blended over)
+    // and "Streak" (blended over). In game time: the pause menu stops them. Settings > Graphics > Particle density thins
+    // what is emitted (a system added whole is not: clouds, whose look is how many puffs overlap).
+    // UIParticle alone moves the particles: emitting into a paused system plays it, and Unity would then move a playing
+    // system as well (twice as fast in each frame it emits, so faster the higher the frame rate). What emitted is paused
+    // again at the end of the frame's Update, before Unity's own particle update. A system runs at its own pace.
     internal sealed class ParticleFx
     {
         private readonly UIParticle host;
         private readonly List<ParticleSystem> systems = new List<ParticleSystem>();
         private static readonly Dictionary<string, Material> materials = new Dictionary<string, Material>();
+        private static readonly HashSet<ParticleSystem> whole = new HashSet<ParticleSystem>(); // never thinned
+        private static float density = -1; // the settings', kept (read for every particle emitted); -1: not read yet
+        private static readonly HashSet<ParticleSystem> emitted = new HashSet<ParticleSystem>(); // this frame, to pause
+        private static int generation; // a play session's: the pausing from an earlier one stops
+
+        // Before the first scene, once UniTask's player loop is there (it is made as the assemblies load)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void Init()
+        {
+            GameSettings.Changed -= ReadDensity;
+            density = -1;
+            whole.Clear();
+            emitted.Clear();
+            generation++;
+            PlayerLoopHelper.AddAction(PlayerLoopTiming.LastUpdate, new Pausing(generation));
+        }
+
+        // At the end of every frame's Update: what was emitted into goes back on pause
+        private sealed class Pausing : IPlayerLoopItem
+        {
+            private readonly int of;
+
+            public Pausing(int of) { this.of = of; }
+
+            public bool MoveNext()
+            {
+                if (of != generation)
+                    return false;
+                foreach (ParticleSystem system in emitted)
+                    if (system != null && system.isPlaying)
+                        system.Pause();
+                emitted.Clear();
+                return true;
+            }
+        }
+
+        private static void ReadDensity()
+        {
+            density = GameSettings.ParticleDensity;
+        }
+
+        // Whether a particle is emitted, at the settings' density
+        private static bool Kept(ParticleSystem system)
+        {
+            if (density < 0)
+            {
+                ReadDensity();
+                GameSettings.Changed += ReadDensity;
+            }
+            return density >= 1 || Random.value < density || whole.Contains(system);
+        }
 
         private ParticleFx(UIParticle host)
         {
@@ -26,7 +83,18 @@ namespace Gwent.Battle
         // A host centred at a point of the layer (particles are placed from there)
         public static ParticleFx At(string name, Vector2 center)
         {
-            RectTransform rect = UIKit.Rect(name, CardMotion.Layer);
+            return Host(name, CardMotion.Layer, center);
+        }
+
+        // A host at the middle of a part of the board (particles are placed from there), drawn with it
+        public static ParticleFx In(string name, RectTransform parent)
+        {
+            return Host(name, parent, Vector2.zero);
+        }
+
+        private static ParticleFx Host(string name, Transform parent, Vector2 center)
+        {
+            RectTransform rect = UIKit.Rect(name, parent);
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.anchoredPosition = center;
             rect.sizeDelta = Vector2.zero;
@@ -39,9 +107,13 @@ namespace Gwent.Battle
         // A system drawn with one of the art's materials, over the ones added before it. Its particles fall by gravity
         // (layout units per second squared; negative rises), go through the colours over their life (times the colour
         // each is born with) and the sizes (a factor of their size at birth), spin up to spin radians a second either way,
-        // drift in a turbulence of that strength (layout units a second) and, with frames, show one of the art's 2 x 2.
+        // drift in a turbulence of that strength (layout units a second) in swirls about that wide (layout units), with
+        // frames show one of the art's 2 x 2 and, stretched, are sized in width and height (Emit with a Vector2 size);
+        // whole, its particles are never thinned. At a pace above 1 its particles live faster: they move that much
+        // quicker and live that much shorter (as the battle's effects were made).
         public ParticleSystem Add(string material, Gradient colors, AnimationCurve sizes, float gravity = 0, float spin = 0,
-            float turbulence = 0, bool frames = false)
+            float turbulence = 0, bool frames = false, float swirls = 80, bool stretched = false, bool kept_whole = false,
+            float pace = 1)
         {
             GameObject go = new GameObject(material);
             go.transform.SetParent(host.transform, false);
@@ -55,6 +127,8 @@ namespace Gwent.Battle
             main.startSpeed = 0;
             main.maxParticles = 3000;
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.simulationSpeed = pace;
+            main.startSize3D = stretched;
             main.gravityModifier = gravity / -Physics.gravity.y;
             ParticleSystem.EmissionModule emission = system.emission;
             emission.enabled = false; // emitted by hand, where they belong
@@ -78,7 +152,7 @@ namespace Gwent.Battle
                 ParticleSystem.NoiseModule noise = system.noise;
                 noise.enabled = true;
                 noise.strength = turbulence;
-                noise.frequency = 0.012f; // swirls about 80 layout units across
+                noise.frequency = 0.012f * 80 / swirls; // 0.012: swirls about 80 layout units across
                 noise.scrollSpeed = 0.6f;
                 noise.damping = false;
                 noise.quality = ParticleSystemNoiseQuality.Medium;
@@ -100,6 +174,11 @@ namespace Gwent.Battle
             renderer.maxParticleSize = 100;
 
             systems.Add(system);
+            if (kept_whole)
+            {
+                whole.RemoveWhere(gone => gone == null);
+                whole.Add(system);
+            }
             host.RefreshParticles();
             system.Play();
             return system;
@@ -109,6 +188,8 @@ namespace Gwent.Battle
         // degrees) at birth
         public static void Emit(ParticleSystem system, Vector2 at, Vector2 velocity, float size, float life, Color color, float angle = 0)
         {
+            if (!Kept(system))
+                return;
             ParticleSystem.EmitParams particle = new ParticleSystem.EmitParams
             {
                 position = at,
@@ -120,6 +201,26 @@ namespace Gwent.Battle
                 applyShapeToPosition = false,
             };
             system.Emit(particle, 1);
+            emitted.Add(system);
+        }
+
+        // One particle of a stretched system (Add), its size in width and height
+        public static void Emit(ParticleSystem system, Vector2 at, Vector2 velocity, Vector2 size, float life, Color color, float angle = 0)
+        {
+            if (!Kept(system))
+                return;
+            ParticleSystem.EmitParams particle = new ParticleSystem.EmitParams
+            {
+                position = at,
+                velocity = velocity,
+                startSize3D = new Vector3(size.x, size.y, 1),
+                startLifetime = life,
+                startColor = color,
+                rotation = angle,
+                applyShapeToPosition = false,
+            };
+            system.Emit(particle, 1);
+            emitted.Add(system);
         }
 
         // Whether a particle is still alive
@@ -147,6 +248,38 @@ namespace Gwent.Battle
         {
             if (host != null)
                 Object.Destroy(host.gameObject);
+        }
+
+        // Every art's material, each loaded and drawn once (unseen, plainly and clipped as the weather is) as a battle
+        // begins: their textures and shaders are ready before the first effect, which would otherwise wait for them in the
+        // middle of a play
+        private static readonly string[] AllArt =
+        {
+            "Spark", "Smoke", "Blaze", "Fire", "Mist", "Streak", "Shard", "Snow", "Rime", "Band", "Frost", "Flake", "Glint",
+            "Bolt", "Flash", "Beam",
+        };
+
+        public static void Prepare()
+        {
+            Color unseen = new Color(1, 1, 1, 0.004f);
+            foreach (bool clipped in new[] { false, true })
+            {
+                RectTransform root = UIKit.Rect(clipped ? "PrepareClipped" : "Prepare", CardMotion.Layer);
+                root.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64, 64));
+                if (clipped)
+                    root.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+                ParticleFx fx = Host("Art", root, Vector2.zero);
+                foreach (string art in AllArt)
+                    Emit(fx.Add(art, Colors((0, Color.white), (1, Color.white)), Sizes((0, 1), (1, 1)), kept_whole: true),
+                        Vector2.zero, Vector2.zero, 4, 0.2f, unseen);
+                Object.Destroy(root.gameObject, 0.5f);
+            }
+        }
+
+        // The art itself, for what is drawn with it but not as particles (a weather's ice and snow, as images)
+        public static Texture Art(string name)
+        {
+            return Material(name).mainTexture;
         }
 
         private static Material Material(string name)

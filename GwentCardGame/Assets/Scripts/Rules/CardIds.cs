@@ -25,6 +25,9 @@ namespace Gwent.Rules
         public const int Mardroeme = 207;
         public const int SkelligeStorm = 208;
 
+        // A card the side looking cannot see (the opponent's hand and deck, in a side's view of the battle: MatchState.For)
+        public const int Hidden = -2;
+
         // Weather card affecting each unit row
         public static int WeatherFor(Row row)
         {

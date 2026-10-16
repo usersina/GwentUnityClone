@@ -52,6 +52,57 @@ namespace Gwent.Rules
                 enemy.Lives = Math.Max(0, enemy.Lives - 1);
         }
 
+        // The end of a round, both sides having passed: the totals decide it (Nilfgaard wins a tie), the loser loses a life
+        // (both on a draw), the passes are over. Returns the round's winner and the totals.
+        public static RoundWinner EndRound(Board board, out int player_total, out int enemy_total)
+        {
+            board.Recalculate();
+            player_total = board.Player.TotalScore();
+            enemy_total = board.Enemy.TotalScore();
+            RoundWinner winner = DecideRound(player_total, enemy_total, board.Player.Faction, board.Enemy.Faction);
+            ApplyRoundResult(board.Player, board.Enemy, winner);
+            board.Player.hasPassed = board.Enemy.hasPassed = false;
+            return winner;
+        }
+
+        // The battle's result once a side has no life left (null while it goes on)
+        public static RoundWinner? BattleResult(Board board)
+        {
+            if (board.Player.Lives > 0 && board.Enemy.Lives > 0)
+                return null;
+            return board.Player.Lives == board.Enemy.Lives ? RoundWinner.Draw : board.Player.Lives > 0 ? RoundWinner.Player : RoundWinner.Enemy;
+        }
+
+        // The board cleared for the next round (CleanupBoard, both sides; the weather goes), and the Northern Realms' perk:
+        // the round's winner draws a card. kept: the unit Monsters kept (-1), drew: whether the side drew.
+        public static void ClearForNextRound(Board board, RoundWinner winner, out int player_kept, out int enemy_kept, out bool player_drew, out bool enemy_drew)
+        {
+            player_kept = CleanupBoard(board.Player, board.Rnd, board.Db);
+            enemy_kept = CleanupBoard(board.Enemy, board.Rnd, board.Db);
+            board.Weather.Clear();
+            player_drew = enemy_drew = false;
+            if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
+            {
+                bool drew = Draw(board.Side(winner == RoundWinner.Player), 1) > 0;
+                player_drew = drew && winner == RoundWinner.Player;
+                enemy_drew = drew && winner == RoundWinner.Enemy;
+            }
+            board.Recalculate();
+        }
+
+        // Skellige's perk as the new round opens, each side's (SkelligeReinforcements): the units placed (empty: none)
+        public static void Reinforce(Board board, out List<int> player_placed, out List<int> enemy_placed)
+        {
+            player_placed = SkelligeReinforces(board.Player) ? SkelligeReinforcements(board, true) : new List<int>();
+            enemy_placed = SkelligeReinforces(board.Enemy) ? SkelligeReinforcements(board, false) : new List<int>();
+        }
+
+        // Who starts the next round (The Witcher 3): the round's winner; after a draw, whoever passed last
+        public static bool PlayerStarts(RoundWinner winner, bool last_passer_player)
+        {
+            return winner == RoundWinner.Player || winner == RoundWinner.Draw && last_passer_player;
+        }
+
         // Sends one side's board to its discard pile at the end of a round.
         // Monsters keep one random unit on the board; each Cow that leaves summons a Bovine Defense Force for the
         // next round, each Kambi a Hemdall. Returns the unit Monsters kept (-1 if none).

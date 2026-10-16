@@ -53,11 +53,15 @@ namespace Gwent.UI
         public Sprite scoreDisc;      // a row's score
         public Sprite scoreTotal;     // a side's total
 
+        [Header("Battle")]
+        public Sprite table;          // the field's wooden table (its loading screen shows it, dimmed)
+
         [Header("UI Toolkit screens (Assets/UI/Toolkit)")]
         public PanelSettings panelSettings; // the screens' and dialogs' panels are copies of it (UIScreens)
         public VisualTreeAsset mainMenu;
         public VisualTreeAsset opponentPicker;
         public VisualTreeAsset opponentEntry;
+        public VisualTreeAsset lanLobby;
         public VisualTreeAsset settings;
         public VisualTreeAsset pauseMenu;
         public VisualTreeAsset confirmDialog;

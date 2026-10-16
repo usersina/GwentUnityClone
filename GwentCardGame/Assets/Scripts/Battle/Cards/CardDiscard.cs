@@ -30,15 +30,9 @@ namespace Gwent.Battle
         {
             if (controller == null)
                 controller = BattleController.Instance;
+            // After the second, the match has the player choose a card of the deck
             if (controller.battleState == BattleState.PlayerTurn && controller.PlayerInfo.CanDiscard && gameObject.CompareTag("Player"))
-            {
                 controller.DiscardCard(GetComponent<CardFace>().Card._id, true, controller.HandIndexOf(gameObject));
-                controller.PlayerInfo.CardsDiscarded++;
-
-                // Conditions met, a card can be chosen
-                if (controller.PlayerInfo.CardsDiscarded >= 2)
-                    controller.OpenDeckPicker(true);
-            }
         }
     }
 }

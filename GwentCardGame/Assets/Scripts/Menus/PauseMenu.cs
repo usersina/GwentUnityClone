@@ -3,7 +3,6 @@ using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace Gwent.Menus
@@ -73,11 +72,11 @@ namespace Gwent.Menus
             current = null;
         }
 
+        // The battle stays paused under the loading screen (leaving it sets the time going again, OnDestroy)
         private static void LeaveBattle()
         {
-            Time.timeScale = 1f;
-            current = null;
-            SceneManager.LoadScene(SceneNames.Menu);
+            Gwent.Net.LanSession.Current?.Leave();
+            LoadingScreen.Load(SceneNames.Menu);
         }
 
         private void OnDestroy()

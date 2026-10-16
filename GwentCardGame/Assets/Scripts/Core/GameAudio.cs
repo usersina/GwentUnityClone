@@ -50,6 +50,7 @@ namespace Gwent.Core
             { "ability_tight_bond", new[] { "ally" } },
             { "ability_decoy", new[] { "knockback" } },
             { "ability_mardroeme", new[] { "mardroeme" } },
+            { "weather_thunder", new[] { "thunder1", "thunder2" } },
             { "leader", new[] { "shield" } },
             { "deck_add", new[] { "menu_buy" } },
             { "deck_remove", new[] { "discard" } },

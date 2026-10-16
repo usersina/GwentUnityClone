@@ -166,6 +166,7 @@ namespace Gwent.EditorTools
             private string currentDeck;
             private InputCheck inputCheck;
             private int redrawChecks;
+            private int redrawsLeft = -1; // this battle's random redraws still to make (-1: not chosen yet)
             private bool selectionChecked;
             private bool pauseChecked;
             private bool giveUpChecked;
@@ -460,15 +461,21 @@ namespace Gwent.EditorTools
                         return;
                     }
 
+                    // Up to two random redraws, one at a time (each shown before the next), then the hand is kept
                     List<int> hand = c.PlayerInfo.HandList;
-                    int exchanges = rnd.Next(3);
-                    for (int i = 0; i < exchanges && hand.Count > 0; i++)
+                    if (c.IsPresenting)
+                        return;
+                    if (redrawsLeft < 0)
+                        redrawsLeft = rnd.Next(3);
+                    if (redrawsLeft > 0 && c.PlayerInfo.CardsExchanged < 2 && hand.Count > 0)
                     {
-                        c.ExchangeCard(hand[rnd.Next(hand.Count)], true);
-                        c.PlayerInfo.CardsExchanged++;
+                        c.RedrawPlayerCard(hand[rnd.Next(hand.Count)]);
+                        redrawsLeft--;
                         Count("exchange");
+                        return;
                     }
                     c.FinishCardExchange();
+                    redrawsLeft = -1;
                     return;
                 }
 
@@ -516,11 +523,9 @@ namespace Gwent.EditorTools
                         PlaceSelected(c);
                         return;
                     case PendingAction.DiscardCards:
+                        // After the second, the match asks for a card of the deck (a picker)
                         List<int> hand = c.PlayerInfo.HandList;
                         c.DiscardCard(hand[rnd.Next(hand.Count)], true);
-                        c.PlayerInfo.CardsDiscarded++;
-                        if (c.PlayerInfo.CardsDiscarded >= 2)
-                            c.OpenDeckPicker(true);
                         Count("leader discard");
                         return;
                     case PendingAction.PanelChoice:
@@ -587,7 +592,7 @@ namespace Gwent.EditorTools
                 if (c.CanUseLeader(true) && rnd.Next(6) == 0)
                 {
                     c.ActivateLeader(c.PlayerInfo.Leader, true);
-                    Count("leader " + c.PlayerInfo.Leader + (c.PlayerInfo.canLeader ? " (unavailable)" : ""));
+                    Count("leader " + c.PlayerInfo.Leader + (c.Match.Board.Player.canLeader ? " (unavailable)" : ""));
                     return;
                 }
 
@@ -778,7 +783,7 @@ namespace Gwent.EditorTools
                     if (++menuPhaseFrames < 60)
                         return;
                     MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
-                    Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
+                    Check(menu != null && menu.Items.Count == 6 && menu.Items[1].name == "Item Play on LAN", "the main menu loads with its 6 entries, Play on LAN second", "main menu");
                     Check(DeckStorage.BattleDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
                     inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
                     menuStage = 1;
@@ -804,7 +809,7 @@ namespace Gwent.EditorTools
             private void RoundTripStep()
             {
                 BattleController battle = BattleController.Instance;
-                if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0)
+                if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0 || LoadingScreen.Showing)
                 {
                     if (EditorApplication.timeSinceStartup - phaseStart > SoftlockSeconds * 3)
                         Abort("the " + currentDeck + " did not start");
@@ -1158,7 +1163,7 @@ namespace Gwent.EditorTools
                                       // nothing before, a hand card takes its place, a lit place does not use it, the crown does
             DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
                                       // a held press (touch) shows a card, the leader picker, the header's faction arrows,
-                                      // the deck dropdown
+                                      // the deck dropdown, a card dragged into the deck and out of it, a vertical drag scrolls
             MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
             MenuPlay,                 // Play opens the opponent picker; choosing one remembers it and starts the battle
         }
@@ -1305,8 +1310,8 @@ namespace Gwent.EditorTools
                     Click(0.3, Named("Item Play"));
                     At(0.8, () => check(GameObject.Find("OpponentPicker") != null, "Play opens the opponent picker"));
                     Click(1.1, Named(entry));
-                    At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && SceneManager.GetActiveScene().name == SceneNames.Game,
-                        "choosing an opponent remembers it and starts the battle"));
+                    At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && LoadingScreen.Showing,
+                        "choosing an opponent remembers it and starts the battle, behind the loading screen"));
                 }
                 else if (scenario == InputScenario.PauseMenu)
                 {
@@ -1345,16 +1350,18 @@ namespace Gwent.EditorTools
                     At(0.6, () => check(Highlighted("Item Deck builder"), "hovering a menu entry highlights it"));
                     Click(0.9, Named("Item Settings"));
                     At(1.4, () => check(SettingsPanel.IsOpen, "clicking Settings opens the settings"));
-                    Click(1.7, MasterVolumeAt(0.25f));
-                    At(2.2, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
-                    Key(2.5, UnityEngine.InputSystem.Key.Escape);
-                    At(3.0, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
-                    Click(3.3, Named("Item How to play"));
-                    At(3.8, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
-                    Click(4.1, Named("Item Abilities"));
-                    At(4.6, () => check(UIScreens.Find("Entry Spy") != null && UIScreens.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
-                    Key(4.9, UnityEngine.InputSystem.Key.Escape);
-                    At(5.4, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
+                    // It opens on Game: the volumes are on the Audio tab
+                    Click(1.7, Named("Button Audio"));
+                    Click(2.2, MasterVolumeAt(0.25f));
+                    At(2.7, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
+                    Key(3.0, UnityEngine.InputSystem.Key.Escape);
+                    At(3.5, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
+                    Click(3.8, Named("Item How to play"));
+                    At(4.3, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
+                    Click(4.6, Named("Item Abilities"));
+                    At(5.1, () => check(UIScreens.Find("Entry Spy") != null && UIScreens.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
+                    Key(5.4, UnityEngine.InputSystem.Key.Escape);
+                    At(5.9, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
                 }
                 else
                 {
@@ -1742,7 +1749,30 @@ namespace Gwent.EditorTools
                     check(DeckStorage.SamePath(dc.currentDeckPath, deck_path) && dc.my_deck.Name == wanted, "picking the deck in the dropdown shows it");
                     check(DeckStorage.SamePath(PlayerPrefs.GetString("playerDeckPath", ""), deck_path) && dc.BattleDeckStatus == "Battle deck: " + wanted,
                         "the valid deck picked becomes the battle deck, as the status line says (\"" + dc.BattleDeckStatus + "\")");
+                    before = count();
                 });
+
+                // Dragging: a card of the collection onto the deck's panel goes in; one of the deck onto the collection's
+                // goes out; one dropped back on its own grid stays as it was; a drag up the collection scrolls it
+                int dragged = -1;
+                Drag(13.7, () =>
+                {
+                    Vector2 at = AddableCard();
+                    dragged = addTarget != null ? addTarget.GetComponent<CardRef>().Card._id : -1;
+                    return at;
+                }, () => ScreenPoint(dc.deckCollection.transform));
+                At(14.6, () => check(dragged >= 0 && count() == before + 1 && saved() == before + 1 && dc.my_deck.Cards.Contains(dragged),
+                    "a card dragged from the collection onto the deck goes in (and is saved)"));
+                Drag(14.9, FirstCardOf(dc.deckCollection), () => ScreenPoint(browse.transform));
+                At(15.8, () => check(count() == before && saved() == before, "a card dragged from the deck onto the collection goes out (and is saved)"));
+                Drag(16.1, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(-120, 0));
+                At(17.0, () => check(count() == before && CardMotion.Layer.childCount == 0, "a card dropped back on its own grid stays as it was, its copy gone"));
+                ScrollRect scroll = browse.cardsArea.transform.parent.GetComponent<ScrollRect>();
+                float scrolled = 0;
+                At(17.2, () => scrolled = scroll.verticalNormalizedPosition);
+                Drag(17.3, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(0, 220));
+                At(18.2, () => check(count() == before && (scroll.content.rect.height <= ((RectTransform)scroll.transform).rect.height + 1 || scroll.verticalNormalizedPosition != scrolled),
+                    "a drag up the collection scrolls it and adds nothing (" + scrolled.ToString("0.00") + " to " + scroll.verticalNormalizedPosition.ToString("0.00") + ")"));
             }
 
             // What the pointer is on, and the long press of an element (for failure messages)
@@ -1936,6 +1966,21 @@ namespace Gwent.EditorTools
             private double ClickGap(int first, int second)
             {
                 return second < releases.Count ? releases[second] - releases[first] : 0;
+            }
+
+            // Presses on one point, moves to another in steps (as a hand does) and lets go there
+            private void Drag(double time, Func<Vector2> from, Func<Vector2> to, double seconds = 0.4)
+            {
+                Vector2 a = Vector2.zero, b = Vector2.zero;
+                At(time - 0.05, () => { a = from(); b = to(); });
+                At(time - 0.05, () => Send(a, MouseButton.Left, false));
+                At(time, () => Send(a, MouseButton.Left, true));
+                for (int i = 1; i <= 8; i++)
+                {
+                    float k = i / 8f;
+                    At(time + seconds * k, () => Send(Vector2.Lerp(a, b, k), MouseButton.Left, true));
+                }
+                At(time + seconds + 0.05, () => Send(b, MouseButton.Left, false));
             }
 
             private void Move(double time, Func<Vector2> position)

@@ -5,6 +5,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.Menus;
+using Gwent.Net;
 using Gwent.Rules;
 using Gwent.UI;
 using UnityEngine;
@@ -17,12 +18,18 @@ namespace Gwent.Battle
     // A multi-step player action in progress. While one is pending the turn cannot end (pass / leader are blocked).
     public enum PendingAction { None, PanelChoice, PlacePickedCard, DiscardCards }
 
-    // Runs the battle: setup, turns, rounds and playing cards (leaders: BattleController.Leaders.cs; pickers:
-    // BattleController.Pickers.cs).
-    // The rules themselves live in Gwent.Rules; BoardView draws the board from the model.
+    // The battle's screen: it shows a match (Gwent.Rules.Match) and takes this side's moves. The match plays the battle
+    // (the deal, turns, rounds, every rule); this shows its events one after the other (the board's changes as The
+    // Witcher 3 plays them, the notices, the sounds) at the screen's pace, and turns the player's clicks into commands for
+    // it. The screen is the Player side's, wherever its battle comes from (BattleSource): its own match against the AI
+    // (IOpponent: asked when the match waits for it and everything before has been shown), its match as a LAN battle's
+    // host (the guest's moves come over the link), or the host's events as its guest (LanSession). While the other device
+    // of a LAN battle is away, the board waits under a notice (LanNotice). (Leaders: BattleController.Leaders.cs;
+    // pickers: BattleController.Pickers.cs.)
     public partial class BattleController : MonoBehaviour
     {
         private const string DefaultDeckResource = "Decks/player_default";
+        private const bool Me = true; // this screen's side of the match
 
         public static BattleController Instance { get; private set; }
 
@@ -39,6 +46,7 @@ namespace Gwent.Battle
         public GameObject PlayerField;
         public GameObject EnemyField;
 
+        // The battle as this screen shows it: the event shown last left it so (MatchState.For: the opponent's hand hidden)
         public BattleSide PlayerInfo;
         public BattleSide EnemyInfo;
 
@@ -56,19 +64,26 @@ namespace Gwent.Battle
         public CardDatabase Db { get; private set; }
         public GameObject TempObject { get; private set; }
 
-        private AiPlayer ai;
+        private Match match;              // this device's (null: a LAN guest's battle is the host's)
+        private BattleSource source;
+        private LanSession lan;           // a LAN battle's (null: against the AI)
+        private int shown;                // the match's events shown so far
+        private MatchState latest;        // the battle as the event shown last left it, as this side sees it
+        private MatchState logged;        // the whole battle as the event shown last left it (the log tells all of it)
+        private MatchEvent showing;       // the event being shown, whole where this device has it (the log tells all of it)
+        private LanNotice away;           // the other device away, said over the board
+        private IOpponent opponent;
+        private bool opponentActing;
         private BoardView board;
         private BoardPresenter presenter;
         private int presenting;           // plays being shown (the rules resolved them already)
         private readonly List<BoardChange> presented = new List<BoardChange>();
         private GameObject mulliganPrompt;
-        private CancellationTokenSource flow; // the battle's flow: its opening, rounds and plays (giving up cancels it)
-        private CancellationTokenSource turn; // the turn under way (a new turn cancels the one before)
+        private CancellationTokenSource flow; // the battle's flow: its opening and its events shown (giving up cancels it)
         private bool roundOpening;      // the next turn opens a round (after "Round Start")
-        private bool? firstPlayer;      // who takes the battle's first turn
         private bool? lastTurnWasPlayer; // whose turn was announced last in this round
-        private bool lastPasserWasPlayer; // after a drawn round, whoever passed last starts the next one
         private string whiteFlameNotice;  // shown once the redraw is over
+        private string deckProblem;       // why the selected deck gave way to the default one, said as the battle opens
 
         [Serializable]
         public class BattleSide : PlayerState
@@ -85,12 +100,12 @@ namespace Gwent.Battle
             board = new BoardView(this);
             presenter = new BoardPresenter(board, Db);
             flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
-            ai = GetComponent<AiPlayer>();
         }
 
         private void OnDestroy()
         {
-            StopTurn();
+            if (lan != null)
+                lan.Changed -= LanChanged;
             if (flow != null)
                 flow.Dispose();
             if (Instance == this)
@@ -104,6 +119,14 @@ namespace Gwent.Battle
 
         public LeaderSlot PlayerLeader { get { return View(true).Leader; } }
 
+        // The match this screen shows (the whole battle, the AI's hand too: for the AI and the tools); null on a LAN guest
+        public Match Match { get { return match; } }
+
+        // The battle as this side sees it now (the event shown last), and a move of its own, as the clicks make them: for
+        // the tools that play a side (LanBot)
+        internal MatchState Latest { get { return latest; } }
+        internal bool Command(MatchCommand command) { return Submit(command); }
+
         private void Start()
         {
             if (!GameInput.IsTouch)
@@ -111,58 +134,43 @@ namespace Gwent.Battle
             View(true).Deck.gameObject.AddComponent<DeckGiveUp>(); // a hand laid on your deck gives up
             GameAudio.PlayGameMusic();
             Time.timeScale = GameSettings.GameTimeScale;
-            PlayerInfo.Name = "Player";
-            EnemyInfo.Name = "Opponent";
+            lan = LanSession.Current != null && LanSession.Current.State == LanSession.Stage.Battle ? LanSession.Current : null;
+            PlayerInfo.Name = lan != null ? lan.MyName : "Player";
+            EnemyInfo.Name = lan != null ? lan.TheirName : "Opponent";
 
             GameAudio.PlaySfx("game_start");
             UIOverlay.SetEscapeAction(OnEscape);
             battleState = BattleState.Start;
             SetupBattle();
+            CardEffects.Prepare(); // no effect waits for its art the first time it plays
             BattleOpening(flow.Token).Forget();
         }
 
-        // The Witcher 3's opening: the leaders' notice (The White Flame), who goes first (a coin toss, or the Scoia'tael
-        // perk), then the redraw; the first round starts once both sides are done
+        // The hands dealt (on a LAN guest, once the host's first event is in: the loading screen waits for the hand's art
+        // meanwhile), then The Witcher 3's opening once the loading screen has gone: the leaders' notice (The White Flame),
+        // then the match's events: who goes first (a coin toss, or the Scoia'tael perk), the redraw, the rounds
         private async UniTaskVoid BattleOpening(CancellationToken ct)
         {
+            if (source.Count == 0)
+                await UniTask.WaitUntil(() => source.Count > 0, PlayerLoopTiming.Update, ct);
+            ShowStarted(source.Seen(0), source.All(0).State);
+            shown = 1;
+            PreloadArt(MyDeck, TheirDeck).Forget();
+            BattleLog.Begin(this, MyDeck, TheirDeck, opponentName);
+
+            await While(() => LoadingScreen.Showing, ct); // the field fades up first
+            if (deckProblem != null)
+                UIOverlay.Toast("Your selected deck can't be used (" + deckProblem + "). Playing with the default deck.", 4f);
+
             if (whiteFlameNotice != null)
             {
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), whiteFlameNotice, BattleBanner.Long);
                 whiteFlameNotice = null;
             }
-
-            if (PlayerInfo.Faction == Faction.Scoiatael && EnemyInfo.Faction != Faction.Scoiatael)
-            {
-                await While(() => BattleBanner.Busy, ct);
-                firstPlayer = null;
-                TurnPicker.SetActive(true); // the player's choice comes back through ChooseFirstPlayer
-                await While(() => !(firstPlayer.HasValue), ct);
-                BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
-            }
-            else if (PlayerInfo.Faction != Faction.Scoiatael && EnemyInfo.Faction == Faction.Scoiatael)
-            {
-                firstPlayer = false; // the AI's Scoia'tael goes first
-                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Scoiatael), "Opponent used the Scoia'tael faction perk to go first.");
-            }
-            else
-            {
-                firstPlayer = Rng.Shared.Next(0, 2) != 0;
-                BattleBanner.Show(firstPlayer.Value ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, firstPlayer.Value ? "You will go first" : "Your opponent will go first");
-            }
-            await While(() => BattleBanner.Busy, ct);
-
-            if (PlayerInfo.CanExchange)
-                mulliganPrompt = RedrawPicker.ShowPhase(this);
-            await RoundOpening(firstPlayer.Value, ct);
+            await ShowEvents(ct);
         }
 
         public Rect DeckScreenRect(bool is_player) { return board.DeckRect(is_player); }
-
-        // The Scoia'tael dialog's answer
-        public void ChooseFirstPlayer(bool player_first)
-        {
-            firstPlayer = player_first;
-        }
 
         private void Update()
         {
@@ -173,7 +181,7 @@ namespace Gwent.Battle
             }
 
             // The pass button only exists during the player's turn, and not in the middle of a multi-step action
-            bool can_pass = battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && presenting == 0;
+            bool can_pass = battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && !IsPresenting;
             if (PassBtn.activeSelf != can_pass)
                 PassBtn.SetActive(can_pass);
 
@@ -193,83 +201,112 @@ namespace Gwent.Battle
 
         public bool IsPlayerActionAllowed
         {
-            get { return battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && presenting == 0; }
+            get { return battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && !IsPresenting; }
         }
 
         // The player may give up (a hand on their deck): in their turn, nothing pending or being shown
         public bool CanGiveUp { get { return IsPlayerActionAllowed && !IsBattleOver; } }
 
-        // A play is being shown: nothing else can be done until it ends
-        public bool IsPresenting { get { return presenting > 0; } }
-
-        //----------------------------------------------BATTLE SETUP---------------------------------------------------//
-        // On Battle Start: Draw 10 cards then change two cards or not at all
-        private void SetupBattle()
+        // A play is being shown, the match has moved on and the screen not yet, a move is on its way to a LAN host, or the
+        // other device of a LAN battle is away: nothing else can be done until then
+        public bool IsPresenting
         {
-            Deck myDeck = LoadPlayerDeck();
-            // The opponent the player chose before the battle, or a random one
-            TextAsset enemy_deck = OpponentDecks.ForBattle() ?? EnemyDeck;
-            Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(enemy_deck.text, enemy_deck.name), Db);
-
-            // Emhyr, The White Flame cancels the other leader's ability, passive ones included (Daisy's extra card,
-            // Invader's random medics, Treacherous' doubled spies), unless both sides play him
-            bool white_flame = myDeck.Leader != oppDeck.Leader
-                && (myDeck.Leader == LeaderIds.EmhyrTheWhiteFlame || oppDeck.Leader == LeaderIds.EmhyrTheWhiteFlame);
-            PrepareField(myDeck, PlayerInfo, true, white_flame);
-            PrepareField(oppDeck, EnemyInfo, false, white_flame);
-            // The cards' art before it is seen: the player's hand first (the redraw shows it at once), then both decks
-            CardArt.Preload(PlayerInfo.HandList, "hand", destroyCancellationToken).Forget();
-            CardArt.Preload(myDeck.Cards.Concat(oppDeck.Cards).Append(myDeck.Leader).Append(oppDeck.Leader), "battle", destroyCancellationToken).Forget();
-
-            foreach (bool is_player in new[] { true, false })
-                if (white_flame && Info(is_player).Leader != LeaderIds.EmhyrTheWhiteFlame)
-                {
-                    Info(is_player).leaderDisabled = true;
-                    View(is_player).Leader.MarkCancelled();
-                    whiteFlameNotice = is_player ? "Your opponent's leader cancels your leader ability" : "Your leader cancels your opponent's leader ability";
-                }
-
-            // Passive leaders that affect both players
-            bool either(int leader) { return !white_flame && (myDeck.Leader == leader || oppDeck.Leader == leader); }
-            doubleSpies = either(LeaderIds.EredinTheTreacherous);
-            randomMedic = either(LeaderIds.EmhyrInvaderOfTheNorth);
-            BattleLog.Begin(this, myDeck, oppDeck, enemy_deck.name);
+            get { return presenting > 0 || source != null && (shown < source.Count || source.Waiting) || lan != null && !lan.Linked; }
         }
 
-        // The selected deck if it exists and is valid, else the built-in default deck
-        private Deck LoadPlayerDeck()
+        // The other device of a LAN battle away (its link lost, or not back yet): its side shows greyed out
+        public bool OpponentAway { get { return lan != null && lan.State == LanSession.Stage.Battle && !lan.Linked; } }
+
+        // The battle as the log tells it: all of it (the opponent's hand too), else what this screen shows
+        internal PlayerState Logged(bool is_player) { return logged != null ? (is_player ? logged.Player : logged.Enemy) : Info(is_player); }
+        internal List<int> LoggedWeather { get { return logged != null ? logged.Weather : weatherList; } }
+
+        //----------------------------------------------BATTLE SETUP---------------------------------------------------//
+        private Deck MyDeck, TheirDeck;
+        private string opponentName;
+
+        // Against the AI: the match from both decks (the opponent the player chose before the battle, or a random one),
+        // its seed from the game's random source (a seeded autoplay replays the same battles). A LAN battle's is the
+        // session's: the host's match, or the host's events.
+        private void SetupBattle()
         {
+            if (lan != null)
+            {
+                match = lan.Match;
+                source = lan.Source;
+                opponent = lan.Hosting ? lan.Opponent : null;
+                MyDeck = lan.MyDeck;
+                TheirDeck = lan.TheirDeck;
+                opponentName = lan.TheirName;
+                lan.Changed += LanChanged;
+            }
+            else
+            {
+                MyDeck = PlayerDeck(Db, out deckProblem);
+                TextAsset enemy_deck = OpponentDecks.ForBattle() ?? EnemyDeck;
+                TheirDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(enemy_deck.text, enemy_deck.name), Db);
+                opponentName = enemy_deck.name;
+                match = new Match(new MatchSetup { Player = MyDeck, Enemy = TheirDeck, Seed = Rng.Shared.Next() }, Db);
+                match.Start();
+                source = new LocalSource(match);
+                opponent = GetComponent<AiPlayer>();
+            }
+            source.Refused += ShowRefused;
+        }
+
+        // The deck the player battles with: the selected one if it exists and is valid, else the built-in default deck
+        // (problem: why the selected one could not be used, or null). The loading screen shows its crest.
+        public static Deck PlayerDeck(CardDatabase db, out string problem)
+        {
+            problem = null;
             string path = DeckStorage.BattleDeckPath;
             if (DeckStorage.Exists(path)) // a deck file, or a preset (an AI deck)
             {
-                Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
-                List<string> errors = DeckRules.Validate(deck, Db);
+                Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), db); // copies beyond the W3 limits are dropped
+                List<string> errors = DeckRules.Validate(deck, db);
                 if (errors.Count == 0)
                 {
                     return deck;
                 }
-                UIOverlay.Toast("Your selected deck can't be used (" + errors[0] + "). Playing with the default deck.", 4f);
+                problem = errors[0];
             }
 
             TextAsset deckAsset = Resources.Load<TextAsset>(DefaultDeckResource);
-            return DeckRules.Sanitize(CardLibrary.ParseDeck(deckAsset.text, DefaultDeckResource), Db);
+            return DeckRules.Sanitize(CardLibrary.ParseDeck(deckAsset.text, DefaultDeckResource), db);
         }
 
-        // Prepares the field for the first time
-        private void PrepareField(Deck deck, BattleSide info, bool is_player_deck, bool white_flame)
+        // True once the hand's art is there (the loading screen waits for it, so the field comes up with its cards)
+        public bool HandArtLoaded { get; private set; }
+
+        // The cards' art before it is seen: the player's hand first (the redraw shows it at once), then both decks
+        private async UniTaskVoid PreloadArt(Deck mine, Deck theirs)
         {
-            info.Faction = deck.Faction;
-            info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + deck.Faction.Code());
-            info.DeckList = Rng.Shuffle(deck.Cards);
-            info.Leader = deck.Leader;
+            await CardArt.Preload(PlayerInfo.HandList, "hand", destroyCancellationToken);
+            HandArtLoaded = true;
+            await CardArt.Preload(mine.Cards.Concat(theirs.Cards).Append(mine.Leader).Append(theirs.Leader), "battle", destroyCancellationToken);
+        }
 
-            View(is_player_deck).Stats.UISetGeneral(info.Faction);
-            View(is_player_deck).Stats.UISetPlayer(info.Name, deck.Leader);
-            SetLeaderCard(deck.Leader, is_player_deck);
-
-            // Francesca, Daisy of the Valley: one extra card at the beginning of the battle
-            int cards_to_draw = deck.Leader == LeaderIds.FrancescaDaisyOfTheValley && !white_flame ? 11 : 10;
-            DrawCards(cards_to_draw, info, is_player_deck);
+        // The field as the battle starts: each side's faction, leader, deck and hand. Emhyr, The White Flame cancels the
+        // other leader's ability (the match decided it): its leader shows it, said once the field is up.
+        private void ShowStarted(MatchEvent started, MatchState all)
+        {
+            ApplyView(started.State, all);
+            foreach (bool is_player in new[] { true, false })
+            {
+                BattleSide info = Info(is_player);
+                info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + info.Faction.Code());
+                View(is_player).Stats.UISetGeneral(info.Faction);
+                View(is_player).Stats.UISetPlayer(info.Name, info.Leader);
+                SetLeaderCard(info.Leader, is_player);
+                SetDeckObject(info, is_player);
+                SetHandObject(info.HandList, is_player);
+                if (info.leaderDisabled)
+                {
+                    View(is_player).Leader.MarkCancelled();
+                    whiteFlameNotice = is_player ? "Your opponent's leader cancels your leader ability" : "Your leader cancels your opponent's leader ability";
+                }
+            }
+            GameAudio.PlaySfx("card_draw");
         }
 
         // Sets the leader in the UI
@@ -281,22 +318,49 @@ namespace Gwent.Battle
             view.Leader.UISetPassive();
         }
 
-        //----------------------------------------------Redraw---------------------------------------------------//
+        // The battle as an event left it, seen from this side (all: the whole of it, for the log)
+        private void ApplyView(MatchState state, MatchState all)
+        {
+            PlayerInfo.CopyFrom(state.Player);
+            EnemyInfo.CopyFrom(state.Enemy);
+            weatherList.Clear();
+            weatherList.AddRange(state.Weather);
+            doubleSpies = state.DoubleSpies;
+            randomMedic = state.RandomMedic;
+            latest = state;
+            logged = all;
+        }
+
+        //----------------------------------------------The player's commands---------------------------------------------------//
+        // A move of the player's for the match; false (and the "not allowed" sound) when it is refused
+        private bool Submit(MatchCommand command)
+        {
+            if (source.Submit(command))
+                return true;
+            GameAudio.PlaySfx("invalid");
+            GameLog.Event(LogCategory.Battle, "command_refused", "command", command.ToString());
+            return false;
+        }
+
+        // The Scoia'tael dialog's answer
+        public void ChooseFirstPlayer(bool player_first)
+        {
+            Submit(MatchCommand.ChooseFirst(player_first));
+        }
+
         public void FinishCardExchange()
         {
-            PlayerInfo.CanExchange = false;
+            if (PlayerInfo.CanExchange)
+                Submit(MatchCommand.EndRedraw());
         }
 
         // One redraw of the player's (double-click in the hand, or the redraw picker); the second one ends the phase.
         // hand_index: the card's place in the hand, when known (with two alike, the one chosen)
         public void RedrawPlayerCard(int card_id, int hand_index = -1)
         {
-            if (!PlayerInfo.CanExchange || PlayerInfo.CardsExchanged >= 2 || !PlayerInfo.HandList.Contains(card_id))
+            if (!PlayerInfo.CanExchange || PlayerInfo.CardsExchanged >= 2 || !PlayerInfo.HandList.Contains(card_id) || IsPresenting)
                 return;
-            ExchangeCard(card_id, true, hand_index);
-            PlayerInfo.CardsExchanged++;
-            if (PlayerInfo.CardsExchanged >= 2)
-                FinishCardExchange();
+            Submit(MatchCommand.Redraw(card_id, hand_index));
         }
 
         // The menu button at the top right
@@ -305,79 +369,220 @@ namespace Gwent.Battle
             PauseMenu.Open();
         }
 
-        // Redraw: the deck's top card takes the card's place in the hand, the card goes to the bottom of the deck
-        public void ExchangeCard(int card_id, bool is_player_card, int hand_index = -1)
+        // Reference: PassButton event (hold to pass button)
+        public void SkipTurn(bool is_player_turn)
         {
-            BattleSide info = Info(is_player_card);
-            int drawn = RoundRules.Redraw(info, card_id, hand_index);
-            if (drawn == -1)
+            if (!is_player_turn || !IsPlayerActionAllowed)
+            {
+                GameAudio.PlaySfx("invalid");
                 return;
-            BattleLog.Redraw(this, is_player_card, card_id, drawn);
-
-            GameAudio.PlaySfx("card_exchange");
-
-            SetDeckObject(info, is_player_card);
-            SetHandObject(info.HandList, is_player_card);
+            }
+            Submit(MatchCommand.Pass());
         }
 
-        //----------------------------------------------TURNS---------------------------------------------------//
-        // Picks who takes the first turn of a round: the given side, or for the battle's first round the Scoia'tael perk
-        // or a coin toss
-        private async UniTask RoundOpening(bool player_starts, CancellationToken ct)
+        //----------------------------------------------The match's events---------------------------------------------------//
+        // The events one after the other, each shown in full before the next; when the screen has caught up and the match
+        // waits for the opponent, the opponent acts (its move becomes the next events). A LAN battle taken up again
+        // (LanSession.Rejoined) shows the events up to where it stands at once, the last of them as usual.
+        private async UniTask ShowEvents(CancellationToken ct)
         {
-            if (EnemyInfo.CanExchange)
+            bool catching = lan != null && lan.Rejoined;
+            while (true)
             {
-                // Initialize AI (first turn only)
-                ai.Initialize();
-                ai.ExchangeCards();
+                if (shown >= source.Count)
+                {
+                    AskOpponent(ct);
+                    await UniTask.WaitUntil(() => shown < source.Count || catching && lan.CaughtUp, PlayerLoopTiming.Update, ct);
+                    if (shown >= source.Count)
+                    {
+                        catching = false; // all there was is shown
+                        CaughtUp();
+                        continue;
+                    }
+                }
+                if (catching && (shown + 1 < source.Count || !lan.CaughtUp))
+                {
+                    ShowAtOnce(source.Seen(shown), source.All(shown).State);
+                    shown++;
+                    continue;
+                }
+                if (catching)
+                {
+                    catching = false;
+                    CaughtUp();
+                }
+                MatchEvent e = source.Seen(shown);
+                showing = source.All(shown);
+                shown++;
+                presenting++;
+                try
+                {
+                    await Show(e, showing.State, ct);
+                }
+                finally
+                {
+                    presenting = Math.Max(0, presenting - 1);
+                }
+                if (e.Kind == MatchEventKind.Ended)
+                    return;
             }
+        }
 
-            // Wait for all players to either redraw or skip (and the last redrawn card to land), and for the end of the last
-            // round's notices
-            await While(() => EnemyInfo.CanExchange || PlayerInfo.CanExchange || RedrawPicker.IsAnimating || BattleBanner.Busy, ct);
+        // An event of a battle taken up again, before where it stands: the battle as it left it, and what it marks for good
+        // (a leader spent, a life lost); no animation, notice, sound or wait
+        private void ShowAtOnce(MatchEvent e, MatchState all)
+        {
+            ApplyView(e.State, all);
+            if (e.Kind == MatchEventKind.LeaderUsed)
+                View(e.Seat).Leader.MarkUsed();
+        }
 
+        // The board as the battle stands once caught up: every card in its place, the gems, whose turn; the redraw if it is
+        // still on
+        private void CaughtUp()
+        {
+            RefreshBoard();
+            View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
+            View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
+            roundOpening = false;
+            lastTurnWasPlayer = null;
+            if (latest != null && latest.Phase == MatchPhase.Redraw && PlayerInfo.CanExchange && mulliganPrompt == null)
+                mulliganPrompt = RedrawPicker.ShowPhase(this);
+        }
+
+        // The opponent's move, answer or redraw, when the match waits for it (once at a time)
+        private void AskOpponent(CancellationToken ct)
+        {
+            if (opponentActing || match == null || opponent == null || match.IsOver || !match.Awaits(!Me))
+                return;
+            Acting(ct).Forget();
+        }
+
+        private async UniTaskVoid Acting(CancellationToken ct)
+        {
+            opponentActing = true;
+            try
+            {
+                await opponent.Act(match, !Me, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                // The battle went on without it (given up)
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                if (!match.IsOver && match.Awaits(!Me) && !match.Apply(!Me, MatchCommand.Pass()) && !match.Apply(!Me, MatchCommand.Skip()))
+                    match.Apply(!Me, MatchCommand.EndRedraw()); // never left waiting on it
+            }
+            finally
+            {
+                opponentActing = false;
+            }
+        }
+
+        private async UniTask Show(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            switch (e.Kind)
+            {
+                case MatchEventKind.ChoiceAsked: await ShowChoice(e, all, ct); break;
+                case MatchEventKind.FirstPlayer: await ShowFirstPlayer(e, all, ct); break;
+                case MatchEventKind.Redrawn: ShowRedraw(e, all); break;
+                case MatchEventKind.RedrawDone: await ShowRedrawDone(e, all, ct); break;
+                case MatchEventKind.RoundStarted: await ShowRoundStart(e, all, ct); break;
+                case MatchEventKind.TurnStarted: await ShowTurn(e, all, ct); break;
+                case MatchEventKind.Passed: ShowPass(e, all); break;
+                case MatchEventKind.Played: await ShowPlay(e, all, ct); break;
+                case MatchEventKind.Transformed: await ShowTransform(e, all, ct); break;
+                case MatchEventKind.LeaderUsed: await ShowLeader(e, all, ct); break;
+                case MatchEventKind.Picked: await ShowPicked(e, all, ct); break;
+                case MatchEventKind.Discarded: await ShowDiscard(e, all, ct); break;
+                case MatchEventKind.Skipped: ShowSkip(e, all); break;
+                case MatchEventKind.RoundEnded: await ShowRoundEnd(e, all, ct); break;
+                case MatchEventKind.BoardCleared: await ShowClear(e, all, ct); break;
+                case MatchEventKind.Reinforced: await ShowReinforcements(e, all, ct); break;
+                case MatchEventKind.Ended: ShowEnd(e, all); break;
+            }
+        }
+
+        // Who goes first: the player's Scoia'tael choice, the opponent's, or a coin toss; then the redraw opens
+        private async UniTask ShowFirstPlayer(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            ApplyView(e.State, all);
+            bool player_first = e.Seat;
+            bool opponents_perk = e.Flag && EnemyInfo.Faction == Faction.Scoiatael;
+            if (opponents_perk)
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Scoiatael), player_first
+                    ? "Opponent used the Scoia'tael faction perk to let you go first." : "Opponent used the Scoia'tael faction perk to go first.");
+            else
+                BattleBanner.Show(player_first ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, player_first ? "You will go first" : "Your opponent will go first");
+            await While(() => BattleBanner.Busy, ct);
+
+            battleState = BattleState.Start; // the redraw (an opponent choosing first had it look like its turn)
+            if (PlayerInfo.CanExchange)
+                mulliganPrompt = RedrawPicker.ShowPhase(this);
+        }
+
+        // A side done with its redraw. The player's, while the opponent still redraws (a LAN battle's other player takes
+        // its time; the AI never does): the redraw closes for the board once its last card has landed, and the screen
+        // waits as on the opponent's turn
+        private async UniTask ShowRedrawDone(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            ApplyView(e.State, all);
+            if (!e.Seat || !EnemyInfo.CanExchange)
+                return;
+            await While(() => RedrawPicker.IsAnimating, ct);
             if (mulliganPrompt != null)
                 Destroy(mulliganPrompt);
+            mulliganPrompt = null;
+            OpponentsMove("Your opponent is still redrawing");
+        }
+
+        // The screen waits for the opponent outside its turns (its redraw, its choice of who goes first): as on its turn,
+        // the "Opponent's turn" notice says what it is doing and its side's markers light up
+        private void OpponentsMove(string doing)
+        {
+            battleState = BattleState.EnemyTurn;
+            BattleBanner.Show(BattleBanner.OpponentsTurn, doing);
+        }
+
+        // Redraw: the deck's top card took the card's place in the hand, the card went to the bottom of the deck
+        private void ShowRedraw(MatchEvent e, MatchState all)
+        {
+            BattleLog.Redraw(this, e.Seat, showing.Card, showing.Other);
+            ApplyView(e.State, all);
+            GameAudio.PlaySfx("card_exchange");
+            SetDeckObject(Info(e.Seat), e.Seat);
+            SetHandObject(Info(e.Seat).HandList, e.Seat);
+        }
+
+        // A round opens (the first once both sides redrew and the last redrawn card landed, a later one once the last
+        // round's notices ended): "Round Start"
+        private async UniTask ShowRoundStart(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            await While(() => RedrawPicker.IsAnimating || BattleBanner.Busy, ct);
+            if (mulliganPrompt != null)
+                Destroy(mulliganPrompt);
+            ApplyView(e.State, all);
 
             BattleBanner.Show(BattleBanner.RoundStart, "Round Start");
             await While(() => BattleBanner.Busy, ct);
             roundOpening = true;
             lastTurnWasPlayer = null;
-            BattleLog.RoundStart(player_starts);
-            // The Witcher 3: a side that starts a round with no card in hand sits it out, even with its leader unused
-            foreach (bool is_player in new[] { true, false })
-                if (Info(is_player).HandList.Count == 0 && !Info(is_player).hasPassed)
-                    MarkPassed(is_player, "empty_hand");
-            StartTurn(player_starts);
+            BattleLog.RoundStart(e.Seat);
         }
 
-        // One turn at a time: starting a turn cancels the one before (a stale "player turn in 0.3 s" must not fire in a
-        // later turn). A turn can start the next one at once, when the side to play has already passed: the token is
-        // made before the turn runs, so the newer turn is the one that stays.
-        private void StartTurn(bool is_player)
+        private async UniTask ShowTurn(MatchEvent e, MatchState all, CancellationToken ct)
         {
-            StopTurn();
-            turn = CancellationTokenSource.CreateLinkedTokenSource(flow.Token);
-            (is_player ? PlayerTurn(turn.Token) : EnemyTurn(turn.Token)).Forget();
-        }
-
-        private void StopTurn()
-        {
-            if (turn == null)
-                return;
-            turn.Cancel();
-            turn.Dispose();
-            turn = null;
-        }
-
-        private async UniTask PlayerTurn(CancellationToken ct)
-        {
-            if (!PlayerInfo.hasPassed && OutOfPlays(true))
-                MarkPassed(true, "nothing_to_play");
-            if (PlayerInfo.hasPassed)
+            TurnOver();
+            ApplyView(e.State, all);
+            if (!e.Seat)
             {
-                CheckRoundEnd();
-                return;
+                battleState = BattleState.EnemyTurn;
+                AnnounceTurn(false);
+                BattleLog.TurnStart(this, false);
+                GameAudio.PlaySfx("turn_enemy");
+                return; // the opponent's move comes next (AskOpponent)
             }
             AnnounceTurn(true);
             await Wait(0.3f, ct);
@@ -387,41 +592,12 @@ namespace Gwent.Battle
             battleState = BattleState.PlayerTurn;
         }
 
-        private async UniTask EnemyTurn(CancellationToken ct)
+        // What the turn before left behind on screen: the showcase, a pending step, the hider
+        private void TurnOver()
         {
-            if (!EnemyInfo.hasPassed && OutOfPlays(false))
-                MarkPassed(false, "nothing_to_play");
-            if (EnemyInfo.hasPassed)
-            {
-                CheckRoundEnd();
-                return;
-            }
-            battleState = BattleState.EnemyTurn;
-            AnnounceTurn(false);
-            BattleLog.TurnStart(this, false);
-            GameAudio.PlaySfx("turn_enemy");
-            UniTask<AiAction> deciding = ai.Decide(ct); // Hard thinks while the turn's notice shows
-            await Wait(0.3f, ct);
-            AiAction action = await deciding;
-            await While(() => BattleBanner.Busy, ct);
-            await Wait(0.15f, ct);
-
-            // The card the opponent plays (or its leader) comes in from above the board to the showcase and stays a
-            // moment there, then glides to its place
-            int shown = action.Type == AiActionType.PlayCard ? action.CardId : action.Type == AiActionType.UseLeader ? EnemyInfo.Leader : -1;
-            if (shown != -1)
-            {
-                try
-                {
-                    await CardShowcase.Opponent(Db.Get(shown), board.EntryRect(CardShowcase.ScreenSize()), ct);
-                }
-                catch (OperationCanceledException)
-                {
-                    CardShowcase.Clear();
-                    throw;
-                }
-            }
-            ai.Play(action);
+            CardShowcase.Clear();
+            pendingAction = PendingAction.None;
+            SetHider(false);
         }
 
         // The Witcher 3's turn notices: each change of side. Not while the other side has passed: its pass was
@@ -434,95 +610,146 @@ namespace Gwent.Battle
             lastTurnWasPlayer = is_player;
         }
 
-        public void CheckRoundEnd()
+        private static string Why(PassReason why)
         {
-            if (PlayerInfo.hasPassed && EnemyInfo.hasPassed)
-            {
-                ManageOutcome();
-            }
-            else if (PlayerInfo.hasPassed)
-                StartTurn(false);
-            else if (EnemyInfo.hasPassed)
-                StartTurn(true);
+            return why == PassReason.EmptyHand ? "empty_hand" : why == PassReason.NothingToPlay ? "nothing_to_play" : "chose";
         }
 
-        // Ends whatever the given side was doing and hands the turn to the other side
-        public void EndTurn(bool is_player_turn)
+        private void ShowPass(MatchEvent e, MatchState all)
         {
-            CardShowcase.Clear();
-            pendingAction = PendingAction.None;
-            PlayerInfo.CanDiscard = false;
-            SetHider(false);
-            StartTurn(!is_player_turn);
-        }
-
-        // Reference: PassButton event (hold to pass button)
-        public void SkipTurn(bool is_player_turn)
-        {
-            if (is_player_turn && !IsPlayerActionAllowed)
-            {
-                GameAudio.PlaySfx("invalid");
-                return;
-            }
-
-            MarkPassed(is_player_turn, "chose");
-            EndTurn(is_player_turn);
-        }
-
-        // The Witcher 3: a side with no card in hand and no leader ability it could use right now passes automatically
-        private bool OutOfPlays(bool is_player)
-        {
-            return RoundRules.OutOfPlays(CurrentBoard(), is_player);
-        }
-
-        private void MarkPassed(bool is_player, string why)
-        {
-            BattleLog.Passed(this, is_player, why);
+            bool is_player = e.Seat;
+            BattleLog.Passed(this, is_player, Why(e.Why));
             GameAudio.PlaySfx("pass");
+            ApplyView(e.State, all);
             // A pass that ends the round is followed by the round's result instead; at the opening of a round the
             // other side's "Round N" notice says it all
             if (!Opponent(is_player).hasPassed && !roundOpening)
                 BattleBanner.Show(BattleBanner.Passed, is_player ? "Turn passed" : "Your opponent has passed");
-            Info(is_player).hasPassed = true;
-            lastPasserWasPlayer = is_player;
             if (is_player)
+            {
                 DeselectCard();
+                if (e.Why == PassReason.Chose)
+                    TurnOver();
+            }
+        }
+
+        // A card played (from the hand; a medic's unit from the discard pile; a weather leader's card from the deck): the
+        // opponent's comes in from above the board to the showcase and stays a moment there; then it lands, and what it
+        // caused follows (BoardPresenter.Play). The opponent's revived unit flies from its discard pile instead.
+        private async UniTask ShowPlay(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            bool is_player = e.Seat;
+            bool decoy = e.Other >= 0;
+            Card card = Db.Get(e.Card);
+            if (!is_player && e.From == PlaySource.Hand)
+                await ShowcaseOpponent(card, ct);
+
+            BattleLog.BeforeChange(this);
+            if (is_player)
+                selectedCard = null;
+            pendingAction = PendingAction.None;
+            CardShowcase.Clear();
+            PlayCardAudio(card);
+            int hand_before = Info(is_player).HandList.Count - (e.From == PlaySource.Hand ? 1 : 0);
+            board.BeginChange();
+            ApplyView(e.State, all);
+            if (!decoy && Info(is_player).HandList.Count > hand_before)
+                GameAudio.PlaySfx("card_draw"); // a spy's two cards
+            RefreshBoard();
+            BattleLog.Played(this, decoy ? "decoy_played" : "card_played", is_player, e.Card, e.Row);
+            SetHider(false);
+            BoardChange change = board.EndChange();
+            int landing = !is_player && e.From == PlaySource.Discard ? -1 : e.Card;
+            await ShowChange(change, show => presenter.Play(change, landing, is_player, e.Flag, show), ct);
+        }
+
+        // The card the opponent plays (or its leader) comes in from above the board to the showcase and stays a moment
+        private async UniTask ShowcaseOpponent(Card card, CancellationToken ct)
+        {
+            try
+            {
+                await CardShowcase.Opponent(card, board.EntryRect(CardShowcase.ScreenSize()), ct);
+            }
+            catch (OperationCanceledException)
+            {
+                CardShowcase.Clear();
+                throw;
+            }
+        }
+
+        // Berserkers that met a Mardroeme (the special card, or Ermion) turn into their bears once the play that brought
+        // them together has shown: the bears in their places, to the Mardroeme's growl, the Berserkers to the discard pile
+        private async UniTask ShowTransform(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            board.BeginChange();
+            ApplyView(e.State, all);
+            GameLog.Event(LogCategory.Battle, "berserkers_transformed");
+            RefreshBoard();
+            BoardChange change = board.EndChange();
+            GameAudio.PlaySfx("ability_mardroeme");
+            await ShowChange(change, show => presenter.Transform(change, show), ct);
+        }
+
+        // A card taken into a hand (a leader's pick): it flies there from its pile
+        private async UniTask ShowPicked(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            board.BeginChange();
+            ApplyView(e.State, all);
+            if (e.Card != CardIds.Hidden)
+                GameLog.Event(LogCategory.Battle, "picked", "side", e.Seat ? "player" : "enemy", "card", Db.Get(e.Card).name, "from", e.From);
+            RefreshBoard();
+            BoardChange change = board.EndChange();
+            GameAudio.PlaySfx("card_draw");
+            await ShowChange(change, show => presenter.Play(change, -1, e.Seat, false, show), ct);
+        }
+
+        // Eredin, Destroyer of Worlds: a card of the hand to the discard pile
+        private async UniTask ShowDiscard(MatchEvent e, MatchState all, CancellationToken ct)
+        {
+            GameAudio.PlaySfx("card_discard");
+            GameLog.Event(LogCategory.Battle, "card_discarded", "side", e.Seat ? "player" : "enemy", "card", Db.Get(e.Card).name);
+            board.BeginChange();
+            ApplyView(e.State, all);
+            RefreshBoard(); // a Cow discarded: its Bovine Defense Force comes next round, said now
+            BoardChange change = board.EndChange();
+            await ShowChange(change, show => presenter.Play(change, -1, e.Seat, false, show), ct);
+        }
+
+        // A choice given up, or a look ended: the picker goes, the turn goes on
+        private void ShowSkip(MatchEvent e, MatchState all)
+        {
+            ApplyView(e.State, all);
+            if (!e.Seat)
+                return;
+            Panel.SetActive(false);
+            DeselectCard();
+            RefreshBoard();
         }
 
         //----------------------------------------------ROUNDS---------------------------------------------------//
-        private void ManageOutcome()
+        // The result over the board as it ended (a tie Nilfgaard wins is announced first), then the gem of each side that
+        // lost a life breaks (The Witcher 3)
+        private async UniTask ShowRoundEnd(MatchEvent e, MatchState all, CancellationToken ct)
         {
-            StopTurn();
             battleState = BattleState.RoundOver;
-            RecalculateStrengths();
-            int player_total = PlayerInfo.TotalScore(), enemy_total = EnemyInfo.TotalScore();
-            RoundWinner winner = RoundRules.DecideRound(player_total, enemy_total, PlayerInfo.Faction, EnemyInfo.Faction);
+            TurnOver();
             int player_lives = PlayerInfo.Lives, enemy_lives = EnemyInfo.Lives;
-            RoundRules.ApplyRoundResult(PlayerInfo, EnemyInfo, winner);
-            BattleLog.RoundEnd(this, winner, player_total, enemy_total);
-            PlayerInfo.hasPassed = false;
-            EnemyInfo.hasPassed = false;
+            ApplyView(e.State, all);
+            RecalculateStrengths();
+            BattleLog.RoundEnd(this, e.Winner, e.PlayerTotal, e.EnemyTotal);
             bool[] lost = { PlayerInfo.Lives < player_lives, EnemyInfo.Lives < enemy_lives }; // the player's, the opponent's
 
-            // The result over the board as it ended, then the board clears; a tie Nilfgaard wins is announced first
-            if (player_total == enemy_total && winner != RoundWinner.Draw)
+            if (e.Flag)
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
-            if (winner == RoundWinner.Player)
+            if (e.Winner == RoundWinner.Player)
                 BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
-            else if (winner == RoundWinner.Enemy)
+            else if (e.Winner == RoundWinner.Enemy)
                 BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long);
             else
                 BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long);
-            PlayRoundOutcomeAudio(winner);
-            FinishRound(winner, lost, flow.Token).Forget();
-        }
+            PlayRoundOutcomeAudio(e.Winner);
 
-        // After the result, the gem of each side that lost a life breaks (The Witcher 3), then the battle ends or the
-        // board clears for the next round
-        private async UniTaskVoid FinishRound(RoundWinner winner, bool[] lost, CancellationToken ct)
-        {
             await While(() => BattleBanner.Busy, ct);
-
             List<UniTask> shatters = new List<UniTask>();
             foreach (bool is_player in new[] { true, false })
                 if (lost[is_player ? 0 : 1])
@@ -530,15 +757,6 @@ namespace Gwent.Battle
             await UniTask.WhenAll(shatters);
             View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
             View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
-
-            if (PlayerInfo.Lives == 0 && EnemyInfo.Lives == 0)
-                ConcludeBattle(BattleState.Draw);
-            else if (EnemyInfo.Lives == 0)
-                ConcludeBattle(BattleState.Won);
-            else if (PlayerInfo.Lives == 0)
-                ConcludeBattle(BattleState.Lost);
-            else
-                PrepareNextRound(winner);
         }
 
         private void PlayRoundOutcomeAudio(RoundWinner winner)
@@ -557,59 +775,45 @@ namespace Gwent.Battle
             }
         }
 
-        private void PrepareNextRound(RoundWinner winner)
+        // The board clears as in The Witcher 3: every card flies to its discard pile. Monsters keep a random unit; leader
+        // horns vanish; weather goes back to whoever played it; the Northern Realms' winner draws a card.
+        private async UniTask ShowClear(MatchEvent e, MatchState all, CancellationToken ct)
         {
             DeselectCard();
             pendingAction = PendingAction.None;
-            PlayerInfo.CanDiscard = false;
 
-            // The board clears as in The Witcher 3: every card flies to its discard pile. Monsters keep a random unit;
-            // leader horns vanish; weather goes back to whoever played it
             board.BeginChange();
+            ApplyView(e.State, all);
             foreach (bool is_player in new[] { true, false })
             {
-                int kept = RoundRules.CleanupBoard(Info(is_player), Rng.Shared, Db);
-                if (kept != -1)
-                {
-                    GameLog.Event(LogCategory.Battle, "monsters_kept", "side", is_player ? "player" : "enemy", "card", Db.Get(kept).name);
-                    BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
-                }
+                int kept = is_player ? e.PlayerKept : e.EnemyKept;
+                if (kept == -1)
+                    continue;
+                GameLog.Event(LogCategory.Battle, "monsters_kept", "side", is_player ? "player" : "enemy", "card", Db.Get(kept).name);
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Monsters), "Monsters faction ability triggered: one randomly chosen Monster Unit Card stays on the battlefield.");
             }
-            weatherList.Clear();
-
-            //------Northern Realms: Get one additional card from your deck every time you win a round-------------//
-            if (winner != RoundWinner.Draw && Info(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
+            foreach (bool is_player in new[] { true, false })
             {
-                bool is_player = winner == RoundWinner.Player;
-                if (DrawCards(1, Info(is_player), is_player) > 0)
-                {
-                    GameLog.Event(LogCategory.Battle, "northern_realms_draw", "side", is_player ? "player" : "enemy");
-                    BattleBanner.Show(BattleBanner.FactionEmblem(Faction.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
-                }
+                if (!(is_player ? e.PlayerDrew : e.EnemyDrew))
+                    continue;
+                GameAudio.PlaySfx("card_draw");
+                GameLog.Event(LogCategory.Battle, "northern_realms_draw", "side", is_player ? "player" : "enemy");
+                BattleBanner.Show(BattleBanner.FactionEmblem(Faction.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
             }
-
             RefreshBoard(round_clear: true);
             BoardChange change = board.EndChange();
-
-            // The Witcher 3: the round's winner starts the next one; after a draw, whoever passed last
-            bool player_starts = winner == RoundWinner.Player || (winner == RoundWinner.Draw && lastPasserWasPlayer);
-            Present(change, ct => presenter.Clear(change, ct), () => Reinforce(() => RoundOpening(player_starts, flow.Token).Forget()));
+            await ShowChange(change, show => presenter.Clear(change, show), ct);
         }
 
         // Skellige's perk, as the third round opens on a cleared board: its notice, then two units of its discard pile
         // fly back onto the battlefield
-        private void Reinforce(Action then)
+        private async UniTask ShowReinforcements(MatchEvent e, MatchState all, CancellationToken ct)
         {
-            List<bool> sides = new[] { true, false }.Where(is_player => RoundRules.SkelligeReinforces(Info(is_player))).ToList();
-            if (sides.Count == 0)
-            {
-                then();
-                return;
-            }
             board.BeginChange();
-            foreach (bool is_player in sides)
+            ApplyView(e.State, all);
+            foreach (bool is_player in new[] { true, false })
             {
-                List<int> placed = RoundRules.SkelligeReinforcements(CurrentBoard(), is_player);
+                List<int> placed = (is_player ? e.PlayerCards : e.EnemyCards) ?? new List<int>();
                 if (placed.Count == 0)
                     continue;
                 GameLog.Event(LogCategory.Battle, "skellige_reinforcements", "side", is_player ? "player" : "enemy", "cards", string.Join(", ", placed.Select(id => Db.Get(id).name)));
@@ -618,11 +822,64 @@ namespace Gwent.Battle
             }
             RefreshBoard();
             BoardChange change = board.EndChange();
-            Present(change, async ct =>
+            await ShowChange(change, async show =>
             {
-                await While(() => BattleBanner.Busy, ct);
-                await presenter.Clear(change, ct);
-            }, then);
+                await While(() => BattleBanner.Busy, show);
+                await presenter.Clear(change, show);
+            }, ct);
+        }
+
+        private void ShowEnd(MatchEvent e, MatchState all)
+        {
+            ApplyView(e.State, all);
+            ConcludeBattle(e.Winner == RoundWinner.Player ? BattleState.Won : e.Winner == RoundWinner.Enemy ? BattleState.Lost : BattleState.Draw,
+                false, e.Flag && !e.Seat);
+        }
+
+        // A move the LAN host refused after all: the battle shows as it was (a card played back in the hand)
+        private void ShowRefused()
+        {
+            GameAudio.PlaySfx("invalid");
+            if (latest == null)
+                return;
+            ApplyView(latest, logged);
+            RefreshBoard();
+        }
+
+        //----------------------------------------------A LAN battle's link---------------------------------------------------//
+        // The other device away: the board waits under a notice (LanNotice) until it is back; after a minute the host may
+        // end the battle (won: its guest left it) and the guest leave it. A battle that cannot go on (the host lost it)
+        // says so, with the way back to the main menu.
+        private void LanChanged()
+        {
+            if (this == null || lan == null || IsBattleOver)
+                return;
+            if (lan.State == LanSession.Stage.Closed)
+            {
+                CloseAway();
+                away = LanNotice.Show(lan, true, () => LoadingScreen.Load(SceneNames.Menu));
+                return;
+            }
+            if (lan.Linked)
+                CloseAway();
+            else if (away == null)
+                away = LanNotice.Show(lan, false, LeaveAway);
+        }
+
+        private void LeaveAway()
+        {
+            if (lan.Hosting)
+                lan.Match.Apply(false, MatchCommand.GiveUp()); // the guest's seat: it left the battle
+            else
+                GiveUp();
+            CloseAway();
+        }
+
+        private void CloseAway()
+        {
+            if (away != null)
+                Destroy(away.gameObject);
+            away = null;
         }
 
         public bool IsBattleOver
@@ -639,7 +896,6 @@ namespace Gwent.Battle
         {
             if (IsBattleOver)
                 return;
-            StopTurn();
             flow.Cancel();
             flow.Dispose();
             flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
@@ -653,33 +909,25 @@ namespace Gwent.Battle
             pendingAction = PendingAction.None;
             DeselectCard();
             SetHider(false);
+            source.Submit(MatchCommand.GiveUp()); // a LAN guest away: the host finds out on its own
+            shown = source.Count;
             ConcludeBattle(BattleState.Lost, true);
         }
 
-        private void ConcludeBattle(BattleState outcome, bool gave_up = false)
+        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player)
+        private void ConcludeBattle(BattleState outcome, bool gave_up = false, bool opponent_left = false)
         {
             BattleLog.End(outcome, gave_up);
             battleState = outcome;
+            CloseAway();
             CardShowcase.Clear();
             CardMotion.ClearLayer();
             PostGame.SetActive(true);
-            PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up);
+            PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up, opponent_left);
             if (outcome == BattleState.Won)
                 GameAudio.PlaySfx("victory");
             else if (outcome == BattleState.Lost)
                 GameAudio.PlaySfx("defeat");
-        }
-
-        // Draws up to num cards (fewer if the deck runs out), returns how many were drawn
-        private int DrawCards(int num, BattleSide info, bool is_player_deck)
-        {
-            int drawn = RoundRules.Draw(info, num);
-            if (drawn == 0)
-                return 0;
-            SetDeckObject(info, is_player_deck);
-            SetHandObject(info.HandList, is_player_deck);
-            GameAudio.PlaySfx("card_draw");
-            return drawn;
         }
 
         //----------------------------------------------PLAYING CARDS---------------------------------------------------//
@@ -690,19 +938,23 @@ namespace Gwent.Battle
             return Enum.TryParse(name, out row) && row.IsUnitRow() ? row : Row.Special;
         }
 
-        // Directly places a specific card_go (from hand or picked from a panel) on a field_go
+        // Places a card on a field: from the hand, or the card picked from a pile (a medic's unit, a weather leader's
+        // card). Its object leaves the hand once the match takes the play (the showcase shows it meanwhile): the refresh
+        // reuses hand objects, and with two copies in hand it could otherwise keep this very one for the copy that stays.
         public void DirectlyPlaceCard(GameObject card_go, GameObject field_go, bool is_player_turn)
         {
+            if (!is_player_turn)
+                return;
             Card card_stats = card_go.GetComponent<CardFace>().Card;
-            card_go.GetComponent<CardHover>().DestroyEffect();
             Row field_row = field_go == WeatherField ? Row.Weather : RowNamed(field_go.transform.parent.name);
-
-            // Its object leaves the hand first (the showcase shows it): the refresh reuses hand objects, and with two
-            // copies in hand it could otherwise keep this very one for the copy that stays
             int hand_index = HandIndexOf(card_go);
+            MatchCommand command = pendingAction == PendingAction.PlacePickedCard
+                ? MatchCommand.Choose(card_stats._id, field_row) : MatchCommand.Play(card_stats._id, field_row, hand_index);
+            if (!Submit(command))
+                return;
+            card_go.GetComponent<CardHover>().DestroyEffect();
             card_go.transform.SetParent(null, false);
             Destroy(card_go);
-            PlayCard(card_stats._id, field_row, is_player_turn, hand_index);
         }
 
         // A card object's place in its side's hand (which shows the hand list in order), or -1 when it is not in a hand:
@@ -723,115 +975,42 @@ namespace Gwent.Battle
             return -1;
         }
 
-        // A card leaves the hand: the copy at that place in it when known (the one chosen, with two alike in hand), else
-        // the last one (a card picked from a pile joins the end of the hand before it is placed)
-        private static bool TakeFromHand(List<int> hand, int card_id, int hand_index)
-        {
-            int index = hand_index >= 0 && hand_index < hand.Count && hand[hand_index] == card_id ? hand_index : hand.LastIndexOf(card_id);
-            if (index < 0)
-                return false;
-            hand.RemoveAt(index);
-            return true;
-        }
-
-        // Plays a card from the hand (hand_index: its place in it, when known): resolves it, shows it on the board, then
-        // passes the turn (unless a choice is pending)
-        public void PlayCard(int card_id, Row field_row, bool is_player_turn, int hand_index = -1)
-        {
-            BattleLog.BeforeChange(this);
-            BattleSide me = Info(is_player_turn);
-            TakeFromHand(me.HandList, card_id, hand_index);
-            selectedCard = null;
-            pendingAction = PendingAction.None;
-            CardShowcase.Clear();
-
-            Card card = Db.Get(card_id);
-            PlayCardAudio(card);
-            int hand_before = me.HandList.Count;
-            board.BeginChange();
-            PlayOutcome outcome = PlayRules.Resolve(CurrentBoard(), card, field_row, is_player_turn, is_player_turn, transform: false);
-            if (me.HandList.Count > hand_before)
-                GameAudio.PlaySfx("card_draw");
-            RefreshBoard();
-            BattleLog.Played(this, "card_played", is_player_turn, card_id, field_row);
-            SetHider(false);
-
-            bool medic_choice = outcome == PlayOutcome.WaitingForMedicChoice && AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db).Count > 0;
-            BoardChange change = board.EndChange();
-            Present(change, ct => presenter.Play(change, card_id, is_player_turn, medic_choice, ct), () => TransformBerserkers(() =>
-            {
-                // Medic: the player picks a unit to restore from the discard panel
-                if (outcome == PlayOutcome.WaitingForMedicChoice && ShowMedicChoice())
-                {
-                    SetHider(true);
-                    return;
-                }
-                EndTurn(is_player_turn);
-            }));
-        }
-
-        // Berserkers that met a Mardroeme (the special card, or Ermion) turn into their bears once the play that brought
-        // them together has shown: the bears in their places, to the Mardroeme's growl, the Berserkers to the discard pile
-        private void TransformBerserkers(Action then)
-        {
-            if (!AbilityRules.CanTransform(PlayerInfo, Db) && !AbilityRules.CanTransform(EnemyInfo, Db))
-            {
-                then();
-                return;
-            }
-            board.BeginChange();
-            foreach (bool is_player in new[] { true, false })
-            {
-                int turned = AbilityRules.Transform(Info(is_player), Db);
-                if (turned > 0)
-                    GameLog.Event(LogCategory.Battle, "berserkers_transformed", "side", is_player ? "player" : "enemy", "count", turned);
-            }
-            RefreshBoard();
-            BoardChange change = board.EndChange();
-            GameAudio.PlaySfx("ability_mardroeme");
-            Present(change, ct => presenter.Transform(change, ct), then);
-        }
-
-        // Shows a change of the board (BoardPresenter), then goes on; meanwhile the player cannot act. Never left waiting:
-        // a presentation that fails or runs past the limit (game time: the pause stops it) is cut short and the board shows
-        // the result at once. Giving up cancels it with the battle's flow, and what would follow does not happen.
-        private void Present(BoardChange change, Func<CancellationToken, UniTask> show, Action then)
-        {
-            Presenting(change, show, then, flow.Token).Forget();
-        }
-
-        private async UniTaskVoid Presenting(BoardChange change, Func<CancellationToken, UniTask> show, Action then, CancellationToken ct)
+        // Shows a change of the board (BoardPresenter); meanwhile the player cannot act. Never left waiting: a
+        // presentation that fails or runs past the limit (game time: the pause stops it) is cut short and the board shows
+        // the result at once. Giving up cancels it with the battle's flow.
+        private async UniTask ShowChange(BoardChange change, Func<CancellationToken, UniTask> show, CancellationToken ct)
         {
             presenting++;
             presented.Add(change);
             bool finished = false;
-            using (CancellationTokenSource limit = CancellationTokenSource.CreateLinkedTokenSource(ct))
+            try
             {
-                try
+                using (CancellationTokenSource limit = CancellationTokenSource.CreateLinkedTokenSource(ct))
                 {
-                    finished = await UniTask.WhenAny(show(limit.Token), Wait(PresentationLimit, limit.Token)) == 0;
+                    try
+                    {
+                        finished = await UniTask.WhenAny(show(limit.Token), Wait(PresentationLimit, limit.Token)) == 0;
+                    }
+                    catch (Exception e) when (!(e is OperationCanceledException) || !ct.IsCancellationRequested)
+                    {
+                        if (ct.IsCancellationRequested)
+                            throw new OperationCanceledException(ct); // the battle went on without it: an effect's part may have gone first
+                        Debug.LogException(e);
+                    }
+                    finally
+                    {
+                        limit.Cancel(); // the presentation, if the limit came first (or the limit, if it ended)
+                    }
                 }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    return;
-                }
-                catch (Exception e)
-                {
-                    if (ct.IsCancellationRequested)
-                        return; // the battle went on without it (given up, or over): an effect's part may have gone first
-                    Debug.LogException(e);
-                }
-                finally
-                {
-                    limit.Cancel(); // the presentation, if the limit came first (or the limit, if it ended)
-                }
+                if (!finished)
+                    Debug.LogError("A play's presentation did not end, the board shows the result at once");
+                change.Flush();
+                presented.Remove(change);
             }
-            if (!finished)
-                Debug.LogError("A play's presentation did not end, the board shows the result at once");
-            change.Flush();
-            presented.Remove(change);
-            presenting--;
-            then();
+            finally
+            {
+                presenting = Math.Max(0, presenting - 1);
+            }
         }
 
         private const float PresentationLimit = 12f;
@@ -843,7 +1022,7 @@ namespace Gwent.Battle
         }
 
         // A wait in game time (the pause stops it, the game speed and the autoplay's speed apply)
-        private static UniTask Wait(float seconds, CancellationToken ct)
+        internal static UniTask Wait(float seconds, CancellationToken ct)
         {
             return UniTask.Delay(TimeSpan.FromSeconds(seconds), DelayType.DeltaTime, PlayerLoopTiming.Update, ct);
         }
@@ -865,7 +1044,8 @@ namespace Gwent.Battle
             CardShowcase.Pick(Db.Get(card_id), field == PickSource.Deck ? board.DeckRect(is_player) : board.PileRect(is_player));
         }
 
-        // The rules operate directly on the battle's lists
+        // The board as this screen shows it, for the rules' checks (a leader that would do nothing, the places a card
+        // can go)
         private Board CurrentBoard()
         {
             return new Board
@@ -876,17 +1056,7 @@ namespace Gwent.Battle
                 DoubleSpies = doubleSpies,
                 RandomMedic = randomMedic,
                 Db = Db,
-                Rnd = Rng.Shared,
             };
-        }
-
-        private bool ShowMedicChoice()
-        {
-            List<int> units = AbilityRules.MedicCandidates(PlayerInfo.DiscardList, Db);
-            if (units.Count == 0)
-                return false;
-            OpenPanel().ShowToPlay(PickSource.Discard, units, true);
-            return true;
         }
 
         public bool TryPlaySelectedCardOnBoard()
@@ -926,29 +1096,15 @@ namespace Gwent.Battle
                 return true;
             }
 
-            PlayCardAudio(Db.Get(selectedStats._id));
-            selectedCard.GetComponent<CardHover>().DestroyEffect();
-            // Out of the hand first, as in DirectlyPlaceCard (a second decoy in hand keeps its own object)
+            // Out of the hand once the match takes it, as in DirectlyPlaceCard (a second decoy in hand keeps its own object)
             int hand_index = HandIndexOf(selectedCard);
+            if (!Submit(MatchCommand.Decoy(selectedStats._id, targetStats._id, row, hand_index)))
+                return true;
+            selectedCard.GetComponent<CardHover>().DestroyEffect();
             selectedCard.transform.SetParent(null, false);
             Destroy(selectedCard);
             selectedCard = null;
-            PlayDecoy(targetStats._id, row, true, selectedStats._id, hand_index);
             return true;
-        }
-
-        // Decoy: the target goes back to the hand, the decoy (at hand_index in it, when known) takes its place on the row
-        public void PlayDecoy(int target_id, Row row, bool is_player_card, int decoy_id, int hand_index = -1)
-        {
-            BattleLog.BeforeChange(this);
-            TakeFromHand(Info(is_player_card).HandList, decoy_id, hand_index);
-            CardShowcase.Clear();
-            board.BeginChange();
-            PlayRules.Decoy(CurrentBoard(), target_id, row, is_player_card, decoy_id);
-            RefreshBoard();
-            BattleLog.Played(this, "decoy_played", is_player_card, decoy_id, row);
-            BoardChange change = board.EndChange();
-            Present(change, ct => presenter.Play(change, decoy_id, is_player_card, false, ct), () => EndTurn(is_player_card));
         }
 
         // Escape (the back button on Android) puts a selected card (or the chosen leader) back first, as in The Witcher 3;
@@ -971,7 +1127,7 @@ namespace Gwent.Battle
         // A card is selected and can be placed now (from the hand, or picked from a pile by a medic or a leader)
         public bool IsSelectedCardPlayable()
         {
-            return battleState == BattleState.PlayerTurn && selectedCard != null && presenting == 0
+            return battleState == BattleState.PlayerTurn && selectedCard != null && !IsPresenting
                 && (pendingAction == PendingAction.None || pendingAction == PendingAction.PlacePickedCard);
         }
 
@@ -1057,7 +1213,7 @@ namespace Gwent.Battle
         private void RefreshBoard(bool round_clear = false)
         {
             RecalculateStrengths();
-            board.Refresh();
+            board.Refresh(round_clear);
             AnnounceCows(round_clear);
         }
 
@@ -1116,9 +1272,10 @@ namespace Gwent.Battle
         public void LightOffField(bool is_player_turn) { board.Lightoff(is_player_turn); }
         public void SetHider(bool hidden) { board.SetHider(hidden); }
 
-        // For the effects benchmark (EffectsBenchmark): the board, and showing it after a change of the lists
+        // For the effects benchmark (EffectsBenchmark): the board; for it and the editor's previews (WeatherPreview), showing
+        // the board after a change of the lists
         internal BoardView Board { get { return board; } }
-        internal void ShowBoard() { RefreshBoard(); }
+        public void ShowBoard() { RefreshBoard(); }
 
         //----------------------------------------------Queries---------------------------------------------------//
         public Card GetCard(int card_id)

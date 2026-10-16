@@ -25,7 +25,7 @@ namespace Gwent.Battle
         private Image portrait;
         private Image portraitCircle; // the round, masked picture
         private Image border;         // the silver ring around it
-        private Image passedVeil;
+        private Image awayVeil;
         private Image[] edges;        // the band's top and bottom lines
         private Image[] edgeGlows;    // their glow out of the band
         private Sprite edgeSprite;
@@ -38,7 +38,8 @@ namespace Gwent.Battle
         private const float TurnGlowHeight = 14;
         private static readonly Color TurnEdgeGold = new Color(0.98f, 0.74f, 0.4f);
         private static readonly Color TurnGlowGold = new Color(1f, 0.52f, 0.12f, 0.6f);
-        private static readonly Color PassedGrey = new Color(0.55f, 0.55f, 0.55f);
+        private static readonly Color AwayGrey = new Color(0.55f, 0.55f, 0.55f);
+        private const float NameClearOfScore = 34f; // the name's box reaches 26 into the score's badge, its laurel 8 more
 
         // Looked up once instead of on every board refresh
         private void CacheReferences()
@@ -52,6 +53,12 @@ namespace Gwent.Battle
             portraitCircle = avatar_t.Find("Image").GetComponent<Image>();
             border = avatar_t.Find("Border").GetComponent<Image>();
             nameText = transform.Find("TextInfo").Find("Name").GetComponent<TextMeshProUGUI>();
+            // A long name stops short of the score's laurel: smaller, down to 16, then cut short with "…"
+            nameText.margin = new Vector4(0, 0, NameClearOfScore, 0);
+            nameText.fontSizeMax = nameText.fontSize;
+            nameText.fontSizeMin = 16;
+            nameText.enableAutoSizing = true;
+            nameText.overflowMode = TextOverflowModes.Ellipsis;
             deckText = transform.Find("TextInfo").Find("Deck").GetComponent<TextMeshProUGUI>();
             totalText = transform.Find("Total").Find("Number").GetComponent<TextMeshProUGUI>();
             handCountText = transform.Find("HandCount").Find("Number").GetComponent<TextMeshProUGUI>();
@@ -120,13 +127,14 @@ namespace Gwent.Battle
         }
 
         // Whose turn it is shows as in The Witcher 3: that side's band is edged with glowing gold lines, top and bottom,
-        // all along. A side that has passed is greyed out until the round ends.
-        public void UISetTurnState(bool active, bool passed)
+        // all along. A side whose player is away (a LAN battle's other device, its link lost) is greyed out until it is
+        // back. (A side that has passed says so by its score: BoardView's "Passed".)
+        public void UISetTurnState(bool active, bool away)
         {
             CacheReferences();
-            if (passedVeil == null)
+            if (awayVeil == null)
                 CreateTurnMarkers();
-            int state = passed ? 2 : active ? 1 : 0;
+            int state = away ? 2 : active ? 1 : 0;
             if (state == shownTurnState)
                 return;
             shownTurnState = state;
@@ -138,8 +146,8 @@ namespace Gwent.Battle
                 edge.rectTransform.sizeDelta = new Vector2(edge.rectTransform.sizeDelta.x, state == 1 ? TurnEdgeHeight : edgeHeight);
                 edgeGlows[i].enabled = state == 1;
             }
-            passedVeil.enabled = state == 2;
-            Color picture = state == 2 ? PassedGrey : Color.white;
+            awayVeil.enabled = state == 2;
+            Color picture = state == 2 ? AwayGrey : Color.white;
             border.color = picture;
             portraitCircle.color = picture;
             if (portrait != null)
@@ -173,12 +181,12 @@ namespace Gwent.Battle
                 edgeGlows[i] = glow;
             }
 
-            // A grey veil over the picture of a side that has passed (inside its round mask)
+            // A grey veil over the picture of a side whose player is away (inside its round mask)
             RectTransform circle = portraitCircle.rectTransform;
-            passedVeil = UIKit.NewImage(circle, "PassedVeil", null, new Color(0.28f, 0.28f, 0.3f, 0.55f));
-            passedVeil.rectTransform.Stretch();
-            passedVeil.transform.SetAsLastSibling();
-            passedVeil.enabled = false;
+            awayVeil = UIKit.NewImage(circle, "AwayVeil", null, new Color(0.28f, 0.28f, 0.3f, 0.55f));
+            awayVeil.rectTransform.Stretch();
+            awayVeil.transform.SetAsLastSibling();
+            awayVeil.enabled = false;
         }
 
         // The gem a side loses when it is down to this many lives (the left one goes first)

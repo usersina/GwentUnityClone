@@ -8,7 +8,9 @@
         "UniTask",
         "UniTask.Addressables",
         "Unity.Addressables",
+        "Unity.Collections",
         "Unity.InputSystem",
+        "Unity.Networking.Transport",
         "Unity.ResourceManager",
         "Unity.TextMeshPro",
         "UnityEngine.UI"

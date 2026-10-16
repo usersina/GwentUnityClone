@@ -9,12 +9,12 @@ using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
-    // The settings screen (Audio, Display, Game), opened from the main menu and the pause menu.
+    // The settings screen (Game, Display, Graphics, Audio; it opens on Game), opened from the main menu and the pause menu.
     // Every change applies and saves at once; Escape, right click or Back closes it.
     // A UI Toolkit dialog: Assets/UI/Toolkit/Settings.uxml; its rows are made here, they depend on the platform.
     public static class SettingsPanel
     {
-        private static readonly string[] Tabs = { "Audio", "Display", "Game" };
+        private static readonly string[] Tabs = { "Game", "Display", "Graphics", "Audio" };
 
         // What each difficulty means, under its name
         private static readonly string[] DifficultyCaptions =
@@ -62,9 +62,10 @@ namespace Gwent.Menus
 
             Focusable[] first =
             {
-                BuildAudioPage(root.Q("Audio")),
-                BuildDisplayPage(root.Q("Display")),
                 BuildGamePage(root.Q("Game")),
+                BuildDisplayPage(root.Q("Display")),
+                BuildGraphicsPage(root.Q("Graphics")),
+                BuildAudioPage(root.Q("Audio")),
             };
             for (int i = 0; i < Tabs.Length; i++)
             {
@@ -130,6 +131,13 @@ namespace Gwent.Menus
             else if (target.ClassListContains("setting__control"))
                 target = target.Query<VisualElement>().Where(element => element.focusable && element.canGrabFocus).First() ?? target;
             target.Focus();
+            // On a page that scrolls (Graphics), the row comes into view
+            ScrollView scroll = target.GetFirstAncestorOfType<ScrollView>();
+            VisualElement row = target.GetFirstAncestorOfType<VisualElement>();
+            while (row != null && !row.ClassListContains("setting"))
+                row = row.parent;
+            if (scroll != null && row != null)
+                scroll.ScrollTo(row);
         }
 
         private static void ShowTab(VisualElement root, int index)
@@ -248,9 +256,109 @@ namespace Gwent.Menus
 
             float[] scales = GameSettings.MenuScales;
             int scale_index = Array.FindIndex(scales, s => Mathf.Approximately(s, GameSettings.MenuScale));
-            StepperRow(page, "Menu size", scales.Select(s => Mathf.RoundToInt(s * 100) + "%").ToArray(), scale_index < 0 ? 1 : scale_index,
+            Stepper menu_size = StepperRow(page, "Menu size", scales.Select(s => Mathf.RoundToInt(s * 100) + "%").ToArray(), scale_index < 0 ? 1 : scale_index,
                 i => GameSettings.MenuScale = scales[i], "Menus and dialogs only");
-            return first;
+            return first ?? menu_size.Left;
+        }
+
+        // The effects: a preset on top that sets them all (and shows Custom when they match none), how many particles,
+        // then each effect on or off, under headings (all shown, none folded away)
+        private static Focusable BuildGraphicsPage(VisualElement page)
+        {
+            Stepper preset = null;
+            Slider density = null;
+            Label density_percent = null;
+            Dictionary<GameSettings.Effect, Switch> switches = new Dictionary<GameSettings.Effect, Switch>();
+            Action show_preset = () => preset.Show((int)GameSettings.Graphics);
+
+            preset = StepperRow(page, "Preset", GameSettings.GraphicsPresetNames, (int)GameSettings.Graphics, i =>
+            {
+                GameSettings.Graphics = (GameSettings.GraphicsPreset)i; // Custom: everything stays as it is
+                density.SetValueWithoutNotify(GameSettings.ParticleDensity);
+                density_percent.text = Percent(GameSettings.ParticleDensity);
+                foreach (KeyValuePair<GameSettings.Effect, Switch> row in switches)
+                    row.Value.SetValueWithoutNotify(GameSettings.Shows(row.Key));
+            }, "Sets everything below");
+
+            VisualElement control = Row(page, "Particle density", "Fewer sparks, flames and raindrops");
+            density = new Slider(GameSettings.MinParticleDensity, 1) { name = "Slider", fill = true };
+            density.AddToClassList("volume");
+            density.SetValueWithoutNotify(GameSettings.ParticleDensity);
+            density_percent = new Label(Percent(GameSettings.ParticleDensity));
+            density_percent.AddToClassList("setting__percent");
+            density.RegisterValueChangedCallback(change =>
+            {
+                float snapped = Mathf.Round(change.newValue * 20) / 20; // by fives of a hundred
+                if (!Mathf.Approximately(snapped, change.newValue))
+                    density.SetValueWithoutNotify(snapped);
+                GameSettings.ParticleDensity = snapped;
+                density_percent.text = Percent(snapped);
+                show_preset();
+            });
+            control.Add(density);
+            control.Add(density_percent);
+
+            Action<GameSettings.Effect, string, string> effect = (which, label, caption) =>
+                switches[which] = SwitchRow(page, label, caption, GameSettings.Shows(which), on =>
+                {
+                    GameSettings.SetShows(which, on);
+                    show_preset();
+                });
+            Group(page, "Weather");
+            effect(GameSettings.Effect.AnimatedWeather, "Animated weather", "Off: still pictures");
+            effect(GameSettings.Effect.StormLightning, "Lightning and thunder", "In Skellige Storm");
+            effect(GameSettings.Effect.ClearWeatherSun, "Clear Weather's sun", "The light sweeping the weather away");
+            Group(page, "Battle effects");
+            effect(GameSettings.Effect.HeroLanding, "Hero landing", "Off: the card's edge flashes gold");
+            effect(GameSettings.Effect.ScorchFire, "Scorch fire", "Off: the cards char, without fire");
+            effect(GameSettings.Effect.AbilityFlares, "Ability flares", "Off: the ability's icon only");
+            effect(GameSettings.Effect.MedicFlames, "Medic flames", "Over the discard pile");
+            effect(GameSettings.Effect.HornGlow, "Horn glow", "Along a horned row");
+            effect(GameSettings.Effect.LandingWisps, "Landing wisps", "As a card lands");
+            Group(page, "Motion");
+            effect(GameSettings.Effect.ShineAndPulsing, "Shine and pulsing", "The light across a card, pulsing frames");
+            Group(page, "Menus");
+            effect(GameSettings.Effect.MenuAnimations, "Menu animations", "The title, the rules coming in");
+            Fades((ScrollView)page);
+            return preset.Left;
+        }
+
+        // A scrolling page fades out at its top and bottom where there is more of it that way (the panel's colour over it)
+        private static void Fades(ScrollView scroll)
+        {
+            Color panel = new Color(0.125f, 0.102f, 0.082f, 0.96f);
+            VisualElement[] fades = new VisualElement[2];
+            for (int i = 0; i < 2; i++)
+            {
+                VisualElement fade = new VisualElement { name = i == 0 ? "Fade top" : "Fade bottom", pickingMode = PickingMode.Ignore };
+                fade.AddToClassList("settings__fade");
+                fade.AddToClassList(i == 0 ? "settings__fade--top" : "settings__fade--bottom");
+                fade.style.backgroundImage = new StyleBackground(UITheme.Current.gradientV);
+                fade.style.unityBackgroundImageTintColor = panel;
+                scroll.hierarchy.Add(fade); // over the rows, not one of them
+                fades[i] = fade;
+            }
+            Action show = () =>
+            {
+                float at = scroll.scrollOffset.y, end = scroll.verticalScroller.highValue;
+                fades[0].style.opacity = Mathf.Clamp01(at / 40);
+                fades[1].style.opacity = Mathf.Clamp01((end - at) / 40);
+            };
+            scroll.verticalScroller.valueChanged += _ => show();
+            scroll.RegisterCallback<GeometryChangedEvent>(_ => show());
+        }
+
+        private static string Percent(float value)
+        {
+            return Mathf.RoundToInt(value * 100) + "%";
+        }
+
+        // A heading over a group of rows
+        private static void Group(VisualElement page, string title)
+        {
+            Label heading = new Label(title) { name = "Group " + title };
+            heading.AddToClassList("setting__group");
+            page.Add(heading);
         }
 
         private static Focusable BuildGamePage(VisualElement page)

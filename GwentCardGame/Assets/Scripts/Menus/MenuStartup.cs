@@ -1,11 +1,12 @@
 using Gwent.Battle;
 using Gwent.Core;
+using Gwent.Net;
 using UnityEngine;
 
 namespace Gwent.Menus
 {
     // Lives in the Menu scene: prepares the deck folders and reads back the deck chosen for battle (and starts the effects
-    // benchmark when a build is launched for it)
+    // benchmark or the LAN connection test when a build is launched for it)
     public class MenuStartup : MonoBehaviour
     {
         private void Start()
@@ -15,6 +16,7 @@ namespace Gwent.Menus
             DeckStorage.LoadBattleDeck();
             GameLog.Event(LogCategory.Deck, "battle_deck", "path", DeckStorage.BattleDeckPath ?? "default");
             EffectsBenchmark.StartIfRequested();
+            LanProbe.StartIfRequested();
         }
     }
 }

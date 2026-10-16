@@ -204,10 +204,14 @@ namespace Gwent.Battle
 
         private BattleController.BattleSide Info(bool is_player) { return is_player ? controller.PlayerInfo : controller.EnemyInfo; }
 
+        private bool clearingRound; // the board refreshed is a new round's (the weather goes with the round: no sun)
+
         //----------------------------------------Whole board----------------------------------------//
         // Shows both sides and the weather from the lists, then lights off the rows and updates the scores
-        public void Refresh()
+        // (round_clear: the board cleared for a new round)
+        public void Refresh(bool round_clear = false)
         {
+            clearingRound = round_clear;
             RefreshField(true);
             RefreshField(false);
             SyncCards(controller.WeatherField, controller.weatherList, true, BoardChange.Place.Weather);
@@ -218,7 +222,8 @@ namespace Gwent.Battle
         }
 
         // The laurel on the side that is ahead, "Passed" on a side that has passed, the gold lines on the band of the
-        // side whose turn it is, the lit crown of a leader ability that can still be used this round (every frame)
+        // side whose turn it is, the opponent greyed out while its device is away (a LAN battle), the lit crown of a leader
+        // ability that can still be used this round (every frame)
         public void UpdateMarkers()
         {
             foreach (bool is_player in new[] { true, false })
@@ -226,8 +231,8 @@ namespace Gwent.Battle
                 BattleController.BattleSide info = Info(is_player);
                 View(is_player).Leader.UISetReady(info.canLeader && !info.leaderDisabled && !info.hasPassed);
             }
-            playerView.Stats.UISetTurnState(controller.battleState == BattleState.PlayerTurn, controller.PlayerInfo.hasPassed);
-            enemyView.Stats.UISetTurnState(controller.battleState == BattleState.EnemyTurn, controller.EnemyInfo.hasPassed);
+            playerView.Stats.UISetTurnState(controller.battleState == BattleState.PlayerTurn && !controller.PlayerInfo.hasPassed, false);
+            enemyView.Stats.UISetTurnState(controller.battleState == BattleState.EnemyTurn && !controller.EnemyInfo.hasPassed, controller.OpponentAway);
             int player_total = controller.PlayerInfo.TotalScore(), enemy_total = controller.EnemyInfo.TotalScore();
             SetActiveIfChanged(playerView.LeadMarker, player_total > enemy_total);
             SetActiveIfChanged(enemyView.LeadMarker, enemy_total > player_total);
@@ -325,37 +330,52 @@ namespace Gwent.Battle
             CardLane lane = container.GetComponent<CardLane>();
 
             List<GameObject> before = new List<GameObject>();
-            Dictionary<int, Queue<GameObject>> existing = new Dictionary<int, Queue<GameObject>>();
-            List<GameObject> unused = new List<GameObject>();
             foreach (Transform child in parent)
-            {
-                if (child.GetComponent<CardFace>() == null)
-                    continue;
-                before.Add(child.gameObject);
-                int id;
-                if (!int.TryParse(child.name, out id))
+                if (child.GetComponent<CardFace>() != null)
+                    before.Add(child.gameObject);
+
+            // The objects kept, for each card: first the one still in its place (a redraw replaces the very card chosen,
+            // even with two alike in the hand), then one further along the line, in order (the cards after one that left
+            // slide), then any other copy
+            GameObject[] chosen = new GameObject[card_ids.Count];
+            HashSet<GameObject> kept = new HashSet<GameObject>();
+            for (int i = 0; i < card_ids.Count && i < before.Count; i++)
+                if (before[i].name == card_ids[i].ToString())
                 {
-                    unused.Add(child.gameObject);
+                    chosen[i] = before[i];
+                    kept.Add(before[i]);
+                }
+            for (int i = 0, last = -1; i < card_ids.Count; i++)
+            {
+                if (chosen[i] != null)
+                {
+                    last = i;
                     continue;
                 }
-                Queue<GameObject> queue;
-                if (!existing.TryGetValue(id, out queue))
-                    existing[id] = queue = new Queue<GameObject>();
-                queue.Enqueue(child.gameObject);
+                string name = card_ids[i].ToString();
+                for (int j = last + 1; j < before.Count; j++)
+                    if (!kept.Contains(before[j]) && before[j].name == name)
+                    {
+                        chosen[i] = before[j];
+                        kept.Add(before[j]);
+                        last = j;
+                        break;
+                    }
             }
+            for (int i = 0; i < card_ids.Count; i++)
+                if (chosen[i] == null)
+                {
+                    chosen[i] = before.Find(card => !kept.Contains(card) && card.name == card_ids[i].ToString());
+                    if (chosen[i] != null)
+                        kept.Add(chosen[i]);
+                }
 
             List<GameObject> ordered = new List<GameObject>(card_ids.Count);
-            HashSet<GameObject> kept = new HashSet<GameObject>();
-            foreach (int id in card_ids)
+            for (int i = 0; i < card_ids.Count; i++)
             {
-                Queue<GameObject> queue;
-                GameObject card;
-                if (existing.TryGetValue(id, out queue) && queue.Count > 0)
-                {
-                    card = queue.Dequeue();
-                    kept.Add(card);
-                }
-                else
+                int id = card_ids[i];
+                GameObject card = chosen[i];
+                if (card == null)
                 {
                     card = CreateCardObject(controller.Db.Get(id), is_player_card);
                     card.GetComponent<CardSelect>().isSelectable = hand;
@@ -374,8 +394,7 @@ namespace Gwent.Battle
                 }
                 ordered.Add(card);
             }
-            foreach (Queue<GameObject> queue in existing.Values)
-                unused.AddRange(queue);
+            List<GameObject> unused = before.Where(card => !kept.Contains(card)).ToList();
 
             List<GameObject> siblings = new List<GameObject>(ordered);
             foreach (GameObject card in unused.OrderBy(before.IndexOf))
@@ -504,20 +523,23 @@ namespace Gwent.Battle
         }
 
         //----------------------------------------Weather and scores----------------------------------------//
-        // Each row's weather, The Witcher 3's art over its cards (WeatherEffect): it fades in with its weather card, out once
-        // cleared. Skellige Storm is the fog over the ranged row and the rain over the siege row.
+        // Each row's weather over its cards (WeatherEffect): it fades in with its weather card, out once cleared. Skellige
+        // Storm is a stormy fog over the ranged row and a stormy rain over the siege row. Weather cleared during a round
+        // (Clear Weather, Foltest's order) goes in the sun's light (SunSweep), unless Settings > Graphics turned it off.
         private void RefreshWeather(FieldView view)
         {
             List<int> weather = controller.weatherList;
             bool storm = weather.Contains(CardIds.SkelligeStorm);
-            ShowWeather(view.Rows[Row.Close], WeatherEffect.Kind.Frost, weather.Contains(CardIds.BitingFrost));
-            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, storm || weather.Contains(CardIds.ImpenetrableFog));
-            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, storm || weather.Contains(CardIds.TorrentialRain));
+            ShowWeather(view.Rows[Row.Close], WeatherEffect.Kind.Frost, weather.Contains(CardIds.BitingFrost), false);
+            ShowWeather(view.Rows[Row.Range], WeatherEffect.Kind.Fog, storm || weather.Contains(CardIds.ImpenetrableFog), storm);
+            ShowWeather(view.Rows[Row.Siege], WeatherEffect.Kind.Rain, storm || weather.Contains(CardIds.TorrentialRain), storm);
         }
 
-        private static void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on)
+        private void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on, bool storm)
         {
-            WeatherEffect.Show((RectTransform)row.Special.transform, (RectTransform)row.Unit.transform, kind, on);
+            RectTransform slot = (RectTransform)row.Special.transform, lane = (RectTransform)row.Unit.transform;
+            if (WeatherEffect.Show(slot, lane, kind, on, storm) && !clearingRound && GameSettings.Shows(GameSettings.Effect.ClearWeatherSun))
+                SunSweep.Over(slot, lane);
         }
 
         private void UpdateScores(bool is_player_field)

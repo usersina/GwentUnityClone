@@ -7,7 +7,7 @@ using UnityEngine;
 namespace Gwent.Core
 {
     // The player's settings, saved in PlayerPrefs and applied as soon as they change: audio (applied by GameAudio),
-    // display, game speed and the AI's difficulty. Window mode and resolution are only applied once the player has changed them, so Unity's own
+    // display, graphics (the effects: read where they play), game speed and the AI's difficulty. Window mode and resolution are only applied once the player has changed them, so Unity's own
     // window handling stays in charge until then.
     public static class GameSettings
     {
@@ -22,6 +22,7 @@ namespace Gwent.Core
         private const string MenuScaleKey = "menuScale";
         private const string GameSpeedKey = "gameSpeed";
         private const string AiDifficultyKey = "aiDifficulty";
+        private const string ParticleDensityKey = "particleDensity";
 
         // Frame rate choices: VSync follows the screen, 0 is unlimited (desktop); phones have no VSync choice
         public const int VSync = -1;
@@ -127,6 +128,90 @@ namespace Gwent.Core
             set { SetFloat(MenuScaleKey, value); }
         }
 
+        //----------------------------------------Graphics----------------------------------------//
+        // The effects, each on or off (off: lighter, the battle going on at once; an effect that tells something keeps a
+        // light stand-in, see where it plays), and how many particles they emit. A preset sets them all; it is Custom
+        // when they match none. Without a choice of their own, a phone has Medium's and the rest High's.
+        public enum Effect
+        {
+            AnimatedWeather, // off: The Witcher 3's still pictures of the weather
+            StormLightning,  // Skellige Storm's flashes, bolts and thunder
+            ClearWeatherSun, // Clear Weather's sun sweeping the weather away
+            HeroLanding,     // off: the hero's edge flashes gold
+            ScorchFire,      // off: the scorched cards char, without fire
+            AbilityFlares,   // off: the ability's icon pops over the card
+            MedicFlames,
+            HornGlow,
+            LandingWisps,
+            ShineAndPulsing, // the light across a focused card, pulsing frames, the leader's crown swelling (the frames stay)
+            MenuAnimations,  // the main menu's title coming in and its sheen, the rules coming in one after another
+        }
+
+        public enum GraphicsPreset { Low, Medium, High, Custom }
+
+        public static readonly string[] GraphicsPresetNames = { "Low", "Medium", "High", "Custom" };
+        private static readonly string[] EffectKeys =
+        {
+            "animatedWeather", "stormLightning", "clearWeatherSun", "heroLanding", "scorchFire", "abilityFlares", "medicFlames",
+            "hornGlow", "landingWisps", "shineAndPulsing", "menuAnimations",
+        };
+        private static readonly float[] PresetDensities = { 0.3f, 0.6f, 1f };
+        public const float MinParticleDensity = 0.2f;
+
+        // The preset a player has before choosing
+        public static GraphicsPreset DefaultGraphics { get { return IsMobile ? GraphicsPreset.Medium : GraphicsPreset.High; } }
+
+        // An effect in a preset: Low keeps only the horn's glow, Medium and High have them all
+        private static bool InPreset(GraphicsPreset preset, Effect effect)
+        {
+            return preset != GraphicsPreset.Low || effect == Effect.HornGlow;
+        }
+
+        public static bool Shows(Effect effect)
+        {
+            return PlayerPrefs.GetInt(EffectKeys[(int)effect], InPreset(DefaultGraphics, effect) ? 1 : 0) == 1;
+        }
+
+        public static void SetShows(Effect effect, bool on)
+        {
+            SetInt(EffectKeys[(int)effect], on ? 1 : 0);
+        }
+
+        public static bool AnimatedWeather { get { return Shows(Effect.AnimatedWeather); } }
+
+        // A share of the particles the effects would emit (from MinParticleDensity to 1)
+        public static float ParticleDensity
+        {
+            get { return Mathf.Clamp(PlayerPrefs.GetFloat(ParticleDensityKey, PresetDensities[(int)DefaultGraphics]), MinParticleDensity, 1); }
+            set { SetFloat(ParticleDensityKey, Mathf.Clamp(value, MinParticleDensity, 1)); }
+        }
+
+        // The preset the effects are at (Custom: none), or set them all to one (Custom: changes nothing)
+        public static GraphicsPreset Graphics
+        {
+            get
+            {
+                for (GraphicsPreset preset = GraphicsPreset.Low; preset < GraphicsPreset.Custom; preset++)
+                {
+                    bool same = Mathf.Abs(ParticleDensity - PresetDensities[(int)preset]) < 0.005f;
+                    for (int i = 0; same && i < EffectKeys.Length; i++)
+                        same = Shows((Effect)i) == InPreset(preset, (Effect)i);
+                    if (same)
+                        return preset;
+                }
+                return GraphicsPreset.Custom;
+            }
+            set
+            {
+                if (value == GraphicsPreset.Custom)
+                    return;
+                PlayerPrefs.SetFloat(ParticleDensityKey, PresetDensities[(int)value]);
+                for (int i = 0; i < EffectKeys.Length; i++)
+                    PlayerPrefs.SetInt(EffectKeys[i], InPreset(value, (Effect)i) ? 1 : 0);
+                RaiseChanged(); // once, for them all
+            }
+        }
+
         //----------------------------------------Game----------------------------------------//
         // How fast a battle runs: the cards' moves and effects, the notices and the opponent's turns (0 slow, 1 normal,
         // 2 fast). Clicks and holds keep their real-time feel.
@@ -151,8 +236,8 @@ namespace Gwent.Core
         {
             bool window_was_set = WindowSet;
             foreach (string key in new[] { MasterVolumeKey, MusicVolumeKey, SfxVolumeKey, MuteInBackgroundKey, FullscreenKey,
-                                           ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, GameSpeedKey,
-                                           AiDifficultyKey })
+                                           ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, ParticleDensityKey,
+                                           GameSpeedKey, AiDifficultyKey }.Concat(EffectKeys))
                 PlayerPrefs.DeleteKey(key);
             PlayerPrefs.Save();
             ApplyFrameRate();
@@ -174,12 +259,16 @@ namespace Gwent.Core
         // Every setting as it stands, for the log
         public static System.Collections.Generic.Dictionary<string, object> Describe()
         {
-            return new System.Collections.Generic.Dictionary<string, object>
+            Dictionary<string, object> values = new Dictionary<string, object>
             {
                 { "master_volume", MasterVolume }, { "music_volume", MusicVolume }, { "sfx_volume", SfxVolume },
                 { "mute_in_background", MuteInBackground }, { "fullscreen", Fullscreen }, { "resolution", Resolution.x + "x" + Resolution.y },
-                { "frame_rate", FrameRate }, { "menu_scale", MenuScale }, { "game_speed", GameSpeedNames[GameSpeed] }, { "difficulty", AiDifficulty },
+                { "frame_rate", FrameRate }, { "menu_scale", MenuScale }, { "graphics", GraphicsPresetNames[(int)Graphics] },
+                { "particle_density", ParticleDensity }, { "game_speed", GameSpeedNames[GameSpeed] }, { "difficulty", AiDifficulty },
             };
+            foreach (Effect effect in Enum.GetValues(typeof(Effect)))
+                values[EffectKeys[(int)effect]] = Shows(effect);
+            return values;
         }
 
         private static bool WindowSet { get { return PlayerPrefs.HasKey(FullscreenKey) || PlayerPrefs.HasKey(ResolutionWidthKey); } }

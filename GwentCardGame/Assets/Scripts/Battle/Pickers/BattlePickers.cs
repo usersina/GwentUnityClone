@@ -157,7 +157,7 @@ namespace Gwent.Battle
                 default:
                     GameAudio.PlaySfx("card_select");
                     gameObject.SetActive(false);
-                    controller.EndTurn(isPlayerCard);
+                    controller.EndLook();
                     break;
             }
         }

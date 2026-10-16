@@ -4,6 +4,71 @@ Every push to `main` is a release: it replaces the one GitHub release, `latest`,
 notes. A push to `main` is only released when this file has a new section since the last release: add one, headed by the
 date, before pushing.
 
+## 2026-10-16
+
+Play against a friend on your network, the weather comes alive, a Graphics tab, loading screens, and the game is called
+Gwent Legacy everywhere.
+
+### Play on LAN
+
+- Two players on the same network (the same Wi-Fi, or a phone's hotspot) can battle each other, on any mix of Windows,
+  macOS, Linux and Android: main menu > **Play on LAN** (not in the web version; over the internet, not yet).
+- The lobby lists the battles hosted on your network as it finds them, each with its host's name, faction and leader. Host
+  your own, or join one by the host's address when your network hides it. Hosting, you see both players face to face and
+  start the battle once someone has joined.
+- Choose the name the other player sees (up to 16 letters, numbers, spaces and - _ . '). You play your battle deck; the
+  lobby takes you to the deck builder and back.
+- Each screen shows only its player's hand: the other's cards stay face down.
+- While the other player decides (their redraw, who goes first), it shows as their turn.
+- A lost connection shows over the board: the other player greys out and the battle waits for them, reconnecting by
+  itself. After a minute counting down (01:00, 00:59...), the host can end the battle and the guest can leave it.
+- A game closed in the middle of a battle (Android closing it in the background, a crash) can go back to it: Play on LAN
+  offers to rejoin it, for 6 hours.
+- Both players need the same version of the game.
+
+### The weather comes alive
+
+- Biting Frost, Impenetrable Fog and Torrential Rain move as The Witcher 3 paints them: the frost's ice needles snap up
+  from the snow and glint, the fog billows and drifts along its row, the rain falls in fine streaks and splashes on the
+  row's edge. Each stays in its row.
+- Skellige Storm blows its rain sideways and churns its fog; lightning strikes every few seconds, with thunder.
+- Clear Weather (and Foltest's order) sweeps the weather away in a shaft of sunlight.
+
+### Settings
+
+- A Graphics tab: a preset (Low, Medium, High) over how many particles the effects use, and each effect on or off: the
+  animated weather (off: The Witcher 3's still pictures of it), the storm's lightning and thunder, the sun, the battle's
+  effects, shine and pulsing, the menus' animations. An effect that tells you something keeps a light stand-in when it is
+  off. Phones start on Medium, the rest on High.
+- The settings open on Game; the tabs are Game, Display, Graphics, Audio.
+
+### Smoother
+
+- A loading screen between the menu, the deck builder and battles (a battle shows both sides' crests). Battles load in
+  the background, much faster on Android.
+- The battle's effects play at the speed they were made for: they ran up to twice as fast, more so at 60 FPS.
+- The first hero or scorch of a battle no longer stutters.
+
+### In battle
+
+- The opponent's medic, leader picks and Eredin's discards play out on the board: the revived unit flies up from the
+  discard pile, a card a leader takes flies to the hand, Eredin's discards fly to the pile.
+- Redrawing one of two identical cards replaces it in its place (the other copy used to move instead).
+- A side that has passed no longer greys out: its score says so.
+- Long player names fit next to the score.
+
+### The deck builder
+
+- Drag a card from one grid to the other to put it in the deck or take it out; double-click still works.
+
+### The name and the icon
+
+- The game is called Gwent Legacy everywhere: under its Android icon, the macOS app (Gwent Legacy.app) and the window
+  title.
+- Android shows the game's crown as its icon instead of Unity's logo.
+- On Windows, macOS and Linux this version keeps its decks and settings in a new place: decks made with an earlier version
+  don't carry over.
+
 ## 2026-10-15
 
 Skellige joins the game, a faster start on the web, the menus rebuilt, closer to The Witcher 3 in battle, and most of the

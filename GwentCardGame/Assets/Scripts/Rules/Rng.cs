@@ -29,14 +29,14 @@ namespace Gwent.Rules
         // Fisher-Yates shuffle into a new list
         public static List<T> Shuffle<T>(IEnumerable<T> items)
         {
+            return Shuffled(items, Shared);
+        }
+
+        // The same with the given random source
+        public static List<T> Shuffled<T>(IEnumerable<T> items, Random rnd)
+        {
             List<T> list = new List<T>(items);
-            for (int i = list.Count - 1; i > 0; i--)
-            {
-                int j = Shared.Next(i + 1);
-                T tmp = list[i];
-                list[i] = list[j];
-                list[j] = tmp;
-            }
+            Shuffle(list, rnd);
             return list;
         }
     }

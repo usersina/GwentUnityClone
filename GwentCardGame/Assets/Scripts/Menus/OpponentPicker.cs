@@ -3,7 +3,6 @@ using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace Gwent.Menus
@@ -57,7 +56,7 @@ namespace Gwent.Menus
             entry.clicked += () =>
             {
                 OpponentDecks.Chosen = deck;
-                SceneManager.LoadScene(SceneNames.Game);
+                LoadingScreen.Load(SceneNames.Game);
             };
             entries.Add(entry);
             return entry;

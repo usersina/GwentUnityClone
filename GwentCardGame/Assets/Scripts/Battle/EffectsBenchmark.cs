@@ -8,22 +8,26 @@ using Gwent.Core;
 using Gwent.Rules;
 using Gwent.UI;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace Gwent.Battle
 {
     // What the battle's heaviest effects cost, measured in a build. Started only by a flag: on the web "?bench=effects" in
     // the address, on Android the launch extra "bench" ("adb shell am start ... --es bench effects"), on the desktop
-    // "-bench effects". It opens a battle, lays a hero on your close combat row and three units on the opponent's, then
-    // times the frames: first with the board at rest, then while the hero lands and the three burn in a scorch at once
-    // (the moment the effects cost most). Three runs; each is logged ("[bench]"), and the result shows as a notice.
+    // "-bench effects". From the menu (once it has settled), it opens a battle as choosing an opponent does (behind the
+    // loading screen), timing how long the battle takes to load and the frames of its opening (the first notice coming
+    // in). It lays a hero on your close combat row and three units on the opponent's, then times the frames: first with
+    // the board at rest, then while the hero lands and the three burn in a scorch at once (the moment the effects cost
+    // most). Three runs; then the weather, settled: frost, fog and rain on both sides' rows, then Skellige Storm (as
+    // Settings > Display > Animated weather has it). Last, the other screens' loading: back to the menu, the deck builder
+    // and back. Each is logged ("[bench]"), and the result shows as a notice.
     public class EffectsBenchmark : MonoBehaviour
     {
         private const string Flag = "effects";
         private const int Runs = 3;
         private const int Hero = 67;      // Geralt of Rivia
         private const int Unit = 134;     // Vesemir (6)
-        private const float RestSeconds = 1.5f, EffectSeconds = 2.8f;
+        private const float RestSeconds = 1.5f, EffectSeconds = 2.8f, WeatherSeconds = 3f, WeatherSettles = 2f, OpeningSeconds = 1.5f;
+        private const float MenuSettles = 3f; // a player looks at the menu a moment before choosing (its music and art start loading)
 
         private static bool started;
 
@@ -89,13 +93,21 @@ namespace Gwent.Battle
 
         private async UniTaskVoid Run(CancellationToken ct)
         {
-            SceneManager.LoadScene(SceneNames.Game);
-            await UniTask.WaitUntil(() => BattleController.Instance != null, cancellationToken: ct);
+            await Wait(MenuSettles, ct);
+            float asked = Time.realtimeSinceStartup;
+            LoadingScreen.Load(SceneNames.Game);
+            await UniTask.WaitUntil(() => !LoadingScreen.Showing && BattleController.Instance != null, cancellationToken: ct);
+            float shown = (Time.realtimeSinceStartup - asked) * 1000;
+            Frames opening = await Measure(OpeningSeconds, null, ct);
             BattleController battle = BattleController.Instance;
             battle.FinishCardExchange();
             await UniTask.WaitUntil(() => battle.battleState == BattleState.PlayerTurn && battle.IsPlayerActionAllowed, cancellationToken: ct);
 
             StringBuilder summary = new StringBuilder("Effects benchmark (" + Application.platform + ", " + Screen.width + "x" + Screen.height + ")");
+            string loaded = "battle loaded in " + (LoadingScreen.LastLoad * 1000).ToString("0") + " ms, the loading screen up "
+                + shown.ToString("0") + " ms; its opening: " + opening;
+            Debug.Log("[bench] " + loaded);
+            summary.Append('\n').Append(loaded);
             for (int run = 1; run <= Runs; run++)
             {
                 Stage(battle, false); // the last run's card objects (charred by its scorch) go
@@ -115,6 +127,41 @@ namespace Gwent.Battle
                 Debug.Log("[bench] " + line);
                 summary.Append('\n').Append(line);
             }
+            Stage(battle, false);
+            foreach ((string name, int[] weather) in new[]
+            {
+                ("frost, fog and rain on both sides", new[] { CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain }),
+                ("Skellige Storm", new[] { CardIds.SkelligeStorm }),
+            })
+            {
+                battle.weatherList.Clear();
+                battle.weatherList.AddRange(weather);
+                battle.ShowBoard();
+                await Wait(WeatherSettles, ct); // it comes and settles
+                Frames frames = await Measure(WeatherSeconds, null, ct, WeatherParticles);
+                string line = "weather, " + name + (GameSettings.AnimatedWeather ? "" : " (still pictures)") + ": " + frames;
+                Debug.Log("[bench] " + line);
+                summary.Append('\n').Append(line);
+            }
+            battle.weatherList.Clear();
+            battle.ShowBoard();
+
+            // The other screens, through the loading screen as the game goes to them
+            List<string> screens = new List<string>();
+            foreach ((string scene, string name) in new[]
+            {
+                (SceneNames.Menu, "battle to menu"), (SceneNames.Deck, "menu to deck builder"), (SceneNames.Menu, "deck builder to menu"),
+            })
+            {
+                float going = Time.realtimeSinceStartup;
+                LoadingScreen.Load(scene);
+                await UniTask.WaitUntil(() => !LoadingScreen.Showing, cancellationToken: ct);
+                screens.Add(name + " " + (LoadingScreen.LastLoad * 1000).ToString("0") + " ms (the loading screen up "
+                    + ((Time.realtimeSinceStartup - going) * 1000).ToString("0") + " ms)");
+            }
+            string loads = "screens loaded in: " + string.Join(", ", screens);
+            Debug.Log("[bench] " + loads);
+            summary.Append('\n').Append(loads);
             Debug.Log("[bench] done\n" + summary);
             UIOverlay.Toast(summary.ToString(), 60f);
         }
@@ -145,9 +192,23 @@ namespace Gwent.Battle
             }
         }
 
-        // Times every frame for a while (real time), what is given running meanwhile
-        private static async UniTask<Frames> Measure(float seconds, Func<UniTask> meanwhile, CancellationToken ct)
+        // The particles of the rows' weather
+        private static int WeatherParticles()
         {
+            return FindObjectsByType<WeatherEffect>().Sum(weather => weather.GetComponentsInChildren<ParticleSystem>().Sum(system => system.particleCount));
+        }
+
+        // The particles of the effects layer
+        private static int EffectParticles()
+        {
+            return CardMotion.Layer.GetComponentsInChildren<ParticleSystem>().Sum(system => system.particleCount);
+        }
+
+        // Times every frame for a while (real time), what is given running meanwhile; particles: those to count (the
+        // effects layer's unless told)
+        private static async UniTask<Frames> Measure(float seconds, Func<UniTask> meanwhile, CancellationToken ct, Func<int> count = null)
+        {
+            count = count ?? EffectParticles;
             List<float> times = new List<float>();
             int particles = 0, frame = 0;
             if (meanwhile != null)
@@ -161,7 +222,7 @@ namespace Gwent.Battle
                 age += dt;
                 times.Add(dt * 1000);
                 if (frame++ % 5 == 0) // counted now and then: counting costs too
-                    particles = Math.Max(particles, CardMotion.Layer.GetComponentsInChildren<ParticleSystem>().Sum(system => system.particleCount));
+                    particles = Math.Max(particles, count());
             }
             times.Sort();
             return new Frames

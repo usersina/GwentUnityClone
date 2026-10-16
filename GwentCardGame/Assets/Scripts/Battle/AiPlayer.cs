@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using Gwent.Core;
@@ -9,9 +8,17 @@ using UnityEngine;
 
 namespace Gwent.Battle
 {
+    // Who decides for the opponent's side of a battle: the AI, or (a LAN battle) the other player's device. The battle
+    // asks it when the match waits for that side and everything before has been shown; it answers through the match
+    // (Match.Apply): a move, a choice, its redraw.
+    public interface IOpponent
+    {
+        UniTask Act(Match match, bool seat, CancellationToken ct);
+    }
+
     // Plays the opponent's side. Decisions come from Gwent.Rules.AiBrain at the difficulty of the settings; this class
-    // only executes them, and always ends the AI's turn (falls back to passing if an action cannot be carried out).
-    public class AiPlayer : MonoBehaviour
+    // only gives them to the match, and always ends the AI's turn (passes when its move is refused).
+    public class AiPlayer : MonoBehaviour, IOpponent
     {
         // In a browser: Hard thinks 10 ms a frame, 0.7 s of thinking at most (a few battles fewer per move than elsewhere)
         private const int SliceMs = 10;
@@ -20,73 +27,79 @@ namespace Gwent.Battle
 
         private static bool NoThreads { get { return Application.platform == RuntimePlatform.WebGLPlayer; } }
 
-        private BattleController controller;
+        private Match match;
+        private bool seat;
 
-        public void Initialize()
+        public UniTask Act(Match match, bool seat, CancellationToken ct)
         {
-            controller = GetComponent<BattleController>();
-            if (controller == null)
-                Debug.LogError("Could not initialize AI, scene controller not found!");
+            this.match = match;
+            this.seat = seat;
+            switch (match.Phase)
+            {
+                case MatchPhase.Redraw:
+                    Redraw();
+                    return UniTask.CompletedTask;
+                case MatchPhase.Turn:
+                    return TakeTurn(ct);
+                default:
+                    Answer();
+                    return UniTask.CompletedTask;
+            }
         }
 
+        private Board Board { get { return match.Board; } }
+        private CardDatabase Db { get { return match.Board.Db; } }
+
         //----------------------------------------------AI Phases------------------------------------------------------------//
-        // Initial redraw of up to 2 cards (a redrawn card goes to the bottom of the deck):
-        // - the extra members of a muster family: the one kept calls them from the deck anyway
-        // - then plain units weaker than an average unit of the deck
-        // (Easy keeps the hand it was dealt, as a beginner would)
-        public void ExchangeCards()
+        // Initial redraw of up to 2 cards (AiBrain.Redraws: a redrawn card goes to the bottom of the deck), then the hand
+        // is kept
+        private void Redraw()
         {
-            PlayerState ai = controller.EnemyInfo;
-            CardDatabase db = controller.Db;
-            ai.CardsExchanged = 0;
-            if (GameSettings.AiDifficulty == AiDifficulty.Easy)
+            PlayerState ai = Board.Side(seat);
+            foreach (int card_id in AiBrain.Redraws(ai, Db, GameSettings.AiDifficulty))
             {
-                ai.CanExchange = false;
-                GameLog.Event(LogCategory.Ai, "redraw", "exchanged", 0, "why", "Easy keeps its hand");
-                return;
-            }
-
-            List<int> to_exchange = new List<int>();
-            List<int> kept = new List<int>();
-            IEnumerable<int> musters = ai.HandList.Where(id => db.Get(id).ability == Ability.Muster)
-                .OrderByDescending(id => ai.HandList.Count(other => AbilityRules.IsMusterRelative(db.Get(id), db.Get(other))));
-            foreach (int card_id in musters)
-            {
-                if (kept.Any(caller => AbilityRules.IsMusterRelative(db.Get(caller), db.Get(card_id))))
-                    to_exchange.Add(card_id);
-                else
-                    kept.Add(card_id);
-            }
-
-            List<Card> deck_units = ai.DeckList.Select(db.Get).Where(card => card.IsUnit).ToList();
-            double average = deck_units.Count > 0 ? deck_units.Average(card => card.strength) : 0;
-            to_exchange.AddRange(ai.HandList.Where(id =>
-            {
-                Card card = db.Get(id);
-                return card.IsUnit && !card.unique && card.ability == Ability.None && card.strength < average - 1;
-            }).OrderBy(id => db.Get(id).strength));
-
-            foreach (int card_id in to_exchange.ToList())
-            {
-                if (ai.CardsExchanged >= 2)
+                if (!ai.CanExchange || ai.CardsExchanged >= 2)
                     break;
-                if (!ai.HandList.Contains(card_id))
-                    continue;
-                controller.ExchangeCard(card_id, false);
-                ai.CardsExchanged++;
+                if (ai.HandList.Contains(card_id))
+                    match.Apply(seat, MatchCommand.Redraw(card_id));
             }
-
-            ai.CanExchange = false;
+            if (ai.CanExchange)
+                match.Apply(seat, MatchCommand.EndRedraw());
             GameLog.Event(LogCategory.Ai, "redraw", "exchanged", ai.CardsExchanged);
+        }
+
+        // The AI's turn: Easy and Normal decide at once, Hard while the turn's notice shows; a moment after the notice,
+        // its move (refused: it passes)
+        private async UniTask TakeTurn(CancellationToken ct)
+        {
+            UniTask<AiAction> deciding = Decide(ct); // Hard thinks while the turn's notice shows
+            await BattleController.Wait(0.3f, ct);
+            AiAction action = await deciding;
+            await UniTask.WaitWhile(() => BattleBanner.Busy, PlayerLoopTiming.Update, ct);
+            await BattleController.Wait(0.15f, ct);
+
+            GameLog.Event(LogCategory.Ai, "decision", "difficulty", GameSettings.AiDifficulty, "action", Describe(action),
+                "think_ms", thinkMs, "considered", Considered());
+            if (!match.Apply(seat, MatchCommand.From(action)))
+            {
+                Debug.LogError("AI move refused, passing: " + action);
+                match.Apply(seat, MatchCommand.Pass());
+            }
+        }
+
+        // A choice the match asks of the AI (AiBrain.Answer): a medic's unit, a leader's card, who goes first...
+        private void Answer()
+        {
+            MatchCommand answer = AiBrain.Answer(Board, seat, match.Choice);
+            if (!match.Apply(seat, answer) && !match.Apply(seat, MatchCommand.Skip()))
+                Debug.LogError("AI answer refused: " + answer);
         }
 
         // The move for this turn. Easy and Normal decide at once; Hard plays battles out on its own copy of the board while
         // the turn's notice shows: on another thread, or in a browser (no other thread) a few milliseconds every frame.
         // A decision that fails is taken again as on Normal.
-        public async UniTask<AiAction> Decide(CancellationToken ct)
+        private async UniTask<AiAction> Decide(CancellationToken ct)
         {
-            if (controller == null)
-                Initialize();
             AiContext ctx = BuildContext();
             considered = GameLog.Enabled ? new List<AiOption>() : null;
             ctx.Considered = considered;
@@ -129,29 +142,6 @@ namespace Gwent.Battle
             }
         }
 
-        public void Play(AiAction action)
-        {
-            if (controller == null)
-                Initialize();
-            GameLog.Event(LogCategory.Ai, "decision", "difficulty", GameSettings.AiDifficulty, "action", Describe(action),
-                "think_ms", thinkMs, "considered", Considered());
-
-            bool done;
-            try
-            {
-                done = Execute(action);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("AI action failed: " + e);
-                done = controller.battleState != BattleState.EnemyTurn;
-            }
-
-            // Never leave the game waiting on the AI
-            if (!done && controller.battleState == BattleState.EnemyTurn)
-                controller.SkipTurn(false);
-        }
-
         // The moves the last decision weighed, for the log: the Normal AI's estimates, then Hard's play-outs
         private List<AiOption> considered;
 
@@ -175,25 +165,20 @@ namespace Gwent.Battle
                 case AiActionType.Pass:
                     return "pass";
                 case AiActionType.UseLeader:
-                    return "leader" + (action.CardId >= 0 ? " (" + controller.Db.Get(action.CardId).name + ")" : "");
+                    return "leader" + (action.CardId >= 0 ? " (" + Db.Get(action.CardId).name + ")" : "");
                 default:
-                    return controller.Db.Get(action.CardId).name + " on " + action.Row + (action.TargetId >= 0 ? " for " + controller.Db.Get(action.TargetId).name : "");
+                    return Db.Get(action.CardId).name + " on " + action.Row + (action.TargetId >= 0 ? " for " + Db.Get(action.TargetId).name : "");
             }
         }
 
+        // The AI decides on the whole board (the match's): it does not cheat for all that, Hard re-deals the cards it
+        // cannot see (AiSearch)
         private AiContext BuildContext()
         {
-            return new AiContext
-            {
-                Me = controller.EnemyInfo,
-                Opponent = controller.PlayerInfo,
-                Weather = controller.weatherList,
-                DoubleSpies = controller.doubleSpies,
-                RandomMedic = controller.randomMedic,
-                Db = controller.Db,
-                Difficulty = GameSettings.AiDifficulty,
-                Seed = Rng.Shared.Next(),
-            };
+            AiContext ctx = Board.AiContextFor(seat);
+            ctx.Difficulty = GameSettings.AiDifficulty;
+            ctx.Seed = Rng.Shared.Next();
+            return ctx;
         }
 
         // The board as it is now, for a decision made on another thread while the battle goes on
@@ -211,39 +196,6 @@ namespace Gwent.Battle
                 Seed = ctx.Seed,
                 Considered = ctx.Considered,
             };
-        }
-
-        // Returns false when nothing was done (the caller then passes)
-        private bool Execute(AiAction action)
-        {
-            PlayerState ai = controller.EnemyInfo;
-            switch (action.Type)
-            {
-                case AiActionType.PlayCard:
-                    if (!ai.HandList.Contains(action.CardId))
-                        return false;
-                    if (action.CardId == CardIds.Decoy || controller.Db.Get(action.CardId).ability == Ability.Decoy)
-                    {
-                        if (action.TargetId < 0 || !Rows.IsUnitRow(action.Row))
-                            return false;
-                        controller.PlayDecoy(action.TargetId, action.Row, false, action.CardId);
-                        return true;
-                    }
-                    controller.PlayCard(action.CardId, action.Row, false);
-                    return true;
-
-                case AiActionType.UseLeader:
-                    if (LeaderIds.WeatherPickRow(ai.Leader) != null)
-                        return controller.AiUseWeatherLeader(action.CardId);
-                    if (!controller.CanUseLeader(false))
-                        return false;
-                    controller.ActivateLeader(ai.Leader, false);
-                    return controller.battleState != BattleState.EnemyTurn || !ai.canLeader;
-
-                default:
-                    controller.SkipTurn(false);
-                    return true;
-            }
         }
     }
 }

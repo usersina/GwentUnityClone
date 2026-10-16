@@ -7,7 +7,6 @@ using Gwent.UI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 
 namespace Gwent.DeckBuilding
 {
@@ -491,7 +490,7 @@ namespace Gwent.DeckBuilding
         public void ToMainMenu()
         {
             GameAudio.PlaySfx("ui_click");
-            SceneManager.LoadScene(SceneNames.Menu);
+            LoadingScreen.Load(SceneNames.Menu);
         }
     }
 }

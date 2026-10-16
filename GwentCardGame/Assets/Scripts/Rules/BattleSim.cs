@@ -3,12 +3,13 @@ using System.Collections.Generic;
 
 namespace Gwent.Rules
 {
-    // The rest of a battle without the scene, in the same steps as BattleController and AiPlayer: a side's move,
-    // passing, the end of a round and the next round's opening. The Hard AI plays battles out with it (AiSearch).
+    // The rest of a battle in the steps the match takes (Match), made light for the Hard AI, which plays thousands of
+    // battles out with it (AiSearch): a side's move (the AI choosing for both, its medics too), passing, the end of a
+    // round and the next round's opening (the match's own: RoundRules.EndRound, ClearForNextRound, Reinforce).
     public static class BattleSim
     {
-        // One of the AI's actions, as AiPlayer.Execute carries it out (BattleController.PlayCard, PlayDecoy,
-        // AiUseWeatherLeader, ActivateLeader). An action that cannot be carried out passes, as in the battle.
+        // One of the AI's actions, as the match takes it (its choices made at once, as the AI answers them). An action
+        // that cannot be carried out passes.
         public static void Apply(Board board, AiAction action, bool is_player)
         {
             PlayerState me = board.Side(is_player);
@@ -100,27 +101,18 @@ namespace Gwent.Rules
             return RoundWinner.Draw;
         }
 
-        // BattleController.ManageOutcome, PrepareNextRound and RoundOpening; returns the battle's winner once it is over
+        // The end of a round and the next one's opening, as the match does them (Match: RoundRules.EndRound,
+        // ClearForNextRound, Reinforce); returns the battle's winner once it is over
         private static RoundWinner? EndRound(Board board, ref bool player_turn, ref bool last_passer_player)
         {
-            board.Recalculate();
-            RoundWinner winner = RoundRules.DecideRound(board.Player.TotalScore(), board.Enemy.TotalScore(), board.Player.Faction, board.Enemy.Faction);
-            RoundRules.ApplyRoundResult(board.Player, board.Enemy, winner);
-            board.Player.hasPassed = board.Enemy.hasPassed = false;
-            if (board.Player.Lives == 0 || board.Enemy.Lives == 0)
-                return board.Player.Lives == board.Enemy.Lives ? RoundWinner.Draw : board.Player.Lives > 0 ? RoundWinner.Player : RoundWinner.Enemy;
+            RoundWinner winner = RoundRules.EndRound(board, out _, out _);
+            RoundWinner? battle = RoundRules.BattleResult(board);
+            if (battle.HasValue)
+                return battle;
 
-            RoundRules.CleanupBoard(board.Player, board.Rnd, board.Db);
-            RoundRules.CleanupBoard(board.Enemy, board.Rnd, board.Db);
-            board.Weather.Clear();
-            if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
-                RoundRules.Draw(board.Side(winner == RoundWinner.Player), 1);
-            foreach (bool is_player in new[] { true, false })
-                if (RoundRules.SkelligeReinforces(board.Side(is_player)))
-                    RoundRules.SkelligeReinforcements(board, is_player);
-            board.Recalculate();
-
-            player_turn = winner == RoundWinner.Player || (winner == RoundWinner.Draw && last_passer_player);
+            RoundRules.ClearForNextRound(board, winner, out _, out _, out _, out _);
+            RoundRules.Reinforce(board, out _, out _);
+            player_turn = RoundRules.PlayerStarts(winner, last_passer_player);
             // A side that starts a round with no card in hand sits it out
             foreach (bool is_player in new[] { true, false })
                 if (board.Side(is_player).HandList.Count == 0)

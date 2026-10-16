@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
 using Image = UnityEngine.UI.Image;
@@ -22,12 +21,21 @@ namespace Gwent.Menus
             GameAudio.PlayMenuMusic();
             UIScreens.Show("MainMenu", UITheme.Current.mainMenu, Bind);
             CoverWithKeyArt();
+            if (LanLobby.Reopen()) // back from the deck builder the lobby sent the player to
+                PlayOnLan();
+            else if (!GameSettings.IsWeb && Gwent.Net.LanSession.Current == null && Gwent.Net.LanSave.Load() != null)
+                UIOverlay.Toast("A LAN battle is still on: Play on LAN to rejoin it", 4f);
         }
 
         private void Bind(VisualElement root)
         {
             items.Clear();
             AddItem(root, "Item Play", PlayGame);
+            MenuEntry lan = root.Q<MenuEntry>("Item Play on LAN");
+            if (GameSettings.IsWeb) // a browser cannot host or find games on the network
+                lan.RemoveFromHierarchy();
+            else
+                AddItem(root, "Item Play on LAN", PlayOnLan);
             AddItem(root, "Item Deck builder", EditDeck);
             AddItem(root, "Item How to play", OpenRules);
             AddItem(root, "Item Settings", OpenSettings);
@@ -49,8 +57,14 @@ namespace Gwent.Menus
 
         private void Focus(int index)
         {
-            if (index < items.Count)
+            if (index >= 0 && index < items.Count)
                 UIScreens.Focus(items[index]);
+        }
+
+        // The entry of that name, focused (a dialog closed gives it the keys back)
+        private void Focus(string name)
+        {
+            Focus(items.FindIndex(item => item.name == name));
         }
 
         private void CoverWithKeyArt()
@@ -75,19 +89,25 @@ namespace Gwent.Menus
             OpponentPicker.Open(() => Focus(0));
         }
 
+        // Play on LAN: host a battle or join one on the network (LanLobby)
+        public void PlayOnLan()
+        {
+            LanLobby.Open(() => Focus("Item Play on LAN"));
+        }
+
         public void EditDeck()
         {
-            SceneManager.LoadScene(SceneNames.Deck);
+            LoadingScreen.Load(SceneNames.Deck);
         }
 
         public void OpenRules()
         {
-            RulesPage.Open(() => Focus(2));
+            RulesPage.Open(() => Focus("Item How to play"));
         }
 
         public void OpenSettings()
         {
-            SettingsPanel.Open(() => Focus(3));
+            SettingsPanel.Open(() => Focus("Item Settings"));
         }
 
         public void QuitGame()

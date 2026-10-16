@@ -40,6 +40,13 @@ namespace Gwent.UI
             Refresh();
         }
 
+        // Shows another option, without a change being made
+        public void Show(int index)
+        {
+            Index = Mathf.Clamp(index, 0, Mathf.Max(0, options.Length - 1));
+            Refresh();
+        }
+
         public void Step(int delta)
         {
             int next = Mathf.Clamp(Index + delta, 0, Mathf.Max(0, options.Length - 1));

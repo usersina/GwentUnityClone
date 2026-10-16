@@ -43,6 +43,16 @@ namespace Gwent.Battle
             shown = true;
             Card card = Card;
 
+            // A card this side cannot see (the opponent's hand): its back
+            if (card._id == CardIds.Hidden)
+            {
+                artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/Back/BACK");
+                foreach (GameObject part in new[] { natureImage, rowImage, abilityImage })
+                    part.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+                strengthImage.GetComponent<TextMeshProUGUI>().text = "";
+                return;
+            }
+
             // Change the artwork based on ID
             artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);
 
