@@ -38,6 +38,8 @@ ability_morale -> moral
 ability_tight_bond -> ally
 ability_decoy -> knockback
 ability_mardroeme -> mardroeme (Berserkers turning into bears; gwent-classic's sound, as the others)
+weather_thunder -> random thunder1/thunder2 (Skellige Storm's lightning; cut from "Rain + Long Thunder" by WuxiaScrub,
+  https://opengameart.org/content/rain-long-thunder, CC0)
 leader -> shield
 
 Deck editor SFX mapping:

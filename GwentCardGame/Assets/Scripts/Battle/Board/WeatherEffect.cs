@@ -143,8 +143,8 @@ namespace Gwent.Battle
         }
     }
 
-    // Skellige Storm's lightning over the whole board: every 3 to 7 seconds of game time, every stormy row flashes at once
-    // and a bolt strikes in one of them (Strike: now, for the editor's preview)
+    // Skellige Storm's lightning over the whole board: every 3 to 7 seconds of game time, every stormy row flashes at once,
+    // a bolt strikes in one of them and it thunders (Strike: now, for the editor's preview)
     public static class StormLightning
     {
         private static readonly List<WeatherEffect> rows = new List<WeatherEffect>();
@@ -184,6 +184,7 @@ namespace Gwent.Battle
             int bolt = Random.Range(0, rows.Count);
             for (int i = 0; i < rows.Count; i++)
                 rows[i].Strike(i == bolt);
+            GameAudio.PlaySfx("weather_thunder");
         }
     }
 
