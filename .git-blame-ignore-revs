@@ -1,0 +1,6 @@
+# Commits that only re-indent or move code. git blame skips them with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub's blame view reads this file by itself)
+
+# Namespaces and assemblies for the game and its editor tools
+eda4a94324c3674a0ad2300f54551ebb59d005ac

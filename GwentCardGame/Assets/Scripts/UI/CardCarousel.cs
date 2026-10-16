@@ -1,290 +1,292 @@
 using System;
 using System.Collections.Generic;
+using Gwent.Battle;
+using Gwent.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
-// The Witcher 3's big-card carousel, for the redraw, the card pickers and a discard pile: the front card large in the
-// middle with a gold glow, the others smaller on each side. A side card (or the arrow keys, A/D, the mouse wheel)
-// comes to the front; the front card's description shows where the card info's does, at the bottom right. What the
-// front card does when clicked (or Enter) is the redraw's or the picker's.
-public abstract class CardCarousel : MonoBehaviour
+namespace Gwent.UI
 {
-    public const float CardWidth = 300;
-    protected const float CardHeight = CardWidth * 591f / 380f;
-    private const float Spacing = 245;     // between side cards
-    private const float FrontGap = 45;     // extra room on each side of the front card
-    private const float SideScale = 0.74f;
-    private const int VisibleSide = 3;     // cards shown on each side of the front one
-
-    private static int keyFrame = -1;
-
-    protected readonly List<int> shown = new List<int>();
-    private readonly List<CarouselCard> cards = new List<CarouselCard>();
-    protected int focus;
-    protected int hidden = -1; // a card on its way into its place (the redraw's new card), not shown yet
-    private float scrolled;
-    private Image details;
-    private int detailsFor = -1;
-    private bool detailsPlaced;
-    private float frontSince;
-    private int frontCard = -1;
-
-    private class CarouselCard
+    // The Witcher 3's big-card carousel, for the redraw, the card pickers and a discard pile: the front card large in the
+    // middle with a gold glow, the others smaller on each side. A side card (or the arrow keys, A/D, the mouse wheel)
+    // comes to the front; the front card's description shows where the card info's does, at the bottom right. What the
+    // front card does when clicked (or Enter) is the redraw's or the picker's.
+    public abstract class CardCarousel : MonoBehaviour
     {
-        public RectTransform rect;
-        public CanvasGroup group;
-        public Image glow;
-    }
+        public const float CardWidth = 300;
+        protected const float CardHeight = CardWidth * 591f / 380f;
+        private const float Spacing = 245;     // between side cards
+        private const float FrontGap = 45;     // extra room on each side of the front card
+        private const float SideScale = 0.74f;
+        private const int VisibleSide = 3;     // cards shown on each side of the front one
 
-    // A carousel used Enter this frame: the battle's own keys leave it alone (a picked card waits for its place)
-    public static bool UsedKeyThisFrame { get { return keyFrame == Time.frameCount; } }
+        private static int keyFrame = -1;
 
-    public int FocusIndex { get { return focus; } }
-    public int CardCount { get { return cards.Count; } }
-    public int FocusedCardId { get { return focus < shown.Count ? shown[focus] : -1; } }
+        protected readonly List<int> shown = new List<int>();
+        private readonly List<CarouselCard> cards = new List<CarouselCard>();
+        protected int focus;
+        protected int hidden = -1; // a card on its way into its place (the redraw's new card), not shown yet
+        private float scrolled;
+        private Image details;
+        private int detailsFor = -1;
+        private bool detailsPlaced;
+        private float frontSince;
+        private int frontCard = -1;
 
-    // A card is chosen (redrawn, picked) only once it has been at the front for a moment: a quick double-click on a
-    // card further away brings it forward and does not choose it by accident
-    protected bool FrontIsReady { get { return Time.unscaledTime - frontSince >= DoubleClick.Interval; } }
-
-    public RectTransform CardAt(int index)
-    {
-        return index >= 0 && index < cards.Count ? cards[index].rect : null;
-    }
-
-    // The carousel's strip on a parent (a soft dark pool behind the cards separates them from the board) and the
-    // place of the front card's description
-    protected static T Create<T>(Transform parent, Vector2 center) where T : CardCarousel
-    {
-        RectTransform root = UIKit.Rect("CardCarousel", parent).Place(new Vector2(0.5f, 0.5f), center, new Vector2(1920, CardHeight + 60));
-        Image backdrop = UIKit.NewImage(root, "Backdrop", UITheme.Current.radial, new Color(0, 0, 0, 0.75f));
-        backdrop.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2300, CardHeight + 260));
-        T carousel = root.gameObject.AddComponent<T>();
-        carousel.details = UIKit.NewImage(root, "Details", null, Color.white);
-        carousel.details.preserveAspect = true;
-        carousel.details.enabled = false;
-        return carousel;
-    }
-
-    // The Witcher 3's band across the top of the screen: a title (and a hint under it on desktop), with a button at
-    // its right (the redraw's Done, a picker's Skip or Close). Returns the button.
-    public static Button Band(Transform root, string title, string hint, string button_label, Action on_button, out TextMeshProUGUI title_text)
-    {
-        UITheme theme = UITheme.Current;
-        RectTransform band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.78f)).rectTransform;
-        band.anchorMin = new Vector2(0, 1);
-        band.anchorMax = new Vector2(1, 1);
-        band.pivot = new Vector2(0.5f, 0.5f);
-        band.anchoredPosition = new Vector2(0, -150);
-        band.sizeDelta = new Vector2(0, 116);
-        foreach (float edge in new[] { 0f, 1f })
+        private class CarouselCard
         {
-            Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
-            line.rectTransform.anchorMin = new Vector2(0, edge);
-            line.rectTransform.anchorMax = new Vector2(1, edge);
-            line.rectTransform.sizeDelta = new Vector2(0, 2);
+            public RectTransform rect;
+            public CanvasGroup group;
+            public Image glow;
         }
 
-        title_text = UIKit.Text(band, title, UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
-        title_text.fontSize = 36;
-        title_text.color = theme.text;
-        title_text.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, hint != null ? -38 : -58), new Vector2(1100, 50));
-        if (hint != null)
+        // A carousel used Enter this frame: the battle's own keys leave it alone (a picked card waits for its place)
+        public static bool UsedKeyThisFrame { get { return keyFrame == Time.frameCount; } }
+
+        public int FocusIndex { get { return focus; } }
+        public int CardCount { get { return cards.Count; } }
+        public int FocusedCardId { get { return focus < shown.Count ? shown[focus] : -1; } }
+
+        // A card is chosen (redrawn, picked) only once it has been at the front for a moment: a quick double-click on a
+        // card further away brings it forward and does not choose it by accident
+        protected bool FrontIsReady { get { return Time.unscaledTime - frontSince >= DoubleClick.Interval; } }
+
+        public RectTransform CardAt(int index)
         {
-            TextMeshProUGUI hint_text = UIKit.Text(band, hint, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
-            hint_text.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
+            return index >= 0 && index < cards.Count ? cards[index].rect : null;
         }
 
-        Button button = UIKit.Button(band, button_label, UIKit.ButtonStyle.Primary, on_button, new Vector2(200, 60));
-        ((RectTransform)button.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
-        return button;
-    }
-
-    // Shows these cards (the front one stays at its index when it can)
-    protected void Rebuild(IList<int> ids)
-    {
-        foreach (CarouselCard card in cards)
-            Destroy(card.rect.gameObject);
-        cards.Clear();
-        shown.Clear();
-        shown.AddRange(ids);
-
-        UITheme theme = UITheme.Current;
-        for (int i = 0; i < shown.Count; i++)
+        // The carousel's strip on a parent (a soft dark pool behind the cards separates them from the board) and the
+        // place of the front card's description
+        protected static T Create<T>(Transform parent, Vector2 center) where T : CardCarousel
         {
-            RectTransform holder = UIKit.Rect("Card " + shown[i], transform).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(CardWidth, CardHeight));
-            Image glow = UIKit.NewImage(holder, "Glow", theme.softShadow, UITheme.WithAlpha(theme.goldBright, 0));
-            glow.rectTransform.Stretch(-34, -34, -34, -34);
-            Image shadow = UIKit.NewImage(holder, "Shadow", theme.softShadow, new Color(0, 0, 0, 0.7f));
-            shadow.rectTransform.Stretch(-16, -26, -10, -34);
-            Image art = UIKit.NewImage(holder, "Art", SpriteCache.Load("Cards/List/591x380/" + shown[i]), Color.white, true);
-            art.rectTransform.Stretch();
-            art.preserveAspect = true;
-
-            CanvasGroup group = holder.gameObject.AddComponent<CanvasGroup>();
-            holder.gameObject.AddComponent<CarouselCardClick>().Init(this, i);
-            cards.Add(new CarouselCard { rect = holder, group = group, glow = glow });
+            RectTransform root = UIKit.Rect("CardCarousel", parent).Place(new Vector2(0.5f, 0.5f), center, new Vector2(1920, CardHeight + 60));
+            Image backdrop = UIKit.NewImage(root, "Backdrop", UITheme.Current.radial, new Color(0, 0, 0, 0.75f));
+            backdrop.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(2300, CardHeight + 260));
+            T carousel = root.gameObject.AddComponent<T>();
+            carousel.details = UIKit.NewImage(root, "Details", null, Color.white); // the description box's place
+            carousel.details.enabled = false; // until a card with a description is in front (DescriptionBox.Show)
+            return carousel;
         }
-        focus = Mathf.Clamp(focus, 0, Mathf.Max(0, cards.Count - 1));
-        Animate(1f);
-    }
 
-    protected virtual void Update()
-    {
-        if (FocusedCardId != frontCard)
+        // The Witcher 3's band across the top of the screen: a title (and a hint under it on desktop), with a button at
+        // its right (the redraw's Done, a picker's Skip or Close). Returns the button.
+        public static Button Band(Transform root, string title, string hint, string button_label, Action on_button, out TextMeshProUGUI title_text)
         {
-            frontCard = FocusedCardId;
-            frontSince = Time.unscaledTime;
-        }
-        if (!detailsPlaced)
-        {
-            // The front card's description where the card info's description goes: at the bottom right
-            PlaceOnScreen(details.rectTransform, CardShowcase.DescriptionScreenRect());
-            detailsPlaced = true;
-        }
-        if (TakesInput())
-        {
-            Navigate();
-            HandleKeys(Keyboard.current);
-        }
-        Animate(1f - Mathf.Exp(-Time.unscaledDeltaTime * 14f));
-        UpdateDetails();
-    }
-
-    // Keys and the wheel are the carousel's when no dialog is over it (its own dialog may be)
-    protected virtual bool TakesInput()
-    {
-        return !UIOverlay.HasModal;
-    }
-
-    // The front card's description (a plain unit has none)
-    private void UpdateDetails()
-    {
-        int id = FocusedCardId;
-        if (id == detailsFor)
-            return;
-        detailsFor = id;
-        string description = id >= 0 ? CardHover.EffectBoxPath(CardLibrary.Get().Get(id)) : null;
-        Sprite sprite = description != null ? SpriteCache.Load(description) : null;
-        details.sprite = sprite;
-        details.enabled = sprite != null;
-    }
-
-    // Puts an element of the carousel over a screen rectangle
-    protected void PlaceOnScreen(RectTransform rect, Rect screen_rect)
-    {
-        Vector2 min, max;
-        RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen_rect.min, null, out min);
-        RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen_rect.max, null, out max);
-        Vector2 pivot_offset = Vector2.Scale(((RectTransform)transform).rect.size, ((RectTransform)transform).pivot - new Vector2(0.5f, 0.5f));
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = (min + max) / 2 + pivot_offset; // local points are from the pivot, anchors from the centre
-        rect.sizeDelta = max - min;
-    }
-
-    private void Animate(float blend)
-    {
-        for (int i = 0; i < cards.Count; i++)
-        {
-            int offset = i - focus;
-            int distance = Mathf.Abs(offset);
-            // Side cards start past the front card's half width plus the gap, then every Spacing
-            float x = offset == 0 ? 0 : Mathf.Sign(offset) * (FrontGap + CardWidth * (1 + SideScale) / 2 + (distance - 1) * Spacing);
-            float scale = offset == 0 ? 1f : SideScale;
-            float alpha = offset == 0 ? 1f : distance > VisibleSide ? 0f : 0.9f - 0.18f * (distance - 1);
-            CarouselCard card = cards[i];
-            card.rect.anchoredPosition = Vector2.Lerp(card.rect.anchoredPosition, new Vector2(x, 0), blend);
-            card.rect.localScale = Vector3.Lerp(card.rect.localScale, Vector3.one * scale, blend);
-            card.group.alpha = i == hidden ? 0 : Mathf.Lerp(card.group.alpha, alpha, blend);
-            card.group.blocksRaycasts = distance <= VisibleSide;
-            card.glow.color = Color.Lerp(card.glow.color, UITheme.WithAlpha(UITheme.Current.goldBright, offset == 0 ? 0.85f : 0), blend);
-        }
-        // Drawn from the outside in, so the front card is on top (sibling 0 is the backdrop)
-        List<int> order = new List<int>();
-        for (int i = 0; i < cards.Count; i++)
-            order.Add(i);
-        order.Sort((a, b) => Mathf.Abs(b - focus).CompareTo(Mathf.Abs(a - focus)));
-        for (int i = 0; i < order.Count; i++)
-            if (cards[order[i]].rect.GetSiblingIndex() != i + 1)
-                cards[order[i]].rect.SetSiblingIndex(i + 1);
-    }
-
-    //----------------------------------------Input----------------------------------------//
-    // A click on a card: a side card comes to the front, the front card is chosen (once it has been there a moment)
-    public virtual void OnCardClicked(int index)
-    {
-        if (index != focus)
-            SetFocus(index);
-        else if (FrontIsReady)
-            Choose();
-    }
-
-    // The front card is redrawn, picked...
-    protected abstract void Choose();
-
-    public void SetFocus(int index)
-    {
-        int next = Mathf.Clamp(index, 0, cards.Count - 1);
-        if (next == focus)
-            return;
-        focus = next;
-        GameAudio.PlaySfx("card_select");
-    }
-
-    // Enter (and other keys of the redraw or the picker): Enter chooses the front card, unless a button elsewhere has
-    // keyboard focus (Enter presses that button)
-    protected virtual void HandleKeys(Keyboard keyboard)
-    {
-        if (keyboard == null || !(keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
-            return;
-        GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-        if (selected != null && selected.activeInHierarchy && !selected.transform.IsChildOf(transform))
-            return;
-        keyFrame = Time.frameCount;
-        Choose();
-    }
-
-    private void Navigate()
-    {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null)
-        {
-            if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
-                SetFocus(focus - 1);
-            if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
-                SetFocus(focus + 1);
-        }
-        Mouse mouse = Mouse.current;
-        if (mouse != null)
-        {
-            scrolled += mouse.scroll.ReadValue().y;
-            if (Mathf.Abs(scrolled) >= 1f)
+            UITheme theme = UITheme.Current;
+            RectTransform band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.78f)).rectTransform;
+            band.anchorMin = new Vector2(0, 1);
+            band.anchorMax = new Vector2(1, 1);
+            band.pivot = new Vector2(0.5f, 0.5f);
+            band.anchoredPosition = new Vector2(0, -150);
+            band.sizeDelta = new Vector2(0, 116);
+            foreach (float edge in new[] { 0f, 1f })
             {
-                SetFocus(focus + (scrolled > 0 ? -1 : 1));
-                scrolled = 0;
+                Image line = UIKit.NewImage(band, "Edge", theme.gradientH, UITheme.WithAlpha(theme.gold, 0.5f));
+                line.rectTransform.anchorMin = new Vector2(0, edge);
+                line.rectTransform.anchorMax = new Vector2(1, edge);
+                line.rectTransform.sizeDelta = new Vector2(0, 2);
+            }
+
+            title_text = UIKit.Text(band, title, UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
+            title_text.fontSize = 36;
+            title_text.color = theme.text;
+            title_text.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, hint != null ? -38 : -58), new Vector2(1100, 50));
+            if (hint != null)
+            {
+                TextMeshProUGUI hint_text = UIKit.Text(band, hint, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+                hint_text.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
+            }
+
+            Button button = UIKit.Button(band, button_label, UIKit.ButtonStyle.Primary, on_button, new Vector2(200, 60));
+            ((RectTransform)button.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
+            return button;
+        }
+
+        // Shows these cards (the front one stays at its index when it can)
+        protected void Rebuild(IList<int> ids)
+        {
+            foreach (CarouselCard card in cards)
+                Destroy(card.rect.gameObject);
+            cards.Clear();
+            shown.Clear();
+            shown.AddRange(ids);
+
+            UITheme theme = UITheme.Current;
+            for (int i = 0; i < shown.Count; i++)
+            {
+                RectTransform holder = UIKit.Rect("Card " + shown[i], transform).Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(CardWidth, CardHeight));
+                Image glow = UIKit.NewImage(holder, "Glow", theme.softShadow, UITheme.WithAlpha(theme.goldBright, 0));
+                glow.rectTransform.Stretch(-34, -34, -34, -34);
+                Image shadow = UIKit.NewImage(holder, "Shadow", theme.softShadow, new Color(0, 0, 0, 0.7f));
+                shadow.rectTransform.Stretch(-16, -26, -10, -34);
+                Image art = UIKit.NewImage(holder, "Art", null, Color.white, true);
+                CardArt.Show(art, shown[i]);
+                art.rectTransform.Stretch();
+                art.preserveAspect = true;
+
+                CanvasGroup group = holder.gameObject.AddComponent<CanvasGroup>();
+                holder.gameObject.AddComponent<CarouselCardClick>().Init(this, i);
+                cards.Add(new CarouselCard { rect = holder, group = group, glow = glow });
+            }
+            focus = Mathf.Clamp(focus, 0, Mathf.Max(0, cards.Count - 1));
+            Animate(1f);
+        }
+
+        protected virtual void Update()
+        {
+            if (FocusedCardId != frontCard)
+            {
+                frontCard = FocusedCardId;
+                frontSince = Time.unscaledTime;
+            }
+            if (!detailsPlaced)
+            {
+                // The front card's description where the card info's description goes: at the bottom right
+                PlaceOnScreen(details.rectTransform, CardShowcase.DescriptionScreenRect());
+                detailsPlaced = true;
+            }
+            if (TakesInput())
+            {
+                Navigate();
+                HandleKeys(Keyboard.current);
+            }
+            Animate(1f - Mathf.Exp(-Time.unscaledDeltaTime * 14f));
+            UpdateDetails();
+        }
+
+        // Keys and the wheel are the carousel's when no dialog is over it (its own dialog may be)
+        protected virtual bool TakesInput()
+        {
+            return !UIOverlay.HasModal;
+        }
+
+        // The front card's description (a plain unit has none)
+        private void UpdateDetails()
+        {
+            int id = FocusedCardId;
+            if (id == detailsFor)
+                return;
+            detailsFor = id;
+            DescriptionBox.Show(details, id >= 0 ? CardLibrary.Get().Get(id) : null);
+        }
+
+        // Puts an element of the carousel over a screen rectangle
+        protected void PlaceOnScreen(RectTransform rect, Rect screen_rect)
+        {
+            Vector2 min, max;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen_rect.min, null, out min);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform, screen_rect.max, null, out max);
+            Vector2 pivot_offset = Vector2.Scale(((RectTransform)transform).rect.size, ((RectTransform)transform).pivot - new Vector2(0.5f, 0.5f));
+            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = (min + max) / 2 + pivot_offset; // local points are from the pivot, anchors from the centre
+            rect.sizeDelta = max - min;
+        }
+
+        private void Animate(float blend)
+        {
+            for (int i = 0; i < cards.Count; i++)
+            {
+                int offset = i - focus;
+                int distance = Mathf.Abs(offset);
+                // Side cards start past the front card's half width plus the gap, then every Spacing
+                float x = offset == 0 ? 0 : Mathf.Sign(offset) * (FrontGap + CardWidth * (1 + SideScale) / 2 + (distance - 1) * Spacing);
+                float scale = offset == 0 ? 1f : SideScale;
+                float alpha = offset == 0 ? 1f : distance > VisibleSide ? 0f : 0.9f - 0.18f * (distance - 1);
+                CarouselCard card = cards[i];
+                card.rect.anchoredPosition = Vector2.Lerp(card.rect.anchoredPosition, new Vector2(x, 0), blend);
+                card.rect.localScale = Vector3.Lerp(card.rect.localScale, Vector3.one * scale, blend);
+                card.group.alpha = i == hidden ? 0 : Mathf.Lerp(card.group.alpha, alpha, blend);
+                card.group.blocksRaycasts = distance <= VisibleSide;
+                card.glow.color = Color.Lerp(card.glow.color, UITheme.WithAlpha(UITheme.Current.goldBright, offset == 0 ? 0.85f : 0), blend);
+            }
+            // Drawn from the outside in, so the front card is on top (sibling 0 is the backdrop)
+            List<int> order = new List<int>();
+            for (int i = 0; i < cards.Count; i++)
+                order.Add(i);
+            order.Sort((a, b) => Mathf.Abs(b - focus).CompareTo(Mathf.Abs(a - focus)));
+            for (int i = 0; i < order.Count; i++)
+                if (cards[order[i]].rect.GetSiblingIndex() != i + 1)
+                    cards[order[i]].rect.SetSiblingIndex(i + 1);
+        }
+
+        //----------------------------------------Input----------------------------------------//
+        // A click on a card: a side card comes to the front, the front card is chosen (once it has been there a moment)
+        public virtual void OnCardClicked(int index)
+        {
+            if (index != focus)
+                SetFocus(index);
+            else if (FrontIsReady)
+                Choose();
+        }
+
+        // The front card is redrawn, picked...
+        protected abstract void Choose();
+
+        public void SetFocus(int index)
+        {
+            int next = Mathf.Clamp(index, 0, cards.Count - 1);
+            if (next == focus)
+                return;
+            focus = next;
+            GameAudio.PlaySfx("card_select");
+        }
+
+        // Enter (and other keys of the redraw or the picker): Enter chooses the front card, unless a button elsewhere has
+        // keyboard focus (Enter presses that button)
+        protected virtual void HandleKeys(Keyboard keyboard)
+        {
+            if (keyboard == null || !(keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
+                return;
+            GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+            if (selected != null && selected.activeInHierarchy && !selected.transform.IsChildOf(transform))
+                return;
+            keyFrame = Time.frameCount;
+            Choose();
+        }
+
+        private void Navigate()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                    SetFocus(focus - 1);
+                if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
+                    SetFocus(focus + 1);
+            }
+            Mouse mouse = Mouse.current;
+            if (mouse != null)
+            {
+                scrolled += mouse.scroll.ReadValue().y;
+                if (Mathf.Abs(scrolled) >= 1f)
+                {
+                    SetFocus(focus + (scrolled > 0 ? -1 : 1));
+                    scrolled = 0;
+                }
             }
         }
     }
-}
 
-// Click on a card of a carousel (left button, or a tap)
-public class CarouselCardClick : MonoBehaviour, IPointerClickHandler
-{
-    private CardCarousel carousel;
-    private int index;
-
-    public void Init(CardCarousel owner, int card_index)
+    // Click on a card of a carousel (left button, or a tap)
+    public class CarouselCardClick : MonoBehaviour, IPointerClickHandler
     {
-        carousel = owner;
-        index = card_index;
-    }
+        private CardCarousel carousel;
+        private int index;
 
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        if (eventData.button == PointerEventData.InputButton.Left)
-            carousel.OnCardClicked(index);
+        public void Init(CardCarousel owner, int card_index)
+        {
+            carousel = owner;
+            index = card_index;
+        }
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Left)
+                carousel.OnCardClicked(index);
+        }
     }
 }

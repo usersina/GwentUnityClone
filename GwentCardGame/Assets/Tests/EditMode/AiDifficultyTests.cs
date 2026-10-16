@@ -19,7 +19,7 @@ namespace Gwent.Rules.Tests
         private static List<Deck> Presets()
         {
             return Directory.GetFiles(PresetFolder, "*.json").OrderBy(path => path)
-                .Select(path => JsonUtility.FromJson<Deck>(File.ReadAllText(path))).ToList();
+                .Select(path => JsonUtility.FromJson<DeckFile>(File.ReadAllText(path)).ToDeck()).ToList();
         }
 
         [Test]
@@ -65,7 +65,7 @@ namespace Gwent.Rules.Tests
             List<Deck> presets = Presets();
             foreach (Deck deck in presets)
             {
-                if (Db.Get(deck.Leader).row != Rows.LeaderActive)
+                if (Db.Get(deck.Leader).row != Row.LeaderActive)
                     continue; // passive: always at work
                 int battles = 0, used = 0;
                 foreach (Deck opponent in presets.Where(other => other != deck))
@@ -121,7 +121,7 @@ namespace Gwent.Rules.Tests
             return AiBrain.Decide(ctx);
         }
 
-        // A battle from the deal (SceneController.Start): shuffled decks, 10 cards (11 under Francesca, Daisy of the
+        // A battle from the deal (BattleController.Start): shuffled decks, 10 cards (11 under Francesca, Daisy of the
         // Valley), the White Flame's cancel, Scoia'tael going first against another faction
         private static RoundWinner PlayBattle(Deck player_deck, Deck enemy_deck, Func<Board, bool, AiAction> policy, int seed)
         {
@@ -147,7 +147,7 @@ namespace Gwent.Rules.Tests
             }
             int cards = CountCards(board);
 
-            bool player_sc = player_deck.Faction == Factions.Scoiatael, enemy_sc = enemy_deck.Faction == Factions.Scoiatael;
+            bool player_sc = player_deck.Faction == Faction.Scoiatael, enemy_sc = enemy_deck.Faction == Faction.Scoiatael;
             bool player_first = player_sc != enemy_sc ? player_sc : rnd.Next(2) == 0;
             RoundWinner winner = BattleSim.PlayOut(board, player_first, false, policy);
 
@@ -158,7 +158,7 @@ namespace Gwent.Rules.Tests
 
         private static int CountCards(Board board)
         {
-            return new[] { board.Player, board.Enemy }.Sum(p => p.AllCards().Count(id => id != CardIds.BovineDefenseForce) - p.LeaderHornRows.Count);
+            return new[] { board.Player, board.Enemy }.Sum(p => p.AllCards().Count(id => !CardIds.IsSummoned(id)) - p.LeaderHornRows.Count);
         }
     }
 }

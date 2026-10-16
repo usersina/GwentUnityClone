@@ -3,7 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Gwent.Battle;
+using Gwent.Core;
+using Gwent.DeckBuilding;
+using Gwent.Menus;
 using Gwent.Rules;
+using Gwent.UI;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -15,2002 +20,2183 @@ using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// End-to-end smoke test: plays whole battles in the real Game scene with a random "player" against the AI.
-// The first battles start with the redraw played through real input (a virtual mouse and keyboard at human speed),
-// and the player's first turns check the same way card selection, the pause menu, passing, the keyboard controls,
-// the touch controls (simulated), the game speed setting and the card picker's keys.
-// Every leader of every faction gets a generated deck. Fails on exceptions/errors in the log, on a game that
-// stops progressing (softlock), and on cards appearing or disappearing (card conservation).
-// Then the deck builder opens on a test Monsters deck: real clicks add and remove cards (and are refused past the
-// copy and special limits), change the leader, switch factions and pick the deck in the dropdown; then its API
-// (duplicate names, rename, battle deck, corrupt files, delete). The main menu follows (settings, How to play), then
-// Play, the opponent picker and the battle with the deck the builder chose, and the fallback for an invalid deck.
-// It only touches its own "Autoplay ..." decks, and restores the battle deck, the opponent and the settings it changes.
-//
-//  Editor:  menu Gwent > Run Autoplay Smoke Test (Ctrl+Shift+Alt+G)
-//  Batch:   Unity -batchmode -projectPath <path> -executeMethod GwentAutoplay.RunBatch
-//                 [-autoplayMatches 21] [-autoplaySeed 1] [-autoplayReport <file>]
-public static class GwentAutoplay
+namespace Gwent.EditorTools
 {
-    private const string ActiveKey = "GwentAutoplay.Active";
-    private const string BatchKey = "GwentAutoplay.Batch";
-    private const string MatchesKey = "GwentAutoplay.Matches";
-    private const string SeedKey = "GwentAutoplay.Seed";
-    private const string ReportKey = "GwentAutoplay.Report";
-    private const float SoftlockSeconds = 20f;
-    private const float TimeScale = 20f;
-
-    [MenuItem("Gwent/Run Autoplay Smoke Test %#&g")] // Ctrl+Shift+Alt+G
-    public static void RunFromMenu()
+    // End-to-end smoke test: plays whole battles in the real Game scene with a random "player" against the AI.
+    // The first battles start with the redraw played through real input (a virtual mouse and keyboard at human speed),
+    // and the player's first turns check the same way card selection, the pause menu, passing, the keyboard controls,
+    // the touch controls (simulated), the game speed setting and the card picker's keys.
+    // Every leader of every faction gets a generated deck. Fails on exceptions/errors in the log, on a game that
+    // stops progressing (softlock), and on cards appearing or disappearing (card conservation).
+    // Then the deck builder opens on a test Monsters deck: real clicks add and remove cards (and are refused past the
+    // copy and special limits), change the leader, switch factions and pick the deck in the dropdown; then its API
+    // (duplicate names, rename, battle deck, corrupt files, delete). The main menu follows (settings, How to play), then
+    // Play, the opponent picker and the battle with the deck the builder chose, and the fallback for an invalid deck.
+    // It only touches its own "Autoplay ..." decks, and restores the battle deck, the opponent and the settings it changes.
+    //
+    //  Editor:  menu Gwent > Run Autoplay Smoke Test (Ctrl+Shift+Alt+G)
+    //  Batch:   Unity -batchmode -projectPath <path> -executeMethod Gwent.EditorTools.GwentAutoplay.RunBatch
+    //                 [-autoplayMatches 21] [-autoplaySeed 1] [-autoplayReport <file>]
+    public static class GwentAutoplay
     {
-        Begin(Factions.Playable.Length * 5 + 1, 1, false, Path.Combine("Logs", "autoplay-report.txt"));
-    }
-
-    public static void RunBatch()
-    {
-        string[] args = Environment.GetCommandLineArgs();
-        int matches = IntArg(args, "-autoplayMatches", Factions.Playable.Length * 5 + 1);
-        int seed = IntArg(args, "-autoplaySeed", 1);
-        string report = StringArg(args, "-autoplayReport", Path.Combine("Logs", "autoplay-report.txt"));
-        Begin(matches, seed, true, report);
-    }
-
-    private static void Begin(int matches, int seed, bool batch, string report)
-    {
-        if (EditorApplication.isPlaying)
+        // The run's failures: each one also goes into the game log, where it sits among the events that led to it
+        private class LoggedFailures : List<string>
         {
-            Debug.LogWarning("Stop Play mode before running the autoplay smoke test.");
-            return;
-        }
-        // Opening the Game scene would otherwise drop unsaved changes of the current scene
-        if (!batch && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-            return;
-
-        SessionState.SetBool(ActiveKey, true);
-        SessionState.SetBool(BatchKey, batch);
-        SessionState.SetInt(MatchesKey, matches);
-        SessionState.SetInt(SeedKey, seed);
-        SessionState.SetString(ReportKey, report);
-        EditorSceneManager.OpenScene("Assets/Scenes/Game.unity");
-        EditorApplication.isPlaying = true;
-    }
-
-    [InitializeOnLoadMethod]
-    private static void Hook()
-    {
-        EditorApplication.playModeStateChanged -= OnPlayModeChanged;
-        EditorApplication.playModeStateChanged += OnPlayModeChanged;
-    }
-
-    private static Runner runner;
-
-    private static void OnPlayModeChanged(PlayModeStateChange state)
-    {
-        // Play mode stopped in the middle of a run: report what was done instead of staying hooked to the editor
-        if (state == PlayModeStateChange.ExitingPlayMode && runner != null && runner.Running)
-        {
-            runner.Abort("play mode was stopped before the run ended");
-            return;
-        }
-        if (state != PlayModeStateChange.EnteredPlayMode || !SessionState.GetBool(ActiveKey, false))
-            return;
-        SessionState.SetBool(ActiveKey, false);
-        runner = new Runner(SessionState.GetInt(MatchesKey, 21), SessionState.GetInt(SeedKey, 1),
-            SessionState.GetBool(BatchKey, false), SessionState.GetString(ReportKey, "Logs/autoplay-report.txt"));
-        runner.Start();
-    }
-
-    // The notice showing at the top of the screen, if any
-    private static string ToastText()
-    {
-        GameObject toast = GameObject.Find("Toast");
-        TextMeshProUGUI label = toast != null ? toast.GetComponentInChildren<TextMeshProUGUI>() : null;
-        return label != null ? label.text : "";
-    }
-
-    private static int IntArg(string[] args, string name, int fallback)
-    {
-        int index = Array.IndexOf(args, name);
-        int value;
-        return index >= 0 && index + 1 < args.Length && int.TryParse(args[index + 1], out value) ? value : fallback;
-    }
-
-    private static string StringArg(string[] args, string name, string fallback)
-    {
-        int index = Array.IndexOf(args, name);
-        return index >= 0 && index + 1 < args.Length ? args[index + 1] : fallback;
-    }
-
-    //----------------------------------------The runner (ticked by EditorApplication.update)----------------------------------------//
-    private class Runner
-    {
-        private readonly int totalMatches;
-        private readonly int seed;
-        private readonly bool batch;
-        private readonly string reportPath;
-        private readonly System.Random rnd;
-        private readonly List<string> failures = new List<string>();
-        private readonly List<string> results = new List<string>();
-        private readonly List<string> errors = new List<string>();
-        private int ignoredEditorErrors;
-        private readonly Dictionary<string, int> stats = new Dictionary<string, int>();
-        private List<Deck> decks;
-
-        private int match = -1;
-        private bool deckPhase;
-        private int deckPhaseFrames;
-        private bool menuPhase;
-        private int menuPhaseFrames;
-        private SceneController controller;
-        private int expectedCards = -1;
-        private string lastSignature;
-        private double lastProgress;
-        private double nextActionTime;
-        private string currentDeck;
-        private InputCheck inputCheck;
-        private int redrawChecks;
-        private bool selectionChecked;
-        private bool pauseChecked;
-        private bool passKeyChecked;
-        private bool keyboardChecked;
-        private bool touchChecked;
-        private bool speedChecked;
-        private bool pickerChecked;
-        private bool leaderChecked;
-        private bool pileChecked;
-        private bool endScreenChecked;
-        private int roundEndChecked;
-        private readonly HashSet<int> turnsChecked = new HashSet<int>();
-        private int boardMismatchMatch = -1;
-        private int deckStage;
-        private int menuStage;
-        private bool roundTripPhase;
-        private int roundTripStage;
-        private double phaseStart;
-        private SceneController previousBattle;
-
-        // Restored at the end: what the run changes in the player's settings
-        private string savedBattleDeck;
-        private string savedOpponent;
-        private int savedDifficulty;
-        private bool savedTouch;
-        private readonly List<string> testFiles = new List<string>();
-
-        // The deck builder's test deck (a valid Monsters deck in the deck folder) and the opponent chosen in the menu
-        private string testDeckPath;
-        private string testDeckName;
-        private TextAsset chosenOpponent;
-
-        public Runner(int total_matches, int seed, bool batch, string report_path)
-        {
-            totalMatches = total_matches;
-            this.seed = seed;
-            this.batch = batch;
-            reportPath = report_path;
-            rnd = new System.Random(seed);
-        }
-
-        public bool Running { get; private set; }
-
-        public void Abort(string why)
-        {
-            failures.Add("[" + Label() + "] ABORTED: " + why);
-            Finish();
-        }
-
-        public void Start()
-        {
-            Running = true;
-            savedBattleDeck = PlayerPrefs.GetString("playerDeckPath", "");
-            savedOpponent = OpponentDecks.Chosen;
-            savedDifficulty = PlayerPrefs.HasKey("aiDifficulty") ? (int)GameSettings.AiDifficulty : -1;
-            savedTouch = GameInput.SimulateTouch;
-            GameInput.SimulateTouch = false;
-            Application.logMessageReceived += OnLog;
-            EditorApplication.update += Tick;
-            Time.timeScale = TimeScale;
-            decks = GenerateDecks(CardLibrary.Get());
-            NextMatch(first: true);
-        }
-
-        private void OnLog(string message, string stack, LogType type)
-        {
-            if (type != LogType.Exception && type != LogType.Error && type != LogType.Assert)
-                return;
-            // Unity 6 editor bug: Quick Search indexing throws on startup when no index exists yet (not game code)
-            if (stack.Contains("UnityEditor.Search.SearchInit.IndexationOnStartup"))
+            public new void Add(string failure)
             {
-                ignoredEditorErrors++;
+                base.Add(failure);
+                GameLog.Event(LogCategory.Game, "autoplay_failure", "what", failure);
+            }
+        }
+
+        private const string ActiveKey = "GwentAutoplay.Active";
+        private const string BatchKey = "GwentAutoplay.Batch";
+        private const string MatchesKey = "GwentAutoplay.Matches";
+        private const string SeedKey = "GwentAutoplay.Seed";
+        private const string ReportKey = "GwentAutoplay.Report";
+        private const float SoftlockSeconds = 20f;
+        private const float TimeScale = 20f;
+
+        [MenuItem("Gwent/Run Autoplay Smoke Test %#&g")] // Ctrl+Shift+Alt+G
+        public static void RunFromMenu()
+        {
+            Begin(LeaderIds.ByFaction.Values.Sum(leaders => leaders.Length) + 1, 1, false, Path.Combine("Logs", "autoplay-report.txt"));
+        }
+
+        public static void RunBatch()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int matches = IntArg(args, "-autoplayMatches", LeaderIds.ByFaction.Values.Sum(leaders => leaders.Length) + 1);
+            int seed = IntArg(args, "-autoplaySeed", 1);
+            string report = StringArg(args, "-autoplayReport", Path.Combine("Logs", "autoplay-report.txt"));
+            Begin(matches, seed, true, report);
+        }
+
+        private static void Begin(int matches, int seed, bool batch, string report)
+        {
+            if (EditorApplication.isPlaying)
+            {
+                Debug.LogWarning("Stop Play mode before running the autoplay smoke test.");
                 return;
             }
-            errors.Add("[" + Label() + "] " + type + ": " + message + "\n" + stack.Split('\n').Take(4).Aggregate("", (a, b) => a + "    " + b + "\n"));
+            // Opening the Game scene would otherwise drop unsaved changes of the current scene
+            if (!batch && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+
+            SessionState.SetBool(ActiveKey, true);
+            SessionState.SetBool(BatchKey, batch);
+            SessionState.SetInt(MatchesKey, matches);
+            SessionState.SetInt(SeedKey, seed);
+            SessionState.SetString(ReportKey, report);
+            EditorSceneManager.OpenScene("Assets/Scenes/Game.unity");
+            EditorApplication.isPlaying = true;
         }
 
-        private string Label()
+        [InitializeOnLoadMethod]
+        private static void Hook()
         {
-            return "match " + (match + 1) + " (" + currentDeck + " vs " + OpponentDecks.Override + ", " + GameSettings.AiDifficulty + ")";
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
         }
 
-        private void Count(string key)
+        private static Runner runner;
+
+        private static void OnPlayModeChanged(PlayModeStateChange state)
         {
+            // Play mode stopped in the middle of a run: report what was done instead of staying hooked to the editor
+            if (state == PlayModeStateChange.ExitingPlayMode && runner != null && runner.Running)
+            {
+                runner.Abort("play mode was stopped before the run ended");
+                return;
+            }
+            if (state != PlayModeStateChange.EnteredPlayMode || !SessionState.GetBool(ActiveKey, false))
+                return;
+            SessionState.SetBool(ActiveKey, false);
+            runner = new Runner(SessionState.GetInt(MatchesKey, 21), SessionState.GetInt(SeedKey, 1),
+                SessionState.GetBool(BatchKey, false), SessionState.GetString(ReportKey, "Logs/autoplay-report.txt"));
+            runner.Start();
+        }
+
+        // The notice showing at the top of the screen, if any
+        private static string ToastText()
+        {
+            UnityEngine.UIElements.VisualElement toast = UIScreens.Find("Toast");
+            UnityEngine.UIElements.Label label = toast != null ? UnityEngine.UIElements.UQueryExtensions.Q<UnityEngine.UIElements.Label>(toast, "Message") : null;
+            return label != null ? label.text : "";
+        }
+
+        private static int IntArg(string[] args, string name, int fallback)
+        {
+            int index = Array.IndexOf(args, name);
             int value;
-            stats.TryGetValue(key, out value);
-            stats[key] = value + 1;
+            return index >= 0 && index + 1 < args.Length && int.TryParse(args[index + 1], out value) ? value : fallback;
         }
 
-        private void NextMatch(bool first = false)
+        private static string StringArg(string[] args, string name, string fallback)
         {
-            EndInputCheck(); // a check never carries over into another battle
-            match++;
-            turnsChecked.Clear();
-            // Every opponent deck in turn, so the AI plays every faction
-            List<TextAsset> opponents = OpponentDecks.All();
-            OpponentDecks.Override = opponents.Count > 0 ? opponents[match % opponents.Count].name : null;
-            if (match >= totalMatches)
-            {
-                // Battles done: on to the deck builder, which opens on the battle deck (a test Monsters deck)
-                OpponentDecks.Override = null;
-                ApplicationModel.playerDeckPath = CreateTestDeck(CardLibrary.Get());
-                deckPhase = true;
-                deckPhaseFrames = 0;
-                lastProgress = EditorApplication.timeSinceStartup;
-                currentDeck = "deck builder";
-                SceneManager.LoadScene(SceneNames.Deck);
-                return;
-            }
-
-            Rng.Seed(seed * 1000 + match);
-            // Every difficulty in turn, each opponent deck meeting all three over the run
-            GameSettings.AiDifficulty = (AiDifficulty)((match + match / Math.Max(1, opponents.Count)) % 3);
-            Count("AI " + GameSettings.AiDifficulty);
-            // Match 0: the built-in default deck; then one generated deck per leader (cycling)
-            if (match == 0 || decks.Count == 0)
-            {
-                ApplicationModel.playerDeckPath = null;
-                currentDeck = "default NR deck";
-            }
-            else
-            {
-                Deck deck = decks[(match - 1) % decks.Count];
-                string path = Path.Combine(Application.temporaryCachePath, "autoplay_" + deck.Faction + "_" + deck.Leader + ".json");
-                File.WriteAllText(path, JsonUtility.ToJson(deck));
-                ApplicationModel.playerDeckPath = path;
-                currentDeck = deck.Name;
-            }
-
-            controller = null;
-            expectedCards = -1;
-            lastSignature = null;
-            lastProgress = EditorApplication.timeSinceStartup;
-            if (!first)
-                SceneManager.LoadScene(SceneNames.Game);
+            int index = Array.IndexOf(args, name);
+            return index >= 0 && index + 1 < args.Length ? args[index + 1] : fallback;
         }
 
-        private void Tick()
+        //----------------------------------------The runner (ticked by EditorApplication.update)----------------------------------------//
+        private class Runner
         {
-            if (!EditorApplication.isPlaying)
-                return;
-            // Real-time input runs at normal speed, like a person playing (the game speed check sets its own; the pause
-            // menu and a discard pile stop time)
-            if (!PauseMenu.IsOpen && !DiscardViewer.IsOpen && (inputCheck == null || !inputCheck.OwnsTimeScale))
-                Time.timeScale = inputCheck != null ? 1f : TimeScale;
+            private readonly int totalMatches;
+            private readonly int seed;
+            private readonly bool batch;
+            private readonly string reportPath;
+            private readonly System.Random rnd;
+            private readonly LoggedFailures failures = new LoggedFailures();
+            private readonly List<string> results = new List<string>();
+            private readonly List<string> errors = new List<string>();
+            private int ignoredEditorErrors;
+            private readonly Dictionary<string, int> stats = new Dictionary<string, int>();
+            private List<Deck> decks;
 
-            try
+            private int match = -1;
+            private bool deckPhase;
+            private int deckPhaseFrames;
+            private bool menuPhase;
+            private int menuPhaseFrames;
+            private BattleController controller;
+            private int expectedCards = -1;
+            private string lastSignature;
+            private double lastProgress;
+            private double nextActionTime;
+            private string currentDeck;
+            private InputCheck inputCheck;
+            private int redrawChecks;
+            private bool selectionChecked;
+            private bool pauseChecked;
+            private bool giveUpChecked;
+            private bool passKeyChecked;
+            private bool keyboardChecked;
+            private bool touchChecked;
+            private bool speedChecked;
+            private bool pickerChecked;
+            private bool leaderChecked;
+            private bool pileChecked;
+            private bool endScreenChecked;
+            private int roundEndChecked;
+            private readonly HashSet<int> turnsChecked = new HashSet<int>();
+            private int boardMismatchMatch = -1;
+            private int deckStage;
+            private int menuStage;
+            private bool roundTripPhase;
+            private int roundTripStage;
+            private double phaseStart;
+            private BattleController previousBattle;
+
+            // Restored at the end: what the run changes in the player's settings
+            private string savedBattleDeck;
+            private string savedOpponent;
+            private int savedDifficulty;
+            private bool savedTouch;
+            private readonly List<string> testFiles = new List<string>();
+
+            // The deck builder's test deck (a valid Monsters deck in the deck folder) and the opponent chosen in the menu
+            private string testDeckPath;
+            private string testDeckName;
+            private TextAsset chosenOpponent;
+
+            public Runner(int total_matches, int seed, bool batch, string report_path)
             {
-                if (roundTripPhase)
+                totalMatches = total_matches;
+                this.seed = seed;
+                this.batch = batch;
+                reportPath = report_path;
+                rnd = new System.Random(seed);
+            }
+
+            public bool Running { get; private set; }
+
+            public void Abort(string why)
+            {
+                failures.Add("[" + Label() + "] ABORTED: " + why);
+                Finish();
+            }
+
+            public void Start()
+            {
+                Running = true;
+                savedBattleDeck = PlayerPrefs.GetString("playerDeckPath", "");
+                savedOpponent = OpponentDecks.Chosen;
+                savedDifficulty = PlayerPrefs.HasKey("aiDifficulty") ? (int)GameSettings.AiDifficulty : -1;
+                savedTouch = GameInput.SimulateTouch;
+                GameInput.SimulateTouch = false;
+                Application.logMessageReceived += OnLog;
+                EditorApplication.update += Tick;
+                Time.timeScale = TimeScale;
+                decks = GenerateDecks(CardLibrary.Get());
+                NextMatch(first: true);
+            }
+
+            private void OnLog(string message, string stack, LogType type)
+            {
+                if (type != LogType.Exception && type != LogType.Error && type != LogType.Assert)
+                    return;
+                // Unity 6 editor bug: Quick Search indexing throws on startup when no index exists yet (not game code)
+                if (stack.Contains("UnityEditor.Search.SearchInit.IndexationOnStartup"))
                 {
-                    RoundTripStep();
+                    ignoredEditorErrors++;
                     return;
                 }
-                if (menuPhase)
+                errors.Add("[" + Label() + "] " + type + ": " + message + "\n" + stack.Split('\n').Take(4).Aggregate("", (a, b) => a + "    " + b + "\n"));
+            }
+
+            private string Label()
+            {
+                return "match " + (match + 1) + " (" + currentDeck + " vs " + OpponentDecks.Override + ", " + GameSettings.AiDifficulty + ")";
+            }
+
+            private void Count(string key)
+            {
+                int value;
+                stats.TryGetValue(key, out value);
+                stats[key] = value + 1;
+            }
+
+            private void NextMatch(bool first = false)
+            {
+                EndInputCheck(); // a check never carries over into another battle
+                match++;
+                GameLog.Event(LogCategory.Game, "autoplay_match", "match", match + 1);
+                turnsChecked.Clear();
+                // Every opponent deck in turn, so the AI plays every faction
+                List<TextAsset> opponents = OpponentDecks.All();
+                OpponentDecks.Override = opponents.Count > 0 ? opponents[match % opponents.Count].name : null;
+                if (match >= totalMatches)
                 {
-                    MenuStep();
-                    return;
-                }
-                if (deckPhase)
-                {
-                    DeckBuilderStep();
-                    return;
-                }
-            }
-            catch (Exception e)
-            {
-                Abort("autoplay exception in the " + currentDeck + ": " + e);
-                return;
-            }
-
-            try
-            {
-                Step();
-            }
-            catch (Exception e)
-            {
-                failures.Add("[" + Label() + "] autoplay exception: " + e);
-                EndInputCheck();
-                NextMatch();
-            }
-        }
-
-        private void Step()
-        {
-            if (controller == null || controller != SceneController.Instance)
-            {
-                controller = SceneController.Instance;
-                if (controller == null)
-                {
-                    // The battle scene never started (it failed to load, or threw while starting)
-                    if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
-                    {
-                        failures.Add("[" + Label() + "] the battle did not start");
-                        NextMatch();
-                    }
-                    return;
-                }
-            }
-            SceneController c = controller;
-
-            if (expectedCards < 0 && c.PlayerInfo.HandList.Count > 0)
-                expectedCards = CountCards(c);
-
-            // Progress / softlock detection
-            string signature = Signature(c);
-            double now = EditorApplication.timeSinceStartup;
-            if (signature != lastSignature)
-            {
-                lastSignature = signature;
-                lastProgress = now;
-                CheckConservation(c);
-            }
-            else if (inputCheck == null && now - lastProgress > SoftlockSeconds) // an input check waits on purpose
-            {
-                failures.Add("[" + Label() + "] SOFTLOCK: no progress for " + SoftlockSeconds + "s, state " + signature);
-                NextMatch();
-                return;
-            }
-
-            if (c.battleState == BattleState.WON || c.battleState == BattleState.LOST || c.battleState == BattleState.DRAW)
-            {
-                if (!endScreenChecked)
-                {
-                    endScreenChecked = true;
-                    // The Witcher 3's emblem of the outcome (its plaque names it)
-                    string expected = c.battleState == BattleState.WON ? "win" : c.battleState == BattleState.LOST ? "lose" : "draw";
-                    Image emblem = c.PostGame.GetComponentsInChildren<Image>().FirstOrDefault(i => i.name == "Emblem");
-                    Check(c.PostGame.activeInHierarchy && emblem != null && emblem.sprite != null && emblem.sprite.name == expected, "the end screen shows the \"" + expected + "\" emblem", "end screen");
-                    Check(GameObject.Find("Button Play again") != null && GameObject.Find("Button Main menu") != null, "the end screen offers Play again and Main menu", "end screen");
-                }
-                results.Add(Label() + ": " + c.battleState + " " + string.Join("-", c.PlayerInfo.RoundsScore) + " vs " + string.Join("-", c.EnemyInfo.RoundsScore));
-                Count("result " + c.battleState);
-                NextMatch();
-                return;
-            }
-
-            // The round's result shows over the board before it clears
-            if (c.battleState == BattleState.ROUNDOVER && c.PlayerInfo.RoundsScore.Count != roundEndChecked)
-            {
-                roundEndChecked = c.PlayerInfo.RoundsScore.Count;
-                Check(BattleBanner.Busy, "the round's result is announced", "round end");
-            }
-
-            if (inputCheck != null)
-            {
-                inputCheck.Tick();
-                if (inputCheck.Done)
-                    EndInputCheck();
-                return;
-            }
-
-            if (now < nextActionTime)
-                return;
-            nextActionTime = now + 0.02;
-            PlayerStep(c);
-        }
-
-        private void EndInputCheck()
-        {
-            if (inputCheck == null)
-                return;
-            inputCheck.Teardown();
-            inputCheck = null;
-            lastProgress = EditorApplication.timeSinceStartup; // the time it took was no lack of progress
-        }
-
-        //----------------------------------------The random player----------------------------------------//
-        private void PlayerStep(SceneController c)
-        {
-            // The Scoia'tael choice comes first, before the redraw (as in The Witcher 3)
-            if (c.TurnPicker.activeInHierarchy)
-            {
-                Check(GameObject.Find("Button Go first") != null && GameObject.Find("Button Go second") != null, "the Scoia'tael turn dialog shows its two choices", "turn dialog");
-                TurnManager picker = c.TurnPicker.GetComponentInChildren<TurnManager>();
-                if (rnd.Next(2) == 0) picker.GoFirst(); else picker.GoSecond();
-                Count("scoiatael turn pick");
-                return;
-            }
-
-            if (c.battleState == BattleState.START && c.PlayerInfo.CanExchange)
-            {
-                // The redraw opens once the coin toss has been announced
-                if (!RedrawPicker.IsOpen)
-                    return;
-                InputScenario[] redraws = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace };
-                if (redrawChecks < redraws.Length)
-                {
-                    InputScenario scenario = redraws[redrawChecks++];
-                    inputCheck = new InputCheck(c, scenario, (ok, what) => Check(ok, what, "redraw input"));
+                    // Battles done: on to the deck builder, which opens on the battle deck (a test Monsters deck)
+                    OpponentDecks.Override = null;
+                    DeckStorage.BattleDeckPath = CreateTestDeck(CardLibrary.Get());
+                    deckPhase = true;
+                    deckPhaseFrames = 0;
+                    lastProgress = EditorApplication.timeSinceStartup;
+                    currentDeck = "deck builder";
+                    SceneManager.LoadScene(SceneNames.Deck);
                     return;
                 }
 
-                List<int> hand = c.PlayerInfo.HandList;
-                int exchanges = rnd.Next(3);
-                for (int i = 0; i < exchanges && hand.Count > 0; i++)
+                Rng.Seed(seed * 1000 + match);
+                // Every difficulty in turn, each opponent deck meeting all three over the run
+                GameSettings.AiDifficulty = (AiDifficulty)((match + match / Math.Max(1, opponents.Count)) % 3);
+                Count("AI " + GameSettings.AiDifficulty);
+                // Match 0: the built-in default deck; then one generated deck per leader (cycling)
+                if (match == 0 || decks.Count == 0)
                 {
-                    c.ExchangeCard(hand[rnd.Next(hand.Count)], true);
-                    c.PlayerInfo.CardsExchanged++;
-                    Count("exchange");
-                }
-                c.FinishCardExchange();
-                return;
-            }
-
-            // A play is being shown: wait for it to end
-            if (c.IsPresenting)
-                return;
-
-            if (c.Panel.activeInHierarchy)
-            {
-                PanelManager panel = c.Panel.GetComponent<PanelManager>();
-                IList<int> offered = panel.Cards;
-                // The first picker with a choice to make: through its keys
-                if (!pickerChecked && offered.Count >= 2 && c.pendingAction == PendingAction.PanelChoice)
-                {
-                    pickerChecked = true;
-                    inputCheck = new InputCheck(c, InputScenario.PickerKeys, (ok, what) => Check(ok, what, "picker keys"));
-                    return;
-                }
-                if (offered.Count == 0 || rnd.Next(10) == 0)
-                {
-                    c.CancelPanel();
-                    Count("panel skip");
+                    DeckStorage.BattleDeckPath = null;
+                    currentDeck = "default NR deck";
                 }
                 else
                 {
-                    panel.Choose(offered[rnd.Next(offered.Count)]);
-                    Count("panel choose");
+                    Deck deck = decks[(match - 1) % decks.Count];
+                    string path = Path.Combine(Application.temporaryCachePath, "autoplay_" + deck.Faction.Code() + "_" + deck.Leader + ".json");
+                    File.WriteAllText(path, JsonUtility.ToJson(DeckFile.Of(deck)));
+                    DeckStorage.BattleDeckPath = path;
+                    currentDeck = deck.Name;
                 }
-                return;
+
+                controller = null;
+                expectedCards = -1;
+                lastSignature = null;
+                lastProgress = EditorApplication.timeSinceStartup;
+                if (!first)
+                    SceneManager.LoadScene(SceneNames.Game);
             }
 
-            if (c.battleState != BattleState.PLAYERTURN)
-                return;
-            if (c.pendingAction == PendingAction.None)
+            private void Tick()
             {
-                CheckBoardShowsModel(c);
-                // The Witcher 3: a side with nothing left to play passes automatically, it never gets a turn
-                if (c.PlayerInfo.HandList.Count == 0 && turnsChecked.Add(c.PlayerInfo.RoundsScore.Count * 100 + c.EnemyInfo.HandList.Count))
-                    Check(c.CanUseLeader(true), "a turn with an empty hand still has the leader to use", "auto pass");
-            }
-
-            switch (c.pendingAction)
-            {
-                case PendingAction.PlacePickedCard:
-                    PlaceSelected(c);
+                if (!EditorApplication.isPlaying)
                     return;
-                case PendingAction.DiscardCards:
-                    List<int> hand = c.PlayerInfo.HandList;
-                    c.DiscardCard(hand[rnd.Next(hand.Count)], true);
-                    c.PlayerInfo.CardsDiscarded++;
-                    if (c.PlayerInfo.CardsDiscarded >= 2)
-                        c.DeckCardPicker(true);
-                    Count("leader discard");
-                    return;
-                case PendingAction.PanelChoice:
-                    return;
-            }
+                // Real-time input runs at normal speed, like a person playing (the game speed check sets its own; the pause
+                // menu and a discard pile stop time)
+                if (!PauseMenu.IsOpen && !DiscardViewer.IsOpen && (inputCheck == null || !inputCheck.OwnsTimeScale))
+                    Time.timeScale = inputCheck != null ? 1f : TimeScale;
 
-            if (!selectionChecked && c.PlayerField.transform.Find("Hand").childCount > 0)
-            {
-                selectionChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.SelectCard, (ok, what) => Check(ok, what, "selection input"));
-                return;
-            }
-            if (!pauseChecked)
-            {
-                pauseChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.PauseMenu, (ok, what) => Check(ok, what, "pause menu input"));
-                return;
-            }
-            if (!passKeyChecked)
-            {
-                passKeyChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.PassWithSpace, (ok, what) => Check(ok, what, "pass input"));
-                return;
-            }
-            if (!keyboardChecked && c.PlayerInfo.HandList.Count > 0)
-            {
-                keyboardChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.KeyboardPlay, (ok, what) => Check(ok, what, "keyboard play"));
-                return;
-            }
-            if (!touchChecked && c.PlayerInfo.HandList.Count > 0)
-            {
-                touchChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.TouchControls, (ok, what) => Check(ok, what, "touch controls"));
-                return;
-            }
-            if (!speedChecked)
-            {
-                speedChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.GameSpeed, (ok, what) => Check(ok, what, "game speed"));
-                return;
-            }
-            if (!pileChecked && (c.PlayerInfo.DiscardList.Count >= 2 || c.EnemyInfo.DiscardList.Count >= 2))
-            {
-                pileChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.DiscardPile, (ok, what) => Check(ok, what, "discard pile"));
-                return;
-            }
-            // The first turn with a leader ability that would act
-            if (!leaderChecked && c.CanUseLeader(true) && c.LeaderProblem() == null && c.PlayerInfo.HandList.Count > 0)
-            {
-                leaderChecked = true;
-                inputCheck = new InputCheck(c, InputScenario.LeaderTwoClicks, (ok, what) => Check(ok, what, "leader input"));
-                return;
-            }
-
-            // A normal turn: maybe the leader, sometimes pass, otherwise play a random card through the real UI scripts
-            if (c.CanUseLeader(true) && rnd.Next(6) == 0)
-            {
-                c.ActivateLeader(c.PlayerInfo.Leader, true);
-                Count("leader " + c.PlayerInfo.Leader + (c.PlayerInfo.canLeader ? " (unavailable)" : ""));
-                return;
-            }
-
-            Transform hand_t = c.PlayerField.transform.Find("Hand");
-            bool should_pass = hand_t.childCount == 0 || (c.EnemyInfo.hasPassed && c.PlayerInfo.TotalScore() > c.EnemyInfo.TotalScore()) || rnd.Next(14) == 0;
-            if (should_pass)
-            {
-                c.SkipTurn(true);
-                Count("pass");
-                return;
-            }
-
-            GameObject card = hand_t.GetChild(rnd.Next(hand_t.childCount)).gameObject;
-            card.GetComponent<CardSelect>().OnCardSelect();
-            if (c.selectedCard != card)
-                return;
-            PlaceSelected(c);
-        }
-
-        private void PlaceSelected(SceneController c)
-        {
-            if (c.selectedCard == null)
-                return;
-            CardStats stats = c.selectedCard.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-            Count("play " + (stats.faction == Factions.Special ? stats._idstr : string.IsNullOrEmpty(stats.ability) ? "unit" : stats.ability));
-
-            // Only where the card can go lights up: no rows for a decoy (its targets get a frame) or a weather card
-            List<GameObject> lit = c.PlayerField.GetComponent<RowPicker>().highLightedRows.Concat(c.EnemyField.GetComponent<RowPicker>().highLightedRows).ToList();
-            WeatherManager weather_board = c.WeatherField.GetComponent<WeatherManager>();
-            bool weather_lit = c.WeatherField.GetComponent<Image>().sprite == weather_board.weatherSelected;
-            if (stats.ability == Abilities.Decoy)
-            {
-                int frames = c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == "DecoyTarget");
-                int swappable = Rows.Units.Sum(row => c.PlayerInfo.UnitRow(row).Count(id => !c.Db.Get(id).unique && !c.Db.Get(id).IsSpecial));
-                Check(lit.Count == 0 && !weather_lit && frames == swappable, "a decoy frames its " + swappable + " targets and lights no row (" + frames + " frames, " + lit.Count + " rows)", "highlight");
-            }
-            else if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
-                Check(lit.Count == 0 && weather_lit, "a weather card lights only the weather board", "highlight");
-
-            if (stats.ability == Abilities.Decoy)
-            {
-                List<GameObject> targets = new List<GameObject>();
-                foreach (string row in Rows.Units)
-                    foreach (Transform t in c.PlayerField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit"))
-                        if (t.GetComponent<CardSelect>() != null)
-                            targets.Add(t.gameObject);
-                if (targets.Count == 0)
+                try
                 {
-                    // Nothing to swap: click the same card again to deselect it
-                    c.selectedCard.GetComponent<CardSelect>().OnCardSelect();
+                    if (roundTripPhase)
+                    {
+                        RoundTripStep();
+                        return;
+                    }
+                    if (menuPhase)
+                    {
+                        MenuStep();
+                        return;
+                    }
+                    if (deckPhase)
+                    {
+                        DeckBuilderStep();
+                        return;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Abort("autoplay exception in the " + currentDeck + ": " + e);
+                    return;
+                }
+
+                try
+                {
+                    Step();
+                }
+                catch (Exception e)
+                {
+                    failures.Add("[" + Label() + "] autoplay exception: " + e);
+                    EndInputCheck();
+                    NextMatch();
+                }
+            }
+
+            private void Step()
+            {
+                if (controller == null || controller != BattleController.Instance)
+                {
+                    controller = BattleController.Instance;
+                    if (controller == null)
+                    {
+                        // The battle scene never started (it failed to load, or threw while starting)
+                        if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
+                        {
+                            failures.Add("[" + Label() + "] the battle did not start");
+                            NextMatch();
+                        }
+                        return;
+                    }
+                }
+                BattleController c = controller;
+
+                if (expectedCards < 0 && c.PlayerInfo.HandList.Count > 0)
+                    expectedCards = CountCards(c);
+
+                // Progress / softlock detection
+                string signature = Signature(c);
+                double now = EditorApplication.timeSinceStartup;
+                if (signature != lastSignature)
+                {
+                    lastSignature = signature;
+                    lastProgress = now;
+                    CheckConservation(c);
+                }
+                else if (inputCheck == null && now - lastProgress > SoftlockSeconds) // an input check waits on purpose
+                {
+                    failures.Add("[" + Label() + "] SOFTLOCK: no progress for " + SoftlockSeconds + "s, state " + signature);
+                    NextMatch();
+                    return;
+                }
+
+                if (c.battleState == BattleState.Won || c.battleState == BattleState.Lost || c.battleState == BattleState.Draw)
+                {
+                    if (!endScreenChecked)
+                    {
+                        endScreenChecked = true;
+                        // The Witcher 3's emblem of the outcome (its plaque names it)
+                        string expected = c.battleState == BattleState.Won ? "win" : c.battleState == BattleState.Lost ? "lose" : "draw";
+                        Image emblem = c.PostGame.GetComponentsInChildren<Image>().FirstOrDefault(i => i.name == "Emblem");
+                        Check(c.PostGame.activeInHierarchy && emblem != null && emblem.sprite != null && emblem.sprite.name == expected, "the end screen shows the \"" + expected + "\" emblem", "end screen");
+                        Check(GameObject.Find("Button Play again") != null && GameObject.Find("Button Main menu") != null, "the end screen offers Play again and Main menu", "end screen");
+                    }
+                    results.Add(Label() + ": " + c.battleState + " " + string.Join("-", c.PlayerInfo.RoundsScore) + " vs " + string.Join("-", c.EnemyInfo.RoundsScore));
+                    Count("result " + c.battleState);
+                    NextMatch();
+                    return;
+                }
+
+                // The round's result shows over the board before it clears
+                if (c.battleState == BattleState.RoundOver && c.PlayerInfo.RoundsScore.Count != roundEndChecked)
+                {
+                    roundEndChecked = c.PlayerInfo.RoundsScore.Count;
+                    Check(BattleBanner.Busy, "the round's result is announced", "round end");
+                }
+
+                if (inputCheck != null)
+                {
+                    inputCheck.Tick();
+                    if (inputCheck.Done)
+                        EndInputCheck();
+                    return;
+                }
+
+                if (now < nextActionTime)
+                    return;
+                nextActionTime = now + 0.02;
+                PlayerStep(c);
+            }
+
+            private void EndInputCheck()
+            {
+                if (inputCheck == null)
+                    return;
+                inputCheck.Teardown();
+                inputCheck = null;
+                lastProgress = EditorApplication.timeSinceStartup; // the time it took was no lack of progress
+            }
+
+            //----------------------------------------The random player----------------------------------------//
+            private void PlayerStep(BattleController c)
+            {
+                // The Scoia'tael choice comes first, before the redraw (as in The Witcher 3)
+                if (c.TurnPicker.activeInHierarchy)
+                {
+                    Check(GameObject.Find("Button Go first") != null && GameObject.Find("Button Go second") != null, "the Scoia'tael turn dialog shows its two choices", "turn dialog");
+                    FirstTurnPicker picker = c.TurnPicker.GetComponentInChildren<FirstTurnPicker>();
+                    if (rnd.Next(2) == 0) picker.GoFirst(); else picker.GoSecond();
+                    Count("scoiatael turn pick");
+                    return;
+                }
+
+                if (c.battleState == BattleState.Start && c.PlayerInfo.CanExchange)
+                {
+                    // The redraw opens once the coin toss has been announced
+                    if (!RedrawPicker.IsOpen)
+                        return;
+                    InputScenario[] redraws = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace };
+                    if (redrawChecks < redraws.Length)
+                    {
+                        InputScenario scenario = redraws[redrawChecks++];
+                        inputCheck = new InputCheck(c, scenario, (ok, what) => Check(ok, what, "redraw input"));
+                        return;
+                    }
+
+                    List<int> hand = c.PlayerInfo.HandList;
+                    int exchanges = rnd.Next(3);
+                    for (int i = 0; i < exchanges && hand.Count > 0; i++)
+                    {
+                        c.ExchangeCard(hand[rnd.Next(hand.Count)], true);
+                        c.PlayerInfo.CardsExchanged++;
+                        Count("exchange");
+                    }
+                    c.FinishCardExchange();
+                    return;
+                }
+
+                // A play is being shown: wait for it to end
+                if (c.IsPresenting)
+                    return;
+
+                if (c.Panel.activeInHierarchy)
+                {
+                    BattlePickers panel = c.Panel.GetComponent<BattlePickers>();
+                    IList<int> offered = panel.Cards;
+                    // The first picker with a choice to make: through its keys
+                    if (!pickerChecked && offered.Count >= 2 && c.pendingAction == PendingAction.PanelChoice)
+                    {
+                        pickerChecked = true;
+                        inputCheck = new InputCheck(c, InputScenario.PickerKeys, (ok, what) => Check(ok, what, "picker keys"));
+                        return;
+                    }
+                    if (offered.Count == 0 || rnd.Next(10) == 0)
+                    {
+                        c.CancelPanel();
+                        Count("panel skip");
+                    }
+                    else
+                    {
+                        panel.Choose(offered[rnd.Next(offered.Count)]);
+                        Count("panel choose");
+                    }
+                    return;
+                }
+
+                if (c.battleState != BattleState.PlayerTurn)
+                    return;
+                if (c.pendingAction == PendingAction.None)
+                {
+                    CheckBoardShowsModel(c);
+                    // The Witcher 3: a side with nothing left to play passes automatically, it never gets a turn
+                    if (c.PlayerInfo.HandList.Count == 0 && turnsChecked.Add(c.PlayerInfo.RoundsScore.Count * 100 + c.EnemyInfo.HandList.Count))
+                        Check(c.CanUseLeader(true), "a turn with an empty hand still has the leader to use", "auto pass");
+                }
+
+                switch (c.pendingAction)
+                {
+                    case PendingAction.PlacePickedCard:
+                        PlaceSelected(c);
+                        return;
+                    case PendingAction.DiscardCards:
+                        List<int> hand = c.PlayerInfo.HandList;
+                        c.DiscardCard(hand[rnd.Next(hand.Count)], true);
+                        c.PlayerInfo.CardsDiscarded++;
+                        if (c.PlayerInfo.CardsDiscarded >= 2)
+                            c.OpenDeckPicker(true);
+                        Count("leader discard");
+                        return;
+                    case PendingAction.PanelChoice:
+                        return;
+                }
+
+                if (!selectionChecked && c.PlayerField.transform.Find("Hand").childCount > 0)
+                {
+                    selectionChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.SelectCard, (ok, what) => Check(ok, what, "selection input"));
+                    return;
+                }
+                if (!pauseChecked)
+                {
+                    pauseChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.PauseMenu, (ok, what) => Check(ok, what, "pause menu input"));
+                    return;
+                }
+                if (!giveUpChecked && c.CanGiveUp)
+                {
+                    giveUpChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.GiveUpAsked, (ok, what) => Check(ok, what, "give up input"));
+                    return;
+                }
+                if (!passKeyChecked)
+                {
+                    passKeyChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.PassWithSpace, (ok, what) => Check(ok, what, "pass input"));
+                    return;
+                }
+                if (!keyboardChecked && c.PlayerInfo.HandList.Count > 0)
+                {
+                    keyboardChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.KeyboardPlay, (ok, what) => Check(ok, what, "keyboard play"));
+                    return;
+                }
+                if (!touchChecked && c.PlayerInfo.HandList.Count > 0)
+                {
+                    touchChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.TouchControls, (ok, what) => Check(ok, what, "touch controls"));
+                    return;
+                }
+                if (!speedChecked)
+                {
+                    speedChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.GameSpeed, (ok, what) => Check(ok, what, "game speed"));
+                    return;
+                }
+                if (!pileChecked && (c.PlayerInfo.DiscardList.Count >= 2 || c.EnemyInfo.DiscardList.Count >= 2))
+                {
+                    pileChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.DiscardPile, (ok, what) => Check(ok, what, "discard pile"));
+                    return;
+                }
+                // The first turn with a leader ability that would act
+                if (!leaderChecked && c.CanUseLeader(true) && c.LeaderProblem() == null && c.PlayerInfo.HandList.Count > 0)
+                {
+                    leaderChecked = true;
+                    inputCheck = new InputCheck(c, InputScenario.LeaderLift, (ok, what) => Check(ok, what, "leader input"));
+                    return;
+                }
+
+                // A normal turn: maybe the leader, sometimes pass, otherwise play a random card through the real UI scripts
+                if (c.CanUseLeader(true) && rnd.Next(6) == 0)
+                {
+                    c.ActivateLeader(c.PlayerInfo.Leader, true);
+                    Count("leader " + c.PlayerInfo.Leader + (c.PlayerInfo.canLeader ? " (unavailable)" : ""));
+                    return;
+                }
+
+                Transform hand_t = c.PlayerField.transform.Find("Hand");
+                bool should_pass = hand_t.childCount == 0 || (c.EnemyInfo.hasPassed && c.PlayerInfo.TotalScore() > c.EnemyInfo.TotalScore()) || rnd.Next(14) == 0;
+                if (should_pass)
+                {
+                    c.SkipTurn(true);
+                    Count("pass");
+                    return;
+                }
+
+                GameObject card = hand_t.GetChild(rnd.Next(hand_t.childCount)).gameObject;
+                card.GetComponent<CardSelect>().OnCardSelect();
+                if (c.selectedCard != card)
+                    return;
+                PlaceSelected(c);
+            }
+
+            private void PlaceSelected(BattleController c)
+            {
+                if (c.selectedCard == null)
+                    return;
+                Card stats = c.selectedCard.GetComponent<CardFace>().Card;
+                Count("play " + (stats.faction == Faction.Special ? stats._idstr : stats.ability == Ability.None ? "unit" : stats.ability.Code()));
+
+                // Only where the card can go lights up: no rows for a decoy (its targets get a frame) or a weather card
+                List<GameObject> lit = c.PlayerField.GetComponent<RowPicker>().highLightedRows.Concat(c.EnemyField.GetComponent<RowPicker>().highLightedRows).ToList();
+                WeatherSlot weather_board = c.WeatherField.GetComponent<WeatherSlot>();
+                bool weather_lit = c.WeatherField.GetComponent<Image>().sprite == weather_board.weatherSelected;
+                if (stats.ability == Ability.Decoy)
+                {
+                    int frames = c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == "DecoyTarget");
+                    int swappable = Rows.Units.Sum(row => c.PlayerInfo.UnitRow(row).Count(id => PlayRules.IsDecoyTarget(c.Db.Get(id))));
+                    Check(lit.Count == 0 && !weather_lit && frames == swappable, "a decoy frames its " + swappable + " targets and lights no row (" + frames + " frames, " + lit.Count + " rows)", "highlight");
+                }
+                else if (stats.row == Row.Weather || stats.IsSpecial && stats.ability == Ability.Scorch)
+                    Check(lit.Count == 0 && weather_lit, "a weather card lights only the weather board", "highlight");
+
+                if (stats.ability == Ability.Decoy)
+                {
+                    List<GameObject> targets = new List<GameObject>();
+                    foreach (Row row in Rows.Units)
+                        foreach (Transform t in c.PlayerField.transform.Find(row.ToString()).Find("Unit"))
+                            if (t.GetComponent<CardSelect>() != null)
+                                targets.Add(t.gameObject);
+                    if (targets.Count == 0)
+                    {
+                        // Nothing to swap: click the same card again to deselect it
+                        c.selectedCard.GetComponent<CardSelect>().OnCardSelect();
+                        c.SkipTurn(true);
+                        return;
+                    }
+                    targets[rnd.Next(targets.Count)].GetComponent<CardSelect>().OnCardSelect();
+                    return;
+                }
+
+                if (stats.row == Row.Weather || stats.IsSpecial && stats.ability == Ability.Scorch)
+                {
+                    c.WeatherField.GetComponent<WeatherSlot>().OnWeatherClick();
+                    return;
+                }
+
+                List<GameObject> rows = new List<GameObject>();
+                rows.AddRange(c.PlayerField.GetComponent<RowPicker>().highLightedRows);
+                rows.AddRange(c.EnemyField.GetComponent<RowPicker>().highLightedRows);
+                if (rows.Count == 0)
+                {
+                    failures.Add("[" + Label() + "] nothing highlighted for selected card " + stats._idstr);
                     c.SkipTurn(true);
                     return;
                 }
-                targets[rnd.Next(targets.Count)].GetComponent<CardSelect>().OnCardSelect();
-                return;
+                GameObject target = rows[rnd.Next(rows.Count)];
+                RowClick click = target.GetComponent<RowClick>();
+                if (click != null)
+                    click.OnRowClick();
+                else
+                    c.DirectlyPlaceCard(c.selectedCard, target, true);
             }
 
-            if (stats.row == Rows.Weather || stats.ability == Abilities.Scorch)
+            //----------------------------------------Deck builder----------------------------------------//
+            // Opens on the test deck: checks the screen, real clicks (InputScenario.DeckBuilder), then the API checks. The
+            // test deck ends up the battle deck, picked in the builder, for the round trip through the main menu.
+            private void DeckBuilderStep()
             {
-                c.WeatherField.GetComponent<WeatherManager>().OnWeatherClick();
-                return;
-            }
-
-            List<GameObject> rows = new List<GameObject>();
-            rows.AddRange(c.PlayerField.GetComponent<RowPicker>().highLightedRows);
-            rows.AddRange(c.EnemyField.GetComponent<RowPicker>().highLightedRows);
-            if (rows.Count == 0)
-            {
-                failures.Add("[" + Label() + "] nothing highlighted for selected card " + stats._idstr);
-                c.SkipTurn(true);
-                return;
-            }
-            GameObject target = rows[rnd.Next(rows.Count)];
-            RowClick click = target.GetComponent<RowClick>();
-            if (click != null)
-                click.OnRowClick();
-            else
-                c.DirectlyPlaceCard(c.selectedCard, target, true);
-        }
-
-        //----------------------------------------Deck builder----------------------------------------//
-        // Opens on the test deck: checks the screen, real clicks (InputScenario.DeckBuilder), then the API checks. The
-        // test deck ends up the battle deck, picked in the builder, for the round trip through the main menu.
-        private void DeckBuilderStep()
-        {
-            DeckController dc = DeckController.Instance;
-            if (deckStage == 0)
-            {
-                if (dc == null || !dc.IsReady || ++deckPhaseFrames < 30)
+                DeckBuilder dc = DeckBuilder.Instance;
+                if (deckStage == 0)
                 {
-                    // let every Start() of the scene run first, but not forever (the scene failed to load)
-                    if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
-                        Abort("the deck builder did not start");
-                    return;
-                }
-                CheckBuilderOpensOnDeck(dc);
-                deckStage = 1;
-                inputCheck = new InputCheck(null, InputScenario.DeckBuilder, (ok, what) => Check(ok, what, "deck builder input"), testDeckPath);
-                return;
-            }
-            if (TickInputCheck())
-                return;
-
-            List<string> created = new List<string>();
-            try
-            {
-                RunDeckBuilderChecks(dc, created);
-            }
-            catch (Exception e)
-            {
-                failures.Add("[deck builder] exception: " + e);
-            }
-            finally
-            {
-                foreach (string path in created)
-                    if (File.Exists(path))
-                        File.Delete(path);
-            }
-
-            dc.middleManager.SelectDeckPath(testDeckPath);
-            Check(PlayerPrefs.GetString("playerDeckPath", "") == testDeckPath, "the deck picked in the builder is saved as the battle deck");
-            ApplicationModel.playerDeckPath = null; // the main menu reads it back from the saved settings
-
-            // Then the main menu: its scene, settings and rules, and Play
-            deckPhase = false;
-            menuPhase = true;
-            currentDeck = "main menu";
-            SceneManager.LoadScene(SceneNames.Menu);
-        }
-
-        // The builder opened on the battle deck's faction: its header panel and perk, both card lists, the dropdown
-        // and the status line
-        private void CheckBuilderOpensOnDeck(DeckController dc)
-        {
-            CollectionManager browse = UnityEngine.Object.FindObjectsByType<CollectionManager>().FirstOrDefault(m => !m.CompareTag("Player"));
-            Check(dc.currentDeckPath == testDeckPath && dc.my_deck.Name == testDeckName, "the deck builder opens on the battle deck");
-            Check(dc.deckCollection.faction == Factions.Monsters && browse != null && browse.faction == Factions.Monsters
-                && dc.deckCollection.headerSnap.CurrentPanel == Array.IndexOf(CollectionManager.HeaderFactions, Factions.Monsters)
-                && dc.deckCollection.factionPerk.text.Contains("random unit"),
-                "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.headerSnap.CurrentPanel + ")");
-            TMP_Dropdown picker = dc.middleManager.deckPicker;
-            Check(picker.options.Count > picker.value && picker.options[picker.value].text == testDeckName, "the deck dropdown shows the deck");
-            Check(dc.BattleDeckStatus == "Battle deck: " + testDeckName, "the status line names the battle deck (\"" + dc.BattleDeckStatus + "\")");
-        }
-
-        // Ticks the input check running in a phase; false when there is none
-        private bool TickInputCheck()
-        {
-            if (inputCheck == null)
-                return false;
-            inputCheck.Tick();
-            if (inputCheck.Done)
-                EndInputCheck();
-            return true;
-        }
-
-        // A valid Monsters deck in the deck folder, the battle deck while the builder is checked: every hero it can
-        // hold (the collection then offers none), the strongest other units (the weakest ones stay in the collection,
-        // to be added), and 10 specials, in the order of their ids, as many copies of each as exist (an 11th is
-        // refused for the 10-special limit)
-        private string CreateTestDeck(CardDatabase db)
-        {
-            string faction = Factions.Monsters;
-            List<Card> units = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce && (card.faction == faction || card.faction == Factions.Neutral)).ToList();
-            List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
-            cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
-            int special_count = 0;
-            foreach (Card special in db.All.Where(card => card.IsSpecial).OrderBy(card => card._id))
-                for (int i = 0; i < DeckRules.MaxCopies(special) && special_count < DeckRules.MaxSpecials; i++, special_count++)
-                    cards.Add(special._id);
-
-            testDeckName = "Autoplay " + seed + " Monsters";
-            testDeckPath = DeckStorage.PathFor(faction, DeckRules.ToFileName(testDeckName));
-            testFiles.Add(testDeckPath);
-            Deck deck = new Deck { Faction = faction, Name = testDeckName, Leader = LeaderIds.ByFaction[faction][0], Cards = cards };
-            DeckStorage.EnsureDirectories();
-            Check(DeckRules.IsValid(deck, db) && DeckStorage.Save(deck, testDeckPath), "the test deck is valid and saved (" + string.Join("; ", DeckRules.Validate(deck, db)) + ")");
-            return testDeckPath;
-        }
-
-        //----------------------------------------Main menu, then a battle from it----------------------------------------//
-        private void MenuStep()
-        {
-            if (TickInputCheck())
-                return;
-            if (menuStage == 0)
-            {
-                if (++menuPhaseFrames < 60)
-                    return;
-                MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
-                Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
-                Check(ApplicationModel.playerDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
-                inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
-                menuStage = 1;
-                return;
-            }
-            if (menuStage == 1)
-            {
-                // Play: the opponent picker, then the battle against the one chosen (not the first, to tell them apart)
-                List<TextAsset> opponents = OpponentDecks.All();
-                chosenOpponent = opponents.Count > 1 ? opponents[1] : opponents.FirstOrDefault();
-                inputCheck = new InputCheck(null, InputScenario.MenuPlay, (ok, what) => Check(ok, what, "main menu input"), null, chosenOpponent);
-                menuStage = 2;
-                return;
-            }
-            menuPhase = false;
-            roundTripPhase = true;
-            phaseStart = EditorApplication.timeSinceStartup;
-            currentDeck = "battle started from the menu";
-        }
-
-        // The battle started from the menu uses the builder's deck against the chosen opponent; then a battle deck that
-        // is no longer valid gives way to the default deck, with a notice
-        private void RoundTripStep()
-        {
-            SceneController battle = SceneController.Instance;
-            if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0)
-            {
-                if (EditorApplication.timeSinceStartup - phaseStart > SoftlockSeconds * 3)
-                    Abort("the " + currentDeck + " did not start");
-                return;
-            }
-            if (roundTripStage == 0)
-            {
-                Deck mine = DeckStorage.Load(testDeckPath);
-                Deck theirs = chosenOpponent != null ? CardLibrary.ParseDeck(chosenOpponent.text, chosenOpponent.name) : null;
-                Check(mine != null && battle.PlayerInfo.Faction == mine.Faction && battle.PlayerInfo.Leader == mine.Leader,
-                    "the battle uses the deck chosen in the deck builder, with the leader picked there", "battle from the menu");
-                Check(theirs != null && battle.EnemyInfo.Faction == theirs.Faction && battle.EnemyInfo.Leader == theirs.Leader,
-                    "... against the opponent chosen in the menu", "battle from the menu");
-
-                string invalid = Path.Combine(Application.temporaryCachePath, "autoplay_invalid.json");
-                File.WriteAllText(invalid, JsonUtility.ToJson(new Deck { Faction = Factions.Monsters, Name = "Autoplay invalid", Leader = LeaderIds.ByFaction[Factions.Monsters][0], Cards = new List<int>(mine != null ? mine.Cards.Take(5) : new int[0]) }));
-                ApplicationModel.playerDeckPath = invalid;
-                previousBattle = battle;
-                roundTripStage = 1;
-                phaseStart = EditorApplication.timeSinceStartup;
-                currentDeck = "battle with an invalid deck";
-                SceneManager.LoadScene(SceneNames.Game);
-                return;
-            }
-            if (roundTripStage == 1)
-            {
-                TextAsset fallback = Resources.Load<TextAsset>("Decks/player_default");
-                Deck standard = fallback != null ? CardLibrary.ParseDeck(fallback.text, fallback.name) : null;
-                Check(standard != null && battle.PlayerInfo.Faction == standard.Faction && battle.PlayerInfo.Leader == standard.Leader,
-                    "an invalid battle deck gives way to the default deck", "battle from the menu");
-                Check(ToastText().Contains("can't be used"), "... and the battle says so (\"" + ToastText() + "\")", "battle from the menu");
-
-                // A preset (an AI deck) as the battle deck
-                List<TextAsset> presets = OpponentDecks.All();
-                ApplicationModel.playerDeckPath = presets.Count > 0 ? OpponentDecks.PresetPath(presets[presets.Count - 1]) : null;
-                previousBattle = battle;
-                roundTripStage = 2;
-                phaseStart = EditorApplication.timeSinceStartup;
-                currentDeck = "battle with a preset";
-                SceneManager.LoadScene(SceneNames.Game);
-                return;
-            }
-            Deck preset = DeckStorage.Load(ApplicationModel.playerDeckPath);
-            Check(preset != null && battle.PlayerInfo.Faction == preset.Faction && battle.PlayerInfo.Leader == preset.Leader,
-                "a preset picked as the battle deck is the one played", "battle from the menu");
-            Finish();
-        }
-
-        private void Check(bool condition, string what, string area = "deck builder")
-        {
-            Count(area + (condition ? " check passed" : " check FAILED"));
-            if (!condition)
-                failures.Add("[" + area + "] " + what);
-        }
-
-        private void RunDeckBuilderChecks(DeckController dc, List<string> created)
-        {
-            TMP_InputField input = UnityEngine.Object.FindAnyObjectByType<TMP_InputField>();
-            Check(input != null, "deck name input field found");
-            string faction = dc.my_deck.Faction;
-            string tag = "Autoplay " + seed;
-            Func<int> deck_count = () => DeckStorage.DeckPaths(faction).Count;
-            int before = deck_count();
-
-            // Presets: the faction's AI decks, picked as they are (as the battle deck too), never renamed or deleted;
-            // an edit is saved as the player's own copy and the preset stays as it was
-            List<string> presets = OpponentDecks.PresetPaths(faction);
-            Check(presets.Count > 0 && presets.All(p => dc.middleManager.myPaths.Contains(p)), "the faction's AI decks are offered as presets");
-            if (presets.Count > 0)
-            {
-                string preset = presets[0];
-                Deck original = DeckStorage.Load(preset);
-                dc.middleManager.SelectDeckPath(preset);
-                Check(dc.currentDeckPath == preset && PlayerPrefs.GetString("playerDeckPath", "") == preset && dc.BattleDeckStatus.Contains(original.Name + " (preset)"),
-                    "a preset picked in the builder is the battle deck (\"" + dc.BattleDeckStatus + "\")");
-                input.text = tag + " Preset";
-                dc.RenameDeck(input);
-                Check(dc.currentDeckPath == preset && deck_count() == before, "a preset cannot be renamed");
-                dc.DeleteDeck();
-                Check(GameObject.Find("ConfirmDialog") == null && dc.currentDeckPath == preset, "a preset cannot be deleted");
-                dc.my_deck.Cards.RemoveAt(0);
-                dc.deckCollection.OnDeckEdit();
-                string copy = dc.currentDeckPath;
-                created.Add(copy);
-                Deck saved_copy = DeckStorage.Load(copy);
-                Check(!OpponentDecks.IsPreset(copy) && File.Exists(copy) && saved_copy != null && saved_copy.Name.StartsWith(original.Name + " (copy")
-                    && saved_copy.Cards.Count == original.Cards.Count - 1 && DeckStorage.Load(preset).Cards.Count == original.Cards.Count,
-                    "editing a preset saves the change in the player's own copy (" + (saved_copy != null ? saved_copy.Name : "none") + "); the preset stays as it was");
-                dc.ConfirmDelete(copy);
-                before = deck_count();
-            }
-
-            // Add a deck
-            input.text = "  " + tag + "  Deck ";
-            dc.AddDeck(input);
-            string path = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Deck"));
-            created.Add(path);
-            Check(File.Exists(path) && deck_count() == before + 1, "AddDeck creates the deck file");
-            Check(dc.currentDeckPath == path && dc.my_deck.Name == tag + " Deck", "the new deck is selected");
-
-            // Same name with other letter case / spacing: rejected, nothing overwritten (B3)
-            dc.my_deck.Cards.Add(LeaderIds.ByFaction[faction][0]); // marker that must survive
-            File.WriteAllText(path, JsonUtility.ToJson(new Deck { Faction = faction, Name = tag + " Deck", Leader = dc.my_deck.Leader, Cards = new List<int> { 1 } }));
-            input.text = tag.ToUpperInvariant() + " DECK";
-            dc.AddDeck(input);
-            Deck after_duplicate = DeckStorage.Load(path);
-            Check(deck_count() == before + 1 && after_duplicate != null && after_duplicate.Cards.Count == 1, "a duplicate name does not overwrite the existing deck");
-
-            // Fill it up to a valid deck: it becomes the battle deck (B9)
-            dc.middleManager.SelectDeckPath(path);
-            CardDatabase db = dc.Db;
-            dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Factions.Neutral) && !c.unique && c._id != CardIds.BovineDefenseForce)
-                .SelectMany(c => Enumerable.Repeat(c._id, Math.Min(2, c.copies))).Take(24).ToList();
-            dc.deckCollection.OnDeckEdit();
-            Check(DeckRules.IsValid(DeckStorage.Load(path), db), "edited deck saved and valid");
-            Check(ApplicationModel.playerDeckPath == path && PlayerPrefs.GetString("playerDeckPath", "") == path, "a valid edited deck becomes the battle deck");
-
-            // Remove cards below the minimum: no longer the battle deck
-            dc.my_deck.Cards.RemoveRange(0, 10);
-            dc.deckCollection.OnDeckEdit();
-            Check(ApplicationModel.playerDeckPath == null && !PlayerPrefs.HasKey("playerDeckPath"), "an invalid deck stops being the battle deck");
-
-            // Rename (B4)
-            input.text = tag + " Renamed";
-            dc.RenameDeck(input);
-            string renamed = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Renamed"));
-            created.Add(renamed);
-            Check(File.Exists(renamed) && !File.Exists(path), "rename moves the deck file");
-            Check(dc.my_deck.Name == tag + " Renamed" && dc.my_deck.Cards.Count == 14, "rename keeps the cards");
-
-            // Rename another deck onto that name: rejected, both decks intact
-            input.text = tag + " Other";
-            dc.AddDeck(input);
-            string other = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Other"));
-            created.Add(other);
-            input.text = (tag + " renamed").ToLowerInvariant();
-            dc.RenameDeck(input);
-            Check(File.Exists(other) && File.Exists(renamed) && DeckStorage.Load(renamed).Cards.Count == 14, "rename onto an existing name is rejected");
-
-            // Unsafe names never leave the deck folder (B20)
-            input.text = "../../" + tag + " escape";
-            dc.AddDeck(input);
-            string escaped = DeckStorage.PathFor(faction, DeckRules.ToFileName("../../" + tag + " escape"));
-            created.Add(escaped);
-            Check(File.Exists(escaped) && Path.GetDirectoryName(escaped) == DeckStorage.FactionFolder(faction), "unsafe characters are stripped from the file name");
-
-            // A corrupt deck file is skipped instead of breaking the builder (B18)
-            string corrupt = Path.Combine(DeckStorage.FactionFolder(faction), "autoplay_corrupt_" + seed + ".json");
-            created.Add(corrupt);
-            File.WriteAllText(corrupt, "{ this is not json");
-            dc.PopulateDeckAssets();
-            dc.middleManager.LoadDecks();
-            Check(dc.middleManager.myPaths.Count(p => !OpponentDecks.IsPreset(p)) == deck_count() - 1, "a corrupt deck file is skipped");
-
-            // Delete (the confirmation dialog's "Delete" button calls ConfirmDelete)
-            dc.middleManager.SelectDeckPath(other);
-            dc.DeleteDeck();
-            Check(File.Exists(other), "DeleteDeck only asks for confirmation");
-            foreach (string path_to_delete in new[] { other, renamed, escaped })
-                dc.ConfirmDelete(path_to_delete);
-            Check(!File.Exists(other) && !File.Exists(renamed) && !File.Exists(escaped), "confirmed deletes remove the files");
-        }
-
-        //----------------------------------------Checks----------------------------------------//
-        private static int CountCards(SceneController c)
-        {
-            int total = 0;
-            foreach (PlayerState info in new PlayerState[] { c.PlayerInfo, c.EnemyInfo })
-                total += info.AllCards().Count(id => id != CardIds.BovineDefenseForce) - info.LeaderHornRows.Count;
-            return total;
-        }
-
-        private void CheckConservation(SceneController c)
-        {
-            if (expectedCards < 0 || c.battleState == BattleState.START)
-                return;
-            int now = CountCards(c);
-            if (now != expectedCards)
-            {
-                failures.Add("[" + Label() + "] CARD COUNT changed: " + expectedCards + " -> " + now + " (" + Signature(c) + ")");
-                expectedCards = now; // report each change once
-            }
-        }
-
-        // The board must show exactly the model's cards (the refresh reuses card objects instead of rebuilding)
-        private void CheckBoardShowsModel(SceneController c)
-        {
-            if (boardMismatchMatch == match)
-                return;
-            List<string> problems = new List<string>();
-            foreach (bool player in new[] { true, false })
-            {
-                PlayerState info = player ? c.PlayerInfo : c.EnemyInfo;
-                Transform field = (player ? c.PlayerField : c.EnemyField).transform;
-                string side = player ? "player " : "opponent ";
-                // Hands and rows are shown in The Witcher 3's order
-                Compare(field.Find("Hand"), CardOrder.Sorted(info.HandList, c.Db), side + "hand", problems);
-                foreach (string row in Rows.Units)
-                {
-                    Transform row_t = field.Find(char.ToUpper(row[0]) + row.Substring(1));
-                    Compare(row_t.Find("Unit"), CardOrder.Sorted(info.UnitRow(row), c.Db), side + row, problems);
-                    Compare(row_t.Find("Special"), info.SpecialRow(row), side + row + " horn", problems);
-                }
-                Compare(field.Find("Discard/Pile"), info.DiscardList, side + "discard pile", problems);
-            }
-            Compare(c.WeatherField.transform, c.weatherList, "weather", problems);
-            Count(problems.Count == 0 ? "board shows the model" : "board mismatch");
-            if (problems.Count > 0)
-            {
-                failures.Add("[" + Label() + "] BOARD shows other cards than the game: " + string.Join("; ", problems));
-                boardMismatchMatch = match; // report once per match
-            }
-        }
-
-        private static void Compare(Transform container, List<int> ids, string what, List<string> problems)
-        {
-            List<string> shown = new List<string>();
-            foreach (Transform child in container)
-                if (child.GetComponent<CardDisplay>() != null)
-                    shown.Add(child.name);
-            string expected = string.Join(",", ids), actual = string.Join(",", shown);
-            if (expected != actual)
-                problems.Add(what + " shows [" + actual + "] instead of [" + expected + "]");
-        }
-
-        private static string Signature(SceneController c)
-        {
-            PlayerState p = c.PlayerInfo, e = c.EnemyInfo;
-            return string.Format("{0}/{1} P[h{2} d{3} g{4} b{5} pass{6} lives{7}] E[h{8} d{9} g{10} b{11} pass{12} lives{13}] w{14} panel{15}",
-                c.battleState, c.pendingAction, p.HandList.Count, p.DeckList.Count, p.DiscardList.Count, p.UnitsOnBoard(), p.hasPassed, p.Lives,
-                e.HandList.Count, e.DeckList.Count, e.DiscardList.Count, e.UnitsOnBoard(), e.hasPassed, e.Lives, c.weatherList.Count, c.Panel.activeSelf);
-        }
-
-        private void Finish()
-        {
-            if (!Running)
-                return;
-            Running = false;
-            EndInputCheck();
-            // The generated battle decks were temporary files, and so was the deck builder's test deck
-            foreach (string temp in Directory.GetFiles(Application.temporaryCachePath, "autoplay_*.json"))
-                File.Delete(temp);
-            foreach (string file in testFiles)
-                if (File.Exists(file))
-                    File.Delete(file);
-            OpponentDecks.Override = null;
-            // What the run changed in the player's settings: the battle deck, the opponent, the touch controls switch
-            if (string.IsNullOrEmpty(savedBattleDeck))
-                PlayerPrefs.DeleteKey("playerDeckPath");
-            else
-                PlayerPrefs.SetString("playerDeckPath", savedBattleDeck);
-            OpponentDecks.Chosen = savedOpponent;
-            if (savedDifficulty < 0)
-                PlayerPrefs.DeleteKey("aiDifficulty");
-            else
-                GameSettings.AiDifficulty = (AiDifficulty)savedDifficulty;
-            ApplicationModel.playerDeckPath = null;
-            GameInput.SimulateTouch = savedTouch;
-            EditorApplication.update -= Tick;
-            Application.logMessageReceived -= OnLog;
-            Time.timeScale = 1f;
-
-            StringBuilder report = new StringBuilder();
-            bool ok = failures.Count == 0 && errors.Count == 0;
-            report.AppendLine("Gwent autoplay: " + (ok ? "PASSED" : "FAILED") + " - " + totalMatches + " matches, seed " + seed);
-            report.AppendLine();
-            report.AppendLine("Results:");
-            foreach (string result in results)
-                report.AppendLine("  " + result);
-            report.AppendLine();
-            report.AppendLine("Coverage (actions performed by the random player, and checks):");
-            foreach (KeyValuePair<string, int> stat in stats.OrderBy(s => s.Key))
-                report.AppendLine("  " + stat.Key + ": " + stat.Value);
-            report.AppendLine();
-            report.AppendLine("Failures: " + failures.Count);
-            foreach (string failure in failures)
-                report.AppendLine("  " + failure);
-            report.AppendLine("Errors logged: " + errors.Count + (ignoredEditorErrors > 0 ? " (ignored " + ignoredEditorErrors + " known Unity editor-internal error(s))" : ""));
-            foreach (string error in errors.Take(40))
-                report.AppendLine("  " + error);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath)));
-            File.WriteAllText(reportPath, report.ToString());
-            Debug.Log(report.ToString());
-
-            if (batch)
-                EditorApplication.Exit(ok ? 0 : 1);
-            else
-                EditorApplication.isPlaying = false;
-        }
-
-        //----------------------------------------Deck generation----------------------------------------//
-        // One valid random deck per leader: faction + neutral units (incl. heroes), and a few specials
-        private List<Deck> GenerateDecks(CardDatabase db)
-        {
-            List<Deck> generated = new List<Deck>();
-            foreach (string faction in Factions.Playable)
-                foreach (int leader in LeaderIds.ByFaction[faction])
-                {
-                    List<Card> pool = db.All.Where(card => card.IsUnit && card._id != CardIds.BovineDefenseForce
-                        && (card.faction == faction || card.faction == Factions.Neutral)).ToList();
-                    List<int> cards = new List<int>();
-                    foreach (Card card in pool.OrderBy(x => rnd.Next()))
+                    if (dc == null || !dc.IsReady || ++deckPhaseFrames < 30)
                     {
-                        int copies = 1 + rnd.Next(DeckRules.MaxCopies(card));
-                        for (int i = 0; i < copies && cards.Count < 26; i++)
-                            cards.Add(card._id);
+                        // let every Start() of the scene run first, but not forever (the scene failed to load)
+                        if (EditorApplication.timeSinceStartup - lastProgress > SoftlockSeconds * 3)
+                            Abort("the deck builder did not start");
+                        return;
                     }
-                    int[] specials = { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather };
-                    foreach (int special in specials.OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)))
-                        cards.Add(special);
-
-                    Deck deck = new Deck { Faction = faction, Leader = leader, Name = faction + " / " + db.Get(leader).name, Cards = cards };
-                    List<string> problems = DeckRules.Validate(deck, db);
-                    if (problems.Count == 0)
-                        generated.Add(deck);
-                    else
-                        failures.Add("Generated deck invalid (" + deck.Name + "): " + problems[0]);
+                    CheckBuilderOpensOnDeck(dc);
+                    deckStage = 1;
+                    inputCheck = new InputCheck(null, InputScenario.DeckBuilder, (ok, what) => Check(ok, what, "deck builder input"), testDeckPath);
+                    return;
                 }
-            return generated;
-        }
-    }
+                if (TickInputCheck())
+                    return;
 
-    //----------------------------------------Real mouse input----------------------------------------//
-    private enum InputScenario
-    {
-        RedrawSlowClicksThenDone, // two slow clicks (no redraw), a slow double-click on the front card (redraw), a quick
-                                  // double-click on a card further away (brings it forward, no redraw), then Done
-        RedrawTwice,              // a burst of four clicks on the front card (one redraw only), then the carousel's front
-                                  // card (ends it)
-        RedrawCarousel,           // carousel: Right arrow, click a side card, Enter redraws it, right-click keeps the hand
-        RedrawSpace,              // the Done button shows Space, and Space keeps the hand
-        SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
-                                  // click deselects it, right-click does nothing
-        PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
-        PassWithSpace,            // a short press of Space does not pass, holding it does
-        KeyboardPlay,             // Right raises a hand card (shown on the right), Right again moves on, Enter takes it,
-                                  // Down chooses a place, Enter plays it there (Escape puts back a card with no place)
-        TouchControls,            // touch (simulated): a held press on the leader, its button and a hand card shows them
-                                  // and is no tap; a tap selects a card, another puts it back
-        GameSpeed,                // pause menu > Settings > Game: Fast, and after Resume the battle runs faster
-        PickerKeys,               // the card picker (the carousel): Right and Left move, Down goes to Skip, Up comes back,
-                                  // Enter picks the front card
-        DiscardPile,              // a click opens a discard pile in the carousel, Left goes down it, Escape closes it
-        LeaderTwoClicks,          // a click on the leader chooses it (shown on the right, its places lit), Escape puts it
-                                  // back, its button chooses it too, a hand card takes its place; then a click on a lit
-                                  // place (or the leader again) uses it
-        DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
-                                  // a held press (touch) shows a card, the leader picker, the header's faction arrows,
-                                  // the deck dropdown
-        MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
-        MenuPlay,                 // Play opens the opponent picker; choosing one remembers it and starts the battle
-    }
-
-    // Plays part of the game like a person would: a virtual mouse and keyboard at human speed, going through the
-    // Input System, the EventSystem and the game's own handlers.
-    private class InputCheck
-    {
-        private const double PressDuration = 0.1;
-
-        private readonly SceneController c;
-        private readonly Action<bool, string> check;
-        private readonly List<KeyValuePair<double, Action>> steps = new List<KeyValuePair<double, Action>>();
-        private readonly double start;
-        private int next;
-        private Mouse mouse;
-        private readonly List<double> releases = new List<double>();
-        private Keyboard keyboard;
-        private float savedMasterVolume = -1;
-        private bool settingsChanged;
-        private InputSettings.EditorInputBehaviorInPlayMode savedEditorBehavior;
-        private InputSettings.BackgroundBehavior savedBackgroundBehavior;
-        private Transform card;
-        private bool savedTouch;
-        private bool touchChanged;
-        private int savedSpeed = -1;
-        private int savedMatchDifficulty = -1;
-        private int difficultyBefore;
-        private string captionBefore;
-
-        public bool Done { get { return next >= steps.Count; } }
-
-        // The check sets the game's time scale itself (the runner leaves it alone)
-        public bool OwnsTimeScale { get; private set; }
-
-        // The times are when the button goes down, in seconds. deck_path: the deck builder's test deck; opponent: the
-        // one to choose in the opponent picker.
-        public InputCheck(SceneController controller, InputScenario scenario, Action<bool, string> check, string deck_path = null, TextAsset opponent = null)
-        {
-            c = controller;
-            this.check = check;
-            start = EditorApplication.timeSinceStartup;
-
-            At(0, Setup);
-            InputScenario[] with_hand = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace,
-                InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls, InputScenario.LeaderTwoClicks };
-            if (c != null && with_hand.Contains(scenario))
-                At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
-            if (scenario == InputScenario.RedrawSlowClicksThenDone)
-            {
-                // The virtual clicks are timed by editor ticks: when the editor stalls, the real gap between two clicks
-                // is not the planned one, and a check about that gap says so instead of failing
-                int exchanged = 0;
-                Click(0.4, FrontHandCard);
-                Click(1.2, FrontHandCard);
-                At(1.8, () =>
+                List<string> created = new List<string>();
+                try
                 {
-                    double gap = ClickGap(0, 1);
-                    exchanged = c.PlayerInfo.CardsExchanged;
-                    check(gap < 0.55 || exchanged == 0, "two clicks " + gap.ToString("0.00") + " s apart on a hand card do not redraw it");
+                    RunDeckBuilderChecks(dc, created);
+                }
+                catch (Exception e)
+                {
+                    failures.Add("[deck builder] exception: " + e);
+                }
+                finally
+                {
+                    foreach (string path in created)
+                        if (File.Exists(path))
+                            File.Delete(path);
+                }
+
+                dc.deckSummary.SelectDeckPath(testDeckPath);
+                Check(PlayerPrefs.GetString("playerDeckPath", "") == testDeckPath, "the deck picked in the builder is saved as the battle deck");
+                DeckStorage.BattleDeckPath = null; // the main menu reads it back from the saved settings
+
+                // Then the main menu: its scene, settings and rules, and Play
+                deckPhase = false;
+                menuPhase = true;
+                currentDeck = "main menu";
+                SceneManager.LoadScene(SceneNames.Menu);
+            }
+
+            // The builder opened on the battle deck's faction: its header panel and perk, both card lists, the dropdown
+            // and the status line
+            private void CheckBuilderOpensOnDeck(DeckBuilder dc)
+            {
+                CardGrid browse = UnityEngine.Object.FindObjectsByType<CardGrid>().FirstOrDefault(m => !m.CompareTag("Player"));
+                Check(dc.currentDeckPath == testDeckPath && dc.my_deck.Name == testDeckName, "the deck builder opens on the battle deck");
+                Check(dc.deckCollection.faction == Faction.Monsters && browse != null && browse.faction == Faction.Monsters
+                    && dc.deckCollection.header.CurrentPanel == Array.IndexOf(CardGrid.HeaderFactions, Faction.Monsters)
+                    && dc.deckCollection.factionPerk.text.Contains("random unit"),
+                    "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.header.CurrentPanel + ")");
+                TMP_Dropdown picker = dc.deckSummary.deckPicker;
+                Check(picker.options.Count > picker.value && picker.options[picker.value].text == testDeckName, "the deck dropdown shows the deck");
+                Check(dc.BattleDeckStatus == "Battle deck: " + testDeckName, "the status line names the battle deck (\"" + dc.BattleDeckStatus + "\")");
+            }
+
+            // Ticks the input check running in a phase; false when there is none
+            private bool TickInputCheck()
+            {
+                if (inputCheck == null)
+                    return false;
+                inputCheck.Tick();
+                if (inputCheck.Done)
+                    EndInputCheck();
+                return true;
+            }
+
+            // A valid Monsters deck in the deck folder, the battle deck while the builder is checked: every hero it can
+            // hold (the collection then offers none), the strongest other units (the weakest ones stay in the collection,
+            // to be added), and 10 specials, in the order of their ids, as many copies of each as exist (an 11th is
+            // refused for the 10-special limit)
+            private string CreateTestDeck(CardDatabase db)
+            {
+                Faction faction = Faction.Monsters;
+                List<Card> units = db.All.Where(card => card.IsUnit && !CardIds.IsSummoned(card._id) && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
+                List<int> cards = units.Where(card => card.unique).Select(card => card._id).ToList();
+                cards.AddRange(units.Where(card => !card.unique).OrderByDescending(card => card.strength).ThenBy(card => card._id).Take(DeckRules.MinUnits).Select(card => card._id));
+                int special_count = 0;
+                foreach (Card special in db.All.Where(card => card.IsSpecial && DeckRules.Fits(card, faction)).OrderBy(card => card._id))
+                    for (int i = 0; i < DeckRules.MaxCopies(special) && special_count < DeckRules.MaxSpecials; i++, special_count++)
+                        cards.Add(special._id);
+
+                testDeckName = "Autoplay " + seed + " Monsters";
+                testDeckPath = DeckStorage.PathFor(faction, DeckRules.ToFileName(testDeckName));
+                testFiles.Add(testDeckPath);
+                Deck deck = new Deck { Faction = faction, Name = testDeckName, Leader = LeaderIds.ByFaction[faction][0], Cards = cards };
+                DeckStorage.EnsureDirectories();
+                Check(DeckRules.IsValid(deck, db) && DeckStorage.Save(deck, testDeckPath), "the test deck is valid and saved (" + string.Join("; ", DeckRules.Validate(deck, db)) + ")");
+                return testDeckPath;
+            }
+
+            //----------------------------------------Main menu, then a battle from it----------------------------------------//
+            private void MenuStep()
+            {
+                if (TickInputCheck())
+                    return;
+                if (menuStage == 0)
+                {
+                    if (++menuPhaseFrames < 60)
+                        return;
+                    MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>();
+                    Check(menu != null && menu.Items.Count == 5, "the main menu loads with its 5 entries", "main menu");
+                    Check(DeckStorage.BattleDeckPath == testDeckPath, "the main menu picks up the battle deck saved by the deck builder", "main menu");
+                    inputCheck = new InputCheck(null, InputScenario.MainMenuSettings, (ok, what) => Check(ok, what, "main menu input"));
+                    menuStage = 1;
+                    return;
+                }
+                if (menuStage == 1)
+                {
+                    // Play: the opponent picker, then the battle against the one chosen (not the first, to tell them apart)
+                    List<TextAsset> opponents = OpponentDecks.All();
+                    chosenOpponent = opponents.Count > 1 ? opponents[1] : opponents.FirstOrDefault();
+                    inputCheck = new InputCheck(null, InputScenario.MenuPlay, (ok, what) => Check(ok, what, "main menu input"), null, chosenOpponent);
+                    menuStage = 2;
+                    return;
+                }
+                menuPhase = false;
+                roundTripPhase = true;
+                phaseStart = EditorApplication.timeSinceStartup;
+                currentDeck = "battle started from the menu";
+            }
+
+            // The battle started from the menu uses the builder's deck against the chosen opponent; then a battle deck that
+            // is no longer valid gives way to the default deck, with a notice
+            private void RoundTripStep()
+            {
+                BattleController battle = BattleController.Instance;
+                if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0)
+                {
+                    if (EditorApplication.timeSinceStartup - phaseStart > SoftlockSeconds * 3)
+                        Abort("the " + currentDeck + " did not start");
+                    return;
+                }
+                if (roundTripStage == 0)
+                {
+                    Deck mine = DeckStorage.Load(testDeckPath);
+                    Deck theirs = chosenOpponent != null ? CardLibrary.ParseDeck(chosenOpponent.text, chosenOpponent.name) : null;
+                    Check(mine != null && battle.PlayerInfo.Faction == mine.Faction && battle.PlayerInfo.Leader == mine.Leader,
+                        "the battle uses the deck chosen in the deck builder, with the leader picked there", "battle from the menu");
+                    Check(theirs != null && battle.EnemyInfo.Faction == theirs.Faction && battle.EnemyInfo.Leader == theirs.Leader,
+                        "... against the opponent chosen in the menu", "battle from the menu");
+
+                    string invalid = Path.Combine(Application.temporaryCachePath, "autoplay_invalid.json");
+                    File.WriteAllText(invalid, JsonUtility.ToJson(DeckFile.Of(new Deck { Faction = Faction.Monsters, Name = "Autoplay invalid", Leader = LeaderIds.ByFaction[Faction.Monsters][0], Cards = new List<int>(mine != null ? mine.Cards.Take(5) : new int[0]) })));
+                    DeckStorage.BattleDeckPath = invalid;
+                    previousBattle = battle;
+                    roundTripStage = 1;
+                    phaseStart = EditorApplication.timeSinceStartup;
+                    currentDeck = "battle with an invalid deck";
+                    SceneManager.LoadScene(SceneNames.Game);
+                    return;
+                }
+                if (roundTripStage == 1)
+                {
+                    TextAsset fallback = Resources.Load<TextAsset>("Decks/player_default");
+                    Deck standard = fallback != null ? CardLibrary.ParseDeck(fallback.text, fallback.name) : null;
+                    Check(standard != null && battle.PlayerInfo.Faction == standard.Faction && battle.PlayerInfo.Leader == standard.Leader,
+                        "an invalid battle deck gives way to the default deck", "battle from the menu");
+                    Check(ToastText().Contains("can't be used"), "... and the battle says so (\"" + ToastText() + "\")", "battle from the menu");
+
+                    // A preset (an AI deck) as the battle deck
+                    List<TextAsset> presets = OpponentDecks.All();
+                    DeckStorage.BattleDeckPath = presets.Count > 0 ? OpponentDecks.PresetPath(presets[presets.Count - 1]) : null;
+                    previousBattle = battle;
+                    roundTripStage = 2;
+                    phaseStart = EditorApplication.timeSinceStartup;
+                    currentDeck = "battle with a preset";
+                    SceneManager.LoadScene(SceneNames.Game);
+                    return;
+                }
+                Deck preset = DeckStorage.Load(DeckStorage.BattleDeckPath);
+                Check(preset != null && battle.PlayerInfo.Faction == preset.Faction && battle.PlayerInfo.Leader == preset.Leader,
+                    "a preset picked as the battle deck is the one played", "battle from the menu");
+                Finish();
+            }
+
+            private void Check(bool condition, string what, string area = "deck builder")
+            {
+                Count(area + (condition ? " check passed" : " check FAILED"));
+                if (!condition)
+                    failures.Add("[" + area + "] " + what);
+            }
+
+            private void RunDeckBuilderChecks(DeckBuilder dc, List<string> created)
+            {
+                TMP_InputField input = UnityEngine.Object.FindAnyObjectByType<TMP_InputField>();
+                Check(input != null, "deck name input field found");
+                Faction faction = dc.my_deck.Faction;
+                string tag = "Autoplay " + seed;
+                Func<int> deck_count = () => DeckStorage.DeckPaths(faction).Count;
+                int before = deck_count();
+
+                // Presets: the faction's AI decks, picked as they are (as the battle deck too), never renamed or deleted;
+                // an edit is saved as the player's own copy and the preset stays as it was
+                List<string> presets = OpponentDecks.PresetPaths(faction);
+                Check(presets.Count > 0 && presets.All(p => dc.deckSummary.myPaths.Contains(p)), "the faction's AI decks are offered as presets");
+                if (presets.Count > 0)
+                {
+                    string preset = presets[0];
+                    Deck original = DeckStorage.Load(preset);
+                    dc.deckSummary.SelectDeckPath(preset);
+                    Check(dc.currentDeckPath == preset && PlayerPrefs.GetString("playerDeckPath", "") == preset && dc.BattleDeckStatus.Contains(original.Name + " (preset)"),
+                        "a preset picked in the builder is the battle deck (\"" + dc.BattleDeckStatus + "\")");
+                    input.text = tag + " Preset";
+                    dc.RenameDeck(input);
+                    Check(dc.currentDeckPath == preset && deck_count() == before, "a preset cannot be renamed");
+                    dc.DeleteDeck();
+                    Check(GameObject.Find("ConfirmDialog") == null && dc.currentDeckPath == preset, "a preset cannot be deleted");
+                    dc.my_deck.Cards.RemoveAt(0);
+                    dc.deckCollection.OnDeckEdit();
+                    string copy = dc.currentDeckPath;
+                    created.Add(copy);
+                    Deck saved_copy = DeckStorage.Load(copy);
+                    Check(!OpponentDecks.IsPreset(copy) && File.Exists(copy) && saved_copy != null && saved_copy.Name.StartsWith(original.Name + " (copy")
+                        && saved_copy.Cards.Count == original.Cards.Count - 1 && DeckStorage.Load(preset).Cards.Count == original.Cards.Count,
+                        "editing a preset saves the change in the player's own copy (" + (saved_copy != null ? saved_copy.Name : "none") + "); the preset stays as it was");
+                    dc.ConfirmDelete(copy);
+                    before = deck_count();
+                }
+
+                // Add a deck
+                input.text = "  " + tag + "  Deck ";
+                dc.AddDeck(input);
+                string path = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Deck"));
+                created.Add(path);
+                Check(File.Exists(path) && deck_count() == before + 1, "AddDeck creates the deck file");
+                Check(dc.currentDeckPath == path && dc.my_deck.Name == tag + " Deck", "the new deck is selected");
+
+                // Same name with other letter case / spacing: rejected, nothing overwritten (B3)
+                dc.my_deck.Cards.Add(LeaderIds.ByFaction[faction][0]); // marker that must survive
+                File.WriteAllText(path, JsonUtility.ToJson(DeckFile.Of(new Deck { Faction = faction, Name = tag + " Deck", Leader = dc.my_deck.Leader, Cards = new List<int> { 1 } })));
+                input.text = tag.ToUpperInvariant() + " DECK";
+                dc.AddDeck(input);
+                Deck after_duplicate = DeckStorage.Load(path);
+                Check(deck_count() == before + 1 && after_duplicate != null && after_duplicate.Cards.Count == 1, "a duplicate name does not overwrite the existing deck");
+
+                // Fill it up to a valid deck: it becomes the battle deck (B9)
+                dc.deckSummary.SelectDeckPath(path);
+                CardDatabase db = dc.Db;
+                dc.my_deck.Cards = db.All.Where(c => c.IsUnit && (c.faction == faction || c.faction == Faction.Neutral) && !c.unique && !CardIds.IsSummoned(c._id))
+                    .SelectMany(c => Enumerable.Repeat(c._id, Math.Min(2, c.copies))).Take(24).ToList();
+                dc.deckCollection.OnDeckEdit();
+                Check(DeckRules.IsValid(DeckStorage.Load(path), db), "edited deck saved and valid");
+                Check(DeckStorage.BattleDeckPath == path && PlayerPrefs.GetString("playerDeckPath", "") == path, "a valid edited deck becomes the battle deck");
+
+                // Remove cards below the minimum: no longer the battle deck
+                dc.my_deck.Cards.RemoveRange(0, 10);
+                dc.deckCollection.OnDeckEdit();
+                Check(DeckStorage.BattleDeckPath == null && !PlayerPrefs.HasKey("playerDeckPath"), "an invalid deck stops being the battle deck");
+
+                // Rename (B4)
+                input.text = tag + " Renamed";
+                dc.RenameDeck(input);
+                string renamed = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Renamed"));
+                created.Add(renamed);
+                Check(File.Exists(renamed) && !File.Exists(path), "rename moves the deck file");
+                Check(dc.my_deck.Name == tag + " Renamed" && dc.my_deck.Cards.Count == 14, "rename keeps the cards");
+
+                // Rename another deck onto that name: rejected, both decks intact
+                input.text = tag + " Other";
+                dc.AddDeck(input);
+                string other = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Other"));
+                created.Add(other);
+                input.text = (tag + " renamed").ToLowerInvariant();
+                dc.RenameDeck(input);
+                Check(File.Exists(other) && File.Exists(renamed) && DeckStorage.Load(renamed).Cards.Count == 14, "rename onto an existing name is rejected");
+
+                // Unsafe names never leave the deck folder (B20)
+                input.text = "../../" + tag + " escape";
+                dc.AddDeck(input);
+                string escaped = DeckStorage.PathFor(faction, DeckRules.ToFileName("../../" + tag + " escape"));
+                created.Add(escaped);
+                Check(File.Exists(escaped) && Path.GetDirectoryName(escaped) == DeckStorage.FactionFolder(faction), "unsafe characters are stripped from the file name");
+
+                // A corrupt deck file is skipped instead of breaking the builder (B18)
+                string corrupt = Path.Combine(DeckStorage.FactionFolder(faction), "autoplay_corrupt_" + seed + ".json");
+                created.Add(corrupt);
+                File.WriteAllText(corrupt, "{ this is not json");
+                dc.PopulateDeckAssets();
+                dc.deckSummary.LoadDecks();
+                Check(dc.deckSummary.myPaths.Count(p => !OpponentDecks.IsPreset(p)) == deck_count() - 1, "a corrupt deck file is skipped");
+
+                // Delete (the confirmation dialog's "Delete" button calls ConfirmDelete)
+                dc.deckSummary.SelectDeckPath(other);
+                dc.DeleteDeck();
+                Check(File.Exists(other), "DeleteDeck only asks for confirmation");
+                foreach (string path_to_delete in new[] { other, renamed, escaped })
+                    dc.ConfirmDelete(path_to_delete);
+                Check(!File.Exists(other) && !File.Exists(renamed) && !File.Exists(escaped), "confirmed deletes remove the files");
+            }
+
+            //----------------------------------------Checks----------------------------------------//
+            private static int CountCards(BattleController c)
+            {
+                int total = 0;
+                foreach (PlayerState info in new PlayerState[] { c.PlayerInfo, c.EnemyInfo })
+                    total += info.AllCards().Count(id => !CardIds.IsSummoned(id)) - info.LeaderHornRows.Count;
+                return total;
+            }
+
+            private void CheckConservation(BattleController c)
+            {
+                if (expectedCards < 0 || c.battleState == BattleState.Start)
+                    return;
+                int now = CountCards(c);
+                if (now != expectedCards)
+                {
+                    failures.Add("[" + Label() + "] CARD COUNT changed: " + expectedCards + " -> " + now + " (" + Signature(c) + ")");
+                    expectedCards = now; // report each change once
+                }
+            }
+
+            // The board must show exactly the model's cards (the refresh reuses card objects instead of rebuilding)
+            private void CheckBoardShowsModel(BattleController c)
+            {
+                if (boardMismatchMatch == match)
+                    return;
+                List<string> problems = new List<string>();
+                foreach (bool player in new[] { true, false })
+                {
+                    PlayerState info = player ? c.PlayerInfo : c.EnemyInfo;
+                    Transform field = (player ? c.PlayerField : c.EnemyField).transform;
+                    string side = player ? "player " : "opponent ";
+                    // Hands as drawn, rows in The Witcher 3's order
+                    Compare(field.Find("Hand"), info.HandList, side + "hand", problems);
+                    foreach (Row row in Rows.Units)
+                    {
+                        Transform row_t = field.Find(row.ToString());
+                        Compare(row_t.Find("Unit"), CardOrder.Sorted(info.UnitRow(row), c.Db), side + row, problems);
+                        Compare(row_t.Find("Special"), info.SpecialRow(row), side + row + " horn", problems);
+                    }
+                    Compare(field.Find("Discard/Pile"), info.DiscardList, side + "discard pile", problems);
+                }
+                Compare(c.WeatherField.transform, c.weatherList, "weather", problems);
+                Count(problems.Count == 0 ? "board shows the model" : "board mismatch");
+                if (problems.Count > 0)
+                {
+                    failures.Add("[" + Label() + "] BOARD shows other cards than the game: " + string.Join("; ", problems));
+                    boardMismatchMatch = match; // report once per match
+                }
+            }
+
+            private static void Compare(Transform container, List<int> ids, string what, List<string> problems)
+            {
+                List<string> shown = new List<string>();
+                foreach (Transform child in container)
+                    if (child.GetComponent<CardFace>() != null)
+                        shown.Add(child.name);
+                string expected = string.Join(",", ids), actual = string.Join(",", shown);
+                if (expected != actual)
+                    problems.Add(what + " shows [" + actual + "] instead of [" + expected + "]");
+            }
+
+            private static string Signature(BattleController c)
+            {
+                PlayerState p = c.PlayerInfo, e = c.EnemyInfo;
+                return string.Format("{0}/{1} P[h{2} d{3} g{4} b{5} pass{6} lives{7}] E[h{8} d{9} g{10} b{11} pass{12} lives{13}] w{14} panel{15}",
+                    c.battleState, c.pendingAction, p.HandList.Count, p.DeckList.Count, p.DiscardList.Count, p.UnitsOnBoard(), p.hasPassed, p.Lives,
+                    e.HandList.Count, e.DeckList.Count, e.DiscardList.Count, e.UnitsOnBoard(), e.hasPassed, e.Lives, c.weatherList.Count, c.Panel.activeSelf);
+            }
+
+            private void Finish()
+            {
+                if (!Running)
+                    return;
+                Running = false;
+                EndInputCheck();
+                // The generated battle decks were temporary files, and so was the deck builder's test deck
+                foreach (string temp in Directory.GetFiles(Application.temporaryCachePath, "autoplay_*.json"))
+                    File.Delete(temp);
+                foreach (string file in testFiles)
+                    if (File.Exists(file))
+                        File.Delete(file);
+                OpponentDecks.Override = null;
+                // What the run changed in the player's settings: the battle deck, the opponent, the touch controls switch
+                if (string.IsNullOrEmpty(savedBattleDeck))
+                    PlayerPrefs.DeleteKey("playerDeckPath");
+                else
+                    PlayerPrefs.SetString("playerDeckPath", savedBattleDeck);
+                OpponentDecks.Chosen = savedOpponent;
+                if (savedDifficulty < 0)
+                    PlayerPrefs.DeleteKey("aiDifficulty");
+                else
+                    GameSettings.AiDifficulty = (AiDifficulty)savedDifficulty;
+                DeckStorage.BattleDeckPath = null;
+                GameInput.SimulateTouch = savedTouch;
+                EditorApplication.update -= Tick;
+                Application.logMessageReceived -= OnLog;
+                Time.timeScale = 1f;
+
+                StringBuilder report = new StringBuilder();
+                bool ok = failures.Count == 0 && errors.Count == 0;
+                report.AppendLine("Gwent autoplay: " + (ok ? "PASSED" : "FAILED") + " - " + totalMatches + " matches, seed " + seed);
+                report.AppendLine();
+                report.AppendLine("Results:");
+                foreach (string result in results)
+                    report.AppendLine("  " + result);
+                report.AppendLine();
+                report.AppendLine("Coverage (actions performed by the random player, and checks):");
+                foreach (KeyValuePair<string, int> stat in stats.OrderBy(s => s.Key))
+                    report.AppendLine("  " + stat.Key + ": " + stat.Value);
+                report.AppendLine();
+                report.AppendLine("Failures: " + failures.Count);
+                if (failures.Count > 0 && GameLog.FilePath != null)
+                    report.AppendLine("  (each one is in the game log too, next to what the game was doing: " + GameLog.FilePath + ", event autoplay_failure)");
+                foreach (string failure in failures)
+                    report.AppendLine("  " + failure);
+                report.AppendLine("Errors logged: " + errors.Count + (ignoredEditorErrors > 0 ? " (ignored " + ignoredEditorErrors + " known Unity editor-internal error(s))" : ""));
+                foreach (string error in errors.Take(40))
+                    report.AppendLine("  " + error);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath)));
+                File.WriteAllText(reportPath, report.ToString());
+                Debug.Log(report.ToString());
+
+                if (batch)
+                    EditorApplication.Exit(ok ? 0 : 1);
+                else
+                    EditorApplication.isPlaying = false;
+            }
+
+            //----------------------------------------Deck generation----------------------------------------//
+            // One valid random deck per leader: faction + neutral units (incl. heroes), and a few specials
+            private List<Deck> GenerateDecks(CardDatabase db)
+            {
+                List<Deck> generated = new List<Deck>();
+                foreach (Faction faction in Factions.Playable)
+                    foreach (int leader in LeaderIds.ByFaction[faction])
+                    {
+                        List<Card> pool = db.All.Where(card => card.IsUnit && !CardIds.IsSummoned(card._id)
+                            && (card.faction == faction || card.faction == Faction.Neutral)).ToList();
+                        List<int> cards = new List<int>();
+                        foreach (Card card in pool.OrderBy(x => rnd.Next()))
+                        {
+                            int copies = 1 + rnd.Next(DeckRules.MaxCopies(card));
+                            for (int i = 0; i < copies && cards.Count < 26; i++)
+                                cards.Add(card._id);
+                        }
+                        int[] specials = { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather,
+                            CardIds.SkelligeStorm, CardIds.Mardroeme };
+                        foreach (int special in specials.Where(id => DeckRules.Fits(db.Get(id), faction)).OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)))
+                            cards.Add(special);
+
+                        Deck deck = new Deck { Faction = faction, Leader = leader, Name = faction.Code() + " / " + db.Get(leader).name, Cards = cards };
+                        List<string> problems = DeckRules.Validate(deck, db);
+                        if (problems.Count == 0)
+                            generated.Add(deck);
+                        else
+                            failures.Add("Generated deck invalid (" + deck.Name + "): " + problems[0]);
+                    }
+                return generated;
+            }
+        }
+
+        //----------------------------------------Real mouse input----------------------------------------//
+        private enum InputScenario
+        {
+            RedrawSlowClicksThenDone, // two slow clicks (no redraw), a slow double-click on the front card (redraw), a quick
+                                      // double-click on a card further away (brings it forward, no redraw), then Done
+            RedrawTwice,              // a burst of four clicks on the front card (one redraw only), then the carousel's front
+                                      // card (ends it)
+            RedrawCarousel,           // carousel: Right arrow, click a side card, Enter redraws it, right-click keeps the hand
+            RedrawSpace,              // the Done button shows Space, and Space keeps the hand
+            SelectCard,               // hovering at a card's lower edge keeps it raised, left-click selects it, a second
+                                      // click deselects it, right-click does nothing
+            PauseMenu,                // Escape pauses and resumes; the menu button and Resume do the same
+            GiveUpAsked,              // the cursor over the player's deck is a hand; a click asks first; Escape keeps playing
+            PassWithSpace,            // a short press of Space does not pass, holding it does
+            KeyboardPlay,             // Right raises a hand card (shown on the right), Right again moves on, Enter takes it,
+                                      // Down chooses a place, Enter plays it there (Escape puts back a card with no place)
+            TouchControls,            // touch (simulated): a held press on the leader, its button and a hand card shows them
+                                      // and is no tap; a tap selects a card, another puts it back
+            GameSpeed,                // pause menu > Settings > Game: Fast, and after Resume the battle runs faster
+            PickerKeys,               // the card picker (the carousel): Right and Left move, Down goes to Skip (Enter there
+                                      // asks first, Escape keeps choosing), Up comes back, Enter picks the front card
+            DiscardPile,              // a click opens a discard pile in the carousel, Left goes down it, Escape closes it
+            LeaderLift,               // a click lifts the leader (out of its slot to the right, its places lit, its crown a
+                                      // glowing button), Escape and a click on the empty slot put it back, the crown does
+                                      // nothing before, a hand card takes its place, a lit place does not use it, the crown does
+            DeckBuilder,              // double-clicks add and remove cards and are refused past the copy and special limits,
+                                      // a held press (touch) shows a card, the leader picker, the header's faction arrows,
+                                      // the deck dropdown
+            MainMenuSettings,         // hovering moves the highlight, Settings opens, the volume slider works, Escape closes
+            MenuPlay,                 // Play opens the opponent picker; choosing one remembers it and starts the battle
+        }
+
+        // Plays part of the game like a person would: a virtual mouse and keyboard at human speed, going through the
+        // Input System, the EventSystem and the game's own handlers. Its timeline waits for the game as a person would:
+        // it advances at most MaxTick a frame (a stalled editor slows it down instead of firing a move, a press, a release
+        // and a check in one frame), and a step that only checks (it sends no input) and fails is tried again every frame
+        // until it passes or its patience runs out, the steps after it waiting meanwhile (a slow screen is waited for, and
+        // the next clicks never land on the wrong one).
+        private class InputCheck
+        {
+            private const double PressDuration = 0.1;
+            private const double MaxTick = 0.05;       // the most the timeline advances in a frame
+            private const double CheckPatience = 3;    // how long (real seconds) a failing check step is tried again
+
+            private readonly BattleController c;
+            private readonly Action<bool, string> report;
+            private readonly List<KeyValuePair<double, Action>> steps = new List<KeyValuePair<double, Action>>();
+            private int next;
+            private double elapsed, lastTick;          // the timeline's time, and the real time it last advanced
+            private double failingSince = -1;          // real time the current check step began failing (-1: it is not)
+            private int sent;                          // input events sent so far
+            private List<KeyValuePair<bool, string>> results; // the checks of the step running
+            private Mouse mouse;
+            private readonly List<double> releases = new List<double>();
+            private Keyboard keyboard;
+            private float savedMasterVolume = -1;
+            private bool settingsChanged;
+            private InputSettings.EditorInputBehaviorInPlayMode savedEditorBehavior;
+            private InputSettings.BackgroundBehavior savedBackgroundBehavior;
+            private Transform card;
+            private bool savedTouch;
+            private bool touchChanged;
+            private int savedSpeed = -1;
+            private int savedMatchDifficulty = -1;
+            private int difficultyBefore;
+            private string captionBefore;
+
+            public bool Done { get { return next >= steps.Count; } }
+
+            // The check sets the game's time scale itself (the runner leaves it alone)
+            public bool OwnsTimeScale { get; private set; }
+
+            // The times are when the button goes down, in seconds. deck_path: the deck builder's test deck; opponent: the
+            // one to choose in the opponent picker.
+            public InputCheck(BattleController controller, InputScenario scenario, Action<bool, string> report, string deck_path = null, TextAsset opponent = null)
+            {
+                c = controller;
+                this.report = report;
+                lastTick = EditorApplication.timeSinceStartup;
+
+                At(0, Setup);
+                InputScenario[] with_hand = { InputScenario.RedrawSlowClicksThenDone, InputScenario.RedrawTwice, InputScenario.RedrawCarousel, InputScenario.RedrawSpace,
+                    InputScenario.SelectCard, InputScenario.PassWithSpace, InputScenario.KeyboardPlay, InputScenario.TouchControls, InputScenario.LeaderLift };
+                if (c != null && with_hand.Contains(scenario))
+                    At(0, () => check(CardPosition() != Vector2.zero, "the hand has cards to click"));
+                if (scenario == InputScenario.RedrawSlowClicksThenDone)
+                {
+                    // The virtual clicks are timed by editor ticks: when the editor stalls, the real gap between two clicks
+                    // is not the planned one, and a check about that gap says so instead of failing
+                    int exchanged = 0;
+                    Click(0.4, FrontHandCard);
+                    Click(1.2, FrontHandCard);
+                    At(1.8, () =>
+                    {
+                        double gap = ClickGap(0, 1);
+                        exchanged = c.PlayerInfo.CardsExchanged;
+                        check(gap < 0.55 || exchanged == 0, "two clicks " + gap.ToString("0.00") + " s apart on a hand card do not redraw it");
+                    });
+                    // Slow, but with a margin under the 0.5 s window
+                    Click(2.2, FrontHandCard);
+                    Click(2.58, FrontHandCard);
+                    At(3.2, () =>
+                    {
+                        double gap = ClickGap(2, 3);
+                        check(gap > 0.45 || (c.PlayerInfo.CardsExchanged == exchanged + 1 && c.PlayerInfo.HandList.Count == 10),
+                            "a slow double-click (" + gap.ToString("0.00") + " s) on the front card in the hand redraws it");
+                        exchanged = c.PlayerInfo.CardsExchanged;
+                    });
+                    // A quick double-click on a card further away only brings it forward: never a redraw by accident
+                    Click(3.5, FarHandCard);
+                    Click(3.64, () => farCard != null ? ScreenPoint(farCard) : CardPosition());
+                    At(4.1, () =>
+                    {
+                        if (c.PlayerInfo.CanExchange && farCard != null)
+                            check(c.PlayerInfo.CardsExchanged == exchanged && Picker() != null && Picker().FocusedCardId.ToString() == farCard.name,
+                                "a quick double-click on a card further away brings it forward without redrawing it");
+                    });
+                    // Two redraws end the phase on their own (possible after a stall): then there is no Done to click
+                    Click(4.4, () => c.PlayerInfo.CanExchange ? DonePosition() : CardPosition());
+                    At(4.9, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
+                }
+                else if (scenario == InputScenario.RedrawTwice)
+                {
+                    // Clicks 3 and 4 land on the card that replaced the redrawn one: they must not redraw it too
+                    Click(0.4, FrontHandCard);
+                    Click(0.54, FrontHandCard);
+                    Click(0.68, FrontHandCard);
+                    Click(0.82, FrontHandCard);
+                    At(1.5, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a burst of four clicks redraws one card only"));
+                    At(1.5, () => check(Picker() != null && Picker().CardCount == 10 && c.PlayerInfo.HandList.Contains(Picker().FocusedCardId), "the redraw carousel follows the hand"));
+                    Click(1.8, CarouselCard(-1));
+                    At(2.4, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "clicking the carousel's front card redraws it (and ends the redraw)"));
+                }
+                else if (scenario == InputScenario.RedrawCarousel)
+                {
+                    Key(0.4, UnityEngine.InputSystem.Key.RightArrow);
+                    At(0.8, () => check(Picker() != null && Picker().FocusIndex == 1, "the Right arrow brings the next card forward"));
+                    Click(1.1, CarouselCard(3));
+                    At(1.6, () => check(Picker() != null && Picker().FocusIndex == 3, "clicking a side card brings it forward"));
+                    Key(1.9, UnityEngine.InputSystem.Key.Enter);
+                    At(2.4, () => check(c.PlayerInfo.CardsExchanged == 1, "Enter redraws the front card"));
+                    Click(2.7, CardPosition, MouseButton.Right);
+                    At(3.2, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 1, "right-click keeps the rest of the hand"));
+                }
+                else if (scenario == InputScenario.RedrawSpace)
+                {
+                    At(0.3, () =>
+                    {
+                        GameObject done = GameObject.Find("Button Done");
+                        check(done != null && done.GetComponentInChildren<TextMeshProUGUI>().text.Contains("[Space]"), "the Done button shows its key, Space");
+                    });
+                    Key(0.5, UnityEngine.InputSystem.Key.Space);
+                    At(1.0, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 0, "Space keeps the hand"));
+                }
+                else if (scenario == InputScenario.KeyboardPlay)
+                    KeyboardPlay();
+                else if (scenario == InputScenario.TouchControls)
+                    TouchControls();
+                else if (scenario == InputScenario.GameSpeed)
+                    GameSpeed();
+                else if (scenario == InputScenario.PickerKeys)
+                    PickerKeys();
+                else if (scenario == InputScenario.DiscardPile)
+                    DiscardPile();
+                else if (scenario == InputScenario.LeaderLift)
+                    LeaderLift();
+                else if (scenario == InputScenario.DeckBuilder)
+                    DeckBuilderClicks(deck_path);
+                else if (scenario == InputScenario.MenuPlay)
+                {
+                    string entry = opponent != null ? "Opponent " + CardLibrary.ParseDeck(opponent.text, opponent.name).Name : "(no opponent deck)";
+                    Click(0.3, Named("Item Play"));
+                    At(0.8, () => check(GameObject.Find("OpponentPicker") != null, "Play opens the opponent picker"));
+                    Click(1.1, Named(entry));
+                    At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && SceneManager.GetActiveScene().name == SceneNames.Game,
+                        "choosing an opponent remembers it and starts the battle"));
+                }
+                else if (scenario == InputScenario.PauseMenu)
+                {
+                    Key(0.3, UnityEngine.InputSystem.Key.Escape);
+                    At(0.8, () => check(PauseMenu.IsOpen && Time.timeScale == 0, "Escape pauses the battle (time stops)"));
+                    Key(1.1, UnityEngine.InputSystem.Key.Escape);
+                    At(1.6, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Escape again resumes it"));
+                    Click(1.9, Named("PauseButton"));
+                    At(2.4, () => check(PauseMenu.IsOpen, "the menu button opens the pause menu"));
+                    Click(2.7, Named("Item Resume"));
+                    At(3.2, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
+                }
+                else if (scenario == InputScenario.GiveUpAsked)
+                {
+                    // The deck's own object is no UI rectangle: aim at the image that takes its clicks
+                    Func<Vector2> deck = () => ScreenPoint(UnityEngine.Object.FindAnyObjectByType<DeckGiveUp>().GetComponentsInChildren<Graphic>().First(g => g.raycastTarget).rectTransform);
+                    Move(0.3, deck);
+                    At(0.7, () => check(GameCursor.Current == GameCursor.State.GiveUp, "the cursor over the player's deck is a hand (give up)"));
+                    Click(1.0, deck);
+                    At(1.5, () => check(UIScreens.Find("Button No") != null && !c.IsBattleOver, "a click on the deck asks before giving up"));
+                    Key(1.8, UnityEngine.InputSystem.Key.Escape);
+                    At(2.3, () => check(UIScreens.Find("Button No") == null && !c.IsBattleOver && c.battleState == BattleState.PlayerTurn, "Escape keeps playing"));
+                }
+                else if (scenario == InputScenario.PassWithSpace)
+                {
+                    PassButton pass = UnityEngine.Object.FindAnyObjectByType<PassButton>(FindObjectsInactive.Include);
+                    float hold = pass != null ? pass.requiredHoldTime : 1f;
+                    KeyHold(0.3, UnityEngine.InputSystem.Key.Space, 0.25);
+                    At(0.9, () => check(!c.PlayerInfo.hasPassed, "a short press of Space does not pass"));
+                    KeyHold(1.2, UnityEngine.InputSystem.Key.Space, hold + 0.4);
+                    At(1.2 + hold + 0.8, () => check(c.PlayerInfo.hasPassed, "holding Space passes"));
+                }
+                else if (scenario == InputScenario.MainMenuSettings)
+                {
+                    Move(0.3, Named("Item Deck builder"));
+                    At(0.6, () => check(Highlighted("Item Deck builder"), "hovering a menu entry highlights it"));
+                    Click(0.9, Named("Item Settings"));
+                    At(1.4, () => check(SettingsPanel.IsOpen, "clicking Settings opens the settings"));
+                    Click(1.7, MasterVolumeAt(0.25f));
+                    At(2.2, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
+                    Key(2.5, UnityEngine.InputSystem.Key.Escape);
+                    At(3.0, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
+                    Click(3.3, Named("Item How to play"));
+                    At(3.8, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
+                    Click(4.1, Named("Item Abilities"));
+                    At(4.6, () => check(UIScreens.Find("Entry Spy") != null && UIScreens.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
+                    Key(4.9, UnityEngine.InputSystem.Key.Escape);
+                    At(5.4, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
+                }
+                else
+                {
+                    // A plain unit (when the hand has one), so its right and wrong rows are known
+                    At(0.1, PickPlainUnit);
+                    // The pointer just above the card's lower edge: the card rises and must stay up, not bob
+                    Move(0.3, CardLowerEdge);
+                    bool stayed_up = true;
+                    foreach (double t in new[] { 0.6, 0.7, 0.8, 0.9 })
+                        At(t, () => stayed_up &= card != null && card.GetComponent<CardHover>().isCardUp);
+                    At(0.95, () => check(stayed_up, "a card hovered at its lower edge stays raised"));
+                    At(0.95, () => check(GameCursor.Current == GameCursor.State.Interact, "the cursor turns gold over a playable hand card"));
+                    Click(1.4, CardPosition, MouseButton.Right);
+                    At(1.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
+                    Click(2.2, CardPosition);
+                    At(2.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it (clicked " + Hovered() + ", " + c.battleState + ")"));
+                    // The opponent's side of the unit's row: a wrong place, the card must stay selected in the hand
+                    int hand_before = -1;
+                    Move(2.9, WrongRow);
+                    Move(3.1, WrongRow); // again, in case a real mouse moved in between (the cursor follows the last mouse used)
+                    At(3.2, () => { if (plainUnit) check(GameCursor.Current == GameCursor.State.Invalid, "the cursor shows \"no\" over a row the card cannot go to (" + GameCursor.Current + " over " + Hovered() + ", " + c.battleState + ")"); });
+                    At(3.25, () => hand_before = c.PlayerInfo.HandList.Count);
+                    Click(3.4, WrongRow);
+                    At(3.9, () => { if (plainUnit) check(c.selectedCard == card.gameObject && c.PlayerInfo.HandList.Count == hand_before, "clicking a wrong row does not play the card"); });
+                    Click(4.2, CardPosition);
+                    At(4.7, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
+                }
+            }
+
+            //----------------------------------------Scenarios----------------------------------------//
+            private void KeyboardPlay()
+            {
+                BattleKeys keys = c.GetComponent<BattleKeys>();
+                GameObject first = null;
+                int id = -1, copies = 0, places = 0;
+                At(0.1, () => check(keys != null, "the battle has its keyboard controls"));
+                if (keys == null)
+                    return;
+                Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
+                At(0.7, () =>
+                {
+                    first = keys.Focused;
+                    CardHover hover = first != null ? first.GetComponent<CardHover>() : null;
+                    check(hover != null && hover.isCardUp && hover.bigImage != null, "the Right arrow raises a hand card and shows it on the right");
                 });
-                // Slow, but with a margin under the 0.5 s window
-                Click(2.2, FrontHandCard);
-                Click(2.58, FrontHandCard);
+                Key(1.0, UnityEngine.InputSystem.Key.RightArrow);
+                At(1.4, () => check(c.PlayerInfo.HandList.Count < 2 || (first != null && keys.Focused != null && keys.Focused != first && !first.GetComponent<CardHover>().isCardUp),
+                    "Right again moves on to the next card, and the first one goes down"));
+                Key(1.7, UnityEngine.InputSystem.Key.Enter);
+                At(2.1, () =>
+                {
+                    check(keys.Focused != null && c.selectedCard == keys.Focused && CardShowcase.IsShown, "Enter takes the card: it goes to the showcase");
+                    id = c.selectedCard != null ? int.Parse(c.selectedCard.name) : -1;
+                });
+                Key(2.4, UnityEngine.InputSystem.Key.DownArrow);
+                At(2.8, () =>
+                {
+                    places = c.selectedCard == null ? 0 : c.PlayerField.GetComponent<RowPicker>().highLightedRows.Count + c.EnemyField.GetComponent<RowPicker>().highLightedRows.Count
+                        + (c.WeatherField.GetComponent<WeatherSlot>().isWeatherCard ? 1 : 0)
+                        + c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == BoardView.DecoyFrame);
+                    check(places == 0 || (keys.Place != null && keys.Place.transform.Find("KeyPlace") != null), "Down chooses a place for it, framed (" + places + " places)");
+                    copies = c.PlayerInfo.HandList.Count(h => h == id);
+                });
+                KeyAt(3.1, () => keys.Place != null ? UnityEngine.InputSystem.Key.Enter : UnityEngine.InputSystem.Key.Escape);
+                At(3.6, () =>
+                {
+                    if (places > 0)
+                        check(c.selectedCard == null && (c.PlayerInfo.HandList.Count(h => h == id) == copies - 1 || c.IsPresenting), "Enter plays it there");
+                    else
+                        check(c.selectedCard == null, "Escape puts back a card that has nowhere to go");
+                });
+            }
+
+            private void TouchControls()
+            {
+                bool leader_usable = false;
+                CardHover leader = null;
+                At(0.1, () =>
+                {
+                    savedTouch = GameInput.SimulateTouch;
+                    touchChanged = true;
+                    GameInput.SimulateTouch = true;
+                    leader_usable = c.CanUseLeader(true);
+                    Transform holder = c.PlayerField.transform.Find("Leader/Holder");
+                    leader = holder != null ? holder.GetComponentInChildren<CardHover>() : null;
+                    check(leader != null, "the leader card is on the board");
+                });
+                Hold(0.4, () => leader != null ? ScreenPoint(leader.transform) : Vector2.zero, 0.8);
+                At(1.0, () => check(leader != null && leader.bigImage != null, "a finger held on the leader card shows it on the right (" + PressState(leader) + ")"));
+                At(1.5, () => check(leader != null && leader.bigImage == null && c.CanUseLeader(true) == leader_usable && !c.LeaderSelected, "lifting the finger closes it, and the leader is neither chosen nor used"));
+                Hold(1.8, () => ScreenPoint(c.PlayerLeader.Button.transform), 0.8);
+                At(2.4, () => check(GameObject.Find("Tooltip") != null, "a finger held on the leader's button shows its state"));
+                At(2.9, () => check(GameObject.Find("Tooltip") == null && c.CanUseLeader(true) == leader_usable, "lifting the finger hides it, and the leader is not used"));
+                Hold(3.2, CardPosition, 0.8);
+                At(3.8, () => check(card != null && card.GetComponent<CardHover>().bigImage != null, "a finger held on a hand card shows it on the right (" + PressState(card) + ")"));
+                At(4.3, () => check(card != null && card.GetComponent<CardHover>().bigImage == null && c.selectedCard == null, "lifting the finger closes it, and the card is not selected"));
+                Click(4.6, CardPosition);
+                At(5.1, () => check(card != null && c.selectedCard == card.gameObject, "a tap selects a card"));
+                Click(5.4, CardPosition);
+                At(5.9, () => check(c.selectedCard == null, "a second tap puts it back"));
+            }
+
+            private void GameSpeed()
+            {
+                OwnsTimeScale = true;
+                At(0.1, () =>
+                {
+                    savedMatchDifficulty = (int)GameSettings.AiDifficulty;
+                    savedSpeed = GameSettings.GameSpeed;
+                    GameSettings.GameSpeed = 1;
+                    Time.timeScale = GameSettings.GameTimeScale;
+                });
+                Key(0.3, UnityEngine.InputSystem.Key.Escape);
+                Click(0.9, Named("Item Settings"));
+                Click(1.5, Named("Button Game"));
+                Click(2.0, () =>
+                {
+                    Stepper stepper = SettingsStepper("Row Game speed");
+                    check(stepper != null, "the settings' Game tab shows the game speed");
+                    return stepper != null ? ScreenPoint(stepper.Right) : Vector2.zero;
+                });
+                At(2.5, () =>
+                {
+                    Stepper stepper = SettingsStepper("Row Game speed");
+                    check(GameSettings.GameSpeed == 2, "its right arrow sets it to " + GameSettings.GameSpeedNames[2] + " (speed " + GameSettings.GameSpeed
+                        + ", stepper " + (stepper != null ? stepper.Index.ToString() : "gone") + ", over " + Hovered() + ")");
+                });
+                // The opponent's difficulty, on the same tab: one step of its arrows changes it and the caption under it
+                Click(2.7, () =>
+                {
+                    Stepper stepper = SettingsStepper("Row Difficulty");
+                    UnityEngine.UIElements.Label caption = SettingsCaption("Row Difficulty");
+                    check(stepper != null && caption != null && stepper.Index == (int)GameSettings.AiDifficulty,
+                        "the settings' Game tab shows the opponent's difficulty (" + GameSettings.AiDifficulty + ")");
+                    if (stepper == null || caption == null)
+                        return Vector2.zero;
+                    difficultyBefore = stepper.Index;
+                    captionBefore = caption.text;
+                    return ScreenPoint(stepper.Index > 0 ? stepper.Left : stepper.Right);
+                });
                 At(3.2, () =>
                 {
-                    double gap = ClickGap(2, 3);
-                    check(gap > 0.45 || (c.PlayerInfo.CardsExchanged == exchanged + 1 && c.PlayerInfo.HandList.Count == 10),
-                        "a slow double-click (" + gap.ToString("0.00") + " s) on the front card in the hand redraws it");
-                    exchanged = c.PlayerInfo.CardsExchanged;
+                    Stepper stepper = SettingsStepper("Row Difficulty");
+                    UnityEngine.UIElements.Label caption = SettingsCaption("Row Difficulty");
+                    string about = caption != null ? caption.text : "";
+                    int shown = stepper != null ? stepper.Index : -1;
+                    check(shown >= 0 && shown != difficultyBefore && (int)GameSettings.AiDifficulty == shown && stepper.Label.text == GameSettings.AiDifficultyNames[shown],
+                        "its arrow changes the difficulty (" + GameSettings.AiDifficulty + ", stepper " + shown + ", over " + Hovered() + ")");
+                    check(about.Length > 0 && about != captionBefore, "the caption follows the difficulty (\"" + about + "\")");
                 });
-                // A quick double-click on a card further away only brings it forward: never a redraw by accident
-                Click(3.5, FarHandCard);
-                Click(3.64, () => farCard != null ? ScreenPoint(farCard) : CardPosition());
-                At(4.1, () =>
-                {
-                    if (c.PlayerInfo.CanExchange && farCard != null)
-                        check(c.PlayerInfo.CardsExchanged == exchanged && Picker() != null && Picker().FocusedCardId.ToString() == farCard.name,
-                            "a quick double-click on a card further away brings it forward without redrawing it");
-                });
-                // Two redraws end the phase on their own (possible after a stall): then there is no Done to click
-                Click(4.4, () => c.PlayerInfo.CanExchange ? DonePosition() : CardPosition());
-                At(4.9, () => check(!c.PlayerInfo.CanExchange, "the Done button ends the redraw"));
+                Key(3.5, UnityEngine.InputSystem.Key.Escape);
+                Click(4.0, Named("Item Resume"));
+                At(4.5, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
+                    "after Resume the battle runs at that speed (time scale " + Time.timeScale + ")"));
             }
-            else if (scenario == InputScenario.RedrawTwice)
-            {
-                // Clicks 3 and 4 land on the card that replaced the redrawn one: they must not redraw it too
-                Click(0.4, FrontHandCard);
-                Click(0.54, FrontHandCard);
-                Click(0.68, FrontHandCard);
-                Click(0.82, FrontHandCard);
-                At(1.5, () => check(c.PlayerInfo.CardsExchanged == 1 && c.PlayerInfo.HandList.Count == 10, "a burst of four clicks redraws one card only"));
-                At(1.5, () => check(Picker() != null && Picker().CardCount == 10 && c.PlayerInfo.HandList.Contains(Picker().FocusedCardId), "the redraw carousel follows the hand"));
-                Click(1.8, CarouselCard(-1));
-                At(2.4, () => check(c.PlayerInfo.CardsExchanged == 2 && !c.PlayerInfo.CanExchange, "clicking the carousel's front card redraws it (and ends the redraw)"));
-            }
-            else if (scenario == InputScenario.RedrawCarousel)
-            {
-                Key(0.4, UnityEngine.InputSystem.Key.RightArrow);
-                At(0.8, () => check(Picker() != null && Picker().FocusIndex == 1, "the Right arrow brings the next card forward"));
-                Click(1.1, CarouselCard(3));
-                At(1.6, () => check(Picker() != null && Picker().FocusIndex == 3, "clicking a side card brings it forward"));
-                Key(1.9, UnityEngine.InputSystem.Key.Enter);
-                At(2.4, () => check(c.PlayerInfo.CardsExchanged == 1, "Enter redraws the front card"));
-                Click(2.7, CardPosition, MouseButton.Right);
-                At(3.2, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 1, "right-click keeps the rest of the hand"));
-            }
-            else if (scenario == InputScenario.RedrawSpace)
-            {
-                At(0.3, () =>
-                {
-                    GameObject done = GameObject.Find("Button Done");
-                    check(done != null && done.GetComponentInChildren<TextMeshProUGUI>().text.Contains("[Space]"), "the Done button shows its key, Space");
-                });
-                Key(0.5, UnityEngine.InputSystem.Key.Space);
-                At(1.0, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 0, "Space keeps the hand"));
-            }
-            else if (scenario == InputScenario.KeyboardPlay)
-                KeyboardPlay();
-            else if (scenario == InputScenario.TouchControls)
-                TouchControls();
-            else if (scenario == InputScenario.GameSpeed)
-                GameSpeed();
-            else if (scenario == InputScenario.PickerKeys)
-                PickerKeys();
-            else if (scenario == InputScenario.DiscardPile)
-                DiscardPile();
-            else if (scenario == InputScenario.LeaderTwoClicks)
-                LeaderTwoClicks();
-            else if (scenario == InputScenario.DeckBuilder)
-                DeckBuilder(deck_path);
-            else if (scenario == InputScenario.MenuPlay)
-            {
-                string entry = opponent != null ? "Opponent " + CardLibrary.ParseDeck(opponent.text, opponent.name).Name : "(no opponent deck)";
-                Click(0.3, Named("Item Play"));
-                At(0.8, () => check(GameObject.Find("OpponentPicker") != null, "Play opens the opponent picker"));
-                Click(1.1, NamedUnder("OpponentPicker", entry));
-                At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && SceneManager.GetActiveScene().name == SceneNames.Game,
-                    "choosing an opponent remembers it and starts the battle"));
-            }
-            else if (scenario == InputScenario.PauseMenu)
-            {
-                Key(0.3, UnityEngine.InputSystem.Key.Escape);
-                At(0.8, () => check(PauseMenu.IsOpen && Time.timeScale == 0, "Escape pauses the battle (time stops)"));
-                Key(1.1, UnityEngine.InputSystem.Key.Escape);
-                At(1.6, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Escape again resumes it"));
-                Click(1.9, Named("PauseButton"));
-                At(2.4, () => check(PauseMenu.IsOpen, "the menu button opens the pause menu"));
-                Click(2.7, Named("Item Resume"));
-                At(3.2, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
-            }
-            else if (scenario == InputScenario.PassWithSpace)
-            {
-                PassManager pass = UnityEngine.Object.FindAnyObjectByType<PassManager>(FindObjectsInactive.Include);
-                float hold = pass != null ? pass.requiredHoldTime : 1f;
-                KeyHold(0.3, UnityEngine.InputSystem.Key.Space, 0.25);
-                At(0.9, () => check(!c.PlayerInfo.hasPassed, "a short press of Space does not pass"));
-                KeyHold(1.2, UnityEngine.InputSystem.Key.Space, hold + 0.4);
-                At(1.2 + hold + 0.8, () => check(c.PlayerInfo.hasPassed, "holding Space passes"));
-            }
-            else if (scenario == InputScenario.MainMenuSettings)
-            {
-                Move(0.3, Named("Item Deck builder"));
-                At(0.6, () => check(EventSystem.current.currentSelectedGameObject == GameObject.Find("Item Deck builder"), "hovering a menu entry highlights it"));
-                Click(0.9, Named("Item Settings"));
-                At(1.4, () => check(SettingsPanel.IsOpen, "clicking Settings opens the settings"));
-                Click(1.7, MasterVolumeAt(0.25f));
-                At(2.2, () => check(Mathf.Abs(GameSettings.MasterVolume - 0.25f) < 0.06f, "clicking the master volume slider sets the volume"));
-                Key(2.5, UnityEngine.InputSystem.Key.Escape);
-                At(3.0, () => check(!SettingsPanel.IsOpen, "Escape closes the settings"));
-                Click(3.3, Named("Item How to play"));
-                At(3.8, () => check(GameObject.Find("RulesPage") != null, "How to play opens the rules"));
-                Click(4.1, Named("Item Abilities"));
-                At(4.6, () => check(GameObject.Find("Entry Spy") != null && GameObject.Find("Entry Your hand") == null, "a rules topic shows its own entries"));
-                Key(4.9, UnityEngine.InputSystem.Key.Escape);
-                At(5.4, () => check(GameObject.Find("RulesPage") == null, "Escape closes the rules"));
-            }
-            else
-            {
-                // A plain unit (when the hand has one), so its right and wrong rows are known
-                At(0.1, PickPlainUnit);
-                // The pointer just above the card's lower edge: the card rises and must stay up, not bob
-                Move(0.3, CardLowerEdge);
-                bool stayed_up = true;
-                foreach (double t in new[] { 0.6, 0.7, 0.8, 0.9 })
-                    At(t, () => stayed_up &= card != null && card.GetComponent<CardHover>().isCardUp);
-                At(0.95, () => check(stayed_up, "a card hovered at its lower edge stays raised"));
-                At(0.95, () => check(GameCursor.Current == GameCursor.State.Interact, "the cursor turns gold over a playable hand card"));
-                Click(1.4, CardPosition, MouseButton.Right);
-                At(1.9, () => check(c.selectedCard == null, "right-clicking a hand card does not select it"));
-                Click(2.2, CardPosition);
-                At(2.7, () => check(card != null && c.selectedCard == card.gameObject, "left-clicking a hand card selects it (clicked " + Hovered() + ", " + c.battleState + ")"));
-                // The opponent's side of the unit's row: a wrong place, the card must stay selected in the hand
-                int hand_before = -1;
-                Move(2.9, WrongRow);
-                Move(3.1, WrongRow); // again, in case a real mouse moved in between (the cursor follows the last mouse used)
-                At(3.2, () => { if (plainUnit) check(GameCursor.Current == GameCursor.State.Invalid, "the cursor shows \"no\" over a row the card cannot go to (" + GameCursor.Current + " over " + Hovered() + ", " + c.battleState + ")"); });
-                At(3.25, () => hand_before = c.PlayerInfo.HandList.Count);
-                Click(3.4, WrongRow);
-                At(3.9, () => { if (plainUnit) check(c.selectedCard == card.gameObject && c.PlayerInfo.HandList.Count == hand_before, "clicking a wrong row does not play the card"); });
-                Click(4.2, CardPosition);
-                At(4.7, () => check(c.selectedCard == null, "clicking the selected card again deselects it"));
-            }
-        }
 
-        //----------------------------------------Scenarios----------------------------------------//
-        private void KeyboardPlay()
-        {
-            BattleKeys keys = c.GetComponent<BattleKeys>();
-            GameObject first = null;
-            int id = -1, copies = 0, places = 0;
-            At(0.1, () => check(keys != null, "the battle has its keyboard controls"));
-            if (keys == null)
-                return;
-            Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
-            At(0.7, () =>
+            // UI Toolkit's Q (an extension method: this file keeps uGUI's names, so it does not import UnityEngine.UIElements)
+            private static T Query<T>(UnityEngine.UIElements.VisualElement root, string name = null, string class_name = null) where T : UnityEngine.UIElements.VisualElement
             {
-                first = keys.Focused;
-                CardHover hover = first != null ? first.GetComponent<CardHover>() : null;
-                check(hover != null && hover.isCardUp && hover.bigImage != null, "the Right arrow raises a hand card and shows it on the right");
-            });
-            Key(1.0, UnityEngine.InputSystem.Key.RightArrow);
-            At(1.4, () => check(c.PlayerInfo.HandList.Count < 2 || (first != null && keys.Focused != null && keys.Focused != first && !first.GetComponent<CardHover>().isCardUp),
-                "Right again moves on to the next card, and the first one goes down"));
-            Key(1.7, UnityEngine.InputSystem.Key.Enter);
-            At(2.1, () =>
+                return UnityEngine.UIElements.UQueryExtensions.Q<T>(root, name, class_name);
+            }
+
+            // A settings row's stepper and the caption under its label (UI Toolkit)
+            private static Stepper SettingsStepper(string row)
             {
-                check(keys.Focused != null && c.selectedCard == keys.Focused && CardShowcase.IsShown, "Enter takes the card: it goes to the showcase");
-                id = c.selectedCard != null ? int.Parse(c.selectedCard.name) : -1;
-            });
-            Key(2.4, UnityEngine.InputSystem.Key.DownArrow);
-            At(2.8, () =>
+                UnityEngine.UIElements.VisualElement element = UIScreens.Find(row);
+                return element != null ? Query<Stepper>(element) : null;
+            }
+
+            private static UnityEngine.UIElements.Label SettingsCaption(string row)
             {
-                places = c.selectedCard == null ? 0 : c.PlayerField.GetComponent<RowPicker>().highLightedRows.Count + c.EnemyField.GetComponent<RowPicker>().highLightedRows.Count
-                    + (c.WeatherField.GetComponent<WeatherManager>().isWeatherCard ? 1 : 0)
-                    + c.PlayerField.GetComponentsInChildren<Transform>().Count(t => t.name == BoardView.DecoyFrame);
-                check(places == 0 || (keys.Place != null && keys.Place.transform.Find("KeyPlace") != null), "Down chooses a place for it, framed (" + places + " places)");
-                copies = c.PlayerInfo.HandList.Count(h => h == id);
-            });
-            KeyAt(3.1, () => keys.Place != null ? UnityEngine.InputSystem.Key.Enter : UnityEngine.InputSystem.Key.Escape);
-            At(3.6, () =>
+                UnityEngine.UIElements.VisualElement element = UIScreens.Find(row);
+                return element != null ? Query<UnityEngine.UIElements.Label>(element, "Caption") : null;
+            }
+
+            private void LeaderLift()
             {
-                if (places > 0)
-                    check(c.selectedCard == null && (c.PlayerInfo.HandList.Count(h => h == id) == copies - 1 || c.IsPresenting), "Enter plays it there");
+                Func<GameObject> leader_object = () =>
+                {
+                    Transform holder = c.PlayerField.transform.Find("Leader/Holder");
+                    CardSelect leader = holder != null ? holder.GetComponentInChildren<CardSelect>() : null;
+                    return leader != null ? leader.gameObject : null;
+                };
+                Func<Vector2> leader_card = () => leader_object() != null ? ScreenPoint(leader_object().transform) : Vector2.zero;
+                Func<Vector2> crown = () => ScreenPoint(c.PlayerLeader.Button.transform);
+                // The card's slot is empty while it is lifted (the card shows on the right)
+                Func<bool> slot_empty = () =>
+                {
+                    CanvasGroup group = leader_object() != null ? leader_object().GetComponent<CanvasGroup>() : null;
+                    return group != null && group.alpha < 0.01f;
+                };
+                Func<bool> crown_button = () => c.PlayerLeader.Button.interactable;
+                int leader_id = c.PlayerInfo.Leader;
+                int targets = LeaderIds.WeatherPickRow(leader_id) != null || LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
+                    || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless ? 1
+                    : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe || leader_id == LeaderIds.CrachAnCraite ? 2 : 0;
+
+                At(0.2, () => check(!crown_button(), "the crown is no button before the leader is lifted"));
+                Click(0.4, leader_card);
+                At(0.9, () => check(c.LeaderSelected && CardShowcase.IsShown && slot_empty() && crown_button() && c.CanUseLeader(true) && c.LeaderTargets.Count == targets,
+                    "a click lifts the leader: out of its slot (empty: " + slot_empty() + ") to the right, its crown a button (" + crown_button() + "), "
+                    + targets + " place(s) lit (" + c.LeaderTargets.Count + "), not used yet"));
+                Key(1.2, UnityEngine.InputSystem.Key.Escape);
+                At(1.8, () => check(!c.LeaderSelected && !slot_empty() && !crown_button() && c.CanUseLeader(true) && !PauseMenu.IsOpen,
+                    "Escape puts it back in its slot, and the crown is no button again"));
+                Click(2.1, crown);
+                At(2.5, () => check(!c.LeaderSelected && c.CanUseLeader(true), "a click on the crown alone neither lifts nor uses it"));
+                Click(2.8, leader_card);
+                Click(3.3, leader_card);
+                At(3.9, () => check(!c.LeaderSelected && !slot_empty() && c.CanUseLeader(true), "a click on its empty slot puts it back"));
+                Click(4.2, leader_card);
+                Click(4.7, CardPosition);
+                At(5.2, () => check(!c.LeaderSelected && card != null && c.selectedCard == card.gameObject && c.CanUseLeader(true), "a hand card takes its place"));
+                Click(5.5, CardPosition);
+                At(6.0, () => check(c.selectedCard == null, "(and goes back)"));
+                Click(6.3, leader_card);
+                Click(6.8, () =>
+                {
+                    GameObject place = c.LeaderTargets.Count > 0 ? c.LeaderTargets[0] : null;
+                    return place != null ? ScreenPoint(place.transform) : leader_card();
+                });
+                if (targets > 0)
+                    At(7.3, () => check(c.LeaderSelected && c.CanUseLeader(true), "a click on a place it lit does not use it (the crown does)"));
                 else
-                    check(c.selectedCard == null, "Escape puts back a card that has nowhere to go");
-            });
-        }
+                    Click(7.1, leader_card); // put back by its slot, lifted again
+                Click(7.6, crown);
+                At(8.2, () => check(!c.LeaderSelected && !c.PlayerInfo.canLeader && !crown_button(), "a click on the glowing crown uses the ability"));
+            }
 
-        private void TouchControls()
-        {
-            bool leader_usable = false;
-            CardHover leader = null;
-            At(0.1, () =>
+            // The picker is The Witcher 3's carousel under a title band
+            private void PickerKeys()
             {
-                savedTouch = GameInput.SimulateTouch;
-                touchChanged = true;
-                GameInput.SimulateTouch = true;
-                leader_usable = c.CanUseLeader(true);
-                Transform holder = c.PlayerField.transform.Find("Leader/Holder");
-                leader = holder != null ? holder.GetComponentInChildren<CardHover>() : null;
-                check(leader != null, "the leader card is on the board");
-            });
-            Hold(0.4, () => leader != null ? ScreenPoint(leader.transform) : Vector2.zero, 0.8);
-            At(1.0, () => check(leader != null && leader.bigImage != null, "a finger held on the leader card shows it on the right (" + PressState(leader) + ")"));
-            At(1.5, () => check(leader != null && leader.bigImage == null && c.CanUseLeader(true) == leader_usable && !c.LeaderSelected, "lifting the finger closes it, and the leader is neither chosen nor used"));
-            Hold(1.8, () => ScreenPoint(c.PlayerLeader.Button.transform), 0.8);
-            At(2.4, () => check(GameObject.Find("Tooltip") != null, "a finger held on the leader's button shows its state"));
-            At(2.9, () => check(GameObject.Find("Tooltip") == null && c.CanUseLeader(true) == leader_usable, "lifting the finger hides it, and the leader is not used"));
-            Hold(3.2, CardPosition, 0.8);
-            At(3.8, () => check(card != null && card.GetComponent<CardHover>().bigImage != null, "a finger held on a hand card shows it on the right (" + PressState(card) + ")"));
-            At(4.3, () => check(card != null && card.GetComponent<CardHover>().bigImage == null && c.selectedCard == null, "lifting the finger closes it, and the card is not selected"));
-            Click(4.6, CardPosition);
-            At(5.1, () => check(card != null && c.selectedCard == card.gameObject, "a tap selects a card"));
-            Click(5.4, CardPosition);
-            At(5.9, () => check(c.selectedCard == null, "a second tap puts it back"));
-        }
-
-        private void GameSpeed()
-        {
-            OwnsTimeScale = true;
-            At(0.1, () =>
-            {
-                savedMatchDifficulty = (int)GameSettings.AiDifficulty;
-                savedSpeed = GameSettings.GameSpeed;
-                GameSettings.GameSpeed = 1;
-                Time.timeScale = GameSettings.GameTimeScale;
-            });
-            Key(0.3, UnityEngine.InputSystem.Key.Escape);
-            Click(0.9, Named("Item Settings"));
-            Click(1.5, Named("Button Game"));
-            Click(2.0, () =>
-            {
-                GameObject row = GameObject.Find("Row Game speed");
-                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
-                check(stepper != null, "the settings' Game tab shows the game speed");
-                return stepper != null ? ScreenPoint(stepper.right.transform) : Vector2.zero;
-            });
-            At(2.5, () =>
-            {
-                GameObject row = GameObject.Find("Row Game speed");
-                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
-                check(GameSettings.GameSpeed == 2, "its right arrow sets it to " + GameSettings.GameSpeedNames[2] + " (speed " + GameSettings.GameSpeed
-                    + ", stepper " + (stepper != null ? stepper.index.ToString() : "gone") + ", over " + Hovered() + ")");
-            });
-            // The opponent's difficulty, on the same tab: one step of its arrows changes it and the caption under it
-            Click(2.7, () =>
-            {
-                GameObject row = GameObject.Find("Row Difficulty");
-                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
-                Transform caption = row != null ? row.transform.Find("Caption") : null;
-                check(stepper != null && caption != null && stepper.index == (int)GameSettings.AiDifficulty,
-                    "the settings' Game tab shows the opponent's difficulty (" + GameSettings.AiDifficulty + ")");
-                if (stepper == null || caption == null)
-                    return Vector2.zero;
-                difficultyBefore = stepper.index;
-                captionBefore = caption.GetComponent<TextMeshProUGUI>().text;
-                return ScreenPoint(stepper.index > 0 ? stepper.left.transform : stepper.right.transform);
-            });
-            At(3.2, () =>
-            {
-                GameObject row = GameObject.Find("Row Difficulty");
-                UIStepper stepper = row != null ? row.GetComponentInChildren<UIStepper>() : null;
-                Transform caption = row != null ? row.transform.Find("Caption") : null;
-                string about = caption != null ? caption.GetComponent<TextMeshProUGUI>().text : "";
-                int shown = stepper != null ? stepper.index : -1;
-                check(shown >= 0 && shown != difficultyBefore && (int)GameSettings.AiDifficulty == shown && stepper.label.text == GameSettings.AiDifficultyNames[shown],
-                    "its arrow changes the difficulty (" + GameSettings.AiDifficulty + ", stepper " + shown + ", over " + Hovered() + ")");
-                check(about.Length > 0 && about != captionBefore, "the caption follows the difficulty (\"" + about + "\")");
-            });
-            Key(3.5, UnityEngine.InputSystem.Key.Escape);
-            Click(4.0, Named("Item Resume"));
-            At(4.5, () => check(!PauseMenu.IsOpen && GameSettings.GameTimeScale > 1.5f && Mathf.Approximately(Time.timeScale, GameSettings.GameTimeScale),
-                "after Resume the battle runs at that speed (time scale " + Time.timeScale + ")"));
-        }
-
-        private void LeaderTwoClicks()
-        {
-            Func<Vector2> leader_card = () =>
-            {
-                Transform holder = c.PlayerField.transform.Find("Leader/Holder");
-                CardSelect leader = holder != null ? holder.GetComponentInChildren<CardSelect>() : null;
-                return leader != null ? ScreenPoint(leader.transform) : Vector2.zero;
-            };
-            int leader_id = c.PlayerInfo.Leader;
-            int targets = LeaderIds.WeatherPickRow(leader_id) != null || LeaderIds.HornRow(leader_id) != null || LeaderIds.ScorchRow(leader_id) != null
-                || leader_id == LeaderIds.FoltestLordCommander || leader_id == LeaderIds.EredinBringerOfDeath || leader_id == LeaderIds.EmhyrTheRelentless ? 1
-                : leader_id == LeaderIds.FrancescaHopeOfTheAenSeidhe ? 2 : 0;
-            Click(0.4, leader_card);
-            At(0.9, () => check(c.LeaderSelected && CardShowcase.IsShown && c.CanUseLeader(true) && c.LeaderTargets.Count == targets,
-                "a click on the leader chooses it: it shows on the right, " + targets + " place(s) lit (" + c.LeaderTargets.Count + "), not used yet"));
-            Key(1.2, UnityEngine.InputSystem.Key.Escape);
-            At(1.6, () => check(!c.LeaderSelected && c.CanUseLeader(true) && !PauseMenu.IsOpen, "Escape puts it back"));
-            Click(1.9, () => ScreenPoint(c.PlayerLeader.Button.transform));
-            At(2.4, () => check(c.LeaderSelected && c.CanUseLeader(true), "a click on its button chooses it too"));
-            Click(2.7, CardPosition);
-            At(3.2, () => check(!c.LeaderSelected && card != null && c.selectedCard == card.gameObject && c.CanUseLeader(true), "a hand card takes its place"));
-            Click(3.5, CardPosition);
-            At(4.0, () => check(c.selectedCard == null, "(and goes back)"));
-            Click(4.3, leader_card);
-            Click(4.9, () =>
-            {
-                GameObject place = c.LeaderTargets.Count > 0 ? c.LeaderTargets[0] : null;
-                return place != null ? ScreenPoint(place.transform) : leader_card();
-            });
-            At(5.5, () => check(!c.LeaderSelected && !c.PlayerInfo.canLeader,
-                (targets > 0 ? "a click on the place it lit" : "a second click on it") + " uses the ability"));
-        }
-
-        // The picker is The Witcher 3's carousel under a title band
-        private void PickerKeys()
-        {
-            PanelManager panel = c.Panel.GetComponent<PanelManager>();
-            Func<GameObject> selected = () => EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-            At(0.1, () =>
-            {
-                TextMeshProUGUI title = panel.Picker != null ? panel.Picker.transform.parent.Find("Band").GetComponentInChildren<TextMeshProUGUI>() : null;
-                check(panel.Picker != null && panel.Picker.CardCount == panel.Cards.Count && title != null && title.text.Length > 0,
-                    "the picker shows its cards in the carousel, under a title (\"" + (title != null ? title.text : "") + "\")");
-            });
-            Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
-            At(0.7, () => check(panel.Picker != null && panel.Picker.FocusIndex == 1, "the Right arrow brings the next card to the front"));
-            Key(1.0, UnityEngine.InputSystem.Key.LeftArrow);
-            At(1.4, () => check(panel.Picker != null && panel.Picker.FocusIndex == 0, "Left brings back the first"));
-            Key(1.7, UnityEngine.InputSystem.Key.DownArrow);
-            At(2.0, () => check(panel.Picker != null && selected() == panel.Picker.BandButton.gameObject, "Down goes to the band's button (Skip or Close)"));
-            Key(2.3, UnityEngine.InputSystem.Key.UpArrow);
-            At(2.6, () => check(panel.Picker != null && selected() != panel.Picker.BandButton.gameObject, "Up comes back to the cards"));
-            Key(2.9, UnityEngine.InputSystem.Key.Enter);
-            At(3.4, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter picks the front card (a look at the opponent's hand closes)"));
-        }
-
-        // A discard pile, opened by a click, in the carousel with its top card in front; the battle waits
-        private void DiscardPile()
-        {
-            bool mine = c.PlayerInfo.DiscardList.Count >= 2;
-            List<int> pile = mine ? c.PlayerInfo.DiscardList : c.EnemyInfo.DiscardList;
-            int count = pile.Count;
-            Click(0.3, () => ScreenPoint((mine ? c.PlayerField : c.EnemyField).transform.Find("Discard")));
-            At(0.8, () =>
-            {
-                CardPicker picker = UnityEngine.Object.FindAnyObjectByType<CardPicker>();
-                check(DiscardViewer.IsOpen && Time.timeScale == 0 && picker != null && picker.CardCount == count && picker.FocusIndex == count - 1,
-                    "a click on a discard pile shows it in the carousel, its top card in front, and the battle waits");
-            });
-            Key(1.1, UnityEngine.InputSystem.Key.LeftArrow);
-            At(1.5, () =>
-            {
-                CardPicker picker = UnityEngine.Object.FindAnyObjectByType<CardPicker>();
-                check(picker != null && picker.FocusIndex == count - 2, "the Left arrow goes down the pile");
-            });
-            Key(1.8, UnityEngine.InputSystem.Key.Escape);
-            At(2.3, () => check(!DiscardViewer.IsOpen && Time.timeScale > 0 && !PauseMenu.IsOpen, "Escape puts it away, and the battle goes on"));
-        }
-
-        // The test deck is shown; the collection lists the deck's faction (and neutrals)
-        private void DeckBuilder(string deck_path)
-        {
-            DeckController dc = DeckController.Instance;
-            CollectionManager browse = UnityEngine.Object.FindObjectsByType<CollectionManager>().FirstOrDefault(m => !m.CompareTag("Player"));
-            At(0, () => check(dc != null && browse != null, "the deck builder shows the deck and the collection"));
-            if (dc == null || browse == null)
-                return;
-            Func<int> count = () => dc.my_deck.Cards.Count;
-            Func<int> saved = () => { Deck deck = DeckStorage.Load(deck_path); return deck != null ? deck.Cards.Count : -1; };
-            int before = 0;
-
-            // Each card once, with its count (The Witcher 3): the copies in the deck, the copies left in the collection
-            int added = -1;
-            At(0.1, () =>
-            {
-                before = count();
-                int kinds = dc.my_deck.Cards.Distinct().Count(id => dc.deckCollection.toggleBtn.isOn || dc.Db.Get(id).faction != Factions.Neutral);
-                check(Shown(dc.deckCollection).Count == kinds && BadgeOf(dc.deckCollection, CardIds.BitingFrost) == 3,
-                    "the deck shows each card once with its count (Biting Frost x" + BadgeOf(dc.deckCollection, CardIds.BitingFrost) + ")");
-            });
-            // Add, then two cards that cannot be added: a hero already in the deck (not offered), an 11th special
-            DoubleClickAt(0.4, () =>
-            {
-                Vector2 at = AddableCard();
-                added = addTarget != null ? addTarget.GetComponent<CardStats>()._id : -1;
-                return at;
-            });
-            At(1.0, () =>
-            {
-                check(count() == before + 1 && saved() == before + 1, "double-clicking a card in the collection adds it to the deck (and saves it)");
-                int left = added >= 0 ? DeckRules.MaxCopies(dc.Db.Get(added)) - 1 : -1;
-                check(added >= 0 && (left == 0 ? !Shown(browse).Contains(added) : BadgeOf(browse, added) == left), "the collection then counts one copy fewer (" + left + " left)");
-            });
-            Click(1.3, () => ScreenPoint(browse.currentSprites[4].transform));
-            At(1.8, () => check(Shown(browse).Count == 0, "with every hero in the deck, the collection offers none (" + Shown(browse).Count + " shown)"));
-            Click(2.1, () => ScreenPoint(browse.currentSprites[CollectionManager.WeatherTab].transform));
-            At(2.6, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => dc.Db.Get(id).row == Rows.Weather), "the Weather tab lists the weather cards only"));
-            Click(2.9, () => ScreenPoint(browse.currentSprites[CollectionManager.SpecialTab].transform));
-            DoubleClickAt(3.4, FirstCardOf(browse));
-            At(4.0, () => check(count() == before + 1 && ToastText().Contains("special cards") && Shown(browse).All(id => dc.Db.Get(id).IsSpecial && dc.Db.Get(id).row != Rows.Weather),
-                "the Specials tab lists the other special cards, and an 11th special card is refused (\"" + ToastText() + "\")"));
-            Click(4.3, () => ScreenPoint(browse.currentSprites[0].transform));
-
-            // Remove from the deck's list
-            DoubleClickAt(4.6, FirstCardOf(dc.deckCollection));
-            At(5.2, () => check(count() == before && saved() == before, "double-clicking a card of the deck takes it out (and saves it)"));
-
-            // Touch (simulated): a finger held on a card shows it large, and adds nothing
-            At(5.4, () =>
-            {
-                savedTouch = GameInput.SimulateTouch;
-                touchChanged = true;
-                GameInput.SimulateTouch = true;
-            });
-            Hold(5.7, FirstCardOf(browse), 0.8);
-            At(6.3, () => check(browse.cardDetails.activeSelf, "(touch) a finger held on a card shows it large (" + (browse.cardsArea.transform.childCount > 0 ? PressState(browse.cardsArea.transform.GetChild(0)) : "no card") + ")"));
-            At(6.8, () => check(!browse.cardDetails.activeSelf && count() == before, "(touch) lifting the finger puts it away, and the card is not added"));
-            At(6.9, () => GameInput.SimulateTouch = savedTouch);
-
-            // The leader picker
-            GameObject picker = dc.middleManager.leaderGo.GetComponent<CLeaderManager>().LeaderPicker;
-            int leader = -1;
-            DoubleClickAt(7.2, () => ScreenPoint(dc.middleManager.leaderGo.transform));
-            At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Factions.Monsters].Length,
-                "double-clicking the leader opens the faction's leaders"));
-            DoubleClickAt(8.1, () =>
-            {
-                Transform content = picker.GetComponent<LeaderPicker>().contentGO.transform;
-                Transform second = content.childCount > 1 ? content.GetChild(1) : null;
-                leader = second != null ? second.GetComponent<LeaderWindow>().leaderId : -1;
-                return second != null ? ScreenPoint(second) : Vector2.zero;
-            });
-            At(8.7, () =>
-            {
-                Deck deck = DeckStorage.Load(deck_path);
-                check(leader >= 0 && dc.my_deck.Leader == leader && deck != null && deck.Leader == leader && !picker.activeSelf, "double-clicking a leader makes it the deck's leader (saved)");
-            });
-
-            // The header's arrows: the previous faction (its cards, its perk, its decks), then back
-            Click(9.0, () => ScreenPoint(dc.deckCollection.headerSnap.previousButton.transform));
-            At(10.3, () => check(ShowsFaction(dc, browse, Factions.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
-            Click(10.6, () => ScreenPoint(dc.deckCollection.headerSnap.nextButton.transform));
-            At(11.9, () => check(ShowsFaction(dc, browse, Factions.Monsters, "random unit"), "the right arrow switches back"));
-
-            // The deck dropdown
-            Click(12.2, () => ScreenPoint(dc.middleManager.deckPicker.transform));
-            Click(12.8, () =>
-            {
-                GameObject list = GameObject.Find("Dropdown List");
-                string wanted = DeckStorage.Load(deck_path).Name;
-                Toggle item = list != null ? list.GetComponentsInChildren<Toggle>().FirstOrDefault(t => t.name.EndsWith(": " + wanted)) : null;
-                check(item != null, "the deck dropdown lists the test deck");
-                return item != null ? ScreenPoint(item.transform) : Vector2.zero;
-            });
-            At(13.4, () =>
-            {
-                string wanted = DeckStorage.Load(deck_path).Name;
-                check(DeckStorage.SamePath(dc.currentDeckPath, deck_path) && dc.my_deck.Name == wanted, "picking the deck in the dropdown shows it");
-                check(DeckStorage.SamePath(PlayerPrefs.GetString("playerDeckPath", ""), deck_path) && dc.BattleDeckStatus == "Battle deck: " + wanted,
-                    "the valid deck picked becomes the battle deck, as the status line says (\"" + dc.BattleDeckStatus + "\")");
-            });
-        }
-
-        // What the pointer is on, and the long press of an element (for failure messages)
-        private string PressState(Component target)
-        {
-            LongPress press = target != null ? target.GetComponent<LongPress>() : null;
-            if (press == null)
-                return "no long press on it, over " + Hovered();
-            System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            object data = typeof(LongPress).GetField("press", flags).GetValue(press);
-            return "pressed " + (data != null) + ", showing " + typeof(LongPress).GetField("showing", flags).GetValue(press) + ", touch " + GameInput.IsTouch
-                + ", showcase " + CardShowcase.IsShown + ", over " + Hovered() + (c != null ? ", " + c.battleState : "");
-        }
-
-        private static bool ShowsFaction(DeckController dc, CollectionManager browse, string faction, string perk)
-        {
-            return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
-                && dc.deckCollection.factionPerk.text.Contains(perk)
-                && dc.middleManager.myPaths.All(p => OpponentDecks.IsPreset(p)
-                    ? DeckStorage.Load(p).Faction == faction // the faction's presets
-                    : DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
-        }
-
-        // The card ids a card list shows, and the count on one of them (-1 when not shown)
-        private static List<int> Shown(CollectionManager collection)
-        {
-            List<int> ids = new List<int>();
-            foreach (Transform card in collection.cardsArea.transform)
-                ids.Add(card.GetComponent<CardStats>()._id);
-            return ids;
-        }
-
-        private static int BadgeOf(CollectionManager collection, int id)
-        {
-            foreach (Transform card in collection.cardsArea.transform)
-                if (card.GetComponent<CardStats>()._id == id)
+                BattlePickers panel = c.Panel.GetComponent<BattlePickers>();
+                Func<GameObject> selected = () => EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+                At(0.1, () =>
                 {
-                    Transform badge = card.Find(CollectionManager.CountBadge);
-                    int count;
-                    return badge != null && int.TryParse(badge.GetComponentInChildren<TextMeshProUGUI>().text.TrimStart('x'), out count) ? count : -1;
+                    TextMeshProUGUI title = panel.Picker != null ? panel.Picker.transform.parent.Find("Band").GetComponentInChildren<TextMeshProUGUI>() : null;
+                    check(panel.Picker != null && panel.Picker.CardCount == panel.Cards.Count && title != null && title.text.Length > 0,
+                        "the picker shows its cards in the carousel, under a title (\"" + (title != null ? title.text : "") + "\")");
+                });
+                Key(0.3, UnityEngine.InputSystem.Key.RightArrow);
+                At(0.7, () => check(panel.Picker != null && panel.Picker.FocusIndex == 1, "the Right arrow brings the next card to the front"));
+                Key(1.0, UnityEngine.InputSystem.Key.LeftArrow);
+                At(1.4, () => check(panel.Picker != null && panel.Picker.FocusIndex == 0, "Left brings back the first"));
+                Key(1.7, UnityEngine.InputSystem.Key.DownArrow);
+                At(2.0, () => check(panel.Picker != null && selected() == panel.Picker.BandButton.gameObject, "Down goes to the band's button (Skip or Close)"));
+                // Skip asks first (a look's Close does not): Enter on it asks, Escape keeps choosing
+                TextMeshProUGUI band = panel.Picker != null ? panel.Picker.BandButton.GetComponentInChildren<TextMeshProUGUI>() : null;
+                double later = 0;
+                if (band != null && band.text.Contains("Skip"))
+                {
+                    Key(2.3, UnityEngine.InputSystem.Key.Enter);
+                    At(2.8, () => check(UIScreens.Find("Button No") != null && c.pendingAction == PendingAction.PanelChoice, "Skip asks before the choice is given up"));
+                    Key(3.1, UnityEngine.InputSystem.Key.Escape);
+                    At(3.6, () => check(UIScreens.Find("Button No") == null && panel.Picker != null && c.pendingAction == PendingAction.PanelChoice, "Escape keeps choosing"));
+                    later = 1.6;
                 }
-            return -1;
-        }
-
-        private Transform addTarget;
-
-        // One of the collection's first cards the deck has room for (not a special: their limit is checked apart)
-        private Vector2 AddableCard()
-        {
-            DeckController dc = DeckController.Instance;
-            CollectionManager browse = UnityEngine.Object.FindObjectsByType<CollectionManager>().FirstOrDefault(m => !m.CompareTag("Player"));
-            Transform target = null;
-            for (int i = 0; browse != null && i < Mathf.Min(4, browse.cardsArea.transform.childCount) && target == null; i++)
-            {
-                Transform t = browse.cardsArea.transform.GetChild(i);
-                Card shown = dc.Db.Get(t.GetComponent<CardStats>()._id);
-                if (!shown.IsSpecial && dc.my_deck.Cards.Count(x => x == shown._id) < DeckRules.MaxCopies(shown))
-                    target = t;
+                Key(2.3 + later, UnityEngine.InputSystem.Key.UpArrow);
+                At(2.6 + later, () => check(panel.Picker != null && selected() != panel.Picker.BandButton.gameObject, "Up comes back to the cards"));
+                Key(2.9 + later, UnityEngine.InputSystem.Key.Enter);
+                At(3.4 + later, () => check(!c.Panel.activeInHierarchy && c.pendingAction != PendingAction.PanelChoice, "Enter picks the front card (a look at the opponent's hand closes)"));
             }
-            check(target != null, "the collection's first cards include one the deck has room for");
-            addTarget = target;
-            return target != null ? ScreenPoint(target) : Vector2.zero;
-        }
 
-        // The first card of a card list (the deck's or the collection's), where it is when the click happens
-        private Func<Vector2> FirstCardOf(CollectionManager collection)
-        {
-            return () =>
+            // A discard pile, opened by a click, in the carousel with its top card in front; the battle waits
+            private void DiscardPile()
             {
-                Transform area = collection.cardsArea.transform;
-                check(area.childCount > 0, "the " + (collection.CompareTag("Player") ? "deck" : "collection") + " shows cards");
-                return area.childCount > 0 ? ScreenPoint(area.GetChild(0)) : Vector2.zero;
-            };
-        }
-
-        public void Tick()
-        {
-            double elapsed = EditorApplication.timeSinceStartup - start;
-            while (next < steps.Count && elapsed >= steps[next].Key)
-                steps[next++].Value();
-        }
-
-        public void Teardown()
-        {
-            next = steps.Count;
-            if (mouse != null)
-            {
-                InputSystem.RemoveDevice(mouse);
-                mouse = null;
+                bool mine = c.PlayerInfo.DiscardList.Count >= 2;
+                List<int> pile = mine ? c.PlayerInfo.DiscardList : c.EnemyInfo.DiscardList;
+                int count = pile.Count;
+                Click(0.3, () => ScreenPoint((mine ? c.PlayerField : c.EnemyField).transform.Find("Discard")));
+                At(0.8, () =>
+                {
+                    CardPicker picker = UnityEngine.Object.FindAnyObjectByType<CardPicker>();
+                    check(DiscardViewer.IsOpen && Time.timeScale == 0 && picker != null && picker.CardCount == count && picker.FocusIndex == count - 1,
+                        "a click on a discard pile shows it in the carousel, its top card in front, and the battle waits");
+                });
+                Key(1.1, UnityEngine.InputSystem.Key.LeftArrow);
+                At(1.5, () =>
+                {
+                    CardPicker picker = UnityEngine.Object.FindAnyObjectByType<CardPicker>();
+                    check(picker != null && picker.FocusIndex == count - 2, "the Left arrow goes down the pile");
+                });
+                Key(1.8, UnityEngine.InputSystem.Key.Escape);
+                At(2.3, () => check(!DiscardViewer.IsOpen && Time.timeScale > 0 && !PauseMenu.IsOpen, "Escape puts it away, and the battle goes on"));
             }
-            if (keyboard != null)
+
+            // The test deck is shown; the collection lists the deck's faction (and neutrals)
+            private void DeckBuilderClicks(string deck_path)
             {
-                InputSystem.RemoveDevice(keyboard);
-                keyboard = null;
+                DeckBuilder dc = DeckBuilder.Instance;
+                CardGrid browse = UnityEngine.Object.FindObjectsByType<CardGrid>().FirstOrDefault(m => !m.CompareTag("Player"));
+                At(0, () => check(dc != null && browse != null, "the deck builder shows the deck and the collection"));
+                if (dc == null || browse == null)
+                    return;
+                Func<int> count = () => dc.my_deck.Cards.Count;
+                Func<int> saved = () => { Deck deck = DeckStorage.Load(deck_path); return deck != null ? deck.Cards.Count : -1; };
+                int before = 0;
+
+                // Each card once, with its count (The Witcher 3): the copies in the deck, the copies left in the collection
+                int added = -1;
+                At(0.1, () =>
+                {
+                    before = count();
+                    int kinds = dc.my_deck.Cards.Distinct().Count(id => dc.deckCollection.toggleBtn.isOn || dc.Db.Get(id).faction != Faction.Neutral);
+                    check(Shown(dc.deckCollection).Count == kinds && BadgeOf(dc.deckCollection, CardIds.BitingFrost) == 3,
+                        "the deck shows each card once with its count (Biting Frost x" + BadgeOf(dc.deckCollection, CardIds.BitingFrost) + ")");
+                });
+                // Add, then two cards that cannot be added: a hero already in the deck (not offered), an 11th special
+                DoubleClickAt(0.4, () =>
+                {
+                    Vector2 at = AddableCard();
+                    added = addTarget != null ? addTarget.GetComponent<CardRef>().Card._id : -1;
+                    return at;
+                });
+                At(1.0, () =>
+                {
+                    check(count() == before + 1 && saved() == before + 1, "double-clicking a card in the collection adds it to the deck (and saves it)");
+                    int left = added >= 0 ? DeckRules.MaxCopies(dc.Db.Get(added)) - 1 : -1;
+                    check(added >= 0 && (left == 0 ? !Shown(browse).Contains(added) : BadgeOf(browse, added) == left), "the collection then counts one copy fewer (" + left + " left)");
+                });
+                Click(1.3, () => ScreenPoint(browse.currentSprites[4].transform));
+                At(1.8, () => check(Shown(browse).Count == 0, "with every hero in the deck, the collection offers none (" + Shown(browse).Count + " shown)"));
+                Click(2.1, () => ScreenPoint(browse.currentSprites[CardGrid.WeatherTab].transform));
+                At(2.6, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => dc.Db.Get(id).row == Row.Weather), "the Weather tab lists the weather cards only"));
+                Click(2.9, () => ScreenPoint(browse.currentSprites[CardGrid.SpecialTab].transform));
+                DoubleClickAt(3.4, FirstCardOf(browse));
+                At(4.0, () => check(count() == before + 1 && ToastText().Contains("special cards") && Shown(browse).All(id => dc.Db.Get(id).IsSpecial && dc.Db.Get(id).row != Row.Weather),
+                    "the Specials tab lists the other special cards, and an 11th special card is refused (\"" + ToastText() + "\")"));
+                Click(4.3, () => ScreenPoint(browse.currentSprites[0].transform));
+
+                // Remove from the deck's list
+                DoubleClickAt(4.6, FirstCardOf(dc.deckCollection));
+                At(5.2, () => check(count() == before && saved() == before, "double-clicking a card of the deck takes it out (and saves it)"));
+
+                // Touch (simulated): a finger held on a card shows it large, and adds nothing
+                At(5.4, () =>
+                {
+                    savedTouch = GameInput.SimulateTouch;
+                    touchChanged = true;
+                    GameInput.SimulateTouch = true;
+                });
+                Hold(5.7, FirstCardOf(browse), 0.8);
+                At(6.3, () => check(browse.cardDetails.activeSelf, "(touch) a finger held on a card shows it large (" + (browse.cardsArea.transform.childCount > 0 ? PressState(browse.cardsArea.transform.GetChild(0)) : "no card") + ")"));
+                At(6.8, () => check(!browse.cardDetails.activeSelf && count() == before, "(touch) lifting the finger puts it away, and the card is not added"));
+                At(6.9, () => GameInput.SimulateTouch = savedTouch);
+
+                // The leader picker
+                GameObject picker = dc.deckSummary.leaderGo.GetComponent<CollectionLeader>().LeaderPicker;
+                int leader = -1;
+                DoubleClickAt(7.2, () => ScreenPoint(dc.deckSummary.leaderGo.transform));
+                At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Faction.Monsters].Length,
+                    "double-clicking the leader opens the faction's leaders"));
+                DoubleClickAt(8.1, () =>
+                {
+                    Transform content = picker.GetComponent<LeaderPicker>().contentGO.transform;
+                    Transform second = content.childCount > 1 ? content.GetChild(1) : null;
+                    leader = second != null ? second.GetComponent<LeaderWindow>().leaderId : -1;
+                    return second != null ? ScreenPoint(second) : Vector2.zero;
+                });
+                At(8.7, () =>
+                {
+                    Deck deck = DeckStorage.Load(deck_path);
+                    check(leader >= 0 && dc.my_deck.Leader == leader && deck != null && deck.Leader == leader && !picker.activeSelf, "double-clicking a leader makes it the deck's leader (saved)");
+                });
+
+                // The header's arrows: the previous faction (its cards, its perk, its decks), then back
+                Click(9.0, () => ScreenPoint(dc.deckCollection.header.previousButton.transform));
+                At(10.3, () => check(ShowsFaction(dc, browse, Faction.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
+                Click(10.6, () => ScreenPoint(dc.deckCollection.header.nextButton.transform));
+                At(11.9, () => check(ShowsFaction(dc, browse, Faction.Monsters, "random unit"), "the right arrow switches back"));
+
+                // The deck dropdown
+                Click(12.2, () => ScreenPoint(dc.deckSummary.deckPicker.transform));
+                Click(12.8, () =>
+                {
+                    GameObject list = GameObject.Find("Dropdown List");
+                    string wanted = DeckStorage.Load(deck_path).Name;
+                    Toggle item = list != null ? list.GetComponentsInChildren<Toggle>().FirstOrDefault(t => t.name.EndsWith(": " + wanted)) : null;
+                    check(item != null, "the deck dropdown lists the test deck");
+                    return item != null ? ScreenPoint(item.transform) : Vector2.zero;
+                });
+                At(13.4, () =>
+                {
+                    string wanted = DeckStorage.Load(deck_path).Name;
+                    check(DeckStorage.SamePath(dc.currentDeckPath, deck_path) && dc.my_deck.Name == wanted, "picking the deck in the dropdown shows it");
+                    check(DeckStorage.SamePath(PlayerPrefs.GetString("playerDeckPath", ""), deck_path) && dc.BattleDeckStatus == "Battle deck: " + wanted,
+                        "the valid deck picked becomes the battle deck, as the status line says (\"" + dc.BattleDeckStatus + "\")");
+                });
             }
-            if (savedMasterVolume >= 0 && !Mathf.Approximately(GameSettings.MasterVolume, savedMasterVolume))
-                GameSettings.MasterVolume = savedMasterVolume;
-            if (touchChanged)
-                GameInput.SimulateTouch = savedTouch;
-            if (savedSpeed >= 0)
-                GameSettings.GameSpeed = savedSpeed;
-            if (savedMatchDifficulty >= 0)
-                GameSettings.AiDifficulty = (AiDifficulty)savedMatchDifficulty;
-            if (settingsChanged)
+
+            // What the pointer is on, and the long press of an element (for failure messages)
+            private string PressState(Component target)
             {
-                InputSystem.settings.editorInputBehaviorInPlayMode = savedEditorBehavior;
-                InputSystem.settings.backgroundBehavior = savedBackgroundBehavior;
-                settingsChanged = false;
+                LongPress press = target != null ? target.GetComponent<LongPress>() : null;
+                if (press == null)
+                    return "no long press on it, over " + Hovered();
+                System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+                object data = typeof(LongPress).GetField("press", flags).GetValue(press);
+                return "pressed " + (data != null) + ", showing " + typeof(LongPress).GetField("showing", flags).GetValue(press) + ", touch " + GameInput.IsTouch
+                    + ", showcase " + CardShowcase.IsShown + ", over " + Hovered() + (c != null ? ", " + c.battleState : "");
             }
-        }
 
-        // Steps run in time order (a check during a hold comes before its release), same times in the order given
-        private void At(double time, Action action)
-        {
-            int index = steps.FindIndex(step => step.Key > time);
-            steps.Insert(index < 0 ? steps.Count : index, new KeyValuePair<double, Action>(time, action));
-        }
-
-        // Moves onto the target first (where it is at that moment), then presses and releases the button
-        private void Click(double time, Func<Vector2> position, MouseButton button = MouseButton.Left)
-        {
-            Vector2 at = Vector2.zero;
-            At(time - 0.05, () => { at = position(); Send(at, button, false); });
-            At(time, () => Send(at, button, true));
-            At(time + PressDuration, () => { Send(at, button, false); releases.Add(EditorApplication.timeSinceStartup); });
-        }
-
-        // Holds the left button down (a finger held on the screen, with touch controls)
-        private void Hold(double time, Func<Vector2> position, double duration)
-        {
-            Vector2 at = Vector2.zero;
-            At(time - 0.05, () => { at = position(); Send(at, MouseButton.Left, false); });
-            At(time, () => Send(at, MouseButton.Left, true));
-            At(time + duration, () => Send(at, MouseButton.Left, false));
-        }
-
-        // Two clicks on the same spot, as quick as a person's double-click
-        private void DoubleClickAt(double time, Func<Vector2> position)
-        {
-            Vector2 at = Vector2.zero;
-            At(time - 0.05, () => { at = position(); Send(at, MouseButton.Left, false); });
-            foreach (double press in new[] { time, time + 0.2 })
+            private static bool ShowsFaction(DeckBuilder dc, CardGrid browse, Faction faction, string perk)
             {
-                At(press, () => Send(at, MouseButton.Left, true));
-                At(press + PressDuration, () => Send(at, MouseButton.Left, false));
+                return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
+                    && dc.deckCollection.factionPerk.text.Contains(perk)
+                    && dc.deckSummary.myPaths.All(p => OpponentDecks.IsPreset(p)
+                        ? DeckStorage.Load(p).Faction == faction // the faction's presets
+                        : DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
             }
-        }
 
-        // Real time between two clicks of this check (counted from 0), as they were sent
-        private double ClickGap(int first, int second)
-        {
-            return second < releases.Count ? releases[second] - releases[first] : 0;
-        }
-
-        private void Move(double time, Func<Vector2> position)
-        {
-            At(time, () => Send(position(), MouseButton.Left, false));
-        }
-
-        private void KeyHold(double time, Key key, double duration)
-        {
-            At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
-            At(time + duration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
-        }
-
-        // A key chosen when it is pressed
-        private void KeyAt(double time, Func<Key> key)
-        {
-            At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key())));
-            At(time + PressDuration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
-        }
-
-        private void Key(double time, Key key)
-        {
-            At(time, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState(key)));
-            At(time + PressDuration, () => InputSystem.QueueStateEvent(keyboard, new KeyboardState()));
-        }
-        private void Setup()
-        {
-            // Input reaches the game without the Game view having focus (batch mode has none). The settings are changed
-            // in place and restored afterwards: replacing the settings object would destroy the Input System's own one.
-            InputSettings settings = InputSystem.settings;
-            savedEditorBehavior = settings.editorInputBehaviorInPlayMode;
-            savedBackgroundBehavior = settings.backgroundBehavior;
-            settingsChanged = true;
-            settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
-            settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
-            mouse = InputSystem.AddDevice<Mouse>("AutoplayMouse");
-            keyboard = InputSystem.AddDevice<Keyboard>("AutoplayKeyboard");
-            savedMasterVolume = GameSettings.MasterVolume;
-
-            InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
-            check(module != null, "the scene uses the Input System UI module");
-            if (module != null && module.actionsAsset != null)
+            // The card ids a card list shows, and the count on one of them (-1 when not shown)
+            private static List<int> Shown(CardGrid collection)
             {
-                module.actionsAsset.Disable();
-                module.actionsAsset.Enable();
+                List<int> ids = new List<int>();
+                foreach (Transform card in collection.cardsArea.transform)
+                    ids.Add(card.GetComponent<CardRef>().Card._id);
+                return ids;
             }
-        }
 
-        private void Send(Vector2 position, MouseButton button, bool pressed)
-        {
-            if (mouse != null)
-                InputSystem.QueueStateEvent(mouse, new MouseState { position = position }.WithButton(button, pressed));
-        }
+            private static int BadgeOf(CardGrid collection, int id)
+            {
+                foreach (Transform card in collection.cardsArea.transform)
+                    if (card.GetComponent<CardRef>().Card._id == id)
+                    {
+                        Transform badge = card.Find(CardGrid.CountBadge);
+                        int count;
+                        return badge != null && int.TryParse(badge.GetComponentInChildren<TextMeshProUGUI>().text.TrimStart('x'), out count) ? count : -1;
+                    }
+                return -1;
+            }
 
-        // A card in the middle of the hand (another one once a redraw has rebuilt the hand)
-        private Vector2 CardPosition()
-        {
-            Transform hand = c.PlayerField.transform.Find("Hand");
-            if (card == null && hand.childCount > 0)
-                card = hand.GetChild(hand.childCount / 2);
-            return card != null ? ScreenPoint(card) : Vector2.zero;
-        }
+            private Transform addTarget;
 
-        // The hand card at the front of the redraw carousel (a double-click on it redraws it)
-        private Vector2 FrontHandCard()
-        {
-            RedrawPicker picker = Picker();
-            if (picker != null)
-                foreach (Transform t in c.PlayerField.transform.Find("Hand"))
-                    if (t.name == picker.FocusedCardId.ToString())
-                        return ScreenPoint(t);
-            return CardPosition();
-        }
+            // One of the collection's first cards the deck has room for (not a special: their limit is checked apart)
+            private Vector2 AddableCard()
+            {
+                DeckBuilder dc = DeckBuilder.Instance;
+                CardGrid browse = UnityEngine.Object.FindObjectsByType<CardGrid>().FirstOrDefault(m => !m.CompareTag("Player"));
+                Transform target = null;
+                for (int i = 0; browse != null && i < Mathf.Min(4, browse.cardsArea.transform.childCount) && target == null; i++)
+                {
+                    Transform t = browse.cardsArea.transform.GetChild(i);
+                    Card shown = dc.Db.Get(t.GetComponent<CardRef>().Card._id);
+                    if (!shown.IsSpecial && dc.my_deck.Cards.Count(x => x == shown._id) < DeckRules.MaxCopies(shown))
+                        target = t;
+                }
+                check(target != null, "the collection's first cards include one the deck has room for");
+                addTarget = target;
+                return target != null ? ScreenPoint(target) : Vector2.zero;
+            }
 
-        // A hand card that is not at the front of the carousel (remembered for the second click)
-        private Transform farCard;
+            // The first card of a card list (the deck's or the collection's), where it is when the click happens
+            private Func<Vector2> FirstCardOf(CardGrid collection)
+            {
+                return () =>
+                {
+                    Transform area = collection.cardsArea.transform;
+                    check(area.childCount > 0, "the " + (collection.CompareTag("Player") ? "deck" : "collection") + " shows cards");
+                    return area.childCount > 0 ? ScreenPoint(area.GetChild(0)) : Vector2.zero;
+                };
+            }
 
-        private Vector2 FarHandCard()
-        {
-            RedrawPicker picker = Picker();
-            farCard = null;
-            foreach (Transform t in c.PlayerField.transform.Find("Hand"))
-                if (picker != null && t.name != picker.FocusedCardId.ToString())
-                    farCard = t;
-            return farCard != null ? ScreenPoint(farCard) : CardPosition();
-        }
+            public void Tick()
+            {
+                double now = EditorApplication.timeSinceStartup;
+                if (failingSince < 0) // a check step being tried again holds the timeline
+                    elapsed += Math.Min(now - lastTick, MaxTick);
+                lastTick = now;
+                while (next < steps.Count && elapsed >= steps[next].Key)
+                {
+                    if (!Run(steps[next].Value, now))
+                        return; // tried again next frame
+                    next++;
+                }
+            }
 
-        private static RedrawPicker Picker()
-        {
-            return UnityEngine.Object.FindAnyObjectByType<RedrawPicker>();
-        }
+            // Runs a step, its checks held until it is done; false when it only checks, fails and is to be tried again
+            private bool Run(Action step, double now)
+            {
+                int sent_before = sent;
+                results = new List<KeyValuePair<bool, string>>();
+                step();
+                List<KeyValuePair<bool, string>> got = results;
+                results = null;
+                if (got.Exists(result => !result.Key) && sent == sent_before)
+                {
+                    if (failingSince < 0)
+                        failingSince = now;
+                    if (now - failingSince < CheckPatience)
+                        return false;
+                }
+                failingSince = -1;
+                foreach (KeyValuePair<bool, string> result in got)
+                    report(result.Key, result.Value);
+                return true;
+            }
 
-        // A card of the redraw carousel (-1: the front one), where it is when the click happens
-        private Func<Vector2> CarouselCard(int index)
-        {
-            return () =>
+            // A check: held while its step runs (Run decides), told at once otherwise
+            private void check(bool ok, string what)
+            {
+                if (results != null)
+                    results.Add(new KeyValuePair<bool, string>(ok, what));
+                else
+                    report(ok, what);
+            }
+
+            public void Teardown()
+            {
+                next = steps.Count;
+                if (mouse != null)
+                {
+                    InputSystem.RemoveDevice(mouse);
+                    mouse = null;
+                }
+                if (keyboard != null)
+                {
+                    InputSystem.RemoveDevice(keyboard);
+                    keyboard = null;
+                }
+                if (savedMasterVolume >= 0 && !Mathf.Approximately(GameSettings.MasterVolume, savedMasterVolume))
+                    GameSettings.MasterVolume = savedMasterVolume;
+                if (touchChanged)
+                    GameInput.SimulateTouch = savedTouch;
+                if (savedSpeed >= 0)
+                    GameSettings.GameSpeed = savedSpeed;
+                if (savedMatchDifficulty >= 0)
+                    GameSettings.AiDifficulty = (AiDifficulty)savedMatchDifficulty;
+                if (settingsChanged)
+                {
+                    InputSystem.settings.editorInputBehaviorInPlayMode = savedEditorBehavior;
+                    InputSystem.settings.backgroundBehavior = savedBackgroundBehavior;
+                    settingsChanged = false;
+                }
+            }
+
+            // Steps run in time order (a check during a hold comes before its release), same times in the order given
+            private void At(double time, Action action)
+            {
+                int index = steps.FindIndex(step => step.Key > time);
+                steps.Insert(index < 0 ? steps.Count : index, new KeyValuePair<double, Action>(time, action));
+            }
+
+            // Finds the target first (a step of its own: it waits for the target, its checks tried again until it is on
+            // screen), moves onto it, then presses and releases the button
+            private void Click(double time, Func<Vector2> position, MouseButton button = MouseButton.Left)
+            {
+                Vector2 at = Vector2.zero;
+                At(time - 0.05, () => at = position());
+                At(time - 0.05, () => Send(at, button, false));
+                At(time, () => Send(at, button, true));
+                At(time + PressDuration, () => { Send(at, button, false); releases.Add(EditorApplication.timeSinceStartup); });
+            }
+
+            // Holds the left button down (a finger held on the screen, with touch controls)
+            private void Hold(double time, Func<Vector2> position, double duration)
+            {
+                Vector2 at = Vector2.zero;
+                At(time - 0.05, () => at = position());
+                At(time - 0.05, () => Send(at, MouseButton.Left, false));
+                At(time, () => Send(at, MouseButton.Left, true));
+                At(time + duration, () => Send(at, MouseButton.Left, false));
+            }
+
+            // Two clicks on the same spot, as quick as a person's double-click
+            private void DoubleClickAt(double time, Func<Vector2> position)
+            {
+                Vector2 at = Vector2.zero;
+                At(time - 0.05, () => at = position());
+                At(time - 0.05, () => Send(at, MouseButton.Left, false));
+                foreach (double press in new[] { time, time + 0.2 })
+                {
+                    At(press, () => Send(at, MouseButton.Left, true));
+                    At(press + PressDuration, () => Send(at, MouseButton.Left, false));
+                }
+            }
+
+            // Real time between two clicks of this check (counted from 0), as they were sent
+            private double ClickGap(int first, int second)
+            {
+                return second < releases.Count ? releases[second] - releases[first] : 0;
+            }
+
+            private void Move(double time, Func<Vector2> position)
+            {
+                Vector2 at = Vector2.zero;
+                At(time, () => at = position());
+                At(time, () => Send(at, MouseButton.Left, false));
+            }
+
+            private void KeyHold(double time, Key key, double duration)
+            {
+                At(time, () => SendKeys(new KeyboardState(key)));
+                At(time + duration, () => SendKeys(new KeyboardState()));
+            }
+
+            // A key chosen when it is pressed
+            private void KeyAt(double time, Func<Key> key)
+            {
+                At(time, () => SendKeys(new KeyboardState(key())));
+                At(time + PressDuration, () => SendKeys(new KeyboardState()));
+            }
+
+            private void Key(double time, Key key)
+            {
+                At(time, () => SendKeys(new KeyboardState(key)));
+                At(time + PressDuration, () => SendKeys(new KeyboardState()));
+            }
+            private void Setup()
+            {
+                // Input reaches the game without the Game view having focus (batch mode has none). The settings are changed
+                // in place and restored afterwards: replacing the settings object would destroy the Input System's own one.
+                InputSettings settings = InputSystem.settings;
+                savedEditorBehavior = settings.editorInputBehaviorInPlayMode;
+                savedBackgroundBehavior = settings.backgroundBehavior;
+                settingsChanged = true;
+                settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+                settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
+                mouse = InputSystem.AddDevice<Mouse>("AutoplayMouse");
+                keyboard = InputSystem.AddDevice<Keyboard>("AutoplayKeyboard");
+                savedMasterVolume = GameSettings.MasterVolume;
+
+                InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
+                check(module != null, "the scene uses the Input System UI module");
+                if (module != null && module.actionsAsset != null)
+                {
+                    module.actionsAsset.Disable();
+                    module.actionsAsset.Enable();
+                }
+            }
+
+            private void Send(Vector2 position, MouseButton button, bool pressed)
+            {
+                sent++;
+                if (mouse != null)
+                    InputSystem.QueueStateEvent(mouse, new MouseState { position = position }.WithButton(button, pressed));
+            }
+
+            private void SendKeys(KeyboardState state)
+            {
+                sent++;
+                if (keyboard != null)
+                    InputSystem.QueueStateEvent(keyboard, state);
+            }
+
+            // A card in the middle of the hand (another one once a redraw has rebuilt the hand)
+            private Vector2 CardPosition()
+            {
+                Transform hand = c.PlayerField.transform.Find("Hand");
+                if (card == null && hand.childCount > 0)
+                    card = hand.GetChild(hand.childCount / 2);
+                return card != null ? ScreenPoint(card) : Vector2.zero;
+            }
+
+            // The hand card at the front of the redraw carousel (a double-click on it redraws it)
+            // The hand card at the carousel's front: by its place in the hand (with two alike, the other is another card)
+            private Vector2 FrontHandCard()
             {
                 RedrawPicker picker = Picker();
-                RectTransform card = picker != null ? picker.CardAt(index < 0 ? picker.FocusIndex : index) : null;
-                check(card != null, "the redraw carousel shows card " + index);
-                return card != null ? ScreenPoint(card) : Vector2.zero;
-            };
-        }
-
-        private bool plainUnit;
-
-        // Prefers a unit that is not a spy or agile: its own row is the only right place
-        private void PickPlainUnit()
-        {
-            foreach (Transform child in c.PlayerField.transform.Find("Hand"))
-            {
-                CardStats stats = child.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>();
-                if (stats.faction != Factions.Special && Rows.IsUnitRow(stats.row) && stats.ability != Abilities.Spy)
+                if (picker != null)
                 {
-                    card = child;
-                    plainUnit = true;
-                    return;
+                    int index = 0;
+                    foreach (Transform t in c.PlayerField.transform.Find("Hand"))
+                    {
+                        if (t.GetComponent<CardFace>() == null)
+                            continue;
+                        if (index++ == picker.FocusIndex)
+                            return ScreenPoint(t);
+                    }
+                }
+                return CardPosition();
+            }
+
+            // A hand card that is not at the front of the carousel (remembered for the second click)
+            private Transform farCard;
+
+            private Vector2 FarHandCard()
+            {
+                RedrawPicker picker = Picker();
+                farCard = null;
+                foreach (Transform t in c.PlayerField.transform.Find("Hand"))
+                    if (picker != null && t.name != picker.FocusedCardId.ToString())
+                        farCard = t;
+                return farCard != null ? ScreenPoint(farCard) : CardPosition();
+            }
+
+            private static RedrawPicker Picker()
+            {
+                return UnityEngine.Object.FindAnyObjectByType<RedrawPicker>();
+            }
+
+            // A card of the redraw carousel (-1: the front one), where it is when the click happens
+            private Func<Vector2> CarouselCard(int index)
+            {
+                return () =>
+                {
+                    RedrawPicker picker = Picker();
+                    RectTransform card = picker != null ? picker.CardAt(index < 0 ? picker.FocusIndex : index) : null;
+                    check(card != null, "the redraw carousel shows card " + index);
+                    return card != null ? ScreenPoint(card) : Vector2.zero;
+                };
+            }
+
+            private bool plainUnit;
+
+            // Prefers a unit that is not a spy or agile: its own row is the only right place
+            private void PickPlainUnit()
+            {
+                foreach (Transform child in c.PlayerField.transform.Find("Hand"))
+                {
+                    Card stats = child.GetComponent<CardFace>().Card;
+                    if (stats.faction != Faction.Special && Rows.IsUnitRow(stats.row) && stats.ability != Ability.Spy)
+                    {
+                        card = child;
+                        plainUnit = true;
+                        return;
+                    }
                 }
             }
-        }
 
-        // What the UI raycast hit under the mouse, as a path (for failure messages)
-        private string Hovered()
-        {
-            InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
-            if (module == null || mouse == null)
-                return "nothing";
-            GameObject hovered = module.GetLastRaycastResult(mouse.deviceId).gameObject;
-            string path = "";
-            for (Transform t = hovered != null ? hovered.transform : null; t != null; t = t.parent)
-                path = "/" + t.name + path;
-            return path == "" ? "nothing" : path;
-        }
+            // What the UI raycast hit under the mouse, as a path (for failure messages)
+            private string Hovered()
+            {
+                InputSystemUIInputModule module = EventSystem.current != null ? EventSystem.current.currentInputModule as InputSystemUIInputModule : null;
+                if (module == null || mouse == null)
+                    return "nothing";
+                GameObject hovered = module.GetLastRaycastResult(mouse.deviceId).gameObject;
+                string path = "";
+                for (Transform t = hovered != null ? hovered.transform : null; t != null; t = t.parent)
+                    path = "/" + t.name + path;
+                return path == "" ? "nothing" : path;
+            }
 
-        // The opponent's row of the same kind as the selected unit
-        private Vector2 WrongRow()
-        {
-            if (!plainUnit || card == null)
-                return CardPosition();
-            string row = card.GetComponent<CardDisplay>().cardStats.GetComponent<CardStats>().row;
-            Transform target = c.EnemyField.transform.Find(char.ToUpper(row[0]) + row.Substring(1)).Find("Unit");
-            return ScreenPoint(target);
-        }
+            // The opponent's row of the same kind as the selected unit
+            private Vector2 WrongRow()
+            {
+                if (!plainUnit || card == null)
+                    return CardPosition();
+                Row row = card.GetComponent<CardFace>().Card.row;
+                Transform target = c.EnemyField.transform.Find(row.ToString()).Find("Unit");
+                return ScreenPoint(target);
+            }
 
-        // 3 pixels above the bottom edge of the (not yet raised) card
-        private Vector2 CardLowerEdge()
-        {
-            CardPosition();
-            if (card == null)
-                return Vector2.zero;
-            RectTransform rect = (RectTransform)card;
-            Vector3[] corners = new Vector3[4];
-            rect.GetWorldCorners(corners);
-            Vector2 bottom = RectTransformUtility.WorldToScreenPoint(null, (corners[0] + corners[3]) / 2);
-            return bottom + new Vector2(0, 3);
-        }
+            // 3 pixels above the bottom edge of the (not yet raised) card
+            private Vector2 CardLowerEdge()
+            {
+                CardPosition();
+                if (card == null)
+                    return Vector2.zero;
+                RectTransform rect = (RectTransform)card;
+                Vector3[] corners = new Vector3[4];
+                rect.GetWorldCorners(corners);
+                Vector2 bottom = RectTransformUtility.WorldToScreenPoint(null, (corners[0] + corners[3]) / 2);
+                return bottom + new Vector2(0, 3);
+            }
 
-        private Vector2 DonePosition()
-        {
-            GameObject done = GameObject.Find("Button Done");
-            check(done != null, "the redraw prompt shows a Done button");
-            return done != null ? ScreenPoint(done.transform) : Vector2.zero;
-        }
+            private Vector2 DonePosition()
+            {
+                GameObject done = GameObject.Find("Button Done");
+                check(done != null, "the redraw prompt shows a Done button");
+                return done != null ? ScreenPoint(done.transform) : Vector2.zero;
+            }
 
-        // An active UI object by name (looked up when the click happens)
-        private Func<Vector2> Named(string name)
-        {
-            return () =>
+            // An active UI object by name (looked up when the click happens)
+            // An object by name, or an element of a UI Toolkit screen
+            private Func<Vector2> Named(string name)
+            {
+                return () =>
+                {
+                    GameObject target = GameObject.Find(name);
+                    UnityEngine.UIElements.VisualElement element = target == null ? UIScreens.Find(name) : null;
+                    check(target != null || element != null && Settled(element), "\"" + name + "\" is on screen");
+                    return target != null ? ScreenPoint(target.transform) : element != null ? ScreenPoint(element) : Vector2.zero;
+                };
+            }
+
+            // Whether a UI Toolkit element is laid out and stands still: where it was the last time this was asked (a menu
+            // or dialog that has finished opening; asked again every frame by a check that waits)
+            private readonly Dictionary<UnityEngine.UIElements.VisualElement, Rect> lastBounds = new Dictionary<UnityEngine.UIElements.VisualElement, Rect>();
+
+            private bool Settled(UnityEngine.UIElements.VisualElement element)
+            {
+                Rect bounds = element.worldBound;
+                if (float.IsNaN(bounds.x) || bounds.width <= 0 || bounds.height <= 0)
+                    return false;
+                Rect was;
+                bool still = lastBounds.TryGetValue(element, out was) && Vector2.Distance(was.center, bounds.center) < 0.5f && Mathf.Abs(was.width - bounds.width) < 0.5f;
+                lastBounds[element] = bounds;
+                return still;
+            }
+
+            // The object or UI Toolkit element of that name has the keyboard's focus (the highlight menus share with the mouse)
+            private static bool Highlighted(string name)
             {
                 GameObject target = GameObject.Find(name);
-                check(target != null, "\"" + name + "\" is on screen");
-                return target != null ? ScreenPoint(target.transform) : Vector2.zero;
-            };
-        }
+                if (target != null)
+                    return EventSystem.current != null && EventSystem.current.currentSelectedGameObject == target;
+                UnityEngine.UIElements.VisualElement element = UIScreens.Find(name);
+                return element != null && element.focusController != null && element.focusController.focusedElement == element;
+            }
 
-        // An object by name under an active root object (a name with a slash would be a path for GameObject.Find)
-        private Func<Vector2> NamedUnder(string root, string name)
-        {
-            return () =>
+            // A point on the settings' master volume slider, at that fraction of its travel
+            private Func<Vector2> MasterVolumeAt(float fraction)
             {
-                GameObject parent = GameObject.Find(root);
-                Transform target = parent != null ? parent.GetComponentsInChildren<Transform>().FirstOrDefault(t => t.name == name) : null;
-                check(target != null, "\"" + name + "\" is on screen");
-                return target != null ? ScreenPoint(target) : Vector2.zero;
-            };
-        }
+                return () =>
+                {
+                    UnityEngine.UIElements.VisualElement row = UIScreens.Find("Row Master volume");
+                    UnityEngine.UIElements.Slider slider = row != null ? Query<UnityEngine.UIElements.Slider>(row) : null;
+                    check(slider != null && Settled(slider), "the settings show the master volume slider");
+                    if (slider == null)
+                        return Vector2.zero;
+                    // Where the knob's middle stands at that value: its travel is the drag area less the knob's width
+                    Rect area = Query<UnityEngine.UIElements.VisualElement>(slider, null, UnityEngine.UIElements.Slider.dragContainerUssClassName).worldBound;
+                    float knob = Query<UnityEngine.UIElements.VisualElement>(slider, null, UnityEngine.UIElements.Slider.draggerUssClassName).worldBound.width;
+                    return ScreenPoint(slider.panel, new Vector2(area.xMin + knob / 2 + fraction * (area.width - knob), area.center.y));
+                };
+            }
 
-        // A point on the settings' master volume slider, at that fraction of its travel
-        private Func<Vector2> MasterVolumeAt(float fraction)
-        {
-            return () =>
+            // The middle of a UI Toolkit element, in the input's screen pixels (from the bottom left). Solved from where screen
+            // points land on the panel, so it holds whatever the panel's scaling; ScreenToPanel counts from the top left.
+            private static Vector2 ScreenPoint(UnityEngine.UIElements.VisualElement element)
             {
-                SettingsPanel panel = UnityEngine.Object.FindAnyObjectByType<SettingsPanel>();
-                UnityEngine.UI.Slider slider = panel != null ? panel.GetComponentInChildren<UnityEngine.UI.Slider>() : null;
-                check(slider != null, "the settings show the master volume slider");
-                if (slider == null)
-                    return Vector2.zero;
-                RectTransform area = (RectTransform)slider.handleRect.parent;
+                return ScreenPoint(element.panel, element.worldBound.center);
+            }
+
+            private static Vector2 ScreenPoint(UnityEngine.UIElements.IPanel panel, Vector2 point)
+            {
+                Vector2 origin = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.zero);
+                Vector2 x = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.right) - origin;
+                Vector2 y = UnityEngine.UIElements.RuntimePanelUtils.ScreenToPanel(panel, Vector2.up) - origin;
+                return new Vector2((point.x - origin.x) / x.x, Screen.height - (point.y - origin.y) / y.y);
+            }
+
+            private static Vector2 ScreenPoint(Transform target)
+            {
+                RectTransform rect = (RectTransform)target;
                 Vector3[] corners = new Vector3[4];
-                area.GetWorldCorners(corners);
-                return RectTransformUtility.WorldToScreenPoint(null, Vector3.Lerp(corners[0], corners[3], fraction) + (corners[1] - corners[0]) / 2);
-            };
-        }
-
-        private static Vector2 ScreenPoint(Transform target)
-        {
-            RectTransform rect = (RectTransform)target;
-            Vector3[] corners = new Vector3[4];
-            rect.GetWorldCorners(corners);
-            Canvas canvas = rect.GetComponentInParent<Canvas>().rootCanvas;
-            Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
-            return RectTransformUtility.WorldToScreenPoint(camera, (corners[0] + corners[2]) / 2);
+                rect.GetWorldCorners(corners);
+                Canvas canvas = rect.GetComponentInParent<Canvas>().rootCanvas;
+                Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+                return RectTransformUtility.WorldToScreenPoint(camera, (corners[0] + corners[2]) / 2);
+            }
         }
     }
 }

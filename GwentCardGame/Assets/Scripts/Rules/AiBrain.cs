@@ -10,7 +10,7 @@ namespace Gwent.Rules
     {
         public AiActionType Type;
         public int CardId;      // Card to play, or the weather card a leader pulls from the deck
-        public string Row;      // Unit row, special row for a horn, Rows.Weather for weather/scorch cards
+        public Row Row;      // Unit row, special row for a horn, Row.Weather for weather/scorch cards
         public int TargetId;    // Decoy target
 
         public static AiAction Pass()
@@ -18,14 +18,14 @@ namespace Gwent.Rules
             return new AiAction { Type = AiActionType.Pass, CardId = -1, TargetId = -1 };
         }
 
-        public static AiAction Play(int card_id, string row, int target_id = -1)
+        public static AiAction Play(int card_id, Row row, int target_id = -1)
         {
             return new AiAction { Type = AiActionType.PlayCard, CardId = card_id, Row = row, TargetId = target_id };
         }
 
         public static AiAction Leader(int weather_card_id = -1)
         {
-            return new AiAction { Type = AiActionType.UseLeader, CardId = weather_card_id, Row = Rows.Weather, TargetId = -1 };
+            return new AiAction { Type = AiActionType.UseLeader, CardId = weather_card_id, Row = Row.Weather, TargetId = -1 };
         }
 
         public override string ToString()
@@ -48,6 +48,7 @@ namespace Gwent.Rules
         public CardDatabase Db;
         public AiDifficulty Difficulty = AiDifficulty.Normal;
         public int Seed;        // Easy's slips and Hard's look-ahead: the same position and seed, the same move
+        public List<AiOption> Considered; // when set, the moves weighed are added to it (the decision's log)
     }
 
     // Decides the AI's move. Every candidate move is simulated on copies of the board, so weather,
@@ -90,6 +91,9 @@ namespace Gwent.Rules
             StrengthCalculator.Recalculate(ctx.Opponent, ctx.Weather, ctx.DoubleSpies, ctx.Db);
 
             List<Candidate> candidates = BuildCandidates(ctx);
+            if (ctx.Considered != null)
+                foreach (Candidate c in candidates)
+                    ctx.Considered.Add(new AiOption { Action = c.Action, Gain = c.Gain, Board = c.Board, Cost = c.Cost, WinRate = -1 });
             if (candidates.Count == 0)
                 return AiAction.Pass();
 
@@ -98,7 +102,7 @@ namespace Gwent.Rules
             Board seen_from_opponent = new Board { Player = ctx.Opponent, Enemy = ctx.Me, Weather = ctx.Weather, DoubleSpies = ctx.DoubleSpies, RandomMedic = ctx.RandomMedic, Db = ctx.Db };
             bool opponent_done = ctx.Opponent.hasPassed || RoundRules.OutOfPlays(seen_from_opponent, true);
             // Nilfgaard wins a tied round (unless both sides are Nilfgaard)
-            int needed = ctx.Me.Faction == Factions.Nilfgaard && ctx.Opponent.Faction != Factions.Nilfgaard ? 0 : 1;
+            int needed = ctx.Me.Faction == Faction.Nilfgaard && ctx.Opponent.Faction != Faction.Nilfgaard ? 0 : 1;
 
             if (opponent_done)
             {
@@ -159,7 +163,7 @@ namespace Gwent.Rules
             int advantage = ctx.Me.TotalScore() - ctx.Opponent.TotalScore();
             Board seen_from_opponent = new Board { Player = ctx.Opponent, Enemy = ctx.Me, Weather = ctx.Weather, DoubleSpies = ctx.DoubleSpies, RandomMedic = ctx.RandomMedic, Db = ctx.Db };
             bool opponent_done = ctx.Opponent.hasPassed || RoundRules.OutOfPlays(seen_from_opponent, true);
-            int needed = ctx.Me.Faction == Factions.Nilfgaard && ctx.Opponent.Faction != Factions.Nilfgaard ? 0 : 1;
+            int needed = ctx.Me.Faction == Faction.Nilfgaard && ctx.Opponent.Faction != Faction.Nilfgaard ? 0 : 1;
 
             if (on_board.Count == 0 || opponent_done && advantage >= needed)
                 return AiAction.Pass();
@@ -216,111 +220,140 @@ namespace Gwent.Rules
             return candidates;
         }
 
-        private static readonly string[] AgileRows = { Rows.Close, Rows.Range };
+        private static readonly Row[] AgileRows = { Row.Close, Row.Range };
 
         private static Candidate UnitCandidate(AiContext ctx, Card card)
         {
-            if (card.ability == Abilities.Spy)
+            if (card.ability == Ability.Spy)
             {
-                string spy_row = Rows.IsUnitRow(card.row) ? card.row : Rows.Close;
+                Row spy_row = Rows.IsUnitRow(card.row) ? card.row : Row.Close;
                 int board = Simulate(ctx, (me, opp, weather) => opp.UnitRow(spy_row).Add(card._id));
                 int gain = board + DrawValue * Math.Min(2, ctx.Me.DeckList.Count);
                 return new Candidate { Action = AiAction.Play(card._id, spy_row), Gain = gain, Board = board, Cost = 0, IsUnit = true, IsSpy = true };
             }
 
             Candidate best = null;
-            bool agile = card.row == Rows.Agile;
+            bool agile = card.row == Row.Agile;
             for (int r = 0; r < (agile ? 2 : 1); r++)
             {
-                string row = agile ? AgileRows[r] : card.row;
+                Row row = agile ? AgileRows[r] : card.row;
                 if (!Rows.IsUnitRow(row))
                     continue;
-                string chosen_row = row;
+                Row chosen_row = row;
                 int drawn = 0;
                 int board = Simulate(ctx, (me, opp, weather) => drawn = PlayUnit(ctx, me, opp, weather, card, chosen_row));
                 int gain = board + DrawValue * drawn; // spies a medic brought back
                 if (best == null || gain > best.Gain)
                     best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Board = board, Cost = card.strength + (card.unique ? 5 : 0), IsUnit = true };
             }
+            if (best != null)
+                best.Gain += AvengerValue(ctx, card);
             return best;
+        }
+
+        // A unit that calls a defender when it goes to the discard pile (the Cow: the Bovine Defense Force; Kambi: Hemdall)
+        // brings that defender next round, when the board clears, if the battle goes on. Worth its strength in the move's gain (never
+        // in its board change: nothing of it shows this round): in full while both sides have two lives, half when one
+        // of them does, nothing in a round that may end the battle.
+        private static int AvengerValue(AiContext ctx, Card card)
+        {
+            int avenger = AbilityRules.AvengerOf(card._id);
+            if (avenger == -1)
+                return 0;
+            int sides_going_on = (ctx.Me.Lives > 1 ? 1 : 0) + (ctx.Opponent.Lives > 1 ? 1 : 0);
+            return ctx.Db.Get(avenger).strength * sides_going_on / 2;
         }
 
         // Unit placement with the abilities that change the board right away; a medic's unit is played the same way
         // (so medics chain). Returns the cards drawn by spies brought back along the way.
-        private static int PlayUnit(AiContext ctx, PlayerState me, PlayerState opp, List<int> weather, Card card, string row, int depth = 0)
+        private static int PlayUnit(AiContext ctx, PlayerState me, PlayerState opp, List<int> weather, Card card, Row row, int depth = 0)
         {
             int drawn = 0;
             me.HandList.Remove(card._id);
-            if (card.ability == Abilities.Muster)
+            if (card.ability == Ability.Muster)
                 AbilityRules.Muster(me, card, row, ctx.Db);
-            if (card.ability == Abilities.Spy)
+            if (card.ability == Ability.Scorch) // the Clan Dimun Pirate scorches as he lands (never himself)
+            {
+                StrengthCalculator.Recalculate(me, weather, ctx.DoubleSpies, ctx.Db);
+                StrengthCalculator.Recalculate(opp, weather, ctx.DoubleSpies, ctx.Db);
+                AbilityRules.Scorch(me, opp, ctx.Db);
+            }
+            if (card.ability == Ability.Spy)
             {
                 opp.UnitRow(row).Add(card._id);
                 drawn += Math.Min(2, me.DeckList.Count);
             }
             else
+            {
                 me.UnitRow(row).Add(card._id);
+                AbilityRules.Transform(me, ctx.Db); // a Berserker on a Mardroeme's row, Ermion on theirs
+            }
 
             // A medic brings back the best unit (not counted under Invader of the North: then the unit is random)
-            if (card.ability == Abilities.Medic && depth < 5 && !ctx.RandomMedic)
+            if (card.ability == Ability.Medic && depth < 5 && !ctx.RandomMedic)
             {
                 int revived = ChooseMedicTarget(me, ctx.Db);
                 if (revived != -1)
                 {
                     Card revived_card = ctx.Db.Get(revived);
                     me.DiscardList.Remove(revived);
-                    string revived_row = Rows.IsUnitRow(revived_card.row) ? revived_card.row
+                    Row revived_row = Rows.IsUnitRow(revived_card.row) ? revived_card.row
                         : AbilityRules.BestAgileRow(me, revived, weather, ctx.DoubleSpies, ctx.Db);
                     drawn += PlayUnit(ctx, me, opp, weather, revived_card, revived_row, depth + 1);
                 }
             }
 
-            string scorch_row = Abilities.RowScorchTarget(card.ability);
+            Row? scorch_row = Abilities.RowScorchTarget(card.ability);
             if (scorch_row != null)
             {
                 StrengthCalculator.Recalculate(opp, weather, ctx.DoubleSpies, ctx.Db);
-                AbilityRules.ScorchRow(opp, scorch_row, ctx.Db);
+                AbilityRules.ScorchRow(opp, scorch_row.Value, ctx.Db);
             }
             return drawn;
         }
 
         private static Candidate SpecialCandidate(AiContext ctx, Card card)
         {
-            if (card.ability == Abilities.CommanderHorn)
+            if (card.ability == Ability.CommanderHorn || card.ability == Ability.Mardroeme)
             {
+                // In a row's free slot: a horn doubles it, a Mardroeme turns its Berserkers into bears
                 Candidate best = null;
-                foreach (string row in Rows.Units)
+                foreach (Row row in Rows.Units)
                 {
-                    if (ctx.Me.HasHorn(row))
+                    if (ctx.Me.SlotTaken(row))
                         continue;
-                    string chosen_row = row;
-                    int gain = Simulate(ctx, (me, opp, weather) => me.SpecialRow(chosen_row).Add(CardIds.CommanderHorn));
+                    Row chosen_row = row;
+                    int gain = Simulate(ctx, (me, opp, weather) =>
+                    {
+                        me.SpecialRow(chosen_row).Add(card._id);
+                        AbilityRules.Transform(me, ctx.Db);
+                    });
                     if (best == null || gain > best.Gain)
                         best = new Candidate { Action = AiAction.Play(card._id, chosen_row), Gain = gain, Board = gain, Cost = SpecialCost };
                 }
                 return best;
             }
 
-            if (card.row == Rows.Weather)
+            if (card.row == Row.Weather)
             {
                 int gain = Simulate(ctx, (me, opp, weather) => AbilityRules.PlayWeather(me, opp, weather, card));
-                return new Candidate { Action = AiAction.Play(card._id, Rows.Weather), Gain = gain, Board = gain, Cost = SpecialCost };
+                return new Candidate { Action = AiAction.Play(card._id, Row.Weather), Gain = gain, Board = gain, Cost = SpecialCost };
             }
 
-            if (card.ability == Abilities.Scorch)
+            if (card.ability == Ability.Scorch)
             {
                 int gain = Simulate(ctx, (me, opp, weather) => AbilityRules.Scorch(me, opp, ctx.Db));
-                return new Candidate { Action = AiAction.Play(card._id, Rows.Weather), Gain = gain, Board = gain, Cost = SpecialCost };
+                return new Candidate { Action = AiAction.Play(card._id, Row.Weather), Gain = gain, Board = gain, Cost = SpecialCost };
             }
 
-            if (card.ability == Abilities.Decoy)
+            if (card.ability == Ability.Decoy)
             {
-                string target_row;
+                Row target_row;
                 int target = ChooseDecoyTarget(ctx.Me, ctx.Db, out target_row);
                 if (target == -1)
                     return null;
                 Card target_card = ctx.Db.Get(target);
-                int bonus = target_card.ability == Abilities.Spy ? DrawValue : 4;
+                int bonus = target_card.ability == Ability.Spy ? DrawValue : 4;
                 int board = Simulate(ctx, (me, opp, weather) =>
                 {
                     me.UnitRow(target_row).Remove(target);
@@ -344,12 +377,12 @@ namespace Gwent.Rules
             int gain = int.MinValue;
             int weather_card = -1;
 
-            string weather_row = LeaderIds.WeatherPickRow(leader);
-            string horn_row = LeaderIds.HornRow(leader);
-            string scorch_row = LeaderIds.ScorchRow(leader);
+            Row? weather_row = LeaderIds.WeatherPickRow(leader);
+            Row? horn_row = LeaderIds.HornRow(leader);
+            Row? scorch_row = LeaderIds.ScorchRow(leader);
             if (weather_row != null)
             {
-                foreach (int card_id in LeaderRules.WeatherCardsFor(me, weather_row, ctx.Db))
+                foreach (int card_id in LeaderRules.WeatherCardsFor(me, weather_row.Value, ctx.Db))
                 {
                     Card card = ctx.Db.Get(card_id);
                     int card_gain = Simulate(ctx, (m, o, w) => AbilityRules.PlayWeather(m, o, w, card));
@@ -362,11 +395,11 @@ namespace Gwent.Rules
             }
             else if (horn_row != null)
             {
-                if (!me.HasHorn(horn_row))
-                    gain = Simulate(ctx, (m, o, w) => AbilityRules.PlaceLeaderHorn(m, horn_row));
+                if (!me.SlotTaken(horn_row.Value))
+                    gain = Simulate(ctx, (m, o, w) => AbilityRules.PlaceLeaderHorn(m, horn_row.Value));
             }
             else if (scorch_row != null)
-                gain = Simulate(ctx, (m, o, w) => AbilityRules.ScorchRow(o, scorch_row, ctx.Db));
+                gain = Simulate(ctx, (m, o, w) => AbilityRules.ScorchRow(o, scorch_row.Value, ctx.Db));
             else if (leader == LeaderIds.FoltestLordCommander)
                 gain = Simulate(ctx, (m, o, w) => AbilityRules.ClearWeather(m, o, w));
             else if (leader == LeaderIds.FrancescaHopeOfTheAenSeidhe)
@@ -379,8 +412,18 @@ namespace Gwent.Rules
                 if (target == -1)
                     return null;
                 Card card = ctx.Db.Get(target);
-                int value = DrawValue + card.strength / 2 + (card.ability == Abilities.Spy || card.ability == Abilities.Medic ? DrawValue : 0);
+                int value = DrawValue + card.strength / 2 + (card.ability == Ability.Spy || card.ability == Ability.Medic ? DrawValue : 0);
                 return new Candidate { Action = AiAction.Leader(), Gain = value, Cost = LeaderCost, OffBoard = true };
+            }
+            else if (leader == LeaderIds.CrachAnCraite)
+            {
+                // Both discard piles back into the decks: no strength now. In the last round (Skellige's perk has taken
+                // its two units by then), it takes the opponent's units out of its medics' reach; not while our own
+                // medics need our pile.
+                if (me.RoundsScore.Count < 2 || me.HandList.Exists(id => ctx.Db.Get(id).ability == Ability.Medic)
+                    || AbilityRules.MedicCandidates(ctx.Opponent.DiscardList, ctx.Db).Count < 3)
+                    return null;
+                return new Candidate { Action = AiAction.Leader(), Gain = DrawValue, Cost = LeaderCost, OffBoard = true };
             }
 
             if (gain < MinLeaderGain)
@@ -413,7 +456,7 @@ namespace Gwent.Rules
 
         //----------------------------------------Choices made for the AI----------------------------------------//
         // Medic: a spy (two cards) while the deck has cards, then a medic (it chains), then a unit that scorches a
-        // row, otherwise the strongest unit
+        // row, otherwise the strongest unit (a Berserker headed for a Mardroeme's row as strong as its bear)
         public static int ChooseMedicTarget(PlayerState me, CardDatabase db)
         {
             return ChooseRestoreTarget(AbilityRules.MedicCandidates(me.DiscardList, db), me, db);
@@ -427,47 +470,56 @@ namespace Gwent.Rules
             {
                 Card card = db.Get(card_id);
                 int priority = RestorePriority(card, me);
-                if (best == -1 || priority > best_priority || priority == best_priority && card.strength > best_strength)
+                int strength = RestoreStrength(card, me, db);
+                if (best == -1 || priority > best_priority || priority == best_priority && strength > best_strength)
                 {
                     best = card_id;
                     best_priority = priority;
-                    best_strength = card.strength;
+                    best_strength = strength;
                 }
             }
             return best;
         }
 
+        // What a restored unit is worth: its strength, or a Berserker's bear's when its row has a Mardroeme (it turns as it
+        // lands, and goes back to the discard pile for the next medic)
+        private static int RestoreStrength(Card card, PlayerState me, CardDatabase db)
+        {
+            int bear = CardIds.TransformedOf(card._id);
+            return bear != -1 && Rows.IsUnitRow(card.row) && AbilityRules.HasMardroeme(me, card.row, db) ? db.Get(bear).strength : card.strength;
+        }
+
         private static int RestorePriority(Card card, PlayerState me)
         {
-            if (card.ability == Abilities.Spy)
+            if (card.ability == Ability.Spy)
                 return me.DeckList.Count > 0 ? 3 : 0;
-            if (card.ability == Abilities.Medic)
+            if (card.ability == Ability.Medic)
                 return 2;
             return Abilities.RowScorchTarget(card.ability) != null ? 1 : 0;
         }
 
         // Decoy: take back an enemy spy on our side (to replay it), else one of our medics, else a unit that
         // scorches a row (to scorch again)
-        public static int ChooseDecoyTarget(PlayerState me, CardDatabase db, out string row)
+        public static int ChooseDecoyTarget(PlayerState me, CardDatabase db, out Row row)
         {
             Func<Card, bool>[] wanted =
             {
-                card => card.ability == Abilities.Spy,
-                card => card.ability == Abilities.Medic,
+                card => card.ability == Ability.Spy,
+                card => card.ability == Ability.Medic,
                 card => Abilities.IsRowScorch(card.ability),
             };
             foreach (Func<Card, bool> want in wanted)
-                foreach (string unit_row in Rows.Units)
+                foreach (Row unit_row in Rows.Units)
                     foreach (int card_id in me.UnitRow(unit_row))
                     {
                         Card card = db.Get(card_id);
-                        if (want(card) && card.IsUnit && !card.unique)
+                        if (want(card) && PlayRules.IsDecoyTarget(card))
                         {
                             row = unit_row;
                             return card_id;
                         }
                     }
-            row = null;
+            row = Row.Close; // no target: the row means nothing
             return -1;
         }
     }

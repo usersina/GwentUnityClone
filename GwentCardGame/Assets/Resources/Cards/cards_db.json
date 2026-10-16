@@ -1,10 +1,9 @@
 {
   "Info": [
     {
-      "Cards_Number: ": 154,
-      "UnitCards_Number": 147,
-      "SpecialCards_Number": 7,
-      "REMINDER": "WHERE'S SKELLIGE"
+      "Cards_Number: ": 184,
+      "UnitCards_Number": 175,
+      "SpecialCards_Number": 9
     }
   ],
   "Cards": [
@@ -839,7 +838,7 @@
       "_id": 75,
       "faction": "M",
       "unique": false,
-      "strength": 6,
+      "strength": 5,
       "row": "siege",
       "ability": null,
       "copies": 1
@@ -1626,6 +1625,314 @@
       "copies": 1
     },
     {
+      "_idstr": "berserker",
+      "name": "Berserker",
+      "_id": 147,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": "berserker",
+      "copies": 1
+    },
+    {
+      "_idstr": "birna_bran",
+      "name": "Birna Bran",
+      "_id": 148,
+      "faction": "SK",
+      "unique": false,
+      "strength": 2,
+      "row": "close",
+      "ability": "medic",
+      "copies": 1
+    },
+    {
+      "_idstr": "blueboy_lugos",
+      "name": "Blueboy Lugos",
+      "_id": 149,
+      "faction": "SK",
+      "unique": false,
+      "strength": 6,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "cerys",
+      "name": "Cerys",
+      "_id": 150,
+      "faction": "SK",
+      "unique": true,
+      "strength": 10,
+      "row": "close",
+      "ability": "muster",
+      "copies": 1
+    },
+    {
+      "_idstr": "clan_an_craite_warrior",
+      "name": "Clan an Craite Warrior",
+      "_id": 151,
+      "faction": "SK",
+      "unique": false,
+      "strength": 6,
+      "row": "close",
+      "ability": "tight_bond",
+      "copies": 3
+    },
+    {
+      "_idstr": "clan_brokvar_archer",
+      "name": "Clan Brokvar Archer",
+      "_id": 152,
+      "faction": "SK",
+      "unique": false,
+      "strength": 6,
+      "row": "range",
+      "ability": null,
+      "copies": 3
+    },
+    {
+      "_idstr": "clan_dimun_pirate",
+      "name": "Clan Dimun Pirate",
+      "_id": 153,
+      "faction": "SK",
+      "unique": false,
+      "strength": 6,
+      "row": "range",
+      "ability": "kill_strongest",
+      "copies": 1
+    },
+    {
+      "_idstr": "clan_drummond_shield_maiden",
+      "name": "Clan Drummond Shield Maiden",
+      "_id": 154,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": "tight_bond",
+      "copies": 3
+    },
+    {
+      "_idstr": "clan_heymaey_skald",
+      "name": "Clan Heymaey Skald",
+      "_id": 155,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "clan_tordarroch_armorsmith",
+      "name": "Clan Tordarroch Armorsmith",
+      "_id": 156,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "crach_an_craite",
+      "name": "Crach an Craite",
+      "_id": 157,
+      "faction": "SK",
+      "unique": null,
+      "strength": null,
+      "row": "active",
+      "ability": "leader",
+      "copies": 1
+    },
+    {
+      "_idstr": "donar_an_hindar",
+      "name": "Donar an Hindar",
+      "_id": 158,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "draig_bon_dhu",
+      "name": "Draig Bon-Dhu",
+      "_id": 159,
+      "faction": "SK",
+      "unique": false,
+      "strength": 2,
+      "row": "siege",
+      "ability": "commander_horn",
+      "copies": 1
+    },
+    {
+      "_idstr": "ermion",
+      "name": "Ermion",
+      "_id": 160,
+      "faction": "SK",
+      "unique": true,
+      "strength": 8,
+      "row": "range",
+      "ability": "mardroeme",
+      "copies": 1
+    },
+    {
+      "_idstr": "hemdall",
+      "name": "Hemdall",
+      "_id": 161,
+      "faction": "SK",
+      "unique": true,
+      "strength": 11,
+      "row": "close",
+      "ability": null,
+      "copies": 0
+    },
+    {
+      "_idstr": "hjalmar",
+      "name": "Hjalmar",
+      "_id": 162,
+      "faction": "SK",
+      "unique": true,
+      "strength": 10,
+      "row": "range",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "holger_blackhand",
+      "name": "Holger Blackhand",
+      "_id": 163,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "siege",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "kambi",
+      "name": "Kambi",
+      "_id": 164,
+      "faction": "SK",
+      "unique": false,
+      "strength": 0,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "king_bran",
+      "name": "King Bran",
+      "_id": 165,
+      "faction": "SK",
+      "unique": null,
+      "strength": null,
+      "row": "passive",
+      "ability": "leader",
+      "copies": 1
+    },
+    {
+      "_idstr": "light_longship",
+      "name": "Light Longship",
+      "_id": 166,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "range",
+      "ability": "muster",
+      "copies": 3
+    },
+    {
+      "_idstr": "madman_lugos",
+      "name": "Madman Lugos",
+      "_id": 167,
+      "faction": "SK",
+      "unique": false,
+      "strength": 6,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "olaf",
+      "name": "Olaf",
+      "_id": 168,
+      "faction": "SK",
+      "unique": false,
+      "strength": 12,
+      "row": "close_range",
+      "ability": "morale_boost",
+      "copies": 1
+    },
+    {
+      "_idstr": "svanrige",
+      "name": "Svanrige",
+      "_id": 169,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "transformed_vildkaarl",
+      "name": "Transformed Vildkaarl",
+      "_id": 170,
+      "faction": "SK",
+      "unique": false,
+      "strength": 14,
+      "row": "close",
+      "ability": "morale_boost",
+      "copies": 0
+    },
+    {
+      "_idstr": "transformed_young_vildkaarl",
+      "name": "Transformed Young Vildkaarl",
+      "_id": 171,
+      "faction": "SK",
+      "unique": false,
+      "strength": 8,
+      "row": "range",
+      "ability": "tight_bond",
+      "copies": 0
+    },
+    {
+      "_idstr": "udalryk",
+      "name": "Udalryk",
+      "_id": 172,
+      "faction": "SK",
+      "unique": false,
+      "strength": 4,
+      "row": "close",
+      "ability": null,
+      "copies": 1
+    },
+    {
+      "_idstr": "war_longship",
+      "name": "War Longship",
+      "_id": 173,
+      "faction": "SK",
+      "unique": false,
+      "strength": 6,
+      "row": "siege",
+      "ability": "tight_bond",
+      "copies": 3
+    },
+    {
+      "_idstr": "young_berserker",
+      "name": "Young Berserker",
+      "_id": 174,
+      "faction": "SK",
+      "unique": false,
+      "strength": 2,
+      "row": "range",
+      "ability": "berserker",
+      "copies": 3
+    },
+    {
       "_idstr": "biting_frost",
       "name": "Biting Frost",
       "_id": 200,
@@ -1700,6 +2007,28 @@
       "strength": 0,
       "row": "weather",
       "ability": "reduce_siege",
+      "copies": 3
+    },
+    {
+      "_idstr": "mardroeme",
+      "name": "Mardroeme",
+      "_id": 207,
+      "faction": "Special",
+      "unique": false,
+      "strength": 0,
+      "row": "special",
+      "ability": "mardroeme",
+      "copies": 3
+    },
+    {
+      "_idstr": "skellige_storm",
+      "name": "Skellige Storm",
+      "_id": 208,
+      "faction": "Special",
+      "unique": false,
+      "strength": 0,
+      "row": "weather",
+      "ability": "reduce_range_siege",
       "copies": 3
     }
   ]

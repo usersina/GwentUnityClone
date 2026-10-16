@@ -1,7 +1,8 @@
 GameAudio maps gameplay events to the files already in these folders.
 
 Music:
-All clips in Music are valid everywhere. GameAudio randomly starts one clip from this folder and keeps it playing across scenes.
+The tracks are in Assets/Content/Music, loaded through Addressables (label "music"), each when it is to play. GameAudio plays them
+in a random order, a track at a time, across scenes.
 
 Core SFX mapping:
 ui_click -> menu_buy
@@ -36,6 +37,7 @@ ability_horn -> horn
 ability_morale -> moral
 ability_tight_bond -> ally
 ability_decoy -> knockback
+ability_mardroeme -> mardroeme (Berserkers turning into bears; gwent-classic's sound, as the others)
 leader -> shield
 
 Deck editor SFX mapping:

@@ -4,11 +4,11 @@ using System.Collections.Generic;
 namespace Gwent.Rules
 {
     // Everything one side owns during a battle, as lists of card ids.
-    // Field names are serialized in Game.unity (SceneController.PlayerInfo/EnemyInfo), keep them stable.
+    // Field names are serialized in Game.unity (BattleController.PlayerInfo/EnemyInfo), keep them stable.
     [Serializable]
     public class PlayerState
     {
-        public string Faction;
+        public Faction Faction;
         public int Leader;
         public bool canLeader = true;
         public bool leaderDisabled = false;               // Cancelled by the opponent's White Flame
@@ -36,8 +36,8 @@ namespace Gwent.Rules
         public List<int> MSiegeStrength = new List<int>();
 
         public List<int> WeatherPlayed = new List<int>();     // Weather cards this side put on the board
-        public List<string> LeaderHornRows = new List<string>(); // Rows whose horn comes from the leader (no physical card)
-        public List<int> PendingSummons = new List<int>();    // Cards summoned when the board clears (a destroyed Cow's defenders)
+        public List<Row> LeaderHornRows = new List<Row>(); // Rows whose horn comes from the leader (no physical card)
+        public List<int> PendingSummons = new List<int>();    // Cards summoned when the board clears (a discarded Cow's defenders)
 
         public bool CanExchange = true;
         public int CardsExchanged = 0;
@@ -51,67 +51,73 @@ namespace Gwent.Rules
         public List<bool> RoundsWon = new List<bool>(3);      // per round: did this side win it (a draw is nobody's)
 
         //----------------------------------------Row helpers----------------------------------------//
-        public List<int> UnitRow(string row)
+        public List<int> UnitRow(Row row)
         {
             switch (row)
             {
-                case Rows.Close: return CloseList;
-                case Rows.Range: return RangeList;
-                case Rows.Siege: return SiegeList;
+                case Row.Close: return CloseList;
+                case Row.Range: return RangeList;
+                case Row.Siege: return SiegeList;
                 default: throw new ArgumentException("Not a unit row: " + row);
             }
         }
 
-        public List<int> SpecialRow(string row)
+        public List<int> SpecialRow(Row row)
         {
             switch (row)
             {
-                case Rows.Close: return SpCloseList;
-                case Rows.Range: return SpRangeList;
-                case Rows.Siege: return SpSiegeList;
+                case Row.Close: return SpCloseList;
+                case Row.Range: return SpRangeList;
+                case Row.Siege: return SpSiegeList;
                 default: throw new ArgumentException("Not a unit row: " + row);
             }
         }
 
-        public List<int> BaseStrengths(string row)
+        public List<int> BaseStrengths(Row row)
         {
             switch (row)
             {
-                case Rows.Close: return CloseStrengthL;
-                case Rows.Range: return RangeStrengthL;
-                case Rows.Siege: return SiegeStrengthL;
+                case Row.Close: return CloseStrengthL;
+                case Row.Range: return RangeStrengthL;
+                case Row.Siege: return SiegeStrengthL;
                 default: throw new ArgumentException("Not a unit row: " + row);
             }
         }
 
-        public List<int> ModifiedStrengths(string row)
+        public List<int> ModifiedStrengths(Row row)
         {
             switch (row)
             {
-                case Rows.Close: return MCloseStrength;
-                case Rows.Range: return MRangeStrength;
-                case Rows.Siege: return MSiegeStrength;
+                case Row.Close: return MCloseStrength;
+                case Row.Range: return MRangeStrength;
+                case Row.Siege: return MSiegeStrength;
                 default: throw new ArgumentException("Not a unit row: " + row);
             }
         }
 
-        public void SetStrengths(string row, List<int> base_strengths, List<int> modified_strengths)
+        public void SetStrengths(Row row, List<int> base_strengths, List<int> modified_strengths)
         {
             switch (row)
             {
-                case Rows.Close: CloseStrengthL = base_strengths; MCloseStrength = modified_strengths; break;
-                case Rows.Range: RangeStrengthL = base_strengths; MRangeStrength = modified_strengths; break;
-                case Rows.Siege: SiegeStrengthL = base_strengths; MSiegeStrength = modified_strengths; break;
+                case Row.Close: CloseStrengthL = base_strengths; MCloseStrength = modified_strengths; break;
+                case Row.Range: RangeStrengthL = base_strengths; MRangeStrength = modified_strengths; break;
+                case Row.Siege: SiegeStrengthL = base_strengths; MSiegeStrength = modified_strengths; break;
                 default: throw new ArgumentException("Not a unit row: " + row);
             }
         }
 
-        public bool HasHorn(string row)
+        public bool HasHorn(Row row)
         {
             return SpecialRow(row).Contains(CardIds.CommanderHorn);
         }
 
-        public int RowScore(string row)
+        // A row's special slot holds one card: a Commander's Horn (a leader's too) or a Mardroeme
+        public bool SlotTaken(Row row)
+        {
+            return SpecialRow(row).Count > 0;
+        }
+
+        public int RowScore(Row row)
         {
             int total = 0;
             foreach (int score in ModifiedStrengths(row))
@@ -121,7 +127,7 @@ namespace Gwent.Rules
 
         public int TotalScore()
         {
-            return RowScore(Rows.Close) + RowScore(Rows.Range) + RowScore(Rows.Siege);
+            return RowScore(Row.Close) + RowScore(Row.Range) + RowScore(Row.Siege);
         }
 
         public int UnitsOnBoard()
@@ -205,7 +211,7 @@ namespace Gwent.Rules
             copy.MRangeStrength = new List<int>(MRangeStrength);
             copy.MSiegeStrength = new List<int>(MSiegeStrength);
             copy.WeatherPlayed = new List<int>(WeatherPlayed);
-            copy.LeaderHornRows = new List<string>(LeaderHornRows);
+            copy.LeaderHornRows = new List<Row>(LeaderHornRows);
             copy.PendingSummons = new List<int>(PendingSummons);
             copy.RoundsScore = new List<int>(RoundsScore);
             copy.RoundsWon = new List<bool>(RoundsWon);

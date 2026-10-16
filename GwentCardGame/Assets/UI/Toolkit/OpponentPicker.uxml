@@ -1,0 +1,12 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/Toolkit/Gwent.uss" />
+    <!-- Before a battle: who to play against, two a row (the entries are OpponentEntry.uxml, one per AI deck) -->
+    <ui:VisualElement name="Dimmer" class="dimmer">
+        <ui:VisualElement name="Panel" class="panel opponent-picker">
+            <ui:Label text="Choose your opponent" class="title" />
+            <ui:VisualElement class="ornament opponent-picker__ornament" />
+            <ui:VisualElement name="Entries" class="opponent-picker__entries" />
+            <Gwent.UI.DialogButton name="Button Back" text="Back" class="button--secondary opponent-picker__back" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

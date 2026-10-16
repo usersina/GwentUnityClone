@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fb83ce226e8ae203aa92e1db8d4bbc5d, type: 3}
   m_Name: UITheme
-  m_EditorClassIdentifier: Assembly-CSharp::UITheme
+  m_EditorClassIdentifier: Gwent.Game::Gwent.UI.UITheme
   headingFont: {fileID: 11400000, guid: c0a3c0f12519ebef3b67a346c81c103d, type: 2}
   bodyFont: {fileID: 11400000, guid: 634ce8f8061774bb79705b8fa141b9c0, type: 2}
   bodyMediumFont: {fileID: 11400000, guid: 9e750905be9e813db82b0b457ee903f1, type: 2}
@@ -28,11 +28,9 @@ MonoBehaviour:
   textSecondary: {r: 0.7254902, g: 0.6784314, b: 0.58431375, a: 1}
   textMuted: {r: 0.56078434, g: 0.50980395, b: 0.42352942, a: 1}
   danger: {r: 0.7882353, g: 0.36862746, b: 0.30588236, a: 1}
-  dimmer: {r: 0, g: 0, b: 0, a: 0.65}
   panelSprite: {fileID: 21300000, guid: fa1d4f1032d32c0568bd6be4a2578403, type: 3}
   panelOutline: {fileID: 21300000, guid: 523a69791dfbcf6d3a42e6e21a5ecfd5, type: 3}
   pill: {fileID: 21300000, guid: 0bae15f7cb0d06c4fa8a2731d469919a, type: 3}
-  pillOutline: {fileID: 21300000, guid: 4bdede9550332431290d5f59fd79b30f, type: 3}
   circle: {fileID: 21300000, guid: 1b5fb7fbc0b80ecb6b3e2c8591126952, type: 3}
   ring: {fileID: 21300000, guid: eb9b4bf7b41e667179f4ed5022d86047, type: 3}
   diamond: {fileID: 21300000, guid: 76e80254425d02df5a442b2b38528b62, type: 3}
@@ -40,16 +38,8 @@ MonoBehaviour:
   gradientV: {fileID: 21300000, guid: a4f87aa63034383308d2dc5dfdbfb794, type: 3}
   radial: {fileID: 21300000, guid: 1244d86ceed9554c6b6bd1ff5a344b3d, type: 3}
   rule: {fileID: 21300000, guid: 553b5aea37379ee8e813ab9768cc5993, type: 3}
-  chevronDown: {fileID: 21300000, guid: fb90675c8abd53eb9bf16ce383092cf4, type: 3}
   chevronLeft: {fileID: 21300000, guid: e835c8a3ce7247a2c8ac5442caddd5f7, type: 3}
   chevronRight: {fileID: 21300000, guid: ae1e51723a9e5dcaf9148c6a71859e73, type: 3}
-  iconMenu: {fileID: 21300000, guid: 144a58489334e73abbe5b94cd5fcaf8a, type: 3}
-  iconClose: {fileID: 21300000, guid: 560f0ff13c3324636abbd5a817c0e6c1, type: 3}
-  iconPlus: {fileID: 21300000, guid: 9fe7f2ee49a180ea8ab0fe616f5702cd, type: 3}
-  iconCheck: {fileID: 21300000, guid: c3de172601e3bf5d389a62b479310e43, type: 3}
-  iconBack: {fileID: 21300000, guid: 9aa01236082e928f2aed0b81afade690, type: 3}
-  iconTrash: {fileID: 21300000, guid: d300d694e3f6f57a6b28389c531d3d61, type: 3}
-  iconEdit: {fileID: 21300000, guid: a300519d6bea215d6ab620baaf9aa4f9, type: 3}
   softShadow: {fileID: 21300000, guid: 7d0cda7be02823c7d8759f7bf3548013, type: 3}
   glowRing: {fileID: 21300000, guid: 9add077e035209d588c8dc6d288356f0, type: 3}
   leaderReady: {fileID: 21300000, guid: 9aa5796da9e2898eca470dede03cb193, type: 3}
@@ -60,6 +50,16 @@ MonoBehaviour:
   gem: {fileID: 21300000, guid: 5ef0f836fedc84c239683e5a407c5241, type: 3}
   scoreDisc: {fileID: 21300000, guid: 2421ecf01e183856c9049ecd221aec6e, type: 3}
   scoreTotal: {fileID: 21300000, guid: f23bd083c2065506f92241a6e738c62e, type: 3}
+  panelSettings: {fileID: 11400000, guid: 230acdc99259a93f2afdcf33f1a0b990, type: 2}
+  mainMenu: {fileID: 9197481963319205126, guid: 9eb64dcfb31c343ad8a905ee917b3bc0, type: 3}
+  opponentPicker: {fileID: 9197481963319205126, guid: 90e8771f59f444318992f9445f85864a, type: 3}
+  opponentEntry: {fileID: 9197481963319205126, guid: 04572ad0cbee4a5cd808a8300dee16fe, type: 3}
+  settings: {fileID: 9197481963319205126, guid: 56ee6535a2f93a299933304d2b220249, type: 3}
+  pauseMenu: {fileID: 9197481963319205126, guid: 307009fbc2e3406d78749c3ca88134bc, type: 3}
+  confirmDialog: {fileID: 9197481963319205126, guid: 9ee83f16e03a5e4409b3004117d49e24, type: 3}
+  toast: {fileID: 9197481963319205126, guid: ef6b4d4f61306d3049f8caa83c158f95, type: 3}
+  rulesPage: {fileID: 9197481963319205126, guid: 76fa8843591236b9394c96e10802e52a, type: 3}
   cursorDefault: {fileID: 2800000, guid: cbcb12b56ba765b95ad7887bec99e252, type: 3}
   cursorInteract: {fileID: 2800000, guid: b850cb37082471b529f708fa503613ef, type: 3}
   cursorInvalid: {fileID: 2800000, guid: 511b23d617df0dc869d7200289b1e555, type: 3}
+  cursorGiveUp: {fileID: 2800000, guid: 91af15957fb167502bee33be199278e2, type: 3}

@@ -1,94 +1,101 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UIElements;
 
-// Fonts, colors and sprites of the menus, dialogs and buttons (the battle board keeps its own art).
-// The asset lives in Resources/UITheme.asset; Gwent > UI > Regenerate Sprites and Theme rebuilds its sprites and fonts.
-[CreateAssetMenu(menuName = "Gwent/UI Theme", fileName = "UITheme")]
-public class UITheme : ScriptableObject
+namespace Gwent.UI
 {
-    [Header("Fonts")]
-    public TMP_FontAsset headingFont;
-    public TMP_FontAsset bodyFont;
-    public TMP_FontAsset bodyMediumFont;
-    public Material headingShadow; // the heading font with a dark outline and a soft shadow under the letters
-
-    [Header("Colors")]
-    public Color background = new Color32(0x16, 0x12, 0x0E, 0xFF);
-    public Color panel = new Color32(0x20, 0x1A, 0x15, 0xF5);
-    public Color panelRaised = new Color32(0x2A, 0x22, 0x19, 0xFF);
-    public Color line = new Color32(0x4D, 0x3F, 0x2C, 0xFF);
-    public Color lineSoft = new Color32(0x3A, 0x2F, 0x22, 0xFF);
-    public Color gold = new Color32(0xC9, 0xA4, 0x5C, 0xFF);
-    public Color goldBright = new Color32(0xE3, 0xC2, 0x7E, 0xFF);
-    public Color text = new Color32(0xEC, 0xE1, 0xC9, 0xFF);
-    public Color textBright = new Color32(0xF6, 0xEC, 0xD4, 0xFF);
-    public Color textSecondary = new Color32(0xB9, 0xAD, 0x95, 0xFF);
-    public Color textMuted = new Color32(0x8F, 0x82, 0x6C, 0xFF);
-    public Color danger = new Color32(0xC9, 0x5E, 0x4E, 0xFF);
-    public Color dimmer = new Color(0, 0, 0, 0.65f);
-
-    [Header("Sprites")]
-    public Sprite panelSprite;
-    public Sprite panelOutline;
-    public Sprite pill;
-    public Sprite pillOutline;
-    public Sprite circle;
-    public Sprite ring;
-    public Sprite diamond;
-    public Sprite gradientH;
-    public Sprite gradientV;
-    public Sprite radial;
-    public Sprite rule;
-    public Sprite chevronDown;
-    public Sprite chevronLeft;
-    public Sprite chevronRight;
-    public Sprite iconMenu;
-    public Sprite iconClose;
-    public Sprite iconPlus;
-    public Sprite iconCheck;
-    public Sprite iconBack;
-    public Sprite iconTrash;
-    public Sprite iconEdit;
-    public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
-    public Sprite glowRing;   // a glow around a rectangle, clear inside (nine-sliced, reaching 32 px out)
-    public Sprite leaderReady; // the leader ability's crown, lit: the ability can still be used this round
-
-    [Header("Board pieces (shown on the rules page)")]
-    public Sprite[] rowEmblems;   // close combat, ranged, siege
-    public Sprite gem;            // a life
-    public Sprite scoreDisc;      // a row's score
-    public Sprite scoreTotal;     // a side's total
-
-    [Header("Cursors (tip at 5, 4)")]
-    public Texture2D cursorDefault;
-    public Texture2D cursorInteract;
-    public Texture2D cursorInvalid;
-
-    private static UITheme current;
-
-    public static UITheme Current
+    // Fonts, colors and sprites of the uGUI overlays and the battle's generated art, the cursors, and the UI Toolkit
+    // documents and panel settings (the menus' and dialogs' look itself is Assets/UI/Toolkit/Gwent.uss).
+    // The asset lives in Resources/UITheme.asset; Gwent > UI > Regenerate Sprites and Theme rebuilds its sprites and fonts.
+    [CreateAssetMenu(menuName = "Gwent/UI Theme", fileName = "UITheme")]
+    public class UITheme : ScriptableObject
     {
-        get
+        [Header("Fonts")]
+        public TMP_FontAsset headingFont;
+        public TMP_FontAsset bodyFont;
+        public TMP_FontAsset bodyMediumFont;
+        public Material headingShadow; // the heading font with a dark outline and a soft shadow under the letters
+
+        [Header("Colors")]
+        public Color background = new Color32(0x16, 0x12, 0x0E, 0xFF);
+        public Color panel = new Color32(0x20, 0x1A, 0x15, 0xF5);
+        public Color panelRaised = new Color32(0x2A, 0x22, 0x19, 0xFF);
+        public Color line = new Color32(0x4D, 0x3F, 0x2C, 0xFF);
+        public Color lineSoft = new Color32(0x3A, 0x2F, 0x22, 0xFF);
+        public Color gold = new Color32(0xC9, 0xA4, 0x5C, 0xFF);
+        public Color goldBright = new Color32(0xE3, 0xC2, 0x7E, 0xFF);
+        public Color text = new Color32(0xEC, 0xE1, 0xC9, 0xFF);
+        public Color textBright = new Color32(0xF6, 0xEC, 0xD4, 0xFF);
+        public Color textSecondary = new Color32(0xB9, 0xAD, 0x95, 0xFF);
+        public Color textMuted = new Color32(0x8F, 0x82, 0x6C, 0xFF);
+        public Color danger = new Color32(0xC9, 0x5E, 0x4E, 0xFF);
+
+        [Header("Sprites")]
+        public Sprite panelSprite;
+        public Sprite panelOutline;
+        public Sprite pill;
+        public Sprite circle;
+        public Sprite ring;
+        public Sprite diamond;
+        public Sprite gradientH;
+        public Sprite gradientV;
+        public Sprite radial;
+        public Sprite rule;
+        public Sprite chevronLeft;
+        public Sprite chevronRight;
+        public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
+        public Sprite glowRing;   // a glow around a rectangle, clear inside (nine-sliced, reaching 32 px out)
+        public Sprite leaderReady; // the leader ability's crown, glowing: the leader is lifted and the crown uses it
+
+        [Header("Board pieces (shown on the rules page)")]
+        public Sprite[] rowEmblems;   // close combat, ranged, siege
+        public Sprite gem;            // a life
+        public Sprite scoreDisc;      // a row's score
+        public Sprite scoreTotal;     // a side's total
+
+        [Header("UI Toolkit screens (Assets/UI/Toolkit)")]
+        public PanelSettings panelSettings; // the screens' and dialogs' panels are copies of it (UIScreens)
+        public VisualTreeAsset mainMenu;
+        public VisualTreeAsset opponentPicker;
+        public VisualTreeAsset opponentEntry;
+        public VisualTreeAsset settings;
+        public VisualTreeAsset pauseMenu;
+        public VisualTreeAsset confirmDialog;
+        public VisualTreeAsset toast;
+        public VisualTreeAsset rulesPage;
+
+        [Header("Cursors (tip at 5, 4)")]
+        public Texture2D cursorDefault;
+        public Texture2D cursorInteract;
+        public Texture2D cursorInvalid;
+        public Texture2D cursorGiveUp; // a hand laid on the deck (hotspot at the palm: 30, 40)
+
+        private static UITheme current;
+
+        public static UITheme Current
         {
-            if (current == null)
+            get
             {
-                current = Resources.Load<UITheme>("UITheme");
                 if (current == null)
-                    current = CreateInstance<UITheme>(); // default colors, Unity's default sprites and fonts
+                {
+                    current = Resources.Load<UITheme>("UITheme");
+                    if (current == null)
+                        current = CreateInstance<UITheme>(); // default colors, Unity's default sprites and fonts
+                }
+                return current;
             }
-            return current;
         }
-    }
 
-    public static Color WithAlpha(Color color, float alpha)
-    {
-        color.a = alpha;
-        return color;
-    }
+        public static Color WithAlpha(Color color, float alpha)
+        {
+            color.a = alpha;
+            return color;
+        }
 
-    // Darker (factor < 1) or lighter (> 1) version of a color, same alpha
-    public static Color Shade(Color color, float factor)
-    {
-        return new Color(color.r * factor, color.g * factor, color.b * factor, color.a);
+        // Darker (factor < 1) or lighter (> 1) version of a color, same alpha
+        public static Color Shade(Color color, float factor)
+        {
+            return new Color(color.r * factor, color.g * factor, color.b * factor, color.a);
+        }
     }
 }

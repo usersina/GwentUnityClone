@@ -9,7 +9,7 @@ namespace Gwent.Rules.Tests
     {
         public static CardDatabase Db { get { return TestCardData.Db; } }
 
-        public static PlayerState Player(string faction = Factions.NorthernRealms, int leader = LeaderIds.FoltestKingOfTemeria)
+        public static PlayerState Player(Faction faction = Faction.NorthernRealms, int leader = LeaderIds.FoltestKingOfTemeria)
         {
             return new PlayerState { Faction = faction, Leader = leader };
         }

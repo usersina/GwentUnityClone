@@ -89,15 +89,15 @@ namespace Gwent.Rules.Tests
         public void ALeaderHornIsTheRowsOneHorn()
         {
             // Eredin, Commander of the Red Riders: doubles the close row like a horn, never on top of one, never a hero
-            PlayerState p = TestBoard.Player(Factions.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
+            PlayerState p = TestBoard.Player(Faction.Monsters, LeaderIds.EredinCommanderOfTheRedRiders);
             p.CloseList.AddRange(new[] { Fiend, CardIds.Dandelion, Geralt });
-            Assert.IsTrue(AbilityRules.PlaceLeaderHorn(p, Rows.Close));
+            Assert.IsTrue(AbilityRules.PlaceLeaderHorn(p, Row.Close));
             TestBoard.Recalc(null, p);
             CollectionAssert.AreEqual(new[] { 12, 4, 15 }, Close(p));
 
             Board board = new Board { Player = p, Enemy = TestBoard.Player(), Weather = new List<int>(), Db = TestBoard.Db, Rnd = new System.Random(0) };
             p.HandList.Add(CardIds.CommanderHorn);
-            PlayRules.Resolve(board, TestBoard.Db.Get(CardIds.CommanderHorn), Rows.Close, true, false);
+            PlayRules.Resolve(board, TestBoard.Db.Get(CardIds.CommanderHorn), Row.Close, true, false);
             TestBoard.Recalc(null, p);
             CollectionAssert.AreEqual(new[] { 12, 4, 15 }, Close(p), "a horn card on that row does not double it again");
         }

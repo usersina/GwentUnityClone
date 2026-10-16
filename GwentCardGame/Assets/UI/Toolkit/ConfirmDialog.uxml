@@ -1,0 +1,14 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/Toolkit/Gwent.uss" />
+    <!-- A question with two answers: the one the dialog is about, and the safe one (focused) -->
+    <ui:VisualElement name="Dimmer" class="dimmer">
+        <ui:VisualElement name="Panel" class="panel confirm">
+            <ui:VisualElement class="ornament confirm__ornament" />
+            <ui:Label name="Message" class="body confirm__message" />
+            <ui:VisualElement class="confirm__buttons">
+                <Gwent.UI.DialogButton name="Button Yes" class="button--primary" />
+                <Gwent.UI.DialogButton name="Button No" class="button--secondary" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

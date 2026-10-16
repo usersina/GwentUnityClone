@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 namespace Gwent.Rules
 {
-    // The rest of a battle without the scene, in the same steps as SceneController and AIManager: a side's move,
+    // The rest of a battle without the scene, in the same steps as BattleController and AiPlayer: a side's move,
     // passing, the end of a round and the next round's opening. The Hard AI plays battles out with it (AiSearch).
     public static class BattleSim
     {
-        // One of the AI's actions, as AIManager.Execute carries it out (SceneController.PlayCard, PlayDecoy,
+        // One of the AI's actions, as AiPlayer.Execute carries it out (BattleController.PlayCard, PlayDecoy,
         // AiUseWeatherLeader, ActivateLeader). An action that cannot be carried out passes, as in the battle.
         public static void Apply(Board board, AiAction action, bool is_player)
         {
@@ -18,7 +18,7 @@ namespace Gwent.Rules
                     if (!me.HandList.Contains(action.CardId))
                         break;
                     Card card = board.Db.Get(action.CardId);
-                    if (card.ability == Abilities.Decoy)
+                    if (card.ability == Ability.Decoy)
                     {
                         if (action.TargetId < 0 || !Rows.IsUnitRow(action.Row))
                             break;
@@ -49,7 +49,7 @@ namespace Gwent.Rules
                 if (!me.DeckList.Remove(action.CardId))
                     return false;
                 me.canLeader = false;
-                PlayRules.Resolve(board, board.Db.Get(action.CardId), Rows.Weather, is_player, false);
+                PlayRules.Resolve(board, board.Db.Get(action.CardId), Row.Weather, is_player, false);
                 return true;
             }
             if (me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
@@ -100,7 +100,7 @@ namespace Gwent.Rules
             return RoundWinner.Draw;
         }
 
-        // SceneController.ManageOutcome, PrepareNextRound and RoundOpening; returns the battle's winner once it is over
+        // BattleController.ManageOutcome, PrepareNextRound and RoundOpening; returns the battle's winner once it is over
         private static RoundWinner? EndRound(Board board, ref bool player_turn, ref bool last_passer_player)
         {
             board.Recalculate();
@@ -113,8 +113,12 @@ namespace Gwent.Rules
             RoundRules.CleanupBoard(board.Player, board.Rnd, board.Db);
             RoundRules.CleanupBoard(board.Enemy, board.Rnd, board.Db);
             board.Weather.Clear();
-            if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Factions.NorthernRealms)
+            if (winner != RoundWinner.Draw && board.Side(winner == RoundWinner.Player).Faction == Faction.NorthernRealms)
                 RoundRules.Draw(board.Side(winner == RoundWinner.Player), 1);
+            foreach (bool is_player in new[] { true, false })
+                if (RoundRules.SkelligeReinforces(board.Side(is_player)))
+                    RoundRules.SkelligeReinforcements(board, is_player);
+            board.Recalculate();
 
             player_turn = winner == RoundWinner.Player || (winner == RoundWinner.Draw && last_passer_player);
             // A side that starts a round with no card in hand sits it out

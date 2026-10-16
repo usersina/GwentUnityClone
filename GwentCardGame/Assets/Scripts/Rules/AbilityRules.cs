@@ -12,7 +12,7 @@ namespace Gwent.Rules
         {
             int top_strength = -1;
             foreach (PlayerState info in new[] { first, second })
-                foreach (string row in Rows.Units)
+                foreach (Row row in Rows.Units)
                     top_strength = Math.Max(top_strength, StrongestNonHero(info, row, db));
 
             if (top_strength < 0)
@@ -20,23 +20,30 @@ namespace Gwent.Rules
 
             int destroyed = 0;
             foreach (PlayerState info in new[] { first, second })
-                foreach (string row in Rows.Units)
-                    destroyed += DestroyWithStrength(info, row, top_strength, db);
+            {
+                List<int> avengers = new List<int>();
+                foreach (Row row in Rows.Units)
+                    destroyed += DestroyWithStrength(info, row, top_strength, db, avengers);
+                Avenge(info, avengers, db);
+            }
             return destroyed;
         }
 
         // Row scorch (unit ability or leader): destroy the strongest non-hero unit(s) of a row if it totals 10 or more
-        public static int ScorchRow(PlayerState target, string row, CardDatabase db)
+        public static int ScorchRow(PlayerState target, Row row, CardDatabase db)
         {
             if (target.RowScore(row) < 10)
                 return 0;
             int top_strength = StrongestNonHero(target, row, db);
             if (top_strength < 0)
                 return 0;
-            return DestroyWithStrength(target, row, top_strength, db);
+            List<int> avengers = new List<int>();
+            int destroyed = DestroyWithStrength(target, row, top_strength, db, avengers);
+            Avenge(target, avengers, db);
+            return destroyed;
         }
 
-        private static int StrongestNonHero(PlayerState info, string row, CardDatabase db)
+        private static int StrongestNonHero(PlayerState info, Row row, CardDatabase db)
         {
             int top_strength = -1;
             List<int> units = info.UnitRow(row);
@@ -48,7 +55,7 @@ namespace Gwent.Rules
         }
 
         // Whether a row has a unit a scorch could destroy
-        public static bool HasScorchTarget(PlayerState info, string row, CardDatabase db)
+        public static bool HasScorchTarget(PlayerState info, Row row, CardDatabase db)
         {
             return StrongestNonHero(info, row, db) >= 0;
         }
@@ -59,7 +66,8 @@ namespace Gwent.Rules
             return !card.unique && !card.IsSpecial;
         }
 
-        private static int DestroyWithStrength(PlayerState info, string row, int strength, CardDatabase db)
+        // Destroys the row's non-hero units of that strength; the cards their killing calls are added to avengers
+        private static int DestroyWithStrength(PlayerState info, Row row, int strength, CardDatabase db, List<int> avengers)
         {
             List<int> units = info.UnitRow(row);
             List<int> base_strengths = info.BaseStrengths(row);
@@ -74,29 +82,58 @@ namespace Gwent.Rules
                 if (i < base_strengths.Count)
                     base_strengths.RemoveAt(i);
                 strengths.RemoveAt(i);
-                Discard(info, card_id);
+                ToDiscardPile(info, card_id);
+                if (AvengerOf(card_id) != -1)
+                    avengers.Add(AvengerOf(card_id)); // killed: its avenger comes at once (Avenge)
                 destroyed++;
             }
             return destroyed;
         }
 
         //----------------------------------------Avenger----------------------------------------//
-        // The card a unit summons when it goes to the discard pile (-1 if none): the Cow calls the Bovine Defense Force.
-        // As in The Witcher 3, the summoned card arrives when the board is cleared for the next round (a decoy taking
-        // the Cow back to the hand summons nothing).
+        // The card a unit summons when it goes to the discard pile (-1 if none): the Cow calls the Bovine Defense Force,
+        // Kambi calls Hemdall. Killed (scorched: by the Scorch card, the Clan Dimun Pirate, a unit's or a leader's row
+        // scorch), its avenger takes its place at once, on the avenger's own row: kill the Cow, get the punishment.
+        // Discarded any other way (cleared at a round's end, discarded from the hand by Destroyer of Worlds), it arrives
+        // when the board clears for the next round, so never if the battle ends first. A decoy taking it back to the hand
+        // calls nothing.
         public static int AvengerOf(int card_id)
         {
-            return card_id == CardIds.Cow ? CardIds.BovineDefenseForce : -1;
+            switch (card_id)
+            {
+                case CardIds.Cow: return CardIds.BovineDefenseForce;
+                case CardIds.Kambi: return CardIds.Hemdall;
+                default: return -1;
+            }
         }
 
-        // A unit leaving the battlefield goes to the discard pile. A summoned card is not a real card: it vanishes
-        // (so a medic cannot bring it back).
+        // The cards a scorch's killing called, on their rows now (once the scorch is over: never scorched by it)
+        private static void Avenge(PlayerState info, List<int> avengers, CardDatabase db)
+        {
+            foreach (int card_id in avengers)
+            {
+                Row row = db.Get(card_id).row;
+                info.UnitRow(row).Add(card_id);
+                info.BaseStrengths(row).Add(db.Get(card_id).strength); // until the next recalculation
+                info.ModifiedStrengths(row).Add(db.Get(card_id).strength);
+            }
+        }
+
+        // A card discarded without being killed (cleared at a round's end, or from the hand by Destroyer of Worlds) goes
+        // to the discard pile, a Cow's or Kambi's avenger coming next round
         public static void Discard(PlayerState info, int card_id)
         {
-            if (card_id != CardIds.BovineDefenseForce)
-                info.DiscardList.Add(card_id);
+            ToDiscardPile(info, card_id);
             if (AvengerOf(card_id) != -1)
                 info.PendingSummons.Add(AvengerOf(card_id));
+        }
+
+        // A summoned card (an avenger, a Berserker's bear) is a token, not a real card: it vanishes instead of going to the
+        // discard pile, so no medic or leader brings it back
+        private static void ToDiscardPile(PlayerState info, int card_id)
+        {
+            if (!CardIds.IsSummoned(card_id))
+                info.DiscardList.Add(card_id);
         }
 
         //----------------------------------------Muster----------------------------------------//
@@ -113,15 +150,18 @@ namespace Gwent.Rules
         {
             if (other._id == played._id)
                 return true;
+            // Cerys calls the Clan Drummond Shield Maidens (bonded, not mustering: they call nobody)
+            if (played._id == CardIds.Cerys)
+                return other._id == CardIds.ClanDrummondShieldMaiden;
             // The Arachas Behemoth and Gaunter O'Dimm call their family, but the family does not call them
             if (other._id == CardIds.ArachasBehemoth || other._id == CardIds.GaunterODimm)
                 return false;
             // Only other muster cards of the same family (Havekar Healer is not a Havekar Smuggler)
-            return other.ability == Abilities.Muster && MusterGroup(other._idstr) == MusterGroup(played._idstr);
+            return other.ability == Ability.Muster && MusterGroup(other._idstr) == MusterGroup(played._idstr);
         }
 
         // Play every copy and muster relative from the deck and the hand (the played card itself is already out of the hand)
-        public static List<int> Muster(PlayerState info, Card played, string played_row, CardDatabase db)
+        public static List<int> Muster(PlayerState info, Card played, Row played_row, CardDatabase db)
         {
             List<int> mustered = new List<int>();
             foreach (List<int> source in new[] { info.DeckList, info.HandList })
@@ -131,7 +171,7 @@ namespace Gwent.Rules
                     Card card = db.Get(source[i]);
                     if (!IsMusterRelative(played, card))
                         continue;
-                    string row = Rows.IsUnitRow(card.row) ? card.row : played_row;
+                    Row row = Rows.IsUnitRow(card.row) ? card.row : played_row;
                     info.UnitRow(row).Add(card._id);
                     mustered.Add(card._id);
                     source.RemoveAt(i);
@@ -172,19 +212,19 @@ namespace Gwent.Rules
         public static int OptimizeAgile(PlayerState info, IList<int> weather, bool double_spies, CardDatabase db)
         {
             // Listed first, then moved one by one, each judged on the board as it is by then
-            List<KeyValuePair<string, int>> units = new List<KeyValuePair<string, int>>();
-            foreach (string row in new[] { Rows.Range, Rows.Close })
+            List<KeyValuePair<Row, int>> units = new List<KeyValuePair<Row, int>>();
+            foreach (Row row in new[] { Row.Range, Row.Close })
                 foreach (int card_id in info.UnitRow(row))
                 {
                     Card card = db.Get(card_id);
-                    if (card.row == Rows.Agile && !card.unique)
-                        units.Add(new KeyValuePair<string, int>(row, card_id));
+                    if (card.row == Row.Agile && !card.unique)
+                        units.Add(new KeyValuePair<Row, int>(row, card_id));
                 }
 
             int moves = 0;
-            foreach (KeyValuePair<string, int> unit in units)
+            foreach (KeyValuePair<Row, int> unit in units)
             {
-                string from = unit.Key, to = from == Rows.Close ? Rows.Range : Rows.Close;
+                Row from = unit.Key, to = from == Row.Close ? Row.Range : Row.Close;
                 StrengthCalculator.Recalculate(info, weather, double_spies, db);
                 int before = StrengthOf(info, from, unit.Value);
                 info.UnitRow(from).Remove(unit.Value);
@@ -203,7 +243,7 @@ namespace Gwent.Rules
         }
 
         // A unit's strength on a row (copies of a card on the same row are equally strong)
-        private static int StrengthOf(PlayerState info, string row, int card_id)
+        private static int StrengthOf(PlayerState info, Row row, int card_id)
         {
             int index = info.UnitRow(row).LastIndexOf(card_id);
             List<int> strengths = info.ModifiedStrengths(row);
@@ -211,7 +251,7 @@ namespace Gwent.Rules
         }
 
         // Row that gives the side the higher total when an agile unit is added
-        public static string BestAgileRow(PlayerState info, int card_id, IList<int> weather, bool double_spies, CardDatabase db)
+        public static Row BestAgileRow(PlayerState info, int card_id, IList<int> weather, bool double_spies, CardDatabase db)
         {
             PlayerState close = info.Clone();
             close.CloseList.Add(card_id);
@@ -219,14 +259,59 @@ namespace Gwent.Rules
             PlayerState range = info.Clone();
             range.RangeList.Add(card_id);
             StrengthCalculator.Recalculate(range, weather, double_spies, db);
-            return range.TotalScore() > close.TotalScore() ? Rows.Range : Rows.Close;
+            return range.TotalScore() > close.TotalScore() ? Row.Range : Row.Close;
+        }
+
+        //----------------------------------------Mardroeme----------------------------------------//
+        // Whether a row of this side has a Mardroeme: the special card in its slot, or Ermion on it
+        public static bool HasMardroeme(PlayerState info, Row row, CardDatabase db)
+        {
+            if (info.SpecialRow(row).Contains(CardIds.Mardroeme))
+                return true;
+            foreach (int card_id in info.UnitRow(row))
+                if (db.Get(card_id).ability == Ability.Mardroeme)
+                    return true;
+            return false;
+        }
+
+        // Whether Berserkers on this side's rows meet a Mardroeme (Transform would turn some)
+        public static bool CanTransform(PlayerState info, CardDatabase db)
+        {
+            foreach (Row row in Rows.Units)
+                if (info.UnitRow(row).Exists(id => CardIds.TransformedOf(id) != -1) && HasMardroeme(info, row, db))
+                    return true;
+            return false;
+        }
+
+        // The Berserkers on this side's rows that have a Mardroeme turn into their bears, in their places: whether the
+        // Mardroeme came first or they did. The bear is a token (CardIds.IsSummoned): the Berserker goes to the discard pile
+        // at once, where a medic can find it (brought back to a Mardroeme's row, it turns again). Returns how many turned.
+        public static int Transform(PlayerState info, CardDatabase db)
+        {
+            int turned = 0;
+            foreach (Row row in Rows.Units)
+            {
+                List<int> units = info.UnitRow(row);
+                if (!units.Exists(id => CardIds.TransformedOf(id) != -1) || !HasMardroeme(info, row, db))
+                    continue;
+                for (int i = 0; i < units.Count; i++)
+                {
+                    int bear = CardIds.TransformedOf(units[i]);
+                    if (bear == -1)
+                        continue;
+                    info.DiscardList.Add(units[i]);
+                    units[i] = bear;
+                    turned++;
+                }
+            }
+            return turned;
         }
 
         //----------------------------------------Weather----------------------------------------//
         // Puts a weather card on the shared weather board; duplicates go straight to the owner's discard pile
         public static void PlayWeather(PlayerState owner, PlayerState opponent, List<int> weather_board, Card card)
         {
-            if (card.ability == Abilities.ClearWeather)
+            if (card.ability == Ability.ClearWeather)
             {
                 ClearWeather(owner, opponent, weather_board);
                 owner.DiscardList.Add(card._id);
@@ -254,14 +339,26 @@ namespace Gwent.Rules
         }
 
         //----------------------------------------Commander's Horn----------------------------------------//
-        // Leader horn: no physical card, but shown as a horn in the special slot for the round
-        public static bool PlaceLeaderHorn(PlayerState info, string row)
+        // Leader horn: no physical card, but shown as a horn in the special slot for the round (not on a Mardroeme)
+        public static bool PlaceLeaderHorn(PlayerState info, Row row)
         {
-            if (info.HasHorn(row))
+            if (info.SlotTaken(row))
                 return false;
             info.SpecialRow(row).Add(CardIds.CommanderHorn);
             info.LeaderHornRows.Add(row);
             return true;
+        }
+
+        //----------------------------------------Crach an Craite----------------------------------------//
+        // Each side's discard pile goes back into its deck, which is shuffled
+        public static void ShuffleDiscardsIntoDecks(Board board)
+        {
+            foreach (PlayerState info in new[] { board.Player, board.Enemy })
+            {
+                info.DeckList.AddRange(info.DiscardList);
+                info.DiscardList.Clear();
+                Rng.Shuffle(info.DeckList, board.Rnd);
+            }
         }
     }
 }

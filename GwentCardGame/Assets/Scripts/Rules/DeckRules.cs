@@ -22,7 +22,7 @@ namespace Gwent.Rules
                 return errors;
             }
             if (Array.IndexOf(Factions.Playable, deck.Faction) < 0)
-                errors.Add("Unknown faction '" + deck.Faction + "'");
+                errors.Add("Unknown faction '" + deck.Faction.Code() + "'");
             if (!LeaderIds.BelongsTo(deck.Leader, deck.Faction))
                 errors.Add("Leader does not belong to the deck's faction");
 
@@ -41,8 +41,8 @@ namespace Gwent.Rules
                     specials += copies;
                 else
                     units += copies;
-                if (!card.IsSpecial && card.faction != Factions.Neutral && card.faction != deck.Faction)
-                    errors.Add(card.name + " does not belong to this faction");
+                if (!Fits(card, deck.Faction))
+                    errors.Add(card.DisplayName + " does not belong to this faction");
                 if (copies > MaxCopies(card))
                     errors.Add(TooManyCopies(card));
             }
@@ -58,12 +58,21 @@ namespace Gwent.Rules
             return Validate(deck, db).Count == 0;
         }
 
+        // Whether a card can go in a deck of the faction: its own units, the neutral ones and the special cards, but
+        // Mardroeme, a special card, only in Skellige's
+        public static bool Fits(Card card, Faction faction)
+        {
+            if (card._id == CardIds.Mardroeme)
+                return faction == Faction.Skellige;
+            return card.IsSpecial || card.faction == Faction.Neutral || card.faction == faction;
+        }
+
         // As in The Witcher 3, a deck holds at most the copies of a card that exist in the game: one of a hero or of a
-        // single card such as Dandelion, up to five Mahakaman Defenders. The Bovine Defense Force (summoned by the Cow)
-        // has none.
+        // single card such as Dandelion, up to five Mahakaman Defenders. The summoned cards (the Bovine Defense Force,
+        // Hemdall, the Berserkers' bears) have none.
         public static int MaxCopies(Card card)
         {
-            return card.unique ? 1 : card.copies;
+            return card.unique ? Math.Min(1, card.copies) : card.copies;
         }
 
         public static string TooManyCopies(Card card)
@@ -114,6 +123,17 @@ namespace Gwent.Rules
             string[] words = builder.ToString().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
             string name = string.Join(" ", words);
             return name.Length > MaxNameLength ? name.Substring(0, MaxNameLength).TrimEnd() : name;
+        }
+
+        // The name of a deck's nth copy ("The Monster Horde (copy)", then "(copy 2)"...): the deck's own name is shortened,
+        // never the suffix, so the whole fits MaxNameLength and the copies' names (and files) stay apart
+        public static string CopyName(string name, int n)
+        {
+            string suffix = n <= 1 ? " (copy)" : " (copy " + n + ")";
+            string own = NormalizeDisplayName(name);
+            if (own.Length + suffix.Length > MaxNameLength)
+                own = own.Substring(0, Math.Max(0, MaxNameLength - suffix.Length)).TrimEnd();
+            return own + suffix;
         }
 
         // Display name => safe file name without extension ("My Deck!" => "my_deck"), null if nothing usable remains

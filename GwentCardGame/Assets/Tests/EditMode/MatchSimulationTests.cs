@@ -14,7 +14,7 @@ namespace Gwent.Rules.Tests
         // Resources/Cards/AI_Monsters.json
         private static readonly Deck AiDeck = new Deck
         {
-            Faction = Factions.Monsters,
+            Faction = Faction.Monsters,
             Name = "Monsters Slay",
             Leader = LeaderIds.EredinKingOfTheWildHunt,
             Cards = new List<int> { 67, 14, 77, 83, 85, 27, 125, 126, 127, 128, 129, 1, 1, 1, 2, 18, 19, 20, 47, 30, 22, 135, 92, 94, 94, 94, 201, 202, 204 }
@@ -26,7 +26,7 @@ namespace Gwent.Rules.Tests
         public void AiVsAiBattlesFinishAndConserveCards()
         {
             List<Deck> decks = GenerateDecks(new Random(7));
-            Assert.AreEqual(20, decks.Count, "one valid deck per leader");
+            Assert.AreEqual(LeaderIds.ByFaction.Values.Sum(leaders => leaders.Length), decks.Count, "one valid deck per leader");
 
             int battles = 0;
             int[] outcomes = new int[3];
@@ -88,10 +88,13 @@ namespace Gwent.Rules.Tests
                     RoundRules.CleanupBoard(board.Player, rnd, Db);
                     RoundRules.CleanupBoard(board.Enemy, rnd, Db);
                     board.Weather.Clear();
-                    if (winner == RoundWinner.Player && board.Player.Faction == Factions.NorthernRealms)
+                    if (winner == RoundWinner.Player && board.Player.Faction == Faction.NorthernRealms)
                         RoundRules.Draw(board.Player, 1);
-                    if (winner == RoundWinner.Enemy && board.Enemy.Faction == Factions.NorthernRealms)
+                    if (winner == RoundWinner.Enemy && board.Enemy.Faction == Faction.NorthernRealms)
                         RoundRules.Draw(board.Enemy, 1);
+                    foreach (bool is_player in new[] { true, false })
+                        if (RoundRules.SkelligeReinforces(board.Side(is_player)))
+                            RoundRules.SkelligeReinforcements(board, is_player);
                     board.Player.hasPassed = board.Enemy.hasPassed = false;
                     Assert.AreEqual(expected, CountCards(board), "cards lost/created at round end: " + context);
                     player_turn = rnd.Next(2) == 0;
@@ -109,7 +112,7 @@ namespace Gwent.Rules.Tests
             }
         }
 
-        // Mirrors AIManager.Execute + SceneController.PlayCard/PlayDecoy/AiUseWeatherLeader/ActivateLeader
+        // Mirrors AiPlayer.Execute + BattleController.PlayCard/PlayDecoy/AiUseWeatherLeader/ActivateLeader
         private static void Execute(Board board, AiAction action, bool is_player, string context)
         {
             PlayerState me = board.Side(is_player);
@@ -118,7 +121,7 @@ namespace Gwent.Rules.Tests
                 case AiActionType.PlayCard:
                     Assert.That(me.HandList, Has.Member(action.CardId), context);
                     me.HandList.Remove(action.CardId);
-                    if (Db.Get(action.CardId).ability == Abilities.Decoy)
+                    if (Db.Get(action.CardId).ability == Ability.Decoy)
                         PlayRules.Decoy(board, action.TargetId, action.Row, is_player, action.CardId);
                     else
                         Assert.AreEqual(PlayOutcome.Done, PlayRules.Resolve(board, Db.Get(action.CardId), action.Row, is_player, false), context);
@@ -130,11 +133,11 @@ namespace Gwent.Rules.Tests
                     if (LeaderIds.WeatherPickRow(me.Leader) != null)
                     {
                         Assert.IsTrue(me.DeckList.Remove(action.CardId), "weather leader card not in deck: " + context);
-                        PlayRules.Resolve(board, Db.Get(action.CardId), Rows.Weather, is_player, false);
+                        PlayRules.Resolve(board, Db.Get(action.CardId), Row.Weather, is_player, false);
                     }
                     else if (me.Leader == LeaderIds.EredinBringerOfDeath || me.Leader == LeaderIds.EmhyrTheRelentless)
                     {
-                        // A unit from a discard pile to the hand (SceneController.RestoreToHand, the AI's choice)
+                        // A unit from a discard pile to the hand (BattleController.RestoreToHand, the AI's choice)
                         List<int> pile = me.Leader == LeaderIds.EmhyrTheRelentless ? board.Side(!is_player).DiscardList : me.DiscardList;
                         int restored = AiBrain.ChooseRestoreTarget(AbilityRules.MedicCandidates(pile, board.Db), me, board.Db);
                         Assert.AreNotEqual(-1, restored, "AI used a restore leader with nothing to restore: " + context);
@@ -156,25 +159,26 @@ namespace Gwent.Rules.Tests
 
         private static int CountCards(Board board)
         {
-            return new[] { board.Player, board.Enemy }.Sum(p => p.AllCards().Count(id => id != CardIds.BovineDefenseForce) - p.LeaderHornRows.Count);
+            return new[] { board.Player, board.Enemy }.Sum(p => p.AllCards().Count(id => !CardIds.IsSummoned(id)) - p.LeaderHornRows.Count);
         }
 
         // One valid random deck per leader, with every kind of special card in the mix
         private static List<Deck> GenerateDecks(Random rnd)
         {
             List<Deck> decks = new List<Deck>();
-            foreach (string faction in Factions.Playable)
+            foreach (Faction faction in Factions.Playable)
                 foreach (int leader in LeaderIds.ByFaction[faction])
                 {
                     List<int> cards = new List<int>();
-                    foreach (Card card in Db.All.Where(c => c.IsUnit && c._id != CardIds.BovineDefenseForce
-                        && (c.faction == faction || c.faction == Factions.Neutral)).OrderBy(x => rnd.Next()))
+                    foreach (Card card in Db.All.Where(c => c.IsUnit && !CardIds.IsSummoned(c._id)
+                        && (c.faction == faction || c.faction == Faction.Neutral)).OrderBy(x => rnd.Next()))
                     {
                         int copies = 1 + rnd.Next(DeckRules.MaxCopies(card));
                         for (int i = 0; i < copies && cards.Count < 26; i++)
                             cards.Add(card._id);
                     }
-                    cards.AddRange(new[] { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather }.OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)));
+                    cards.AddRange(new[] { CardIds.Decoy, CardIds.Scorch, CardIds.CommanderHorn, CardIds.BitingFrost, CardIds.ImpenetrableFog, CardIds.TorrentialRain, CardIds.ClearWeather, CardIds.SkelligeStorm, CardIds.Mardroeme }
+                        .Where(id => DeckRules.Fits(Db.Get(id), faction)).OrderBy(x => rnd.Next()).Take(4 + rnd.Next(4)));
                     Deck deck = new Deck { Faction = faction, Leader = leader, Name = faction + "/" + leader, Cards = cards };
                     if (DeckRules.IsValid(deck, Db))
                         decks.Add(deck);

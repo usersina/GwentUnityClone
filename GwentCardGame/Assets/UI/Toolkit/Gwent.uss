@@ -1,0 +1,988 @@
+/* The menus' look in UI Toolkit: The Witcher 3's dark panels, gold rules and serif small caps.
+   The colours are UITheme's; the sprites are Assets/UI/Sprites (Gwent > UI > Regenerate Sprites and Theme). */
+
+:root {
+    --gold: #C9A45C;
+    --gold-bright: #E3C27E;
+    --gold-clear: rgba(201, 164, 92, 0);
+    --gold-band: rgba(201, 164, 92, 0.2);
+    --gold-band-pressed: rgba(201, 164, 92, 0.3);
+    --text: #ECE1C9;
+    --text-bright: #F6ECD4;
+    --text-secondary: #B9AD95;
+    --text-muted: #8F826C;
+    --background: #16120E;
+    --panel: rgba(32, 26, 21, 0.96);
+    --panel-raised: #2A2219;
+    --line: #4D3F2C;
+    --line-soft: #3A2F22;
+    --dimmer: rgba(0, 0, 0, 0.65);
+
+    --heading-font: url("project://database/Assets/Fonts/Cinzel.ttf");
+    --body-font: url("project://database/Assets/Fonts/AlegreyaSans-Regular.ttf");
+}
+
+/* A screen fills the panel (its UXML lets clicks through where it shows nothing: picking-mode="Ignore") */
+.screen {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+}
+
+.caption {
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-muted);
+}
+
+/*---------------------------------------- Menu entries ----------------------------------------*/
+/* Serif text that lights up with a gold rule and a fading band when hovered or focused (hovering focuses: the mouse and
+   the keyboard share one highlight, as in The Witcher 3) */
+.menu-item {
+    height: 76px;
+    margin: 0 0 12px 0;
+    padding: 0 0 2px 36px;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    background-image: url("project://database/Assets/UI/Sprites/GradientH.png");
+    -unity-background-image-tint-color: var(--gold-clear);
+    -unity-font-definition: var(--heading-font);
+    font-size: 40px;
+    letter-spacing: 2.9px; /* TMP's character spacing 4 at this size */
+    -unity-text-align: middle-left;
+    color: var(--text-secondary);
+    transition-property: color, -unity-background-image-tint-color;
+    transition-duration: 0.12s;
+}
+
+.menu-item__rule {
+    position: absolute;
+    left: 0;
+    top: 12%;
+    bottom: 12%;
+    width: 4px;
+    background-color: var(--gold);
+    opacity: 0;
+    transition-property: opacity, background-color;
+    transition-duration: 0.12s;
+}
+
+.menu-item:hover,
+.menu-item:focus {
+    color: var(--text-bright);
+    -unity-background-image-tint-color: var(--gold-band);
+}
+
+.menu-item:hover > .menu-item__rule,
+.menu-item:focus > .menu-item__rule {
+    opacity: 1;
+}
+
+.menu-item:active {
+    color: var(--gold-bright);
+    -unity-background-image-tint-color: var(--gold-band-pressed);
+}
+
+.menu-item:active > .menu-item__rule {
+    background-color: var(--gold-bright);
+}
+
+/*---------------------------------------- Main menu ----------------------------------------*/
+/* Darkens the left of the key art so the entries read on top of it */
+.main-menu__scrim {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 840px;
+    background-image: url("project://database/Assets/UI/Sprites/GradientH.png");
+    -unity-background-scale-mode: stretch-to-fill;
+    -unity-background-image-tint-color: rgba(0, 0, 0, 0.9);
+}
+
+/* Five entries' room (the web build has no Quit), a little below the middle */
+.main-menu__entries {
+    position: absolute;
+    left: 120px;
+    top: 50%;
+    margin-top: -180px;
+    width: 600px;
+    height: 440px;
+}
+
+.main-menu__note {
+    position: absolute;
+    left: 156px;
+    bottom: 48px;
+}
+
+/*---------------------------------------- Dialogs ----------------------------------------*/
+/* Darkens the whole screen behind a dialog and takes its clicks */
+.dimmer {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    background-color: var(--dimmer);
+    align-items: center;
+    justify-content: center;
+}
+
+/* A rounded panel with a thin bronze outline */
+.panel {
+    background-color: var(--panel);
+    border-width: 2px;
+    border-color: var(--line);
+    border-radius: 10px;
+}
+
+.title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 44px;
+    letter-spacing: 3.2px;
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
+/* A thin gold rule with a diamond in the middle */
+.ornament {
+    width: 420px;
+    height: 12px;
+    background-image: url("project://database/Assets/UI/Sprites/Rule.png");
+    -unity-background-scale-mode: stretch-to-fill;
+    -unity-background-image-tint-color: rgba(201, 164, 92, 0.85);
+}
+
+/*---------------------------------------- Buttons ----------------------------------------*/
+.button {
+    width: 280px;
+    height: 68px;
+    margin: 0;
+    padding: 0 12px 2px 12px;
+    border-width: 2px;
+    border-radius: 10px;
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 2px;
+    -unity-text-align: middle-center;
+    transition-property: color, background-color, border-color;
+    transition-duration: 0.12s;
+}
+
+/* Gold outline and text: Back, No, Cancel */
+.button--secondary {
+    background-color: rgba(201, 164, 92, 0);
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+/* (.unity-button too: the default theme's focus border, blue, is as specific as a class and a state) */
+.unity-button.button--secondary:hover,
+.unity-button.button--secondary:focus {
+    background-color: rgba(201, 164, 92, 0.16);
+    border-color: var(--gold-bright);
+    color: var(--gold-bright);
+}
+
+.unity-button.button--secondary:active {
+    background-color: rgba(201, 164, 92, 0.28);
+}
+
+/* Gold fill, dark text: the choice a dialog is about */
+.button--primary {
+    background-color: var(--gold);
+    border-color: var(--gold);
+    color: var(--background);
+}
+
+.unity-button.button--primary:hover,
+.unity-button.button--primary:focus {
+    background-color: var(--gold-bright);
+    border-color: var(--gold-bright);
+}
+
+.unity-button.button--primary:active {
+    background-color: #AB8B4E;
+    border-color: #AB8B4E;
+}
+
+/*---------------------------------------- Opponent picker ----------------------------------------*/
+.opponent-picker {
+    width: 1300px;
+    padding: 34px 40px 36px 40px;
+    align-items: center;
+}
+
+.opponent-picker__ornament {
+    margin: 14px 0 30px 0;
+}
+
+/* Two entries a row */
+.opponent-picker__entries {
+    width: 1220px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.opponent-picker__back {
+    width: 240px;
+    height: 64px;
+    margin-top: 22px;
+}
+
+/* One opponent: the leader's portrait in a gold ring, the deck's name, its faction and leader; lights up like a menu
+   entry (it is one: .menu-item gives the band, the rule and the focus on hover) */
+.opponent {
+    width: 600px;
+    height: 104px;
+    margin: 0 0 12px 0;
+    padding: 0 0 0 20px;
+    flex-direction: row;
+    align-items: center;
+}
+
+.opponent__portrait {
+    width: 88px;
+    height: 88px;
+    border-width: 4px;
+    border-color: var(--gold);
+    border-radius: 44px;
+    overflow: hidden;
+    background-color: var(--panel-raised);
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* The leader's card, its face in the circle (the point 28% down the card at the circle's middle) */
+.opponent__art {
+    position: absolute;
+    left: -30px;
+    top: -21px;
+    width: 140px;
+    height: 218px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+.opponent__question {
+    -unity-font-definition: var(--heading-font);
+    font-size: 44px;
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    padding: 0 0 4px 0;
+}
+
+.opponent__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin-left: 22px;
+}
+
+.opponent__title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 30px;
+    letter-spacing: 2.2px;
+    color: var(--text);
+    padding: 0;
+    margin: 0;
+    transition-property: color;
+    transition-duration: 0.12s;
+}
+
+.opponent:hover .opponent__title,
+.opponent:focus .opponent__title {
+    color: var(--gold-bright);
+}
+
+.opponent__detail {
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.opponent__chosen {
+    width: 32px;
+    height: 32px;
+    margin: 0 18px 0 8px;
+    flex-shrink: 0;
+    background-image: url("project://database/Assets/UI/Sprites/IconCheck.png");
+    -unity-background-image-tint-color: var(--gold);
+}
+
+/* Plain text that lights up: Reset to defaults, the settings' tabs */
+.button--ghost {
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    -unity-font-definition: var(--body-font);
+    font-size: 28px;
+    letter-spacing: 0;
+    color: var(--text-muted);
+}
+
+.button--ghost:hover,
+.button--ghost:focus {
+    color: var(--text);
+}
+
+.button--ghost:active {
+    color: var(--text-secondary);
+}
+
+.heading {
+    -unity-font-definition: var(--heading-font);
+    font-size: 44px;
+    letter-spacing: 3.2px;
+    color: var(--gold-bright);
+    padding: 0;
+    margin: 0;
+}
+
+.caption {
+    padding: 0;
+    margin: 0;
+}
+
+.divider {
+    height: 2px;
+    background-color: var(--line-soft);
+}
+
+/*---------------------------------------- Settings ----------------------------------------*/
+.settings {
+    width: 1040px;
+    height: 800px;
+    padding: 0 64px 32px 64px;
+}
+
+.settings__header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    height: 104px;
+}
+
+.settings__tabs {
+    flex-direction: row;
+    height: 64px;
+    margin-bottom: 14px;
+}
+
+.tab {
+    width: 200px;
+    height: 56px;
+    margin: 0 16px 0 0;
+    padding: 0 0 2px 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 2px;
+    -unity-text-align: middle-left;
+    color: var(--text-muted);
+    transition-property: color;
+    transition-duration: 0.12s;
+}
+
+.tab:hover,
+.tab:focus {
+    color: var(--text-secondary);
+}
+
+.tab--selected,
+.tab--selected:hover,
+.tab--selected:focus {
+    color: var(--text-bright);
+}
+
+.tab__underline {
+    position: absolute;
+    left: 0;
+    bottom: 4px;
+    width: 120px;
+    height: 3px;
+    background-color: var(--gold);
+    display: none;
+}
+
+.tab--selected > .tab__underline {
+    display: flex;
+}
+
+.settings__pages {
+    flex-grow: 1;
+    margin-top: 32px;
+}
+
+.settings__footer {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings__reset {
+    width: 300px;
+    height: 64px;
+    -unity-text-align: middle-left;
+    padding-left: 0;
+}
+
+.settings__back {
+    width: 240px;
+    height: 68px;
+}
+
+/* A labelled row: the label (and a caption under it) on the left, the control on the right */
+.setting {
+    flex-direction: row;
+    align-items: center;
+    height: 92px;
+}
+
+.setting__labels {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.setting__label {
+    -unity-font-definition: var(--body-font);
+    font-size: 30px;
+    color: var(--text-secondary);
+    padding: 0;
+    margin: 0;
+}
+
+.setting__control {
+    width: 520px;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.setting__percent {
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text);
+    width: 84px;
+    -unity-text-align: middle-right;
+    padding: 0;
+    margin: 0;
+}
+
+/* The volume slider: a thin track, the gold part up to a dark knob in a gold ring */
+.volume {
+    width: 400px;
+    height: 44px;
+    margin: 0 16px 0 0;
+}
+
+.volume .unity-base-slider__input {
+    height: 44px;
+}
+
+.volume .unity-base-slider__drag-container {
+    height: 44px;
+    margin: 0 14px;
+}
+
+.volume .unity-base-slider__tracker {
+    height: 8px;
+    margin-top: -4px;
+    top: 50%;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--line-soft);
+    left: -14px;
+    right: -14px;
+}
+
+.volume .unity-base-slider__fill {
+    height: 8px;
+    border-radius: 4px;
+    background-color: var(--gold);
+}
+
+.volume .unity-base-slider__dragger {
+    width: 28px;
+    height: 28px;
+    margin-top: -14px;
+    top: 50%;
+    border-width: 3px;
+    border-radius: 14px;
+    border-color: var(--gold);
+    background-color: var(--background);
+    transition-property: border-color;
+    transition-duration: 0.12s;
+}
+
+.volume:hover .unity-base-slider__dragger,
+.volume:focus .unity-base-slider__dragger {
+    border-color: var(--gold-bright);
+}
+
+.volume .unity-base-slider__dragger-border {
+    display: none;
+}
+
+/* The on/off switch: a pill and a knob that slides across, gold when on */
+.switch {
+    margin: 0;
+}
+
+/* (as specific as the default theme's no-label field, which would squeeze the input to nothing) */
+.switch.unity-base-field--no-label > .unity-toggle__input {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: auto;
+    width: 76px;
+    overflow: visible;
+}
+
+.switch .unity-toggle__checkmark {
+    width: 76px;
+    height: 40px;
+    border-width: 0;
+    border-radius: 20px;
+    background-image: none;
+    background-color: var(--line-soft);
+    -unity-background-image-tint-color: rgba(0, 0, 0, 0);
+    transition-property: background-color;
+    transition-duration: 0.15s;
+}
+
+.switch:checked .unity-toggle__checkmark {
+    background-color: var(--gold);
+}
+
+.switch__knob {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 15px;
+    background-color: var(--text-secondary);
+    transition-property: translate, background-color;
+    transition-duration: 0.15s;
+}
+
+.switch:checked .switch__knob {
+    translate: 36px 0;
+    background-color: var(--background);
+}
+
+.switch:focus .unity-toggle__checkmark {
+    border-width: 2px;
+    border-color: var(--gold-bright);
+}
+
+/* < value > */
+.stepper {
+    width: 420px;
+    height: 52px;
+    flex-direction: row;
+    align-items: center;
+    border-width: 2px;
+    border-radius: 10px;
+    border-color: var(--line-soft);
+}
+
+.stepper__value {
+    flex-grow: 1;
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text);
+    -unity-text-align: middle-center;
+    padding: 0 0 2px 0;
+    margin: 0;
+}
+
+.stepper__arrow {
+    width: 52px;
+    height: 48px;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    align-items: center;
+    justify-content: center;
+}
+
+.stepper__icon {
+    width: 39px;
+    height: 39px;
+    -unity-background-image-tint-color: var(--gold);
+    transition-property: -unity-background-image-tint-color;
+    transition-duration: 0.12s;
+}
+
+.stepper__arrow--left .stepper__icon {
+    background-image: url("project://database/Assets/UI/Sprites/ChevronLeft.png");
+}
+
+.stepper__arrow--right .stepper__icon {
+    background-image: url("project://database/Assets/UI/Sprites/ChevronRight.png");
+}
+
+.stepper__arrow:hover .stepper__icon,
+.stepper__arrow:focus .stepper__icon {
+    -unity-background-image-tint-color: var(--gold-bright);
+}
+
+.stepper__arrow:active .stepper__icon {
+    -unity-background-image-tint-color: var(--text-bright);
+}
+
+.stepper__arrow:disabled .stepper__icon {
+    -unity-background-image-tint-color: rgba(201, 164, 92, 0.3);
+}
+
+/* Unity's own look for a disabled control would dim the whole arrow twice */
+.stepper__arrow:disabled {
+    opacity: 1;
+}
+
+.body {
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text);
+    padding: 0;
+    margin: 0;
+}
+
+.panel--raised {
+    background-color: var(--panel-raised);
+}
+
+/* A menu entry in the middle of a dialog: a radial band and a short rule under the text */
+.menu-item--centered {
+    width: 520px;
+    padding: 0 0 2px 0;
+    -unity-text-align: middle-center;
+    background-image: url("project://database/Assets/UI/Sprites/Radial.png");
+}
+
+.menu-item--centered > .menu-item__rule {
+    left: 50%;
+    top: auto;
+    bottom: 4px;
+    width: 160px;
+    height: 2px;
+    margin-left: -80px;
+}
+
+/*---------------------------------------- Pause menu ----------------------------------------*/
+.pause-menu {
+    width: 640px;
+    padding: 34px 0 40px 0;
+    align-items: center;
+}
+
+.pause-menu__ornament {
+    width: 360px;
+    margin: 14px 0 32px 0;
+}
+
+/*---------------------------------------- Confirmation ----------------------------------------*/
+.confirm {
+    width: 920px;
+    min-height: 330px;
+    padding: 34px 60px 36px 60px;
+    align-items: center;
+}
+
+.confirm__ornament {
+    width: 360px;
+}
+
+.confirm__message {
+    flex-grow: 1;
+    margin: 24px 0 28px 0;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.confirm__buttons {
+    flex-direction: row;
+    justify-content: center;
+}
+
+.confirm__buttons > .button {
+    margin: 0 20px;
+}
+
+/*---------------------------------------- Toast ----------------------------------------*/
+/* At the top of the screen; fades in and out (UIOverlay.Toast) */
+.toast {
+    position: absolute;
+    top: 98px;
+    left: 50%;
+    width: 1100px;
+    min-height: 84px;
+    margin-left: -550px;
+    padding: 12px 30px 14px 30px;
+    justify-content: center;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.25s;
+}
+
+.toast--shown {
+    opacity: 1;
+}
+
+.toast__message {
+    white-space: normal;
+    -unity-text-align: middle-center;
+    font-size: 30px;
+}
+
+/*---------------------------------------- Tooltip ----------------------------------------*/
+.tooltip {
+    position: absolute;
+    max-width: 640px;
+    padding: 8px 18px 10px 18px;
+    background-color: var(--panel-raised);
+    border-width: 2px;
+    border-color: var(--line);
+    border-radius: 10px;
+    -unity-font-definition: var(--body-font);
+    font-size: 26px;
+    color: var(--text);
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+/*---------------------------------------- How to play ----------------------------------------*/
+.rules {
+    width: 1500px;
+    height: 900px;
+    padding: 30px 50px 26px 50px;
+    align-items: center;
+}
+
+.rules__ornament {
+    margin: 14px 0 22px 0;
+}
+
+.rules__body {
+    flex-direction: row;
+    align-self: stretch;
+    flex-grow: 1;
+}
+
+.rules__topics {
+    width: 360px;
+    margin-right: 40px;
+}
+
+/* A topic: a menu entry, its rule lit while it is the one shown */
+.rules__topic {
+    width: 360px;
+    height: 66px;
+    margin: 0 0 10px 0;
+}
+
+.rules__topic--current > .menu-item__rule {
+    opacity: 1;
+}
+
+.rules__view {
+    flex-grow: 1;
+    height: 620px;
+}
+
+/* A scroll bar, the deck builder's too (UIKit.VerticalScrollbar): a thin dark track the whole height and a gold handle
+   with rounded ends that brightens under the pointer and while dragged; no arrows */
+.scroll .unity-scroller--vertical {
+    width: 16px;
+    margin-left: 8px;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.scroll .unity-scroller__low-button,
+.scroll .unity-scroller__high-button {
+    display: none;
+}
+
+.scroll .unity-scroller--vertical > .unity-scroller__slider {
+    margin: 0;
+    flex-grow: 1;
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__drag-container {
+    margin: 0;
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__tracker {
+    left: 6px;
+    width: 4px;
+    right: auto;
+    top: 0;
+    bottom: 0;
+    margin: 0;
+    border-width: 0;
+    border-radius: 2px;
+    background-color: var(--line-soft);
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__dragger {
+    left: 3px;
+    width: 10px;
+    margin: 0;
+    border-width: 0;
+    border-radius: 5px;
+    background-color: var(--gold);
+    transition-property: background-color;
+    transition-duration: 0.12s;
+}
+
+.scroll .unity-scroller--vertical .unity-base-slider__dragger:hover,
+.scroll .unity-scroller--vertical .unity-base-slider__dragger:active {
+    background-color: var(--gold-bright);
+}
+
+.scroll .unity-base-slider__dragger-border {
+    display: none;
+}
+
+.rules__view .unity-scroll-view__content-container {
+    padding: 0 24px 24px 0;
+}
+
+.rules__intro {
+    -unity-font-definition: var(--body-font);
+    font-size: 32px;
+    color: var(--text-secondary);
+    white-space: normal;
+    padding: 0;
+    margin: 0 0 22px 0;
+}
+
+/* A rule: its pieces in a column of their own, its gold title and its text; they come in one after another */
+.rules__row {
+    flex-direction: row;
+    align-items: flex-start;
+    margin-bottom: 22px;
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: 0.28s;
+    transition-timing-function: ease-in-out-sine;
+}
+
+.rules__row--shown {
+    opacity: 1;
+}
+
+.rules__pieces {
+    height: 73px;
+    flex-shrink: 0;
+    margin-right: 22px;
+}
+
+.rules__text {
+    flex-grow: 1;
+    flex-shrink: 1;
+}
+
+.rules__title {
+    -unity-font-definition: var(--heading-font);
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--gold-bright);
+    padding: 0;
+    margin: 0 0 4px 0;
+}
+
+.rules__line {
+    -unity-font-definition: var(--body-font);
+    font-size: 27px;
+    color: var(--text);
+    white-space: normal;
+    padding: 0;
+    margin: 0;
+}
+
+/* A piece: a picture of the game's, kept in shape */
+.piece {
+    position: absolute;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
+.piece__number {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    -unity-font-definition: var(--heading-font);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
+/* A key of the keyboard: dark, outlined in gold */
+.piece--key {
+    background-color: var(--panel-raised);
+    border-width: 2px;
+    border-color: var(--gold);
+    border-radius: 7px;
+    align-items: center;
+    justify-content: center;
+}
+
+.piece__key-label {
+    -unity-font-definition: url("project://database/Assets/Fonts/AlegreyaSans-Medium.ttf");
+    color: var(--gold-bright);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
+.rules__leaders {
+    flex-direction: row;
+    padding-top: 6px;
+    height: 62px;
+}
+
+/* A leader: a round portrait in a gold ring (its ability in a tooltip) */
+.rules__leader {
+    width: 56px;
+    height: 56px;
+    margin-right: 10px;
+    border-width: 3px;
+    border-color: var(--gold);
+    border-radius: 28px;
+    overflow: hidden;
+    background-color: var(--panel-raised);
+}
+
+.rules__leader-art {
+    position: absolute;
+    left: -19px;
+    top: -13px;
+    width: 88px;
+    height: 137px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+.rules__close {
+    width: 220px;
+    height: 60px;
+    margin-top: 20px;
+}
+
+/*---------------------------------------- Unity's own button states ----------------------------------------*/
+/* The default theme fills a button grey and outlines it when hovered, focused or pressed, as specifically as a class and a
+   state: the buttons drawn here only by their text, band or icon keep no fill or outline of Unity's */
+.unity-button.menu-item:hover, .unity-button.menu-item:focus, .unity-button.menu-item:active,
+.unity-button.tab:hover, .unity-button.tab:focus, .unity-button.tab:active,
+.unity-button.button--ghost:hover, .unity-button.button--ghost:focus, .unity-button.button--ghost:active,
+.unity-button.stepper__arrow:hover, .unity-button.stepper__arrow:focus, .unity-button.stepper__arrow:active {
+    background-color: rgba(0, 0, 0, 0);
+    border-color: rgba(0, 0, 0, 0);
+}
