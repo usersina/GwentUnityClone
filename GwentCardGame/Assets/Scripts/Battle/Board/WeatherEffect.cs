@@ -11,7 +11,9 @@ namespace Gwent.Battle
     // clips to the row (its ends softened) and fades as one: nothing leaves the row, however it moves. What the layer shows
     // is a WeatherLook, particles: Biting Frost's ice (FrostParticles), Impenetrable Fog rolling along the row
     // (FogParticles), Torrential Rain falling on it (RainParticles). Skellige Storm's fog and rain are wilder, and its
-    // lightning flashes over them (StormFlash, StormLightning). In game time: the pause menu stops it.
+    // lightning flashes over them (StormFlash, StormLightning). With Settings > Display > Animated weather off, it is The
+    // Witcher 3's still pictures of the weather instead (StillWeather), the storm's too, without lightning; turning the
+    // setting over during a battle redraws the rows' weather at once. In game time: the pause menu stops it.
     public class WeatherEffect : MonoBehaviour
     {
         public enum Kind { Frost, Fog, Rain }
@@ -22,7 +24,8 @@ namespace Gwent.Battle
         private RectMask2D clip;
         private WeatherLook look;
         private StormFlash flash;  // a storm's lightning
-        private bool storm;
+        private Kind kind;
+        private bool storm, animated;
         private float age, fade; // fade: 0 (gone) to 1 (shown)
         private bool leaving;
         private float wipe = -1;   // as Clear Weather's sun wipes it away: how far through (0 to 1; -1: it fades)
@@ -77,16 +80,48 @@ namespace Gwent.Battle
             effect.group = root.GetComponent<CanvasGroup>();
             effect.clip = root.GetComponent<RectMask2D>();
             effect.group.alpha = 0;
+            effect.kind = kind;
             effect.storm = storm;
-            effect.look = kind == Kind.Frost ? new FrostParticles(root)
+            effect.Build();
+        }
+
+        // What the layer shows: animated, or the still pictures
+        private void Build()
+        {
+            RectTransform root = (RectTransform)transform;
+            animated = GameSettings.AnimatedWeather;
+            look = !animated ? new StillWeather(root, kind)
+                : kind == Kind.Frost ? new FrostParticles(root)
                 : kind == Kind.Fog ? new FogParticles(root, storm)
                 : (WeatherLook)new RainParticles(root, storm);
-            effect.look.Hold();
-            if (storm)
+            look.Hold();
+            if (storm && animated)
             {
-                effect.flash = new StormFlash(root);
-                StormLightning.Join(effect);
+                flash = new StormFlash(root);
+                StormLightning.Join(this);
             }
+        }
+
+        private void OnEnable()
+        {
+            GameSettings.Changed += Restyle;
+        }
+
+        private void OnDisable()
+        {
+            GameSettings.Changed -= Restyle;
+        }
+
+        // The animation setting turned over: the weather is drawn anew the other way, as it stands (no coming)
+        private void Restyle()
+        {
+            if (leaving || look == null || animated == GameSettings.AnimatedWeather)
+                return;
+            StormLightning.Quit(this);
+            flash = null;
+            foreach (Transform part in transform)
+                Destroy(part.gameObject);
+            Build();
         }
 
         // The weather leaving goes in Clear Weather's sun instead of fading: wiped away from the left, just behind its light
@@ -129,7 +164,7 @@ namespace Gwent.Battle
             group.alpha = fade * fade * (3 - 2 * fade); // eased
             look.Tick(dt, age);
             look.Hold();
-            if (storm && !leaving)
+            if (storm && animated && !leaving)
                 StormLightning.Tick();
             if (flash != null)
                 flash.Tick(dt);
@@ -388,7 +423,7 @@ namespace Gwent.Battle
     }
 
     // The Witcher 3's own art of the weather (Biting Frost's ice, Impenetrable Fog's clouds, Torrential Rain), a capture of
-    // a whole row, laid still over it: its horn and emblem on the row's own
+    // a whole row, laid still over it (its horn and emblem on the row's own): the weather with its animation turned off
     internal sealed class StillWeather : WeatherLook
     {
         public StillWeather(RectTransform layer, WeatherEffect.Kind kind)

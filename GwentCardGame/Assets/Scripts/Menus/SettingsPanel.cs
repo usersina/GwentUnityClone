@@ -250,7 +250,9 @@ namespace Gwent.Menus
             int scale_index = Array.FindIndex(scales, s => Mathf.Approximately(s, GameSettings.MenuScale));
             StepperRow(page, "Menu size", scales.Select(s => Mathf.RoundToInt(s * 100) + "%").ToArray(), scale_index < 0 ? 1 : scale_index,
                 i => GameSettings.MenuScale = scales[i], "Menus and dialogs only");
-            return first;
+            Switch weather = SwitchRow(page, "Animated weather", "Off: still pictures, lighter on slow devices", GameSettings.AnimatedWeather,
+                v => GameSettings.AnimatedWeather = v);
+            return first ?? weather;
         }
 
         private static Focusable BuildGamePage(VisualElement page)

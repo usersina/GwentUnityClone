@@ -22,6 +22,7 @@ namespace Gwent.Core
         private const string MenuScaleKey = "menuScale";
         private const string GameSpeedKey = "gameSpeed";
         private const string AiDifficultyKey = "aiDifficulty";
+        private const string AnimatedWeatherKey = "animatedWeather";
 
         // Frame rate choices: VSync follows the screen, 0 is unlimited (desktop); phones have no VSync choice
         public const int VSync = -1;
@@ -120,6 +121,14 @@ namespace Gwent.Core
             return frame_rate == VSync ? "VSync" : frame_rate == 0 ? "Unlimited" : frame_rate + " FPS";
         }
 
+        // The rows' weather animated (fog rolling, rain falling, ice growing, the storm's lightning, Clear Weather's sun), or
+        // shown as The Witcher 3's still pictures of it: lighter on a slow device
+        public static bool AnimatedWeather
+        {
+            get { return PlayerPrefs.GetInt(AnimatedWeatherKey, 1) == 1; }
+            set { SetInt(AnimatedWeatherKey, value ? 1 : 0); }
+        }
+
         // Size of the menus and dialogs (the battle board and the deck builder always fit the screen)
         public static float MenuScale
         {
@@ -151,8 +160,8 @@ namespace Gwent.Core
         {
             bool window_was_set = WindowSet;
             foreach (string key in new[] { MasterVolumeKey, MusicVolumeKey, SfxVolumeKey, MuteInBackgroundKey, FullscreenKey,
-                                           ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, GameSpeedKey,
-                                           AiDifficultyKey })
+                                           ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, AnimatedWeatherKey,
+                                           GameSpeedKey, AiDifficultyKey })
                 PlayerPrefs.DeleteKey(key);
             PlayerPrefs.Save();
             ApplyFrameRate();
@@ -178,7 +187,8 @@ namespace Gwent.Core
             {
                 { "master_volume", MasterVolume }, { "music_volume", MusicVolume }, { "sfx_volume", SfxVolume },
                 { "mute_in_background", MuteInBackground }, { "fullscreen", Fullscreen }, { "resolution", Resolution.x + "x" + Resolution.y },
-                { "frame_rate", FrameRate }, { "menu_scale", MenuScale }, { "game_speed", GameSpeedNames[GameSpeed] }, { "difficulty", AiDifficulty },
+                { "frame_rate", FrameRate }, { "menu_scale", MenuScale }, { "animated_weather", AnimatedWeather },
+                { "game_speed", GameSpeedNames[GameSpeed] }, { "difficulty", AiDifficulty },
             };
         }
 

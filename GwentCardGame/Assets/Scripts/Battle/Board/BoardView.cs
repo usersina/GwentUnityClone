@@ -510,7 +510,7 @@ namespace Gwent.Battle
         //----------------------------------------Weather and scores----------------------------------------//
         // Each row's weather over its cards (WeatherEffect): it fades in with its weather card, out once cleared. Skellige
         // Storm is a stormy fog over the ranged row and a stormy rain over the siege row. Weather cleared during a round
-        // (Clear Weather, Foltest's order) goes in the sun's light (SunSweep).
+        // (Clear Weather, Foltest's order) goes in the sun's light (SunSweep), when the weather is animated.
         private void RefreshWeather(FieldView view)
         {
             List<int> weather = controller.weatherList;
@@ -523,7 +523,7 @@ namespace Gwent.Battle
         private void ShowWeather(RowView row, WeatherEffect.Kind kind, bool on, bool storm)
         {
             RectTransform slot = (RectTransform)row.Special.transform, lane = (RectTransform)row.Unit.transform;
-            if (WeatherEffect.Show(slot, lane, kind, on, storm) && !clearingRound)
+            if (WeatherEffect.Show(slot, lane, kind, on, storm) && !clearingRound && GameSettings.AnimatedWeather)
                 SunSweep.Over(slot, lane);
         }
 
