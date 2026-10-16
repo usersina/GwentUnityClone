@@ -80,6 +80,17 @@ namespace Gwent.Core
             };
         }
 
+        // Whether an image or element on show still waits for its art (the loading screen waits for the next screen's)
+        public static bool Waiting
+        {
+            get
+            {
+                foreach (object gone in waiting.Keys.Where(Gone).ToList())
+                    waiting.Remove(gone);
+                return waiting.Count > 0;
+            }
+        }
+
         // Loads the cards' art ahead of being shown (a battle's decks), for the scene open now. Completes once all of it
         // is there; a card whose art failed to load (Addressables logs why) keeps its back.
         public static async UniTask Preload(IEnumerable<int> card_ids, string what, CancellationToken ct)

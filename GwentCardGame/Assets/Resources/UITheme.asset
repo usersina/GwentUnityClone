@@ -50,6 +50,7 @@ MonoBehaviour:
   gem: {fileID: 21300000, guid: 5ef0f836fedc84c239683e5a407c5241, type: 3}
   scoreDisc: {fileID: 21300000, guid: 2421ecf01e183856c9049ecd221aec6e, type: 3}
   scoreTotal: {fileID: 21300000, guid: f23bd083c2065506f92241a6e738c62e, type: 3}
+  table: {fileID: 21300000, guid: 2e10d6bb0c4fce032bd5af4a74631c9c, type: 3}
   panelSettings: {fileID: 11400000, guid: 230acdc99259a93f2afdcf33f1a0b990, type: 2}
   mainMenu: {fileID: 9197481963319205126, guid: 9eb64dcfb31c343ad8a905ee917b3bc0, type: 3}
   opponentPicker: {fileID: 9197481963319205126, guid: 90e8771f59f444318992f9445f85864a, type: 3}

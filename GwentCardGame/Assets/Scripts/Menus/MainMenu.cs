@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
 using Image = UnityEngine.UI.Image;
@@ -77,7 +76,7 @@ namespace Gwent.Menus
 
         public void EditDeck()
         {
-            SceneManager.LoadScene(SceneNames.Deck);
+            LoadingScreen.Load(SceneNames.Deck);
         }
 
         public void OpenRules()

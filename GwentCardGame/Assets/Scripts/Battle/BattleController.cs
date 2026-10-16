@@ -69,6 +69,7 @@ namespace Gwent.Battle
         private bool? lastTurnWasPlayer; // whose turn was announced last in this round
         private bool lastPasserWasPlayer; // after a drawn round, whoever passed last starts the next one
         private string whiteFlameNotice;  // shown once the redraw is over
+        private string deckProblem;       // why the selected deck gave way to the default one, said as the battle opens
 
         [Serializable]
         public class BattleSide : PlayerState
@@ -122,10 +123,14 @@ namespace Gwent.Battle
             BattleOpening(flow.Token).Forget();
         }
 
-        // The Witcher 3's opening: the leaders' notice (The White Flame), who goes first (a coin toss, or the Scoia'tael
-        // perk), then the redraw; the first round starts once both sides are done
+        // The Witcher 3's opening, once the loading screen has gone: the leaders' notice (The White Flame), who goes first
+        // (a coin toss, or the Scoia'tael perk), then the redraw; the first round starts once both sides are done
         private async UniTaskVoid BattleOpening(CancellationToken ct)
         {
+            await While(() => LoadingScreen.Showing, ct); // the field fades up first
+            if (deckProblem != null)
+                UIOverlay.Toast("Your selected deck can't be used (" + deckProblem + "). Playing with the default deck.", 4f);
+
             if (whiteFlameNotice != null)
             {
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), whiteFlameNotice, BattleBanner.Long);
@@ -207,7 +212,7 @@ namespace Gwent.Battle
         // On Battle Start: Draw 10 cards then change two cards or not at all
         private void SetupBattle()
         {
-            Deck myDeck = LoadPlayerDeck();
+            Deck myDeck = PlayerDeck(Db, out deckProblem);
             // The opponent the player chose before the battle, or a random one
             TextAsset enemy_deck = OpponentDecks.ForBattle() ?? EnemyDeck;
             Deck oppDeck = DeckRules.Sanitize(CardLibrary.ParseDeck(enemy_deck.text, enemy_deck.name), Db);
@@ -218,9 +223,7 @@ namespace Gwent.Battle
                 && (myDeck.Leader == LeaderIds.EmhyrTheWhiteFlame || oppDeck.Leader == LeaderIds.EmhyrTheWhiteFlame);
             PrepareField(myDeck, PlayerInfo, true, white_flame);
             PrepareField(oppDeck, EnemyInfo, false, white_flame);
-            // The cards' art before it is seen: the player's hand first (the redraw shows it at once), then both decks
-            CardArt.Preload(PlayerInfo.HandList, "hand", destroyCancellationToken).Forget();
-            CardArt.Preload(myDeck.Cards.Concat(oppDeck.Cards).Append(myDeck.Leader).Append(oppDeck.Leader), "battle", destroyCancellationToken).Forget();
+            PreloadArt(myDeck, oppDeck).Forget();
 
             foreach (bool is_player in new[] { true, false })
                 if (white_flame && Info(is_player).Leader != LeaderIds.EmhyrTheWhiteFlame)
@@ -237,23 +240,36 @@ namespace Gwent.Battle
             BattleLog.Begin(this, myDeck, oppDeck, enemy_deck.name);
         }
 
-        // The selected deck if it exists and is valid, else the built-in default deck
-        private Deck LoadPlayerDeck()
+        // The deck the player battles with: the selected one if it exists and is valid, else the built-in default deck
+        // (problem: why the selected one could not be used, or null). The loading screen shows its crest.
+        public static Deck PlayerDeck(CardDatabase db, out string problem)
         {
+            problem = null;
             string path = DeckStorage.BattleDeckPath;
             if (DeckStorage.Exists(path)) // a deck file, or a preset (an AI deck)
             {
-                Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), Db); // copies beyond the W3 limits are dropped
-                List<string> errors = DeckRules.Validate(deck, Db);
+                Deck deck = DeckRules.Sanitize(DeckStorage.Load(path), db); // copies beyond the W3 limits are dropped
+                List<string> errors = DeckRules.Validate(deck, db);
                 if (errors.Count == 0)
                 {
                     return deck;
                 }
-                UIOverlay.Toast("Your selected deck can't be used (" + errors[0] + "). Playing with the default deck.", 4f);
+                problem = errors[0];
             }
 
             TextAsset deckAsset = Resources.Load<TextAsset>(DefaultDeckResource);
-            return DeckRules.Sanitize(CardLibrary.ParseDeck(deckAsset.text, DefaultDeckResource), Db);
+            return DeckRules.Sanitize(CardLibrary.ParseDeck(deckAsset.text, DefaultDeckResource), db);
+        }
+
+        // True once the hand's art is there (the loading screen waits for it, so the field comes up with its cards)
+        public bool HandArtLoaded { get; private set; }
+
+        // The cards' art before it is seen: the player's hand first (the redraw shows it at once), then both decks
+        private async UniTaskVoid PreloadArt(Deck mine, Deck theirs)
+        {
+            await CardArt.Preload(PlayerInfo.HandList, "hand", destroyCancellationToken);
+            HandArtLoaded = true;
+            await CardArt.Preload(mine.Cards.Concat(theirs.Cards).Append(mine.Leader).Append(theirs.Leader), "battle", destroyCancellationToken);
         }
 
         // Prepares the field for the first time

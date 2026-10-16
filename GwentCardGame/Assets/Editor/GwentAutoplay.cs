@@ -804,7 +804,7 @@ namespace Gwent.EditorTools
             private void RoundTripStep()
             {
                 BattleController battle = BattleController.Instance;
-                if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0)
+                if (battle == null || battle == previousBattle || battle.PlayerInfo.HandList.Count == 0 || LoadingScreen.Showing)
                 {
                     if (EditorApplication.timeSinceStartup - phaseStart > SoftlockSeconds * 3)
                         Abort("the " + currentDeck + " did not start");
@@ -1305,8 +1305,8 @@ namespace Gwent.EditorTools
                     Click(0.3, Named("Item Play"));
                     At(0.8, () => check(GameObject.Find("OpponentPicker") != null, "Play opens the opponent picker"));
                     Click(1.1, Named(entry));
-                    At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && SceneManager.GetActiveScene().name == SceneNames.Game,
-                        "choosing an opponent remembers it and starts the battle"));
+                    At(1.8, () => check(opponent != null && OpponentDecks.Chosen == opponent.name && LoadingScreen.Showing,
+                        "choosing an opponent remembers it and starts the battle, behind the loading screen"));
                 }
                 else if (scenario == InputScenario.PauseMenu)
                 {

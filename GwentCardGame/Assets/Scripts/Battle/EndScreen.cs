@@ -5,7 +5,6 @@ using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Gwent.Battle
@@ -130,13 +129,13 @@ namespace Gwent.Battle
         public void PlayAgain()
         {
             Time.timeScale = 1f;
-            SceneManager.LoadScene(SceneNames.Game);
+            LoadingScreen.Load(SceneNames.Game);
         }
 
         public void ToMainMenu()
         {
             Time.timeScale = 1f;
-            SceneManager.LoadScene(SceneNames.Menu);
+            LoadingScreen.Load(SceneNames.Menu);
         }
     }
 }

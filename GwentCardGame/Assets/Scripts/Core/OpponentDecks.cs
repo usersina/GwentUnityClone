@@ -16,6 +16,14 @@ namespace Gwent.Core
         // Set by the autoplay smoke test to go through every opponent (not saved)
         public static string Override;
 
+        private static TextAsset next; // picked ahead for the battle loading now (its crest shows meanwhile)
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void Init()
+        {
+            next = null;
+        }
+
         public static List<TextAsset> All()
         {
             return Resources.LoadAll<TextAsset>(Folder).OrderBy(asset => asset.name).ToList();
@@ -57,15 +65,30 @@ namespace Gwent.Core
             }
         }
 
-        // The deck for the next battle: the chosen one while it exists, otherwise a random one
+        // The deck for the next battle: the chosen one while it exists, otherwise a random one (the one picked ahead, if
+        // the battle's loading screen did)
         public static TextAsset ForBattle()
         {
+            if (next != null)
+            {
+                TextAsset picked = next;
+                next = null;
+                return picked;
+            }
             List<TextAsset> all = All();
             if (all.Count == 0)
                 return null;
             string wanted = !string.IsNullOrEmpty(Override) ? Override : Chosen;
             TextAsset chosen = all.FirstOrDefault(asset => asset.name == wanted);
             return chosen != null ? chosen : all[Rng.Shared.Next(all.Count)];
+        }
+
+        // Picks the next battle's deck ahead, as its loading screen comes up: the battle then plays that one
+        public static TextAsset PickNext()
+        {
+            next = null;
+            next = ForBattle();
+            return next;
         }
     }
 }

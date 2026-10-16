@@ -131,22 +131,24 @@ namespace Gwent.UI
         private static readonly List<Modal> modals = new List<Modal>();
         private static int lastCancelFrame = -1;
 
-        // A dialog is open (or one was just closed this frame): scene scripts must not also react to Escape / right click
+        // A dialog is open (or one was just closed this frame), or the loading screen shows: scene scripts must not also
+        // react to Escape / right click
         public static bool BlocksCancel
         {
             get
             {
                 Prune();
-                return modals.Count > 0 || lastCancelFrame == Time.frameCount;
+                return modals.Count > 0 || lastCancelFrame == Time.frameCount || LoadingScreen.Showing;
             }
         }
 
+        // A dialog is open, or the loading screen shows: the scene behind takes no keys
         public static bool HasModal
         {
             get
             {
                 Prune();
-                return modals.Count > 0;
+                return modals.Count > 0 || LoadingScreen.Showing;
             }
         }
 
@@ -232,7 +234,7 @@ namespace Gwent.UI
 
                 bool escape = GameInput.EscapePressed();
                 bool right_click = GameInput.SecondaryPressed();
-                if (!escape && !right_click)
+                if (!escape && !right_click || LoadingScreen.Showing)
                     return;
 
                 Prune();
