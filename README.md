@@ -44,7 +44,7 @@ Sorry, no multiplayer :/ (yet)
 <h3 align="center">Choosing an opponent, building a deck</h3>
 
 <p align="center">
-  <img src="Screenshots/opponents.jpg" width="49%" alt="The opponent picker: nine decks across the four factions">
+  <img src="Screenshots/opponents.jpg" width="49%" alt="The opponent picker: 11 decks across the five factions">
   <img src="Screenshots/deck-builder.jpg" width="49%" alt="The deck builder on a Northern Realms preset">
 </p>
 
