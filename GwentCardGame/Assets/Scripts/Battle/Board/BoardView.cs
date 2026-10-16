@@ -329,37 +329,52 @@ namespace Gwent.Battle
             CardLane lane = container.GetComponent<CardLane>();
 
             List<GameObject> before = new List<GameObject>();
-            Dictionary<int, Queue<GameObject>> existing = new Dictionary<int, Queue<GameObject>>();
-            List<GameObject> unused = new List<GameObject>();
             foreach (Transform child in parent)
-            {
-                if (child.GetComponent<CardFace>() == null)
-                    continue;
-                before.Add(child.gameObject);
-                int id;
-                if (!int.TryParse(child.name, out id))
+                if (child.GetComponent<CardFace>() != null)
+                    before.Add(child.gameObject);
+
+            // The objects kept, for each card: first the one still in its place (a redraw replaces the very card chosen,
+            // even with two alike in the hand), then one further along the line, in order (the cards after one that left
+            // slide), then any other copy
+            GameObject[] chosen = new GameObject[card_ids.Count];
+            HashSet<GameObject> kept = new HashSet<GameObject>();
+            for (int i = 0; i < card_ids.Count && i < before.Count; i++)
+                if (before[i].name == card_ids[i].ToString())
                 {
-                    unused.Add(child.gameObject);
+                    chosen[i] = before[i];
+                    kept.Add(before[i]);
+                }
+            for (int i = 0, last = -1; i < card_ids.Count; i++)
+            {
+                if (chosen[i] != null)
+                {
+                    last = i;
                     continue;
                 }
-                Queue<GameObject> queue;
-                if (!existing.TryGetValue(id, out queue))
-                    existing[id] = queue = new Queue<GameObject>();
-                queue.Enqueue(child.gameObject);
+                string name = card_ids[i].ToString();
+                for (int j = last + 1; j < before.Count; j++)
+                    if (!kept.Contains(before[j]) && before[j].name == name)
+                    {
+                        chosen[i] = before[j];
+                        kept.Add(before[j]);
+                        last = j;
+                        break;
+                    }
             }
+            for (int i = 0; i < card_ids.Count; i++)
+                if (chosen[i] == null)
+                {
+                    chosen[i] = before.Find(card => !kept.Contains(card) && card.name == card_ids[i].ToString());
+                    if (chosen[i] != null)
+                        kept.Add(chosen[i]);
+                }
 
             List<GameObject> ordered = new List<GameObject>(card_ids.Count);
-            HashSet<GameObject> kept = new HashSet<GameObject>();
-            foreach (int id in card_ids)
+            for (int i = 0; i < card_ids.Count; i++)
             {
-                Queue<GameObject> queue;
-                GameObject card;
-                if (existing.TryGetValue(id, out queue) && queue.Count > 0)
-                {
-                    card = queue.Dequeue();
-                    kept.Add(card);
-                }
-                else
+                int id = card_ids[i];
+                GameObject card = chosen[i];
+                if (card == null)
                 {
                     card = CreateCardObject(controller.Db.Get(id), is_player_card);
                     card.GetComponent<CardSelect>().isSelectable = hand;
@@ -378,8 +393,7 @@ namespace Gwent.Battle
                 }
                 ordered.Add(card);
             }
-            foreach (Queue<GameObject> queue in existing.Values)
-                unused.AddRange(queue);
+            List<GameObject> unused = before.Where(card => !kept.Contains(card)).ToList();
 
             List<GameObject> siblings = new List<GameObject>(ordered);
             foreach (GameObject card in unused.OrderBy(before.IndexOf))
