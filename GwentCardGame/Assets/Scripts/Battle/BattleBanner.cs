@@ -89,8 +89,30 @@ namespace Gwent.Battle
 
         private static BattleBanner Create()
         {
+            RectTransform root = Band("BattleBanner", UIOverlay.FixedRoot);
+            BattleBanner banner = root.gameObject.AddComponent<BattleBanner>();
+            banner.emblem = Emblem(root, EmblemX);
+            banner.text = Text(root);
+            banner.text.alignment = TextAlignmentOptions.MidlineLeft;
+            banner.text.rectTransform.pivot = new Vector2(0, 0.5f);
+            banner.text.rectTransform.anchoredPosition = new Vector2(TextX, 0);
+            banner.text.rectTransform.sizeDelta = new Vector2(TextWidth, BandHeight);
+            banner.text.textWrappingMode = TextWrappingModes.Normal; // a long notice takes two lines, as in The Witcher 3
+
+            foreach (Graphic graphic in root.GetComponentsInChildren<Graphic>())
+                graphic.raycastTarget = false;
+            banner.group = root.gameObject.AddComponent<CanvasGroup>();
+            banner.group.alpha = 0;
+            banner.group.blocksRaycasts = false;
+            banner.group.interactable = false;
+            return banner;
+        }
+
+        // A notice's band across the middle of the parent (the battle's loading screen has one too)
+        public static RectTransform Band(string name, Transform parent)
+        {
             UITheme theme = UITheme.Current;
-            RectTransform root = UIKit.Rect("BattleBanner", UIOverlay.FixedRoot);
+            RectTransform root = UIKit.Rect(name, parent);
             root.anchorMin = new Vector2(0, 0.5f);
             root.anchorMax = new Vector2(1, 0.5f);
             root.pivot = new Vector2(0.5f, 0.5f);
@@ -113,34 +135,36 @@ namespace Gwent.Battle
                 if (half == 0)
                     rect.localEulerAngles = new Vector3(0, 0, 180);
             }
+            return root;
+        }
 
-            BattleBanner banner = root.gameObject.AddComponent<BattleBanner>();
-            banner.emblem = UIKit.NewImage(root, "Emblem", null, Color.white);
-            banner.emblem.preserveAspect = true;
-            banner.emblem.rectTransform.anchorMin = banner.emblem.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            banner.emblem.rectTransform.anchoredPosition = new Vector2(EmblemX, 0);
-            banner.emblem.rectTransform.sizeDelta = new Vector2(EmblemHeight * 1.4f, EmblemHeight);
+        // An emblem on a band, its centre that far from the middle (overflowing the band)
+        public static Image Emblem(RectTransform band, float x, Sprite sprite = null)
+        {
+            Image emblem = UIKit.NewImage(band, "Emblem", sprite, Color.white);
+            emblem.preserveAspect = true;
+            emblem.rectTransform.anchorMin = emblem.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            emblem.rectTransform.anchoredPosition = new Vector2(x, 0);
+            emblem.rectTransform.sizeDelta = new Vector2(EmblemHeight * 1.4f, EmblemHeight);
+            emblem.enabled = sprite != null;
+            return emblem;
+        }
 
-            banner.text = UIKit.Text(root, "", UIKit.TextStyle.Body, TextAlignmentOptions.MidlineLeft);
+        // A notice's message on a band, in gold, centred on its middle
+        public static TextMeshProUGUI Text(RectTransform band, string message = "")
+        {
+            UITheme theme = UITheme.Current;
+            TextMeshProUGUI text = UIKit.Text(band, message, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
             if (theme.bodyFont != null)
-                banner.text.font = theme.bodyFont;
-            banner.text.fontStyle = FontStyles.Bold;
-            banner.text.fontSize = 34;
-            banner.text.characterSpacing = 0;
-            banner.text.color = new Color32(0xE2, 0xBD, 0x7C, 0xFF);
-            banner.text.rectTransform.anchorMin = banner.text.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            banner.text.rectTransform.pivot = new Vector2(0, 0.5f);
-            banner.text.rectTransform.anchoredPosition = new Vector2(TextX, 0);
-            banner.text.rectTransform.sizeDelta = new Vector2(TextWidth, BandHeight);
-            banner.text.textWrappingMode = TextWrappingModes.Normal; // a long notice takes two lines, as in The Witcher 3
-
-            foreach (Graphic graphic in root.GetComponentsInChildren<Graphic>())
-                graphic.raycastTarget = false;
-            banner.group = root.gameObject.AddComponent<CanvasGroup>();
-            banner.group.alpha = 0;
-            banner.group.blocksRaycasts = false;
-            banner.group.interactable = false;
-            return banner;
+                text.font = theme.bodyFont;
+            text.fontStyle = FontStyles.Bold;
+            text.fontSize = 34;
+            text.characterSpacing = 0;
+            text.color = new Color32(0xE2, 0xBD, 0x7C, 0xFF);
+            text.rectTransform.anchorMin = text.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            text.rectTransform.anchoredPosition = Vector2.zero;
+            text.rectTransform.sizeDelta = new Vector2(TextWidth, BandHeight);
+            return text;
         }
 
         private void Update()
