@@ -1,6 +1,7 @@
 # Every push to main is a release: the tests, then the five builds, then the one GitHub release ("latest") replaced by
 # the new one, its notes taken from the newest section of CHANGELOG.md. Nothing is published unless all of it succeeds,
-# and a push whose CHANGELOG.md has no new section since the last release is not released at all.
+# and a push whose CHANGELOG.md has no new section since the last release is not released at all: its run only checks the
+# changelog, skips the rest and passes.
 #
 # Secrets (tools/release-secrets.sh sets them): UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD; for an Android release key,
 # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASS, ANDROID_KEY_ALIAS, ANDROID_KEY_PASS (without them the APK is signed with
@@ -28,25 +29,31 @@ jobs:
     name: Changelog
     runs-on: ubuntu-latest
     outputs:
+      release: ${{ steps.changelog.outputs.release }}
       version_code: ${{ steps.code.outputs.version_code }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: CHANGELOG.md has a new section since the last release
+        id: changelog
         run: |
           python3 .github/scripts/release_notes.py CHANGELOG.md
           if git rev-parse -q --verify refs/tags/latest >/dev/null && git diff --quiet latest "$GITHUB_SHA" -- CHANGELOG.md; then
-            echo "::error::CHANGELOG.md has not changed since the last release: add a section for this one."
-            exit 1
+            echo "::notice::CHANGELOG.md has not changed since the last release: nothing to release, the tests and builds are skipped."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Android version code (the number of commits, so every release installs over the one before)
         id: code
         run: echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
+  # Skipped when there is nothing to release, and the builds and the release with it
   test:
     name: Tests
     needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

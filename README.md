@@ -235,7 +235,8 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.Gwe
 GitHub's machines ([GameCI](https://game.ci), Unity 6000.6.5f1, `Gwent.EditorTools.GwentBuild.BuildAllBatch` for each) and replaces the one
 release, tagged `latest`, with the new archives; its notes are the newest section of [`CHANGELOG.md`](CHANGELOG.md), followed
 by the downloads and their checksums. Nothing is published unless the tests and all five builds pass, and a push whose
-`CHANGELOG.md` has no new section since the last release is not released: add a section, headed by the date, before pushing.
+`CHANGELOG.md` has no new section since the last release is not released (its run checks the changelog, skips the rest and
+passes): add a section, headed by the date, before pushing.
 Work on other branches and merge into `main` only to release.
 
 The download links stay the same from one release to the next:
