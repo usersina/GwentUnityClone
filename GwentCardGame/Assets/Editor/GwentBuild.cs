@@ -51,7 +51,7 @@ namespace Gwent.EditorTools
         {
             new Target { Name = "linux", Label = "Linux", Build = BuildTarget.StandaloneLinux64, Group = BuildTargetGroup.Standalone, Folder = "linux", Player = ProductFile + ".x86_64" },
             new Target { Name = "windows", Label = "Windows", Build = BuildTarget.StandaloneWindows64, Group = BuildTargetGroup.Standalone, Folder = "windows", Player = ProductFile + ".exe" },
-            new Target { Name = "macos", Label = "macOS", Build = BuildTarget.StandaloneOSX, Group = BuildTargetGroup.Standalone, Folder = "macos", Player = ProductFile + ".app" },
+            new Target { Name = "macos", Label = "macOS", Build = BuildTarget.StandaloneOSX, Group = BuildTargetGroup.Standalone, Folder = "macos", Player = PlayerSettings.productName + ".app" }, // as Finder and the Dock show it
             new Target { Name = "android", Label = "Android", Build = BuildTarget.Android, Group = BuildTargetGroup.Android, Folder = "android", Player = ProductFile + ".apk" },
             new Target { Name = "web", Label = "Web", Build = BuildTarget.WebGL, Group = BuildTargetGroup.WebGL, Folder = "web", Player = "" },
         };
@@ -328,12 +328,12 @@ namespace Gwent.EditorTools
                     File.Delete(archive);
                     try
                     {
-                        Run("zip", "-qry \"" + archive + "\" " + target.Player, folder);
+                        Run("zip", "-qry \"" + archive + "\" \"" + target.Player + "\"", folder);
                     }
                     catch (System.ComponentModel.Win32Exception)
                     {
                         archive = Path.Combine(Root, name + ".tar.gz");
-                        Run("tar", "-czf \"" + archive + "\" " + target.Player, folder);
+                        Run("tar", "-czf \"" + archive + "\" \"" + target.Player + "\"", folder);
                     }
                     return archive;
                 }
