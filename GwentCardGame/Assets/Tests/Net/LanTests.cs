@@ -136,7 +136,7 @@ namespace Gwent.Net.Tests
         [Test]
         public void ASearchFindsAHostedGameAndTellsWhetherItCanJoin()
         {
-            LanDiscovery answering = Made(LanDiscovery.Answer("Test table", TestPort, Version));
+            LanDiscovery answering = Made(LanDiscovery.Answer("Test table", 44, TestPort, Version));
             LanDiscovery same = Made(LanDiscovery.Search(Version));
             LanDiscovery other = Made(LanDiscovery.Search("test-2"));
             Assert.IsTrue(Until(() => same.Games.Any(game => game.Name == "Test table") && other.Games.Any(game => game.Name == "Test table"),
@@ -144,8 +144,25 @@ namespace Gwent.Net.Tests
             LanDiscovery.Game found = same.Games.First(game => game.Name == "Test table");
             Assert.AreEqual(TestPort, found.Port);
             Assert.AreEqual(Version, found.Version);
+            Assert.AreEqual(44, found.Leader);
             Assert.IsTrue(found.Compatible);
             Assert.IsFalse(other.Games.First(game => game.Name == "Test table").Compatible);
+        }
+
+        [Test]
+        public void ANameKeepsToLettersDigitsAndAFewMarksUpToSixteen()
+        {
+            // As it is typed: what else is typed is left out, a space only between words (one last stays: a word follows)
+            Assert.AreEqual("Géralt of Rivia", PlayerNames.Typed("  Géralt  of Rivia!"));
+            Assert.AreEqual("Ciri ", PlayerNames.Typed("Ciri "));
+            Assert.AreEqual("O'Dimm_the-1.b", PlayerNames.Typed("O'Dimm_the-1.<b>")); // no rich text tags
+            Assert.AreEqual(16, PlayerNames.Typed(new string('x', 30)).Length);
+            // To show: trimmed, and nothing when no letter or digit is left (a name in another alphabet, marks only)
+            Assert.AreEqual("Ciri", PlayerNames.Clean("Ciri\n "));
+            Assert.AreEqual("Zoltan", PlayerNames.Clean("Zoltan☠"));
+            Assert.IsNull(PlayerNames.Clean("Жрец"));
+            Assert.IsNull(PlayerNames.Clean("- . _"));
+            Assert.IsNull(PlayerNames.Clean(null));
         }
     }
 }

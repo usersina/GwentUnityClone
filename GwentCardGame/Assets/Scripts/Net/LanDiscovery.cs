@@ -25,6 +25,7 @@ namespace Gwent.Net
         public sealed class Game
         {
             public string Name;
+            public int Leader = -1;     // the host's deck's leader (its portrait in the list)
             public string Address;
             public ushort Port;
             public string Version;
@@ -36,6 +37,7 @@ namespace Gwent.Net
         private readonly UdpClient socket;
         private readonly bool answering;
         private readonly string name;
+        private readonly int leader;
         private readonly ushort gamePort;
         private readonly uint id;
         private readonly string version;
@@ -45,24 +47,26 @@ namespace Gwent.Net
 
         public IReadOnlyList<Game> Games { get { return games; } }
 
-        private LanDiscovery(UdpClient socket, bool answering, string name, ushort game_port, string version)
+        private LanDiscovery(UdpClient socket, bool answering, string name, int leader, ushort game_port, string version)
         {
             this.socket = socket;
             this.answering = answering;
             this.name = name;
+            this.leader = leader;
             gamePort = game_port;
             this.version = version;
             id = (uint)Environment.TickCount ^ (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
             socket.EnableBroadcast = true;
         }
 
-        // Answers searches for the game waiting on that port, under that name (null if the discovery port cannot be had)
-        public static LanDiscovery Answer(string name, ushort game_port)
+        // Answers searches for the game waiting on that port, under that name, with the host's leader (null if the
+        // discovery port cannot be had)
+        public static LanDiscovery Answer(string name, int leader, ushort game_port)
         {
-            return Answer(name, game_port, Application.version);
+            return Answer(name, leader, game_port, Application.version);
         }
 
-        internal static LanDiscovery Answer(string name, ushort game_port, string version)
+        internal static LanDiscovery Answer(string name, int leader, ushort game_port, string version)
         {
             UdpClient socket = new UdpClient(AddressFamily.InterNetwork);
             try
@@ -76,7 +80,7 @@ namespace Gwent.Net
                 socket.Close();
                 return null;
             }
-            LanDiscovery discovery = new LanDiscovery(socket, true, name, game_port, version);
+            LanDiscovery discovery = new LanDiscovery(socket, true, name, leader, game_port, version);
             discovery.HoldMulticastLock();
             return discovery;
         }
@@ -89,7 +93,7 @@ namespace Gwent.Net
 
         internal static LanDiscovery Search(string version)
         {
-            return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, 0, version);
+            return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version);
         }
 
         public void Update()
@@ -160,8 +164,9 @@ namespace Gwent.Net
                         uint host = reader.ReadUInt32();
                         ushort port = reader.ReadUInt16();
                         string their_version = reader.ReadString();
-                        string their_name = reader.ReadString();
-                        Found(host, from.Address, port, their_name, their_version, protocol == LanLink.Protocol && their_version == version, now);
+                        string their_name = PlayerNames.Clean(reader.ReadString()) ?? "Player";
+                        int their_leader = reader.ReadInt16();
+                        Found(host, from.Address, port, their_name, their_leader, their_version, protocol == LanLink.Protocol && their_version == version, now);
                     }
                 }
             }
@@ -180,6 +185,7 @@ namespace Gwent.Net
                 writer.Write(gamePort);
                 writer.Write(version);
                 writer.Write(name ?? "");
+                writer.Write((short)leader);
             });
             try
             {
@@ -191,7 +197,7 @@ namespace Gwent.Net
             }
         }
 
-        private void Found(uint host, IPAddress address, ushort port, string their_name, string their_version, bool compatible, float now)
+        private void Found(uint host, IPAddress address, ushort port, string their_name, int their_leader, string their_version, bool compatible, float now)
         {
             Game game = games.Find(known => known.Id == host);
             if (game == null)
@@ -204,6 +210,7 @@ namespace Gwent.Net
                 game.Address = address.ToString();
             game.Port = port;
             game.Name = their_name;
+            game.Leader = their_leader;
             game.Version = their_version;
             game.Compatible = compatible;
             game.Seen = now;
@@ -224,19 +231,59 @@ namespace Gwent.Net
         }
 
         //----------------------------------------This device's networks----------------------------------------//
-        // This device's addresses on its networks (what another player types to join it)
+        // This device's addresses on its networks (what another player types to join it): those of real networks first
+        // (Wi-Fi, a cable, a phone's hotspot), then those of the computer's own virtual ones (Docker, virtual machines,
+        // VPNs: no other device reaches them)
         public static List<string> LocalAddresses()
         {
-            List<string> addresses = new List<string>();
-            foreach ((IPAddress address, IPAddress _) in Networks())
-                addresses.Add(address.ToString());
-            return addresses;
+            List<string> real = new List<string>(), virtual_ones = new List<string>();
+            foreach ((IPAddress address, IPAddress _, bool is_virtual) in Networks(true))
+                (is_virtual ? virtual_ones : real).Add(address.ToString());
+            real.AddRange(virtual_ones);
+            return real;
+        }
+
+        // The addresses another device on the network can join (the virtual ones left out, unless there is nothing else)
+        public static List<string> JoinableAddresses()
+        {
+            List<string> real = new List<string>();
+            foreach ((IPAddress address, IPAddress _, bool is_virtual) in Networks(true))
+                if (!is_virtual)
+                    real.Add(address.ToString());
+            return real.Count > 0 ? real : LocalAddresses();
+        }
+
+        private static readonly string[] VirtualNames = { "docker", "br-", "virbr", "veth", "vmnet", "vboxnet", "tailscale", "tun", "tap", "wg", "wt", "zt", "utun" };
+        private static readonly string[] VirtualDescriptions = { "virtual", "vmware", "hyper-v", "virtualbox", "wsl", "docker", "loopback", "tap-", "tunnel", "vpn" };
+
+        // 100.64.0.0/10, the range VPNs give their devices (Tailscale, NetBird, ZeroTier)
+        private static bool IsVpnAddress(IPAddress address)
+        {
+            byte[] bytes = address.GetAddressBytes();
+            return bytes[0] == 100 && (bytes[1] & 0xC0) == 64;
+        }
+
+        private static bool IsVirtual(NetworkInterface adapter)
+        {
+            string name = (adapter.Name ?? "").ToLowerInvariant(), description = (adapter.Description ?? "").ToLowerInvariant();
+            return adapter.NetworkInterfaceType == NetworkInterfaceType.Tunnel
+                || Array.Exists(VirtualNames, prefix => name.StartsWith(prefix))
+                || Array.Exists(VirtualDescriptions, word => description.Contains(word));
         }
 
         // Each network this device is on: its address there, and that network's broadcast address
         private static List<(IPAddress address, IPAddress broadcast)> Networks()
         {
             List<(IPAddress, IPAddress)> networks = new List<(IPAddress, IPAddress)>();
+            foreach ((IPAddress address, IPAddress broadcast, bool _) in Networks(true))
+                networks.Add((address, broadcast));
+            return networks;
+        }
+
+        // The same, and whether each is one of the computer's own virtual networks
+        private static List<(IPAddress address, IPAddress broadcast, bool is_virtual)> Networks(bool _)
+        {
+            List<(IPAddress, IPAddress, bool)> networks = new List<(IPAddress, IPAddress, bool)>();
             try
             {
                 foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
@@ -248,7 +295,7 @@ namespace Gwent.Net
                     {
                         if (unicast.Address.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(unicast.Address))
                             continue;
-                        networks.Add((unicast.Address, Broadcast(unicast)));
+                        networks.Add((unicast.Address, Broadcast(unicast), IsVirtual(adapter) || IsVpnAddress(unicast.Address)));
                     }
                 }
             }

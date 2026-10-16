@@ -21,7 +21,7 @@ namespace Gwent.Net
     {
         public const ushort GamePort = 26947;      // or one of the next (PortsTried) when another program holds it
         private const int PortsTried = 10;
-        public const int Protocol = 1;              // the messages' shape: raised when it changes
+        public const int Protocol = 2;              // the messages' shape (LanSession's too): raised when it changes
         public const int Largest = 32 * 1024;       // the largest message (bytes)
         private const int ConnectTimeoutMs = 500;   // a join is retried this often...
         private const int ConnectAttempts = 10;     // ...this many times: no answer in 5 s, no game there
@@ -69,6 +69,18 @@ namespace Gwent.Net
         // Ports below the range systems hand out for a while (32768 and up), where programs seldom sit.
         public static LanLink Host()
         {
+            return Host(GamePort);
+        }
+
+        // The same, on that port first when it is free (a battle taken up again: its guest comes back to it)
+        public static LanLink Host(ushort preferred)
+        {
+            if (preferred != GamePort && Free(preferred))
+            {
+                LanLink there = Host(preferred, Application.version);
+                if (there != null)
+                    return there;
+            }
             for (int port = GamePort; port < GamePort + PortsTried; port++)
                 if (Free((ushort)port))
                 {
@@ -349,6 +361,15 @@ namespace Gwent.Net
                     write(writer);
                 return stream.ToArray();
             }
+        }
+
+        // The host lets its guest go (it stopped answering, whatever the link says): it waits for the next one
+        public void Drop(string reason)
+        {
+            if (!hosting || !driver.IsCreated || !other.IsCreated)
+                return;
+            driver.Disconnect(other);
+            Lost(reason);
         }
 
         // Leaves (the other side is told) and lets the socket go

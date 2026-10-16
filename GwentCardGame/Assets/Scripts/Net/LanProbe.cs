@@ -111,7 +111,7 @@ namespace Gwent.Net
                 return;
             }
             string name = SystemInfo.deviceName;
-            discovery = LanDiscovery.Answer(name, link.Port);
+            discovery = LanDiscovery.Answer(name, -1, link.Port);
             Log("hosting \"" + name + "\" (" + Application.platform + ", version " + Application.version + ") on port " + link.Port
                 + (discovery == null ? "; not answering searches (port " + LanDiscovery.Port + " taken)" : ""));
             Log("this device's addresses: " + string.Join(", ", LanDiscovery.LocalAddresses()));
