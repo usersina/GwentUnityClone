@@ -11,8 +11,8 @@ namespace Gwent.Battle
     // is one layout unit, as for the rest of the layer (the host keeps UIParticle's Transform scaling at scale 1, and no
     // particle's size is capped to a share of the view). A host can also sit in a part of the board (In), drawn in its
     // order and clipped by its masks: a row's weather. The art is Resources/W3/Particles (Gwent > UI > Regenerate
-    // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on), "Fire" (added on) and "Mist" (blended
-    // over). In game time: the pause menu stops them.
+    // Particle Art): "Spark", "Smoke" (blended over), "Blaze" (smoke added on), "Fire" (added on), "Mist" (blended over)
+    // and "Streak" (blended over). In game time: the pause menu stops them.
     internal sealed class ParticleFx
     {
         private readonly UIParticle host;
@@ -51,10 +51,10 @@ namespace Gwent.Battle
         // A system drawn with one of the art's materials, over the ones added before it. Its particles fall by gravity
         // (layout units per second squared; negative rises), go through the colours over their life (times the colour
         // each is born with) and the sizes (a factor of their size at birth), spin up to spin radians a second either way,
-        // drift in a turbulence of that strength (layout units a second) in swirls about that wide (layout units) and, with
-        // frames, show one of the art's 2 x 2.
+        // drift in a turbulence of that strength (layout units a second) in swirls about that wide (layout units), with
+        // frames show one of the art's 2 x 2 and, stretched, are sized in width and height (Emit with a Vector2 size).
         public ParticleSystem Add(string material, Gradient colors, AnimationCurve sizes, float gravity = 0, float spin = 0,
-            float turbulence = 0, bool frames = false, float swirls = 80)
+            float turbulence = 0, bool frames = false, float swirls = 80, bool stretched = false)
         {
             GameObject go = new GameObject(material);
             go.transform.SetParent(host.transform, false);
@@ -68,6 +68,7 @@ namespace Gwent.Battle
             main.startSpeed = 0;
             main.maxParticles = 3000;
             main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.startSize3D = stretched;
             main.gravityModifier = gravity / -Physics.gravity.y;
             ParticleSystem.EmissionModule emission = system.emission;
             emission.enabled = false; // emitted by hand, where they belong
@@ -127,6 +128,22 @@ namespace Gwent.Battle
                 position = at,
                 velocity = velocity,
                 startSize = size,
+                startLifetime = life,
+                startColor = color,
+                rotation = angle,
+                applyShapeToPosition = false,
+            };
+            system.Emit(particle, 1);
+        }
+
+        // One particle of a stretched system (Add), its size in width and height
+        public static void Emit(ParticleSystem system, Vector2 at, Vector2 velocity, Vector2 size, float life, Color color, float angle = 0)
+        {
+            ParticleSystem.EmitParams particle = new ParticleSystem.EmitParams
+            {
+                position = at,
+                velocity = velocity,
+                startSize3D = new Vector3(size.x, size.y, 1),
                 startLifetime = life,
                 startColor = color,
                 rotation = angle,

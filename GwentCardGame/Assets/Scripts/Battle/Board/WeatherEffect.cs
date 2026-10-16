@@ -8,8 +8,9 @@ namespace Gwent.Battle
     // A row's weather, laid over the row's horn slot and lane and their cards, as The Witcher 3 does. It fades in with its
     // weather card and out once cleared (half a second, as gwent-classic does). Everything of it is drawn in one layer that
     // clips to the row (its ends softened) and fades as one: nothing leaves the row, however it moves. What the layer shows
-    // is a WeatherLook: Impenetrable Fog rolls along the row as particles (FogParticles); Biting Frost and Torrential Rain
-    // are still The Witcher 3's own art of them (StillWeather). In game time: the pause menu stops it.
+    // is a WeatherLook: Impenetrable Fog rolls along the row (FogParticles) and Torrential Rain falls on it (RainParticles)
+    // as particles; Biting Frost is still The Witcher 3's own art of it (StillWeather). In game time: the pause menu stops
+    // it.
     public class WeatherEffect : MonoBehaviour
     {
         public enum Kind { Frost, Fog, Rain }
@@ -56,7 +57,9 @@ namespace Gwent.Battle
             effect.group.blocksRaycasts = false; // the cards under it stay clickable
             effect.group.interactable = false;
             effect.group.alpha = 0;
-            effect.look = kind == Kind.Fog ? new FogParticles(root) : (WeatherLook)new StillWeather(root, kind);
+            effect.look = kind == Kind.Fog ? new FogParticles(root)
+                : kind == Kind.Rain ? new RainParticles(root)
+                : (WeatherLook)new StillWeather(root, kind);
         }
 
         private void Leave()

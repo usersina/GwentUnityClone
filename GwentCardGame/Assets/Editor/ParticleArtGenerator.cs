@@ -7,9 +7,9 @@ namespace Gwent.EditorTools
 {
     // The particle effects' art (ParticleFx), drawn from noise, and its materials, in Resources/W3/Particles: Spark (a hot
     // point in a soft glow), Smoke (four billowing puffs, lit from the top left, blended over), Blaze (the same puffs,
-    // added on: churning fire, flashes), Fire (four flame tongues, added on) and Mist (four soft, wide clouds of fog, near
-    // white, blended over). The materials use UI shaders (ParticleEffectForUGUI's UI/Additive, Unity's UI/Default), which
-    // also brings UI/Additive into the builds.
+    // added on: churning fire, flashes), Fire (four flame tongues, added on), Mist (four soft, wide clouds of fog, near
+    // white, blended over) and Streak (a falling raindrop's streak, drawn tall and thin, blended over). The materials use UI
+    // shaders (ParticleEffectForUGUI's UI/Additive, Unity's UI/Default), which also brings UI/Additive into the builds.
     public static class ParticleArtGenerator
     {
         public const string Folder = "Assets/Resources/W3/Particles";
@@ -22,16 +22,19 @@ namespace Gwent.EditorTools
             Write("Smoke", 256, (x, y) => Atlas(x, y, 256, Puff));
             Write("Fire", 256, (x, y) => Atlas(x, y, 256, Tongue));
             Write("Mist", 512, (x, y) => Atlas(x, y, 512, Cloud));
+            Write("Streak", 64, Streak);
             AssetDatabase.Refresh();
             ConfigureImporter("Spark", TextureImporterCompression.Uncompressed); // smooth gradients: no banding
             ConfigureImporter("Smoke", TextureImporterCompression.CompressedHQ);
             ConfigureImporter("Fire", TextureImporterCompression.CompressedHQ);
             ConfigureImporter("Mist", TextureImporterCompression.CompressedHQ);
+            ConfigureImporter("Streak", TextureImporterCompression.Uncompressed); // drawn thin: no blocks
             WriteMaterial("Spark", "UI/Additive");
             WriteMaterial("Fire", "UI/Additive");
             WriteMaterial("Smoke", "UI/Default");
             WriteMaterial("Blaze", "UI/Additive", "Smoke");
             WriteMaterial("Mist", "UI/Default");
+            WriteMaterial("Streak", "UI/Default");
             AssetDatabase.SaveAssets();
         }
 
@@ -83,6 +86,16 @@ namespace Gwent.EditorTools
             float alpha = shape * (0.6f + 0.4f * n);
             float light = 0.84f + 0.16f * folds + 0.08f * (v - 0.5f);
             return new Color(light, light, light, Mathf.Clamp01(alpha));
+        }
+
+        // A raindrop's streak (x, y in pixels, y up), as the eye sees a falling drop: a line filling the width it is drawn
+        // at (drawn thin), soft at its sides, its leading (lower) end brightest, its tail fading out
+        private static Color Streak(float x, float y)
+        {
+            float u = x / 64, v = y / 64;
+            float across = Mathf.Exp(-((u - 0.5f) / 0.32f) * ((u - 0.5f) / 0.32f));
+            float along = (1 - Smooth(0f, 0.12f, v)) * Smooth(0.55f, 1f, v) * Mathf.Lerp(1f, 0.5f, v);
+            return new Color(1, 1, 1, Mathf.Clamp01(across * along * 1.1f));
         }
 
         // Four variants in a 2 x 2 sheet (ParticleSystem texture sheet animation picks one per particle)
