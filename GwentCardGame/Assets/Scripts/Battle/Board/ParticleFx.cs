@@ -189,6 +189,12 @@ namespace Gwent.Battle
                 Object.Destroy(host.gameObject);
         }
 
+        // The art itself, for what is drawn with it but not as particles (a weather's ice and snow, as images)
+        public static Texture Art(string name)
+        {
+            return Material(name).mainTexture;
+        }
+
         private static Material Material(string name)
         {
             Material material;

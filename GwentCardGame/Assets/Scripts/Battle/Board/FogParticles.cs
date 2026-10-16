@@ -22,7 +22,6 @@ namespace Gwent.Battle
         private readonly float width, height;
         private float bodyDue, topDue, wispDue; // the puffs owed since the last frame
         private bool rising = true, leaving;
-        private ParticleSystem.Particle[] buffer = new ParticleSystem.Particle[64];
 
         public FogParticles(RectTransform layer)
         {
@@ -55,7 +54,7 @@ namespace Gwent.Battle
         public override void Tick(float dt, float age)
         {
             if (rising)
-                rising = Settle(dt);
+                rising = Settle(billow, RiseDrag, dt);
             if (leaving)
                 return;
             // The body low in the row, the billows along its top: the bank covers about the row's lower 55%, the row seen
@@ -91,24 +90,7 @@ namespace Gwent.Battle
         {
             leaving = true;
             foreach (ParticleSystem system in new[] { billow, bank, wisps })
-                Change(system, (ref ParticleSystem.Particle particle) => particle.velocity += new Vector3(0, LiftSpeed, 0));
-        }
-
-        // The first puffs' rise slows to a halt (the others barely move up or down); false once all have settled
-        private bool Settle(float dt)
-        {
-            bool moving = false;
-            float slow = Mathf.Exp(-RiseDrag * dt);
-            Change(billow, (ref ParticleSystem.Particle particle) =>
-            {
-                Vector3 velocity = particle.velocity;
-                if (velocity.y <= 1)
-                    return;
-                velocity.y *= slow;
-                particle.velocity = velocity;
-                moving = true;
-            });
-            return moving;
+                Change(system, (ref ParticleSystem.Particle particle, int index) => particle.velocity += new Vector3(0, LiftSpeed, 0));
         }
 
         // Where a puff is born along the row: anywhere, a little past either end, set back by half its drift so that over
@@ -125,19 +107,6 @@ namespace Gwent.Battle
             float along = x / width + 0.5f;
             float thick = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.05f, 0.25f, along)) * Mathf.SmoothStep(0, 1, Mathf.InverseLerp(1, 0.88f, along));
             return new Color(Grey.r, Grey.g, Grey.b, alpha * Mathf.Lerp(0.25f, 1, thick));
-        }
-
-        private delegate void ParticleChange(ref ParticleSystem.Particle particle);
-
-        private void Change(ParticleSystem system, ParticleChange change)
-        {
-            int count = system.particleCount;
-            if (buffer.Length < count)
-                buffer = new ParticleSystem.Particle[count * 2];
-            count = system.GetParticles(buffer, count);
-            for (int i = 0; i < count; i++)
-                change(ref buffer[i]);
-            system.SetParticles(buffer, count);
         }
     }
 }

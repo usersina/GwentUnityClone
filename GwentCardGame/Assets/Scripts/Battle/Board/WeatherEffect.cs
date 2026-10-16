@@ -9,9 +9,8 @@ namespace Gwent.Battle
     // A row's weather, laid over the row's horn slot and lane and their cards, as The Witcher 3 does. It fades in with its
     // weather card and out once cleared (half a second, as gwent-classic does). Everything of it is drawn in one layer that
     // clips to the row (its ends softened) and fades as one: nothing leaves the row, however it moves. What the layer shows
-    // is a WeatherLook: Impenetrable Fog rolls along the row (FogParticles) and Torrential Rain falls on it (RainParticles)
-    // as particles; Biting Frost is still The Witcher 3's own art of it (StillWeather). In game time: the pause menu stops
-    // it.
+    // is a WeatherLook, particles: Biting Frost's ice (FrostParticles), Impenetrable Fog rolling along the row
+    // (FogParticles), Torrential Rain falling on it (RainParticles). In game time: the pause menu stops it.
     public class WeatherEffect : MonoBehaviour
     {
         public enum Kind { Frost, Fog, Rain }
@@ -58,9 +57,9 @@ namespace Gwent.Battle
             effect.group.blocksRaycasts = false; // the cards under it stay clickable
             effect.group.interactable = false;
             effect.group.alpha = 0;
-            effect.look = kind == Kind.Fog ? new FogParticles(root)
-                : kind == Kind.Rain ? new RainParticles(root)
-                : (WeatherLook)new StillWeather(root, kind);
+            effect.look = kind == Kind.Frost ? new FrostParticles(root)
+                : kind == Kind.Fog ? new FogParticles(root)
+                : (WeatherLook)new RainParticles(root);
             effect.look.Hold();
         }
 
@@ -89,6 +88,7 @@ namespace Gwent.Battle
     internal abstract class WeatherLook
     {
         private readonly List<ParticleFx> hosts = new List<ParticleFx>();
+        private ParticleSystem.Particle[] buffer = new ParticleSystem.Particle[64];
 
         // A particle host over the layer, drawn over what the layer had before it
         protected ParticleFx Host(string name, RectTransform layer)
@@ -107,6 +107,38 @@ namespace Gwent.Battle
         }
 
         public virtual void Leave() { }
+
+        protected delegate void ParticleChange(ref ParticleSystem.Particle particle, int index);
+
+        // Changes each of a system's particles (index: in the order they were born, while none has died)
+        protected void Change(ParticleSystem system, ParticleChange change)
+        {
+            int count = system.particleCount;
+            if (buffer.Length < count)
+                buffer = new ParticleSystem.Particle[count * 2];
+            count = system.GetParticles(buffer, count);
+            for (int i = 0; i < count; i++)
+                change(ref buffer[i], i);
+            system.SetParticles(buffer, count);
+        }
+
+        // Particles rising (billowing up as a weather comes) slow to a halt, drag being how fast (1/s); those barely
+        // moving up are left be. False once none rises.
+        protected bool Settle(ParticleSystem system, float drag, float dt)
+        {
+            bool moving = false;
+            float slow = Mathf.Exp(-drag * dt);
+            Change(system, (ref ParticleSystem.Particle particle, int index) =>
+            {
+                Vector3 velocity = particle.velocity;
+                if (velocity.y <= 1)
+                    return;
+                velocity.y *= slow;
+                particle.velocity = velocity;
+                moving = true;
+            });
+            return moving;
+        }
     }
 
     // The Witcher 3's own art of the weather (Biting Frost's ice, Impenetrable Fog's clouds, Torrential Rain), a capture of
