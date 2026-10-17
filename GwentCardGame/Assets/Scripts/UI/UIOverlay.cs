@@ -124,6 +124,7 @@ namespace Gwent.UI
             public GameObject root;
             public Action onClose;
             public bool closeOnRightClick;
+            public Func<bool> mayClose; // Escape asks it first: false, the dialog stays (it went back a step itself)
             public List<KeyValuePair<Selectable, Navigation>> blockedNavigation;
             public GameObject previousSelection;
         }
@@ -158,8 +159,9 @@ namespace Gwent.UI
             Root.GetComponent<OverlayRunner>().escapeAction = action;
         }
 
-        // Registers a dialog: Escape (and right click, unless disabled) closes it, keyboard navigation stays inside it
-        public static void PushModal(GameObject root, Action on_close = null, bool close_on_right_click = true)
+        // Registers a dialog: Escape (and right click, unless disabled) closes it, keyboard navigation stays inside it.
+        // may_close: asked first on Escape (false: the dialog went back a step itself, and stays)
+        public static void PushModal(GameObject root, Action on_close = null, bool close_on_right_click = true, Func<bool> may_close = null)
         {
             _ = Root; // its runner closes the dialogs on Escape (a UI Toolkit dialog may be the scene's first use of the overlay)
             Modal modal = new Modal
@@ -167,6 +169,7 @@ namespace Gwent.UI
                 root = root,
                 onClose = on_close,
                 closeOnRightClick = close_on_right_click,
+                mayClose = may_close,
                 blockedNavigation = new List<KeyValuePair<Selectable, Navigation>>(),
                 previousSelection = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null,
             };
@@ -244,7 +247,8 @@ namespace Gwent.UI
                     if (escape || top.closeOnRightClick)
                     {
                         lastCancelFrame = Time.frameCount;
-                        CloseModal(top.root);
+                        if (top.mayClose == null || top.mayClose())
+                            CloseModal(top.root);
                     }
                 }
                 else if (escape && escapeAction != null && lastCancelFrame != Time.frameCount)

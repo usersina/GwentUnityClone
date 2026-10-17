@@ -61,11 +61,13 @@ namespace Gwent.UI
             return renderer;
         }
 
-        // A dialog: the document on the dialogs' panel, one of UIOverlay's modals until Close (or Escape, right click)
-        public static GameObject ShowDialog(string name, VisualTreeAsset document, Action<VisualElement> bind, Action on_close = null, bool close_on_right_click = true)
+        // A dialog: the document on the dialogs' panel, one of UIOverlay's modals until Close (or Escape, right click;
+        // may_close: asked first, false keeps it open)
+        public static GameObject ShowDialog(string name, VisualTreeAsset document, Action<VisualElement> bind, Action on_close = null, bool close_on_right_click = true,
+            Func<bool> may_close = null)
         {
             GameObject dialog = Show(name, document, bind, Layer.Dialog).gameObject;
-            UIOverlay.PushModal(dialog, on_close, close_on_right_click);
+            UIOverlay.PushModal(dialog, on_close, close_on_right_click, may_close);
             return dialog;
         }
 

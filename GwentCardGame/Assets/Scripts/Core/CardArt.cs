@@ -54,7 +54,8 @@ namespace Gwent.Core
         // The same as the background of a UI Toolkit element
         public static void Show(VisualElement element, int card_id)
         {
-            Show(element, SceneManager.GetActiveScene(), card_id, sprite => element.style.backgroundImage = new StyleBackground(sprite), () => true);
+            // Gone with its dialog (the lobby closed as the art came): not shown
+            Show(element, SceneManager.GetActiveScene(), card_id, sprite => element.style.backgroundImage = new StyleBackground(sprite), () => element.panel != null);
         }
 
         private static void Show(object target, Scene scene, int card_id, Action<Sprite> show, Func<bool> alive)
