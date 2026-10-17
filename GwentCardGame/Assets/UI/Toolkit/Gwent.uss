@@ -1380,6 +1380,44 @@
     font-size: 30px;
 }
 
+/* A toast with keys: its words and key caps in a centred line that flows over */
+.toast__line {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.toast__word {
+    -unity-font-definition: var(--body-font);
+    font-size: 30px;
+    color: var(--text);
+    padding: 0;
+    margin: 2px 4px;
+}
+
+/* A key's name in a small gold-ringed cap ("Esc", "Space"), as the battle's buttons show it: no "[Esc]" */
+.keycap {
+    height: 36px;
+    min-width: 36px;
+    margin: 2px 6px;
+    padding: 0 10px 2px 10px;
+    border-width: 2px;
+    border-radius: 8px;
+    border-color: rgba(201, 164, 92, 0.7);
+    align-items: center;
+    justify-content: center;
+}
+
+.keycap__label {
+    -unity-font-definition: var(--body-font);
+    font-size: 22px;
+    color: var(--gold);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
 /*---------------------------------------- Tooltip ----------------------------------------*/
 .tooltip {
     position: absolute;

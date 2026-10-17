@@ -73,10 +73,12 @@ namespace Gwent.UI
 
         //----------------------------------------Toast----------------------------------------//
         // Short message at the top of the screen, replaced by the next one; never blocks clicks. On the dialogs' panel
-        // (UI Toolkit, Toast.uxml); it fades in and out by USS transitions.
+        // (UI Toolkit, Toast.uxml); it fades in and out by USS transitions. A key in braces ("{Esc} puts it back") shows in
+        // a small ringed cap, as the battle's keys do (its Message label holds the words alone, for the tools).
         public static void Toast(string message, float seconds = 2.5f)
         {
-            GameLog.Event(LogCategory.Ui, "toast", "text", message);
+            string plain = message.Replace("{", "").Replace("}", "");
+            GameLog.Event(LogCategory.Ui, "toast", "text", plain);
             if (currentToast != null)
                 UnityEngine.Object.Destroy(currentToast);
 
@@ -85,13 +87,42 @@ namespace Gwent.UI
             GameObject toast = null;
             toast = UIScreens.Show("Toast", UITheme.Current.toast, root =>
             {
-                UIElements.UQueryExtensions.Q<UIElements.Label>(root, "Message").text = message;
+                UIElements.Label label = UIElements.UQueryExtensions.Q<UIElements.Label>(root, "Message");
+                label.text = plain;
                 UIElements.VisualElement panel = UIElements.UQueryExtensions.Q(root, "Toast");
+                if (plain != message)
+                {
+                    label.style.display = UIElements.DisplayStyle.None;
+                    panel.Add(KeyLine(message));
+                }
                 panel.schedule.Execute(() => panel.AddToClassList("toast--shown")); // from the next frame: it fades in
                 panel.schedule.Execute(() => panel.RemoveFromClassList("toast--shown")).StartingIn(lifetime - Fade);
                 panel.schedule.Execute(() => UnityEngine.Object.Destroy(toast)).StartingIn(lifetime);
             }, UIScreens.Layer.Dialog).gameObject;
             currentToast = toast;
+        }
+
+        // The words of a message, keys in braces in their caps, flowing over as many lines as they need
+        private static UIElements.VisualElement KeyLine(string message)
+        {
+            UIElements.VisualElement line = new UIElements.VisualElement { pickingMode = UIElements.PickingMode.Ignore };
+            line.AddToClassList("toast__line");
+            foreach (System.Text.RegularExpressions.Match token in System.Text.RegularExpressions.Regex.Matches(message, @"\{[^}]*\}|[^\s{]+"))
+            {
+                bool key = token.Value.StartsWith("{");
+                UIElements.Label text = new UIElements.Label(key ? token.Value.Trim('{', '}') : token.Value) { pickingMode = UIElements.PickingMode.Ignore };
+                text.AddToClassList(key ? "keycap__label" : "toast__word");
+                if (!key)
+                {
+                    line.Add(text);
+                    continue;
+                }
+                UIElements.VisualElement cap = new UIElements.VisualElement { pickingMode = UIElements.PickingMode.Ignore };
+                cap.AddToClassList("keycap");
+                cap.Add(text);
+                line.Add(cap);
+            }
+            return line;
         }
 
         //----------------------------------------Confirmation dialog----------------------------------------//

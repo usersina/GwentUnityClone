@@ -28,7 +28,7 @@ namespace Gwent.DeckBuilding
             if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
             {
                 GameAudio.PlaySfx("invalid");
-                UIOverlay.Toast("Create a deck first: type a name and press +");
+                UIOverlay.Toast("Create a deck first: type its name, then press +");
                 return;
             }
 

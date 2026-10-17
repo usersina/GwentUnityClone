@@ -224,7 +224,7 @@ namespace Gwent.DeckBuilding
             string file_name = DeckRules.ToFileName(name);
             if (file_name == null)
             {
-                RejectName("Enter a deck name with letters or numbers");
+                RejectName("A deck's name needs a letter or a number");
                 return;
             }
             if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
@@ -277,7 +277,7 @@ namespace Gwent.DeckBuilding
             string file_name = DeckRules.ToFileName(name);
             if (file_name == null)
             {
-                RejectName("Enter a deck name with letters or numbers");
+                RejectName("A deck's name needs a letter or a number");
                 return;
             }
             if (NameTaken(name, currentDeckPath))
