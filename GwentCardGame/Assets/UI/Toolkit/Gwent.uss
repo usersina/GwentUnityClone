@@ -188,6 +188,36 @@
     background-color: rgba(201, 164, 92, 0.28);
 }
 
+/* A gold-ringed × in a dialog's top right corner: it closes the dialog (as Escape does), as the battle's chat window's ×
+   does; no "Back" or "Esc to close" */
+.button--close {
+    position: absolute;
+    top: 28px;
+    right: 28px;
+    width: 46px;
+    height: 46px;
+    padding: 0 0 6px 0;
+    border-width: 2px;
+    border-radius: 10px;
+    border-color: rgba(201, 164, 92, 0.7);
+    background-color: rgba(201, 164, 92, 0);
+    -unity-font-definition: var(--body-font);
+    font-size: 50px;
+    letter-spacing: 0;
+    color: var(--gold);
+}
+
+.unity-button.button--close:hover,
+.unity-button.button--close:focus {
+    background-color: rgba(201, 164, 92, 0.16);
+    border-color: var(--gold-bright);
+    color: var(--gold-bright);
+}
+
+.unity-button.button--close:active {
+    background-color: rgba(201, 164, 92, 0.28);
+}
+
 /* Gold fill, dark text: the choice a dialog is about */
 .button--primary {
     background-color: var(--gold);
@@ -223,12 +253,6 @@
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: space-between;
-}
-
-.opponent-picker__back {
-    width: 240px;
-    height: 64px;
-    margin-top: 22px;
 }
 
 /* One opponent: the leader's portrait in a gold ring, the deck's name, its faction and leader; lights up like a menu
@@ -987,12 +1011,6 @@
     padding-left: 0;
 }
 
-.settings__back {
-    width: 200px;
-    height: 56px;
-    font-size: 24px;
-}
-
 /* A page longer than the panel (Graphics) scrolls. Its scroll bar stands in the panel's right margin, so its rows line
    up with the other pages'; the rows fade out where they are cut */
 .settings__scroll {
@@ -1381,7 +1399,7 @@
 /*---------------------------------------- How to play ----------------------------------------*/
 .rules {
     width: 1500px;
-    height: 900px;
+    height: 820px;
     padding: 30px 50px 26px 50px;
     align-items: center;
 }
@@ -1587,12 +1605,6 @@
     width: 88px;
     height: 137px;
     -unity-background-scale-mode: stretch-to-fill;
-}
-
-.rules__close {
-    width: 220px;
-    height: 60px;
-    margin-top: 20px;
 }
 
 /*---------------------------------------- Unity's own button states ----------------------------------------*/

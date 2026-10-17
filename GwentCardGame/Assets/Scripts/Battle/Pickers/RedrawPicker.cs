@@ -52,22 +52,14 @@ namespace Gwent.Battle
         // A redrawn card is still on its way (the phase ends once it has landed)
         public static bool IsAnimating { get { return current != null && current.flights > 0; } }
 
-        // The whole redraw phase UI: a dark band "Choose a card to redraw. 0/2" (with the Done button) above the
-        // carousel. Returns its root, which the battle destroys when the phase ends.
+        // The whole redraw phase UI: a dark band "Choose a card to redraw. 0/2" (with the Done button, Space in its cap)
+        // above the carousel. Returns its root, which the battle destroys when the phase ends.
         public static GameObject ShowPhase(BattleController controller)
         {
             RectTransform root = UIKit.Rect("MulliganPrompt", UIOverlay.Root).Stretch();
-            string how = GameInput.IsTouch
-                ? "Tap a card to bring it forward, tap it again to redraw it"
-                : "Click a card to bring it forward, click it again (or Enter) to redraw it. Right-click or Space keeps your hand";
+            // Space is Done too (as it passes in the battle: "I'm done")
             TextMeshProUGUI counter;
-            Button done = Band(root, "", how, "Done", controller.FinishCardExchange, out counter);
-            if (!GameInput.IsTouch)
-            {
-                // Space is Done too (as it passes in the battle: "I'm done")
-                done.GetComponentInChildren<TextMeshProUGUI>().text = "<size=72%>[Space]</size>  Done";
-                ((RectTransform)done.transform).sizeDelta = new Vector2(250, 60);
-            }
+            Band(root, "", "Done", GameInput.IsTouch ? null : "Space", controller.FinishCardExchange, out counter);
 
             RedrawPicker picker = Create(root, controller, new Vector2(0, 50));
             picker.counter = counter;

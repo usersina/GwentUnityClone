@@ -84,8 +84,9 @@
 
             <ui:VisualElement class="lan__buttons">
                 <Gwent.UI.DialogButton name="Button Main" text="Host a battle" class="button--primary lan__button" />
-                <Gwent.UI.DialogButton name="Button Back" text="Back" class="button--secondary lan__button" />
+                <Gwent.UI.DialogButton name="Button Back" text="Stop hosting" class="button--secondary lan__button" />
             </ui:VisualElement>
+            <Gwent.UI.DialogButton name="Button Close" text="×" class="button--close" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

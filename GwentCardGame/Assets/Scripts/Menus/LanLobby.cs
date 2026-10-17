@@ -18,7 +18,8 @@ namespace Gwent.Menus
     // faction and leader; one of another version shows and cannot be joined), one at an address for a network that hides
     // them, and Host a battle. Hosting or joined, the room: both players face to face (an empty seat breathes until
     // someone sits), what happens next, and the host's address to give. The main button does the next thing (Host a
-    // battle, Start the battle, Rejoin), Back the way out (Stop hosting, Leave). Details, by the host's address, lists all
+    // battle, Start the battle, Rejoin), the one beside it the way out of a room (Stop hosting, Leave); the × closes the
+    // lobby. Details, by the host's address, lists all
     // its networks (a VPN's address lets friends on that VPN join from anywhere) and the ports. A battle still on when the
     // game closed (LanSave) is offered first: rejoin it, or abandon it. What went wrong (turned away, the host gone, no
     // port, no network) shows in place. Escape (the Android back button) goes back a step: out of a room, then out of the
@@ -168,6 +169,7 @@ namespace Gwent.Menus
                 };
                 main.clicked += MainClicked;
                 back.clicked += BackClicked;
+                root.Q<Button>("Button Close").clicked += () => UIScreens.Close(root); // leaving a room too (Closed)
                 copy.clicked += () => Copy(copy, copy.userData as string);
                 detailsButton.clicked += () =>
                 {
@@ -251,7 +253,8 @@ namespace Gwent.Menus
                 bool start = !idle && session.Hosting && session.State == LanSession.Stage.Ready;
                 ShowMain(idle || start);
                 string main_text = rejoining ? "Rejoin" : idle ? "Host a battle" : "Start the battle";
-                string back_text = idle ? "Back" : session.Hosting ? "Stop hosting" : "Leave";
+                string back_text = idle ? back.text : session.Hosting ? "Stop hosting" : "Leave";
+                Show(back, !idle); // no room to leave: the × closes the lobby
                 if (main.text != main_text || back.text != back_text)
                     changedAt = Time.unscaledTime;
                 main.text = main_text;

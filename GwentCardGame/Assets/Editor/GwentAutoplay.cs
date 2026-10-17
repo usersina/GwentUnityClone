@@ -1285,7 +1285,7 @@ namespace Gwent.EditorTools
                     At(0.3, () =>
                     {
                         GameObject done = GameObject.Find("Button Done");
-                        check(done != null && done.GetComponentInChildren<TextMeshProUGUI>().text.Contains("[Space]"), "the Done button shows its key, Space");
+                        check(done != null && done.transform.Find("Key Space") != null, "the Done button shows its key, Space, in a cap");
                     });
                     Key(0.5, UnityEngine.InputSystem.Key.Space);
                     At(1.0, () => check(!c.PlayerInfo.CanExchange && c.PlayerInfo.CardsExchanged == 0, "Space keeps the hand"));
@@ -1607,11 +1607,10 @@ namespace Gwent.EditorTools
                 Key(1.0, UnityEngine.InputSystem.Key.LeftArrow);
                 At(1.4, () => check(panel.Picker != null && panel.Picker.FocusIndex == 0, "Left brings back the first"));
                 Key(1.7, UnityEngine.InputSystem.Key.DownArrow);
-                At(2.0, () => check(panel.Picker != null && selected() == panel.Picker.BandButton.gameObject, "Down goes to the band's button (Skip or Close)"));
-                // Skip asks first (a look's Close does not): Enter on it asks, Escape keeps choosing
-                TextMeshProUGUI band = panel.Picker != null ? panel.Picker.BandButton.GetComponentInChildren<TextMeshProUGUI>() : null;
+                At(2.0, () => check(panel.Picker != null && selected() == panel.Picker.BandButton.gameObject, "Down goes to the band's ×"));
+                // Giving the choice up asks first (closing a look does not): Enter on the × asks, Escape keeps choosing
                 double later = 0;
-                if (band != null && band.text.Contains("Skip"))
+                if (panel.Picker != null && panel.Picker.Picks)
                 {
                     Key(2.3, UnityEngine.InputSystem.Key.Enter);
                     At(2.8, () => check(UIScreens.Find("Button No") != null && c.pendingAction == PendingAction.PanelChoice, "Skip asks before the choice is given up"));

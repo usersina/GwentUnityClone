@@ -57,9 +57,6 @@ namespace Gwent.Menus
         //----------------------------------------Layout----------------------------------------//
         private static void Bind(VisualElement root)
         {
-            if (GameSettings.IsMobile)
-                root.Q("Hint").style.display = DisplayStyle.None;
-
             Focusable[] first =
             {
                 BuildGamePage(root.Q("Game")),
@@ -77,18 +74,19 @@ namespace Gwent.Menus
                 };
             }
             root.Q<Button>("Button Reset to defaults").clicked += ResetToDefaults;
-            Button back = root.Q<Button>("Button Back");
-            back.clicked += Close;
+            Button close = root.Q<Button>("Button Close");
+            close.clicked += Close;
 
             ShowTab(root, currentTab);
             root.RegisterCallback<NavigationMoveEvent>(change => Navigate(root, change), TrickleDown.TrickleDown);
-            VisualElement focus = (first[currentTab] as VisualElement) ?? back;
+            VisualElement focus = (first[currentTab] as VisualElement) ?? root.Q("Button Reset to defaults");
             root.schedule.Execute(() => UIScreens.Focus(focus));
         }
 
         // The keyboard on the settings, as the uGUI menus had it: Up and Down go from row to row (Unity's spatial
-        // navigation wants the controls to overlap across, and would skip a switch at the far right for Back), from the
-        // tabs to the first row and from the last row to Back, and stop there; Left and Right move a volume by a tenth.
+        // navigation wants the controls to overlap across, and would skip a switch at the far right), from the tabs to the
+        // first row and from the last row to Reset to defaults, and stop there (Up from the tabs: the ×); Left and Right
+        // move a volume by a tenth.
         private static void Navigate(VisualElement root, NavigationMoveEvent move)
         {
             VisualElement focused = root.focusController != null ? root.focusController.focusedElement as VisualElement : null;
@@ -108,13 +106,12 @@ namespace Gwent.Menus
             if (move.direction != NavigationMoveEvent.Direction.Up && move.direction != NavigationMoveEvent.Direction.Down)
                 return;
 
-            // The stops from top to bottom: the open tab, the page's rows, the footer (Back, or Reset beside it)
-            List<VisualElement> stops = new List<VisualElement> { root.Q("Button " + Tabs[currentTab]) };
+            // The stops from top to bottom: the ×, the open tab, the page's rows, the footer (Reset to defaults)
+            List<VisualElement> stops = new List<VisualElement> { root.Q("Button Close"), root.Q("Button " + Tabs[currentTab]) };
             stops.AddRange(root.Q(Tabs[currentTab]).Query(className: "setting__control").ToList());
-            VisualElement back = root.Q("Button Back"), reset = root.Q("Button Reset to defaults");
-            stops.Add(focused == reset ? reset : back);
+            stops.Add(root.Q("Button Reset to defaults"));
             bool on_tabs = Tabs.Any(tab => root.Q("Button " + tab) == focused);
-            int index = on_tabs ? 0 : stops.FindIndex(stop => stop == focused || stop.Contains(focused));
+            int index = on_tabs ? 1 : stops.FindIndex(stop => stop == focused || stop.Contains(focused));
             if (index < 0)
                 return;
             move.StopPropagation();

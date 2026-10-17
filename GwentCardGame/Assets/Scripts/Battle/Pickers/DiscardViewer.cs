@@ -34,7 +34,7 @@ namespace Gwent.Battle
             Time.timeScale = 0f;
 
             string whose = is_player ? "Your discard pile" : "Your opponent's discard pile";
-            CardPicker picker = CardPicker.Open(root, whose + "  (" + cards.Count + ")", cards, null, "Close", () => UIOverlay.CloseModal(root.gameObject), cards.Count - 1);
+            CardPicker picker = CardPicker.Open(root, whose + "  (" + cards.Count + ")", cards, null, () => UIOverlay.CloseModal(root.gameObject), cards.Count - 1);
             picker.StandIn(root.gameObject);
             UIOverlay.PushModal(root.gameObject, current.Closed);
         }

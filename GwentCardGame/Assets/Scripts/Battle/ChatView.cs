@@ -30,14 +30,12 @@ namespace Gwent.Battle
         private const float LeastWidth = 760;
         private const float Pad = 14;
         private const float HeaderHeight = 38;
-        private const float RoundButton = 34;
         private const float LogHeight = 240;
         private const float FieldHeight = 50;
         private const float SendWidth = 120;
         private const float QuickWidth = 320;
         private const float QuickLine = 42;
         private const float QuickPad = 10;
-        private const float KeyCap = 28;
 
         private static ChatView instance;
         private BattleController battle;
@@ -318,30 +316,21 @@ namespace Gwent.Battle
             title.fontSize = 24;
             title.color = theme.gold;
             title.raycastTarget = false;
-            TopLeft(title.rectTransform, Pad + 12, y, panelWidth - 2 * Pad - 2 * RoundButton - 40, HeaderHeight);
+            TopLeft(title.rectTransform, Pad + 12, y, panelWidth - 2 * Pad - 2 * UIKit.RoundSize - 40, HeaderHeight);
             ShowTitle();
 
-            float top = y + (HeaderHeight - RoundButton) / 2;
-            Button close = Round(box, "Close", panelWidth - Pad - RoundButton - 4, top, out UIStateColors close_states);
-            TextMeshProUGUI cross = UIKit.Text(close.transform, "×", UIKit.TextStyle.Body, TextAlignmentOptions.Center);
-            cross.fontSize = 30;
-            cross.raycastTarget = false;
-            cross.rectTransform.Stretch(0, 0, 0, 3);
-            close_states.Add(cross, theme.gold, theme.goldBright, theme.goldBright);
-            close.onClick.AddListener(Close);
-
-            Button speaker = Round(box, "Mute", panelWidth - Pad - 2 * RoundButton - 14, top, out UIStateColors speaker_states);
-            Image icon = UIKit.NewImage(speaker.transform, "Icon", lan.Muted ? theme.iconMuted : theme.iconSpeaker, theme.gold);
-            icon.raycastTarget = false;
-            icon.preserveAspect = true;
-            icon.rectTransform.Stretch(5, 5, 5, 5);
-            speaker_states.Add(icon, theme.gold, theme.goldBright, theme.goldBright);
-            speaker.onClick.AddListener(() =>
+            float top = y + (HeaderHeight - UIKit.RoundSize) / 2;
+            Button close = UIKit.RoundButton(box, "Close", "\u00D7", null, Close);
+            TopLeft((RectTransform)close.transform, panelWidth - Pad - UIKit.RoundSize - 4, top, UIKit.RoundSize, UIKit.RoundSize);
+            Image icon = null;
+            Button speaker = UIKit.RoundButton(box, "Mute", null, lan.Muted ? theme.iconMuted : theme.iconSpeaker, () =>
             {
                 lan.Muted = !lan.Muted;
                 icon.sprite = lan.Muted ? theme.iconMuted : theme.iconSpeaker;
                 ShowTitle();
             });
+            icon = speaker.transform.Find("Icon").GetComponent<Image>();
+            TopLeft((RectTransform)speaker.transform, panelWidth - Pad - 2 * UIKit.RoundSize - 14, top, UIKit.RoundSize, UIKit.RoundSize);
         }
 
         // "Chat", and while the other player is muted, so
@@ -351,26 +340,6 @@ namespace Gwent.Battle
                 return;
             UITheme theme = UITheme.Current;
             title.text = "Chat" + (lan.Muted ? "<size=20><color=#" + ColorUtility.ToHtmlStringRGB(theme.textMuted) + ">   ·   " + lan.TheirName + " muted</color></size>" : "");
-        }
-
-        // A round button with a gold ring (lit under the pointer); what it shows is the caller's
-        private static Button Round(RectTransform box, string name, float x, float y, out UIStateColors states)
-        {
-            UITheme theme = UITheme.Current;
-            Image fill = UIKit.NewImage(box, name, theme.panelSprite, Color.clear, true);
-            TopLeft(fill.rectTransform, x, y, RoundButton, RoundButton);
-            Button button = fill.gameObject.AddComponent<Button>();
-            button.transition = Selectable.Transition.None;
-            button.targetGraphic = fill;
-            button.navigation = new Navigation { mode = Navigation.Mode.None };
-            Image ring = UIKit.NewImage(fill.transform, "Ring", theme.panelOutline, theme.gold);
-            ring.raycastTarget = false;
-            ring.rectTransform.Stretch();
-            states = fill.gameObject.AddComponent<UIStateColors>();
-            states.Add(fill, UITheme.WithAlpha(theme.gold, 0), UITheme.WithAlpha(theme.gold, 0.16f), UITheme.WithAlpha(theme.gold, 0.28f));
-            states.Add(ring, UITheme.WithAlpha(theme.gold, 0.7f), theme.goldBright, theme.goldBright);
-            button.onClick.AddListener(() => GameAudio.PlaySfx("ui_click"));
-            return button;
         }
 
         // The window's foot at the screen's, over your hand and as wide (its tray's edges too; within the screen)
@@ -605,15 +574,9 @@ namespace Gwent.Battle
             float left = 12;
             if (key != null)
             {
-                // The number in a small gold-ringed cap, as the keys' hints show
-                RectTransform cap = UIKit.Rect("Key", fill.transform).Place(new Vector2(0, 0.5f), new Vector2(left, 0), new Vector2(KeyCap, KeyCap), new Vector2(0, 0.5f));
-                UIKit.NewImage(cap, "Ring", theme.panelOutline, UITheme.WithAlpha(theme.gold, 0.7f)).rectTransform.Stretch();
-                TextMeshProUGUI digit = UIKit.Text(cap, key, UIKit.TextStyle.Body, TextAlignmentOptions.Center);
-                digit.fontSize = 19;
-                digit.color = theme.gold;
-                digit.raycastTarget = false;
-                digit.rectTransform.Stretch(0, 0, 0, 2);
-                left += KeyCap + 10;
+                RectTransform cap = UIKit.KeyCap(fill.transform, key);
+                cap.Place(new Vector2(0, 0.5f), new Vector2(left, 0), cap.sizeDelta, new Vector2(0, 0.5f));
+                left += cap.sizeDelta.x + 10;
             }
             TextMeshProUGUI label = UIKit.Text(fill.transform, text, UIKit.TextStyle.Body, TextAlignmentOptions.MidlineLeft);
             label.fontSize = 23;
