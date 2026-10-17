@@ -49,9 +49,9 @@
                     <ui:VisualElement name="Live" class="lan__live" picking-mode="Ignore" />
                     <ui:Label name="LiveText" text="Searching" class="lan__live-text" />
                 </ui:VisualElement>
-                <ui:VisualElement name="Games" class="lan__games" />
+                <ui:ScrollView name="Games" class="lan__games scroll" vertical-scroller-visibility="Auto" horizontal-scroller-visibility="Hidden" />
                 <ui:VisualElement name="Empty" class="lan__empty">
-                    <ui:Label text="No battles yet. Players on your Wi-Fi or hotspot show up here." class="lan__empty-body" />
+                    <ui:Label name="EmptyText" class="lan__empty-body" />
                 </ui:VisualElement>
                 <ui:VisualElement name="AddressRow" class="lan__address">
                     <ui:TextField name="Address" max-length="64" class="lan__field lan__address-field" />

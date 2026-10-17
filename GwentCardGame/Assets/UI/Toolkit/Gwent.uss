@@ -570,6 +570,7 @@
 /* The battles found: one a row, in the same frame as the empty list's */
 .lan__games {
     width: 1220px;
+    max-height: 330px; /* three battles; more scroll */
     padding: 8px 0;
     border-width: 1px;
     border-color: var(--line-soft);
@@ -601,7 +602,8 @@
 }
 
 .opponent:hover .lan__join,
-.opponent:focus .lan__join {
+.opponent:focus .lan__join,
+.lan__game--touch .lan__join {
     opacity: 1;
 }
 
@@ -637,7 +639,7 @@
     flex-grow: 1;
 }
 
-.lan__link {
+.button--ghost.lan__link {
     margin-top: 10px;
     font-size: 24px;
     height: 44px;
@@ -656,12 +658,13 @@
     margin: 18px 0 10px 0;
 }
 
+/* Both seats' contents from the top: the portraits level, whatever wraps under them */
 .lan__seat {
     width: 470px;
-    height: 330px;
+    height: 350px;
     align-items: center;
-    justify-content: center;
-    padding: 20px;
+    justify-content: flex-start;
+    padding: 24px 20px 16px 20px;
     border-width: 1px;
     border-color: var(--line-soft);
     border-radius: 12px;
@@ -778,7 +781,7 @@
     margin: 6px 0 0 0;
 }
 
-.lan__copy {
+.button--ghost.lan__copy {
     width: auto;
     height: 40px;
     margin-left: 10px;
