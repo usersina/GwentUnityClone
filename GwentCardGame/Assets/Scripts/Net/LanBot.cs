@@ -16,8 +16,9 @@ namespace Gwent.Net
     // rematches, a couple of seconds after each battle), lanEmoteEvery and lanChatEvery (says a random quick line, or one
     // of Messages, every that many seconds of a battle), lanChatBurst (that many messages at once: the other hears the
     // first), lanMute (1: hears nothing of the other), lanTalkOpen (opens its talk panel that many seconds into each
-    // battle, for 6 s: screenshots). What it says and hears is logged. Logged as [lan] lines; in batch mode the game quits a few seconds
-    // after the last battle ends.
+    // battle, for 6 s: screenshots), lanStallAfter (no more moves in its turns after that many: the turn clock's tests,
+    // the host's clock lanTurnTime seconds long, LanSession). What it says and hears is logged. Logged as [lan] lines; in
+    // batch mode the game quits a few seconds after the last battle ends.
     public class LanBot : MonoBehaviour
     {
         private const float SearchFor = 15f;
@@ -33,6 +34,8 @@ namespace Gwent.Net
         private float overAt = -1;
         private int moves;
         private int giveUpAfter = -1;
+        private int stallAfter = -1;
+        private bool stalling;
         private float redrawWait;
         private float redrawSeen = -1;
         private float lastMove;   // when this side last moved, or the battle last changed
@@ -109,6 +112,8 @@ namespace Gwent.Net
             bot.started = Time.realtimeSinceStartup;
             if (int.TryParse(LanProbe.Option("lanGiveUpAfter"), out int give_up))
                 bot.giveUpAfter = give_up;
+            if (int.TryParse(LanProbe.Option("lanStallAfter"), out int stall))
+                bot.stallAfter = stall;
             bot.redrawWait = Mathf.Max(0, Seconds("lanRedrawWait"));
             if (int.TryParse(LanProbe.Option("lanRematches"), out int rematches))
                 bot.rematches = rematches;
@@ -309,6 +314,13 @@ namespace Gwent.Net
                 Log("giving up after " + moves + " moves");
                 battle.GiveUp();
                 return;
+            }
+            if (stallAfter >= 0 && moves >= stallAfter && seen.Phase != MatchPhase.Redraw && seen.Turn)
+            {
+                if (!stalling)
+                    Log("stalling after " + moves + " moves");
+                stalling = true;
+                return; // the clock runs out
             }
             MatchCommand command;
             if (seen.Phase == MatchPhase.Redraw && battle.PlayerInfo.CanExchange)
