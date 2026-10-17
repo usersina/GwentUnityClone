@@ -7,10 +7,10 @@ using UnityEngine.UI;
 
 namespace Gwent.Battle
 {
-    // The other device of a LAN battle away, said over the board (dimmed, its clicks taken: it waits meanwhile) in the
-    // battle notices' band: who is away, and a minute counting down (01:00, 00:59...) to a way out: the host ends the
-    // battle (its guest left it), the guest leaves it. A battle that cannot go on (the host lost it) says why, with the
-    // way back to the main menu.
+    // The other device of a LAN battle away, said over the board (dimmed, its clicks and keys taken: it waits meanwhile)
+    // in the battle notices' band: who is away, and a minute counting down (01:00, 00:59...) to a way out: the host claims
+    // the win (its guest left the battle), the guest gives up (counted as a loss). A battle that cannot go on (the host
+    // lost it, the other player left) says why, with the way back to the main menu.
     public class LanNotice : MonoBehaviour
     {
         private const float WayOutAfter = 60f;
@@ -33,7 +33,7 @@ namespace Gwent.Battle
             RectTransform band = BattleBanner.Band("Band", root);
             notice.text = BattleBanner.Text(band);
             notice.text.rectTransform.sizeDelta = new Vector2(1400, band.sizeDelta.y);
-            string label = over ? "Main menu" : session.Hosting ? "End the battle" : "Leave the battle";
+            string label = over ? "Main menu" : session.Hosting ? "Claim the win" : "Give up";
             notice.wayOut = UIKit.Button(root, label, UIKit.ButtonStyle.Secondary, () => way_out(), new Vector2(320, 64));
             ((RectTransform)notice.wayOut.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(0, -150), new Vector2(320, 64));
             notice.wayOut.gameObject.SetActive(over);
@@ -50,14 +50,14 @@ namespace Gwent.Battle
         {
             if (over)
             {
-                text.text = "The battle can't go on: " + (session.Problem ?? "the link to the other player is gone");
+                text.text = "The battle can't go on. " + (session.Problem ?? "The link to the other player is gone.");
                 return;
             }
             int left = Mathf.Max(0, Mathf.CeilToInt(WayOutAfter - session.AwayFor));
             string time = left > 0 ? "  " + (left / 60).ToString("00") + ":" + (left % 60).ToString("00") : "";
-            text.text = session.Hosting
-                ? "Connection lost: waiting for " + session.TheirName + " to come back" + time
-                : "Connection lost: reconnecting to " + session.TheirName + time;
+            text.text = left > 0
+                ? "Connection lost: " + (session.Hosting ? "waiting for " + session.TheirName + " to come back" : "reconnecting to " + session.TheirName) + time
+                : session.TheirName + " hasn't come back. Keep waiting, or " + (session.Hosting ? "claim the win." : "give up (a loss).");
             if (!wayOut.gameObject.activeSelf && session.AwayFor >= WayOutAfter)
             {
                 wayOut.gameObject.SetActive(true);

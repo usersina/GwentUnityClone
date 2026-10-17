@@ -18,6 +18,7 @@ namespace Gwent.Menus
 
         private void Start()
         {
+            Gwent.Net.LanSession.ForgetBattle(); // a LAN battle that closed is no battle to load any more
             GameAudio.PlayMenuMusic();
             UIScreens.Show("MainMenu", UITheme.Current.mainMenu, Bind);
             CoverWithKeyArt();

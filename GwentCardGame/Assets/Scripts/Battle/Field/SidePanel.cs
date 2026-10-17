@@ -66,6 +66,16 @@ namespace Gwent.Battle
             rubyRight = transform.Find("RubyR").GetComponent<Image>();
         }
 
+        // The round picture (what a LAN battle's chat bubbles come out of; a click on yours opens the talk: ChatView)
+        public RectTransform Picture
+        {
+            get
+            {
+                CacheReferences();
+                return portraitCircle.rectTransform;
+            }
+        }
+
         public void UISetGeneral(Faction faction)
         {
             CacheReferences();

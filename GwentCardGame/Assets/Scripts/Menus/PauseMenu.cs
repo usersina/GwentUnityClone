@@ -7,10 +7,11 @@ using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
-    // The battle's pause menu (Escape, the Android back button or the menu button at the top right).
-    // Time stops while it is open, so the AI waits too. Giving up is not here: a hand laid on your deck does it
-    // (DeckGiveUp), as in Yu-Gi-Oh. A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this
-    // component sits on its object to put time back should the scene close under it.
+    // The battle's pause menu (Escape, the Android back button or the menu button at the top right). Time stops while it
+    // is open, so the AI waits too; not in a LAN battle, which goes on on the other device (the menu is called so there,
+    // and the board keeps up with the other player's moves). Giving up is not here: a hand laid on your deck does it
+    // (DeckGiveUp), as in Yu-Gi-Oh. A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this component sits on its
+    // object to put time back should the scene close under it.
     public class PauseMenu : MonoBehaviour
     {
         private static PauseMenu current;
@@ -24,7 +25,8 @@ namespace Gwent.Menus
                 return;
 
             float time_scale = Time.timeScale;
-            Time.timeScale = 0f;
+            if (!InLanBattle)
+                Time.timeScale = 0f;
             // The battle reads its keys itself (BattleKeys): the menu button that opened this must not get the selection
             // back on Resume, or Enter would press it again instead of taking a card
             if (EventSystem.current != null)
@@ -40,8 +42,15 @@ namespace Gwent.Menus
                 UIOverlay.CloseModal(current.gameObject);
         }
 
+        private static bool InLanBattle
+        {
+            get { return Gwent.Net.LanSession.Current != null && Gwent.Net.LanSession.Current.State == Gwent.Net.LanSession.Stage.Battle; }
+        }
+
         private static void Bind(VisualElement root)
         {
+            if (InLanBattle)
+                root.Q<Label>(className: "title").text = "Menu";
             MenuEntry resume = root.Q<MenuEntry>("Item Resume");
             resume.clicked += Close;
             MenuEntry settings = root.Q<MenuEntry>("Item Settings");
