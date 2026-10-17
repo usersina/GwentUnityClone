@@ -74,8 +74,9 @@ namespace Gwent.Net
                     return DateTime.UtcNow - save.Saved < KeptFor ? save : null;
                 }
             }
-            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException)
+            catch (Exception e)
             {
+                // Unreadable (cut short, another game's): as if there were none
                 Debug.LogWarning("[lan] The LAN battle kept could not be read: " + e.Message);
                 return null;
             }

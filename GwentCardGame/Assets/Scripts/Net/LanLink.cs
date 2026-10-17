@@ -161,7 +161,7 @@ namespace Gwent.Net
                 while ((guest = driver.Accept()) != default)
                 {
                     if (other.IsCreated)
-                        Refuse(guest, "A game is already under way there.");
+                        Refuse(guest, "A battle is already under way there.");
                     else
                         other = guest;
                 }
@@ -192,6 +192,8 @@ namespace Gwent.Net
 
         private void Read(ref DataStreamReader reader)
         {
+            if (reader.Length < 1)
+                return; // not one of ours
             Kind kind = (Kind)reader.ReadByte();
             byte[] body = new byte[reader.Length - 1];
             reader.ReadBytes(body);
@@ -201,7 +203,7 @@ namespace Gwent.Net
                     (int protocol, string their_version) = Versions(body);
                     if (protocol != Protocol || their_version != version)
                     {
-                        Refuse(other, "This game runs version " + version + "; yours is " + their_version + ".");
+                        Refuse(other, "That battle runs version " + version + " of the game; yours is " + their_version + ".");
                         other = default;
                         return;
                     }
@@ -334,7 +336,7 @@ namespace Gwent.Net
                 using (BinaryReader reader = new BinaryReader(new MemoryStream(body)))
                     return (reader.ReadInt32(), reader.ReadString());
             }
-            catch (IOException)
+            catch (Exception)
             {
                 return (-1, "?");
             }
@@ -347,9 +349,9 @@ namespace Gwent.Net
                 using (BinaryReader reader = new BinaryReader(new MemoryStream(body)))
                     return reader.ReadString();
             }
-            catch (IOException)
+            catch (Exception)
             {
-                return "The game turned you away.";
+                return "The host turned you away.";
             }
         }
 
@@ -377,6 +379,7 @@ namespace Gwent.Net
         {
             if (driver.IsCreated)
             {
+                driver.ScheduleUpdate().Complete(); // what was said last (a Leave) goes out before the link
                 if (other.IsCreated)
                     driver.Disconnect(other);
                 foreach ((NetworkConnection connection, float until) turned in refused)

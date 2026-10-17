@@ -164,17 +164,24 @@ namespace Gwent.Net
                         int protocol = reader.ReadByte();
                         uint host = reader.ReadUInt32();
                         ushort port = reader.ReadUInt16();
-                        string their_version = reader.ReadString();
+                        string their_version = Shown(reader.ReadString());
                         string their_name = PlayerNames.Clean(reader.ReadString()) ?? "Player";
                         int their_leader = reader.ReadInt16();
                         Found(host, from.Address, port, their_name, their_leader, their_version, protocol == LanLink.Protocol && their_version == version, now);
                     }
                 }
             }
-            catch (IOException)
+            catch (Exception)
             {
                 // Not one of ours after all
             }
+        }
+
+        // Another game's version as the list shows it: printable, short
+        internal static string Shown(string version)
+        {
+            string shown = new string((version ?? "").Where(c => c > ' ' && c < 0x7F && c != '<' && c != '>').Take(20).ToArray());
+            return shown.Length > 0 ? shown : "?";
         }
 
         private void Reply(IPEndPoint to)
@@ -252,11 +259,13 @@ namespace Gwent.Net
             return near;
         }
 
-        // The addresses another device on the network can join (the rest left out, unless there is nothing else)
+        // The addresses another device can join: on the networks around this one, else on its VPNs (none: on no network
+        // another device can reach, such as mobile data alone)
         public static List<string> JoinableAddresses()
         {
-            List<string> near = Reachable().Where(network => !network.Vpn).Select(network => network.Address).ToList();
-            return near.Count > 0 ? near : LocalAddresses();
+            List<Network> reachable = Reachable();
+            List<string> near = reachable.Where(network => !network.Vpn).Select(network => network.Address).ToList();
+            return near.Count > 0 ? near : reachable.Select(network => network.Address).ToList();
         }
 
         // The networks another device can reach this one through: those around it first, then VPNs

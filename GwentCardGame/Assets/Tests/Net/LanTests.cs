@@ -168,6 +168,29 @@ namespace Gwent.Net.Tests
         }
 
         [Test]
+        public void AMessageKeepsToWhatTheFontsShowUpToAHundred()
+        {
+            // As it is typed: Latin-1 kept (accents, symbols), the rest left out, one space between words (one last stays)
+            Assert.AreEqual("\u00C7a va? Tr\u00E8s bien!", Chat.Typed("\u00C7a va? Tr\u00E8s bien!"));
+            Assert.AreEqual("Stra\u00DFe 12 \u00BD dash", Chat.Typed("Stra\u00DFe 12 \u00BD \u2013 dash"));
+            Assert.AreEqual("Skull and smile ", Chat.Typed("Skull \u2620 and smile \U0001F600 "));
+            Assert.AreEqual("Tab and no-break", Chat.Typed("\tTab\u00A0and\u00A0no-break"));
+            Assert.AreEqual("line one two", Chat.Typed("line one\r\ntwo")); // a line break is a space
+            Assert.AreEqual("ab", Chat.Typed("a\u0007b")); // control characters
+            Assert.AreEqual(Chat.MaxLength, Chat.Typed(new string('x', 150)).Length);
+            // Tags stay as typed (shown as plain text)
+            Assert.AreEqual("<b>not bold</b>", Chat.Clean(" <b>not bold</b> "));
+            // To send or show: trimmed; nothing when nothing is left
+            Assert.AreEqual("spaced out words", Chat.Clean("  spaced    out   words  "));
+            Assert.IsNull(Chat.Clean(" \u2620\U0001F600 "));
+            Assert.IsNull(Chat.Clean(null));
+            Assert.IsNull(Chat.Clean("\u00AD\u00AD")); // soft hyphens show nothing
+            // The quick lines keep to it too
+            foreach (string line in Chat.Lines)
+                Assert.AreEqual(line, Chat.Clean(line));
+        }
+
+        [Test]
         public void ANetworkIsToldByItsAdapterAndOnlyReachableOnesShow()
         {
             string Kind(string adapter, string description, NetworkInterfaceType type, string address, bool mac = false)
@@ -196,6 +219,18 @@ namespace Gwent.Net.Tests
             Assert.IsNull(Kind("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", NetworkInterfaceType.Ethernet, "172.28.0.1"));
             Assert.IsNull(Kind("rmnet_data0", "rmnet_data0", NetworkInterfaceType.Unknown, "100.88.4.2"));
             Assert.IsNull(Kind("Ethernet 2", "Realtek PCIe GbE", NetworkInterfaceType.Ethernet, "169.254.12.7"));
+        }
+
+        [Test]
+        public void AnotherGamesVersionShowsShortAndPlain()
+        {
+            // What a battle found on the network says its version is, as its list entry shows it
+            Assert.AreEqual("1.0.0", LanDiscovery.Shown("1.0.0"));
+            Assert.AreEqual("bnot-bold/b", LanDiscovery.Shown("<b>not-bold</b>"));
+            Assert.AreEqual("12345678901234567890", LanDiscovery.Shown("1234567890123456789012345"));
+            Assert.AreEqual("2.0", LanDiscovery.Shown(" 2.0\n\t"));
+            Assert.AreEqual("?", LanDiscovery.Shown(""));
+            Assert.AreEqual("?", LanDiscovery.Shown(null));
         }
     }
 }
