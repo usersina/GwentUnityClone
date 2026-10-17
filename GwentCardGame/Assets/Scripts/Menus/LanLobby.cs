@@ -18,9 +18,10 @@ namespace Gwent.Menus
     // faction and leader; one of another version shows and cannot be joined), one at an address for a network that hides
     // them, and Host a battle. Hosting or joined, the room: both players face to face (an empty seat breathes until
     // someone sits), what happens next, and the host's address to give. The main button does the next thing (Host a
-    // battle, Start the battle, Rejoin), Back the way out (Stop hosting, Leave). A battle still on when the game closed
-    // (LanSave) is offered first: rejoin it, or abandon it. What went wrong (turned away, the host gone, no port) shows
-    // in place.
+    // battle, Start the battle, Rejoin), Back the way out (Stop hosting, Leave). Details, by the host's address, lists all
+    // its networks (a VPN's address lets friends on that VPN join from anywhere) and the ports. A battle still on when the
+    // game closed (LanSave) is offered first: rejoin it, or abandon it. What went wrong (turned away, the host gone, no
+    // port) shows in place.
     // A UI Toolkit dialog: Assets/UI/Toolkit/LanLobby.uxml, an OpponentEntry.uxml per battle found.
     public static class LanLobby
     {
@@ -66,14 +67,15 @@ namespace Gwent.Menus
             private readonly VisualElement browse, live, games, empty, addressRow;
             private readonly TextField address;
             private readonly Button addressLink;
-            private readonly VisualElement room, seatMe, seatThem, reach;
-            private readonly Label roomTitle, roomStatus, reachText;
-            private readonly Button deckButton, copy, main, back;
+            private readonly VisualElement room, seatMe, seatThem, reach, details, networks;
+            private readonly Label roomTitle, roomStatus, reachText, ports;
+            private readonly Button deckButton, copy, detailsButton, main, back;
             private LanSave kept;  // a battle still on when the game closed
             private LanSave shownKept;
             private LanDiscovery search;
             private string shownGames = "", shownSeats = "";
             private LanSession reachOf; // the session whose addresses show
+            private bool detailsOpen;   // the host's networks, on asking
             private string problem;
             private bool mainShown = true;
             private int ticks;
@@ -111,6 +113,10 @@ namespace Gwent.Menus
                 reach = root.Q("Reach");
                 reachText = root.Q<Label>("ReachText");
                 copy = root.Q<Button>("Button Copy");
+                detailsButton = root.Q<Button>("Button Details");
+                details = root.Q("Details");
+                networks = root.Q("Networks");
+                ports = root.Q<Label>("Ports");
                 main = root.Q<Button>("Button Main");
                 back = root.Q<Button>("Button Back");
                 kept = LanSession.Current == null ? LanSave.Load() : null;
@@ -144,7 +150,13 @@ namespace Gwent.Menus
                 };
                 main.clicked += MainClicked;
                 back.clicked += BackClicked;
-                copy.clicked += CopyAddress;
+                copy.clicked += () => Copy(copy, copy.userData as string);
+                detailsButton.clicked += () =>
+                {
+                    detailsOpen = !detailsOpen;
+                    detailsButton.text = detailsOpen ? "Hide details" : "Details";
+                    Refresh();
+                };
 
                 // Join by address: the field opens under the list on asking
                 address.textEdition.placeholder = "Address, like 192.168.1.20";
@@ -392,7 +404,8 @@ namespace Gwent.Menus
             }
 
             //----------------------------------------The room----------------------------------------//
-            // Both players face to face (you on the left), what happens next, and while the host waits, its address
+            // Both players face to face (you on the left), what happens next, and while the host waits, its address (and on
+            // asking, all its networks)
             private void ShowRoom(LanSession session)
             {
                 bool hosting = session.Hosting;
@@ -423,16 +436,38 @@ namespace Gwent.Menus
                 }
 
                 bool waiting = hosting && stage == LanSession.Stage.Waiting;
-                Show(reach, waiting);
                 if (waiting && reachOf != session)
                 {
                     reachOf = session;
                     string port = session.Port != LanLink.GamePort ? ":" + session.Port : "";
                     List<string> at = LanDiscovery.JoinableAddresses().Take(2).Select(a => a + port).ToList();
-                    Show(reach, at.Count > 0);
                     reachText.text = "Your address: " + string.Join(" or ", at);
                     copy.userData = at.FirstOrDefault();
+                    ShowNetworks(session, port);
                 }
+                Show(reach, waiting && copy.userData != null);
+                Show(details, waiting && copy.userData != null && detailsOpen);
+            }
+
+            // The host's networks another device can join it on (those around it, then VPNs): what each is, its adapter,
+            // the address there; and the ports, for a firewall
+            private void ShowNetworks(LanSession session, string port)
+            {
+                networks.Clear();
+                foreach (LanDiscovery.Network network in LanDiscovery.Reachable())
+                {
+                    VisualElement row = Add(networks, new VisualElement(), "lan__network");
+                    Add(row, new Label(network.Kind), "lan__network-kind");
+                    Add(row, new Label(network.Adapter), "lan__network-adapter");
+                    string at = network.Address + port;
+                    Add(row, new Label(at), "lan__network-address");
+                    DialogButton copy_it = new DialogButton { text = "Copy" };
+                    copy_it.AddToClassList("button--ghost");
+                    copy_it.AddToClassList("lan__copy");
+                    copy_it.clicked += () => Copy(copy_it, at);
+                    row.Add(copy_it);
+                }
+                ports.text = "Port " + session.Port + " for the battle, " + LanDiscovery.Port + " for the search (UDP)";
             }
 
             // A player's seat: their leader in a big ring, their faction's crest, name, faction and leader, and a tag
@@ -467,13 +502,13 @@ namespace Gwent.Menus
                 return child;
             }
 
-            private void CopyAddress()
+            private void Copy(Button button, string at)
             {
-                if (!(copy.userData is string at))
+                if (at == null)
                     return;
                 GUIUtility.systemCopyBuffer = at;
-                copy.text = "Copied";
-                root.schedule.Execute(() => copy.text = "Copy").StartingIn(1500);
+                button.text = "Copied";
+                root.schedule.Execute(() => button.text = "Copy").StartingIn(1500);
             }
 
             //----------------------------------------The buttons----------------------------------------//

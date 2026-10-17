@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Threading;
 using Gwent.Net;
 using NUnit.Framework;
@@ -163,6 +165,37 @@ namespace Gwent.Net.Tests
             Assert.IsNull(PlayerNames.Clean("Жрец"));
             Assert.IsNull(PlayerNames.Clean("- . _"));
             Assert.IsNull(PlayerNames.Clean(null));
+        }
+
+        [Test]
+        public void ANetworkIsToldByItsAdapterAndOnlyReachableOnesShow()
+        {
+            string Kind(string adapter, string description, NetworkInterfaceType type, string address, bool mac = false)
+            {
+                LanDiscovery.Network network = LanDiscovery.Describe(adapter, description, type, IPAddress.Parse(address), mac);
+                return network == null ? null : network.Kind + (network.Vpn ? " (VPN)" : "");
+            }
+
+            // Around the device
+            Assert.AreEqual("Wi-Fi", Kind("wlan0", "wlan0", NetworkInterfaceType.Wireless80211, "192.168.1.20"));
+            Assert.AreEqual("Wi-Fi", Kind("Wi-Fi", "Intel(R) Wi-Fi 6 AX201", NetworkInterfaceType.Wireless80211, "100.70.1.2")); // a hotel's
+            Assert.AreEqual("Ethernet", Kind("enp3s0", "enp3s0", NetworkInterfaceType.Ethernet, "10.0.0.5"));
+            Assert.AreEqual("Network", Kind("en0", "en0", NetworkInterfaceType.Ethernet, "192.168.1.30", mac: true));
+            Assert.AreEqual("Hotspot", Kind("swlan0", "swlan0", NetworkInterfaceType.Unknown, "192.168.43.1"));
+            Assert.AreEqual("Hotspot", Kind("Local Area Connection* 10", "Microsoft Wi-Fi Direct Virtual Adapter #2", NetworkInterfaceType.Wireless80211, "192.168.137.1"));
+            // VPNs, by name when they say it
+            Assert.AreEqual("Tailscale (VPN)", Kind("tailscale0", "tailscale0", NetworkInterfaceType.Unknown, "100.101.7.3"));
+            Assert.AreEqual("NetBird (VPN)", Kind("wt0", "wt0", NetworkInterfaceType.Unknown, "100.103.77.25"));
+            Assert.AreEqual("ZeroTier (VPN)", Kind("ZeroTier One [8056c2e21c000001]", "ZeroTier Virtual Port", NetworkInterfaceType.Ethernet, "10.147.17.4"));
+            Assert.AreEqual("Hamachi (VPN)", Kind("Hamachi", "LogMeIn Hamachi Virtual Ethernet Adapter", NetworkInterfaceType.Ethernet, "25.1.2.3"));
+            Assert.AreEqual("VPN (VPN)", Kind("utun4", "utun4", NetworkInterfaceType.Unknown, "100.101.7.3", mac: true));
+            Assert.AreEqual("VPN (VPN)", Kind("tun0", "tun0", NetworkInterfaceType.Unknown, "10.8.0.2"));
+            // Not reachable from another device
+            Assert.IsNull(Kind("docker0", "docker0", NetworkInterfaceType.Ethernet, "172.17.0.1"));
+            Assert.IsNull(Kind("br-4d1e3da24da6", "br-4d1e3da24da6", NetworkInterfaceType.Ethernet, "172.20.0.1"));
+            Assert.IsNull(Kind("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", NetworkInterfaceType.Ethernet, "172.28.0.1"));
+            Assert.IsNull(Kind("rmnet_data0", "rmnet_data0", NetworkInterfaceType.Unknown, "100.88.4.2"));
+            Assert.IsNull(Kind("Ethernet 2", "Realtek PCIe GbE", NetworkInterfaceType.Ethernet, "169.254.12.7"));
         }
     }
 }

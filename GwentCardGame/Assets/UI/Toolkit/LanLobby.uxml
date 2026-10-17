@@ -72,6 +72,13 @@
                 <ui:VisualElement name="Reach" class="lan__reach">
                     <ui:Label name="ReachText" class="lan__detail" />
                     <Gwent.UI.DialogButton name="Button Copy" text="Copy" class="button--ghost lan__copy" />
+                    <Gwent.UI.DialogButton name="Button Details" text="Details" class="button--ghost lan__copy" />
+                </ui:VisualElement>
+                <!-- On asking: each network this device can be joined on (a VPN's too) and its address there, and the ports -->
+                <ui:VisualElement name="Details" class="lan__details">
+                    <ui:VisualElement name="Networks" />
+                    <ui:Label name="Ports" class="lan__details-note" />
+                    <ui:Label text="Friends on your VPN (Tailscale, ZeroTier, Hamachi...) can join from anywhere with its address." class="lan__details-note" />
                 </ui:VisualElement>
             </ui:VisualElement>
 
