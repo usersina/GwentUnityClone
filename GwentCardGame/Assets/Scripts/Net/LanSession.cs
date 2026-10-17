@@ -19,15 +19,17 @@ namespace Gwent.Net
     // host replaying it and waiting on the same port, the guest joining its host again. Once a battle is over, either
     // side may ask for a rematch: when both have, the host begins the next battle on the same link (the same decks, a new
     // coin toss) and both screens load it. In a battle and after it, the players talk (Chat: quick lines and messages),
-    // the other's heard unless muted; what was said is kept for the session (Talk). Lives across scenes: the lobby is the
-    // menu's, the battle the game's.
+    // the other's heard unless muted; what was said is kept for the session (Talk). Each turn has a clock, the host's: a
+    // minute (the redraw half that), counted once the side's screen has shown all there is and while both are linked;
+    // out of time, the side loses the round (Match.TimeOut). Lives across scenes: the lobby is the menu's, the battle the
+    // game's.
     public class LanSession : MonoBehaviour
     {
         // Waiting: hosting, nobody there yet; Joining: on the way in (the host's answer not yet in); Ready: both there,
         // the host may start; Battle: under way; Closed: over (Problem says why, when something went wrong)
         public enum Stage { Waiting, Joining, Ready, Battle, Closed }
 
-        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text }
+        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text, Shown, Clock }
 
         private const float RejoinEvery = 2f;
         private const float HereEvery = 1f;     // in a battle, each side says it is there
@@ -35,6 +37,8 @@ namespace Gwent.Net
         private const float PausedTooLong = 8f; // in the background longer: the other side has dropped the link
         private const int TalkKept = 50;
         private const float HeardEvery = 0.5f;  // the other's lines at most (a changed game could flood)
+        public const float TurnTime = 60f;      // a turn's clock; the redraw's is half of it, a choice the turn brought has a quarter at least
+        private const float ClockEvery = 0.5f;  // the host tells the guest what the clocks say
 
         public static LanSession Current { get; private set; }
 
@@ -133,6 +137,15 @@ namespace Gwent.Net
         private readonly List<Said> talk = new List<Said>();
         private float heardAt = float.MinValue;
         private GuestSource source;
+        private float turnTime = TurnTime;           // (a test's: the launch option lanTurnTime)
+        private readonly float[] clockLeft = { -1, -1 };   // host: what each side has left (the host's seat first; -1: not waited for)
+        private readonly bool[] clockRunning = new bool[2];
+        private readonly int[] clockFrom = { -1, -1 };     // host: the event its wait began with
+        private readonly int[] clockChoice = { -1, -1 };   // host: the choice its turn brought, given its quarter
+        private int hostShown, guestShown;                 // host: the events each screen has shown
+        private int shownSent = -1;                        // guest: the last count told
+        private float clockSentAt, clockHeardAt;
+        private bool clockLinked = true;                   // host: both devices linked, as the clock last saw
 
         //----------------------------------------Opening----------------------------------------//
         // Hosts a battle with that deck, under that name (closed at once, Problem saying why, when no port can be had)
@@ -226,6 +239,8 @@ namespace Gwent.Net
             session.Hosting = hosting;
             session.MyName = PlayerNames.Clean(name) ?? "Player";
             session.MyDeck = deck;
+            if (float.TryParse(LanProbe.Option("lanTurnTime"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float turn_time) && turn_time > 0)
+                session.turnTime = turn_time;
             Current = session;
             GameLog.Event(LogCategory.Game, hosting ? "lan_host" : "lan_join", "name", name, "deck", deck.Name);
             return session;
@@ -302,6 +317,13 @@ namespace Gwent.Net
             sent = 0;
             lastHeard = Time.realtimeSinceStartup; // nothing is said in the room: the guest is not silent for that
             nextHere = 0;
+            hostShown = guestShown = 0;
+            clockLinked = true;
+            for (int i = 0; i < 2; i++)
+            {
+                clockFrom[i] = clockChoice[i] = -1;
+                clockLeft[i] = -1;
+            }
             Send(Message.Begin, w => w.Write(battle));
             Keep();
         }
@@ -401,6 +423,8 @@ namespace Gwent.Net
                 Keep();
             if (Hosting && State == Stage.Battle && resumed)
                 SendEvents();
+            if (Hosting && State == Stage.Battle && Match != null && !Match.IsOver)
+                RunClock();
             if (State == Stage.Battle || State == Stage.Ready)
                 KeepAlive();
         }
@@ -451,6 +475,7 @@ namespace Gwent.Net
         private void OnConnected()
         {
             lastHeard = Time.realtimeSinceStartup;
+            shownSent = -1; // told again
             if (Hosting)
                 return; // the guest speaks first
             if (State == Stage.Battle)
@@ -559,8 +584,11 @@ namespace Gwent.Net
                     break;
                 case Message.Command when Hosting && State == Stage.Battle:
                     MatchCommand command = MatchCommand.Read(r);
-                    if (!Match.Apply(false, command))
+                    if (command.Kind == CommandKind.TimeOut || !Match.Apply(false, command)) // the clock is the host's
                         Send(Message.CommandRefused, w => { });
+                    break;
+                case Message.Shown when Hosting:
+                    guestShown = Mathf.Max(0, r.ReadInt32());
                     break;
 
                 // Guest
@@ -614,6 +642,14 @@ namespace Gwent.Net
                     break;
                 case Message.CommandRefused when !Hosting:
                     source?.Refuse();
+                    break;
+                case Message.Clock when !Hosting:
+                    for (int i = 0; i < 2; i++)
+                    {
+                        clockLeft[i] = r.ReadInt16() / 10f;
+                        clockRunning[i] = r.ReadBoolean();
+                    }
+                    clockHeardAt = Time.realtimeSinceStartup;
                     break;
 
                 case Message.Rematch when State == Stage.Battle:
@@ -710,6 +746,106 @@ namespace Gwent.Net
         private bool SendCommand(MatchCommand command)
         {
             return State == Stage.Battle && Linked && Send(Message.Command, command.Write);
+        }
+
+        //----------------------------------------The clock----------------------------------------//
+        // The time a side has left for its turn (mine: this device's player's), and whether it runs now (it waits while a
+        // screen catches up, or the other device is away); false when the side is not waited for
+        public bool Clock(bool mine, out float left, out bool running)
+        {
+            int i = Hosting == mine ? 0 : 1;
+            left = clockLeft[i];
+            running = clockRunning[i] && State == Stage.Battle && Linked;
+            if (!Hosting && running)
+                left -= Time.realtimeSinceStartup - clockHeardAt;
+            left = Mathf.Max(0, left);
+            return clockLeft[i] >= 0 && State == Stage.Battle;
+        }
+
+        // This device's battle screen has shown that many events and waits for nothing more (its animations are not the
+        // player's time): the host's own count, told to the host by the guest
+        public void ScreenShown(int count)
+        {
+            if (Hosting)
+                hostShown = count;
+            else if (count != shownSent && State == Stage.Battle && Linked && Send(Message.Shown, w => w.Write(count)))
+                shownSent = count;
+        }
+
+        // The host's clock: each side the match waits for has turnTime for its turn (half that for its redraw, a quarter
+        // at least for a choice the turn brought), counted while its screen has shown all there is and both devices are
+        // linked (it holds while one is away, and gives a quarter at least once it is back); out of time, its TimeOut. The
+        // guest hears twice a second what each side has left.
+        private void RunClock()
+        {
+            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.25f); // a frozen frame (the app in the background) is not time
+            bool linked = Linked;
+            if (linked && !clockLinked)
+                for (int i = 0; i < 2; i++)
+                    if (clockLeft[i] >= 0)
+                        clockLeft[i] = Mathf.Max(clockLeft[i], turnTime / 4);
+            clockLinked = linked;
+            for (int i = 0; i < 2; i++)
+            {
+                bool seat = i == 0;
+                if (!Match.Awaits(seat))
+                {
+                    clockFrom[i] = -1;
+                    clockLeft[i] = -1;
+                    clockRunning[i] = false;
+                    continue;
+                }
+                int from = WaitBegan(seat, out int choice);
+                if (from != clockFrom[i])
+                {
+                    clockFrom[i] = from;
+                    clockChoice[i] = -1;
+                    clockLeft[i] = Match.Phase == MatchPhase.Redraw ? turnTime / 2 : turnTime;
+                }
+                if (choice > from && choice != clockChoice[i])
+                {
+                    clockChoice[i] = choice;
+                    clockLeft[i] = Mathf.Max(clockLeft[i], turnTime / 4);
+                }
+                clockRunning[i] = Linked && (seat ? hostShown : guestShown) >= Match.Events.Count;
+                if (clockRunning[i])
+                    clockLeft[i] -= dt;
+                if (clockLeft[i] > 0)
+                    continue;
+                Say((seat ? "the host" : "the guest") + " is out of time in " + Match.Phase);
+                GameLog.Event(LogCategory.Game, "lan_timeout", "side", seat ? "host" : "guest", "phase", Match.Phase.ToString());
+                clockFrom[i] = -1;
+                Match.Apply(seat, MatchCommand.TimeOut());
+                return; // the next frame times what the match waits for now
+            }
+            if (Time.realtimeSinceStartup - clockSentAt >= ClockEvery)
+            {
+                clockSentAt = Time.realtimeSinceStartup;
+                Send(Message.Clock, w =>
+                {
+                    for (int i = 0; i < 2; i++)
+                    {
+                        w.Write((short)Mathf.CeilToInt(Mathf.Max(-1, clockLeft[i]) * 10));
+                        w.Write(clockRunning[i]);
+                    }
+                });
+            }
+        }
+
+        // The event a side's wait began with: its turn's start, the redraw's, or the battle's (the Scoia'tael choice of who
+        // goes first); choice: the latest choice asked of it (-1)
+        private int WaitBegan(bool seat, out int choice)
+        {
+            choice = -1;
+            for (int k = Match.Events.Count - 1; k >= 0; k--)
+            {
+                MatchEvent e = Match.Events[k];
+                if (e.Kind == MatchEventKind.ChoiceAsked && e.Seat == seat && choice < 0)
+                    choice = k;
+                if (e.Kind == MatchEventKind.TurnStarted && e.Seat == seat || e.Kind == MatchEventKind.FirstPlayer || e.Kind == MatchEventKind.Started)
+                    return k;
+            }
+            return 0;
         }
 
         //----------------------------------------The app in the background----------------------------------------//

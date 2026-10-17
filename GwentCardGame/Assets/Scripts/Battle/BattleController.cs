@@ -188,6 +188,28 @@ namespace Gwent.Battle
         // The player's hand row on the screen (the LAN talk window opens over it)
         public Rect HandScreenRect { get { return CardMotion.ScreenRect((RectTransform)View(true).Hand.transform); } }
 
+        // The line between the two halves of the board (the close combat rows'), on the screen: a LAN turn clock's fuse
+        internal Rect MiddleScreenRect
+        {
+            get
+            {
+                // Each side's close combat row: its horn slot on the left, its units' place on the right
+                Rect Row(bool is_player)
+                {
+                    RectTransform horn_rect = View(is_player).Rows[Gwent.Rules.Row.Close].Special.transform as RectTransform;
+                    Rect units = CardMotion.ScreenRect((RectTransform)View(is_player).Rows[Gwent.Rules.Row.Close].Unit.transform);
+                    Rect horn = horn_rect != null ? CardMotion.ScreenRect(horn_rect) : units;
+                    return Rect.MinMaxRect(Mathf.Min(horn.xMin, units.xMin), Mathf.Min(horn.yMin, units.yMin), Mathf.Max(horn.xMax, units.xMax), Mathf.Max(horn.yMax, units.yMax));
+                }
+                Rect mine = Row(true), theirs = Row(false);
+                float y = (Mathf.Min(mine.yMax, theirs.yMax) + Mathf.Max(mine.yMin, theirs.yMin)) / 2; // between the two
+                return Rect.MinMaxRect(Mathf.Min(mine.xMin, theirs.xMin), y - 1, Mathf.Max(mine.xMax, theirs.xMax), y + 1);
+            }
+        }
+
+        // The redraw's band while the redraw is open (its clock's fuse burns along its foot), else null
+        internal RectTransform RedrawBand { get { return mulliganPrompt != null ? (RectTransform)mulliganPrompt.transform.Find("Band") : null; } }
+
         private void Update()
         {
             if (battleState == BattleState.Start && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
@@ -202,6 +224,10 @@ namespace Gwent.Battle
                 PassBtn.SetActive(can_pass);
 
             board.UpdateMarkers();
+
+            // A LAN battle's clock runs once this screen has shown all there is (its animations are not the player's time)
+            if (lan != null && presenting == 0 && source != null && shown >= source.Count)
+                lan.ScreenShown(shown);
         }
 
         // Right click (or a second finger) keeps the hand; Escape opens the pause menu instead
@@ -267,6 +293,7 @@ namespace Gwent.Battle
                 }
                 lan.Changed += LanChanged;
                 ChatView.Attach(this, lan, View(true).Stats, View(false).Stats);
+                TurnFuse.Attach(this, lan);
                 LanChanged(); // a battle taken up again starts with the other device away
             }
             else
@@ -558,6 +585,8 @@ namespace Gwent.Battle
         private async UniTask ShowRedrawDone(MatchEvent e, MatchState all, CancellationToken ct)
         {
             ApplyView(e.State, all);
+            if (e.Seat && e.Why == PassReason.TimedOut)
+                UIOverlay.Toast("Out of time: you keep your hand", 3f);
             if (!e.Seat || !EnemyInfo.CanExchange)
                 return;
             await While(() => RedrawPicker.IsAnimating, ct);
@@ -768,9 +797,15 @@ namespace Gwent.Battle
             BattleLog.RoundEnd(this, e.Winner, e.PlayerTotal, e.EnemyTotal);
             bool[] lost = { PlayerInfo.Lives < player_lives, EnemyInfo.Lives < enemy_lives }; // the player's, the opponent's
 
+            bool timed_out = e.Why == PassReason.TimedOut; // a LAN turn's clock: the side out of time lost the round
+            if (timed_out && e.Seat)
+                DropInput(); // what the player was doing goes with the round
             if (e.Flag)
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
-            if (e.Winner == RoundWinner.Player)
+            if (timed_out)
+                BattleBanner.Show(e.Seat ? BattleBanner.RoundLost : BattleBanner.RoundWon,
+                    e.Seat ? "Out of time: your opponent wins the round" : "Your opponent ran out of time: you win the round", BattleBanner.Long);
+            else if (e.Winner == RoundWinner.Player)
                 BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
             else if (e.Winner == RoundWinner.Enemy)
                 BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long);
@@ -941,17 +976,24 @@ namespace Gwent.Battle
             flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
             EndPresentations();
             BattleBanner.Clear();
-            DiscardViewer.Close();
             if (mulliganPrompt != null)
                 Destroy(mulliganPrompt);
+            DropInput();
+            source.Submit(MatchCommand.GiveUp()); // a LAN guest away: the host finds out on its own
+            shown = source.Count;
+            ConcludeBattle(BattleState.Lost, true);
+        }
+
+        // What the player was in the middle of goes (a pile looked through, a card taken or picked, the leader lifted, a
+        // choice open): the battle moved on without it (given up, out of time)
+        private void DropInput()
+        {
+            DiscardViewer.Close();
             TurnPicker.SetActive(false);
             Panel.SetActive(false);
             pendingAction = PendingAction.None;
             DeselectCard();
             SetHider(false);
-            source.Submit(MatchCommand.GiveUp()); // a LAN guest away: the host finds out on its own
-            shown = source.Count;
-            ConcludeBattle(BattleState.Lost, true);
         }
 
         // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player); ended_away: the LAN
