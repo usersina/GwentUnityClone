@@ -326,6 +326,64 @@ namespace Gwent.Rules.Tests
         }
 
         [Test]
+        public void OutOfTimeTheSideLosesTheRoundWhateverTheScores()
+        {
+            Match match = PlayersTurn(Monsters(), Monsters());
+            Assert.IsFalse(match.Apply(false, MatchCommand.TimeOut()), "not the side the match waits for");
+            // Out of time on its turn, the scores even: the round is the opponent's (a tie would be a draw)
+            int round = match.Round;
+            Assert.IsTrue(match.Apply(true, MatchCommand.TimeOut()));
+
+            MatchEvent ended = match.Events.First(e => e.Kind == MatchEventKind.RoundEnded);
+            Assert.AreEqual(RoundWinner.Enemy, ended.Winner);
+            Assert.AreEqual(PassReason.TimedOut, ended.Why);
+            Assert.IsTrue(ended.Seat, "the side out of time");
+            Assert.IsFalse(ended.Flag, "no Nilfgaard tie");
+            Assert.IsFalse(ended.For(false).Seat, "seen from the other side: it was not the one");
+            Assert.AreEqual(1, match.Board.Player.Lives, "the player's gem broke");
+            Assert.AreEqual(2, match.Board.Enemy.Lives);
+            Assert.AreEqual(round + 1, match.Round, "the next round opened");
+            Assert.IsFalse(match.Turn, "with the side that won");
+
+            // Out of time again: the battle is lost (and it replays the same from its commands)
+            while (!match.Awaits(true) && !match.IsOver)
+                Assert.IsTrue(match.Apply(false, MatchCommand.Pass()));
+            Assert.IsTrue(match.Apply(true, MatchCommand.TimeOut()));
+            Assert.IsTrue(match.IsOver);
+            Assert.AreEqual(RoundWinner.Enemy, match.Result);
+            Match replayed = Match.Replay(match.Setup, Db, match.Commands);
+            Assert.AreEqual(match.Events.Select(e => e.ToString()), replayed.Events.Select(e => e.ToString()));
+        }
+
+        [Test]
+        public void OutOfTimeInTheRedrawTheHandIsKept()
+        {
+            Match match = New(Monsters(), Monsters(), 3);
+            match.Start();
+            List<int> hand = new List<int>(match.Board.Enemy.HandList);
+            Assert.IsTrue(match.Apply(true, MatchCommand.EndRedraw()));
+            Assert.IsFalse(match.Apply(true, MatchCommand.TimeOut()), "done with its redraw already");
+            Assert.IsTrue(match.Apply(false, MatchCommand.TimeOut()));
+            MatchEvent done = match.Events.Last(e => e.Kind == MatchEventKind.RedrawDone);
+            Assert.IsFalse(done.Seat);
+            Assert.AreEqual(PassReason.TimedOut, done.Why);
+            Assert.AreEqual(hand, match.Board.Enemy.HandList, "the hand as it was");
+            Assert.AreEqual(MatchPhase.Turn, match.Phase, "the first round under way");
+            Assert.AreEqual(2, match.Board.Enemy.Lives, "no round lost for it");
+        }
+
+        [Test]
+        public void OutOfTimeChoosingWhoGoesFirstTheSideGoesFirst()
+        {
+            Deck scoiatael = new Deck { Faction = Faction.Scoiatael, Leader = LeaderIds.ByFaction[Faction.Scoiatael][0], Cards = Monsters().Cards };
+            Match match = New(Monsters(), scoiatael, 9);
+            match.Start();
+            Assert.IsTrue(match.Apply(false, MatchCommand.TimeOut()), "the Scoia'tael choice of who goes first");
+            Assert.IsFalse(match.Events.Last(e => e.Kind == MatchEventKind.FirstPlayer).Seat, "the side out of time goes first");
+            Assert.AreEqual(MatchPhase.Redraw, match.Phase);
+        }
+
+        [Test]
         public void AScoiataelSideChoosesWhoGoesFirst()
         {
             Deck scoiatael = new Deck { Faction = Faction.Scoiatael, Leader = LeaderIds.ByFaction[Faction.Scoiatael][0], Cards = Monsters().Cards };

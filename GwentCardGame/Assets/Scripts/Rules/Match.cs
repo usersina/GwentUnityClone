@@ -135,6 +135,7 @@ namespace Gwent.Rules
             switch (command.Kind)
             {
                 case CommandKind.GiveUp: done = GiveUp(seat); break;
+                case CommandKind.TimeOut: done = TimeOut(seat); break;
                 case CommandKind.ChooseFirst: done = ChooseFirst(seat, command.Flag); break;
                 case CommandKind.Redraw: done = Redraw(seat, command.CardId, command.HandIndex); break;
                 case CommandKind.EndRedraw: done = EndRedraw(seat); break;
@@ -159,6 +160,27 @@ namespace Gwent.Rules
             Result = seat ? RoundWinner.Enemy : RoundWinner.Player;
             Emit(MatchEventKind.Ended, seat, e => { e.Winner = Result; e.Flag = true; });
             return true;
+        }
+
+        // Out of time (a LAN battle's clock, the host's device keeps it): the redraw ends with the hand kept; the Scoia'tael
+        // choice of who goes first has the side go first; in a turn or a choice, the side loses the round at once, whatever
+        // the scores (its gem breaks), and the battle ends or the next round opens with the other side
+        private bool TimeOut(bool seat)
+        {
+            if (!Awaits(seat))
+                return false;
+            switch (Phase)
+            {
+                case MatchPhase.Redraw:
+                    return EndRedraw(seat, PassReason.TimedOut);
+                case MatchPhase.Opening:
+                    return ChooseFirst(seat, true);
+                default:
+                    Choice = null;
+                    Board.Side(seat).CanDiscard = false;
+                    EndRound(seat);
+                    return true;
+            }
         }
 
         private bool ChooseFirst(bool seat, bool me_first)
@@ -188,14 +210,14 @@ namespace Gwent.Rules
             return true;
         }
 
-        // The hand is kept; once both sides are done, the first round starts
-        private bool EndRedraw(bool seat)
+        // The hand is kept (why: TimedOut, the side ran out of time); once both sides are done, the first round starts
+        private bool EndRedraw(bool seat, PassReason why = PassReason.Chose)
         {
             PlayerState side = Board.Side(seat);
             if (Phase != MatchPhase.Redraw || !side.CanExchange)
                 return false;
             side.CanExchange = false;
-            Emit(MatchEventKind.RedrawDone, seat);
+            Emit(MatchEventKind.RedrawDone, seat, e => e.Why = why);
             if (!Board.Player.CanExchange && !Board.Enemy.CanExchange)
                 StartRound(firstPlayer);
             return true;
@@ -543,18 +565,21 @@ namespace Gwent.Rules
             Emit(MatchEventKind.Passed, seat, e => e.Why = why);
         }
 
-        // Both sides passed: the round's result; the battle ends, or the board clears for the next round (Monsters keep a
-        // unit, the Northern Realms draw, Skellige brings two units back at the third's start) and it opens with the
-        // round's winner (after a draw, whoever passed last)
-        private void EndRound()
+        // Both sides passed (or one ran out of time: timed_out, it loses the round): the round's result; the battle ends,
+        // or the board clears for the next round (Monsters keep a unit, the Northern Realms draw, Skellige brings two units
+        // back at the third's start) and it opens with the round's winner (after a draw, whoever passed last)
+        private void EndRound(bool? timed_out = null)
         {
-            RoundWinner winner = RoundRules.EndRound(Board, out int player_total, out int enemy_total);
-            Emit(MatchEventKind.RoundEnded, true, e =>
+            RoundWinner? given = timed_out.HasValue ? (timed_out.Value ? RoundWinner.Enemy : RoundWinner.Player) : (RoundWinner?)null;
+            RoundWinner winner = RoundRules.EndRound(Board, given, out int player_total, out int enemy_total);
+            Emit(MatchEventKind.RoundEnded, timed_out ?? true, e =>
             {
                 e.Winner = winner;
                 e.PlayerTotal = player_total;
                 e.EnemyTotal = enemy_total;
-                e.Flag = player_total == enemy_total && winner != RoundWinner.Draw;
+                e.Flag = !timed_out.HasValue && player_total == enemy_total && winner != RoundWinner.Draw;
+                if (timed_out.HasValue)
+                    e.Why = PassReason.TimedOut;
             });
             RoundWinner? result = RoundRules.BattleResult(Board);
             if (result.HasValue)
