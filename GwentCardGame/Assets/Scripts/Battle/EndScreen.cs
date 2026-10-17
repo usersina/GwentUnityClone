@@ -6,12 +6,15 @@ using Gwent.Rules;
 using Gwent.UI;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Gwent.Battle
 {
     // The end of the battle: The Witcher 3's emblem of the outcome, the round tally, a scoreboard with both sides (leader
-    // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on.
+    // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on: against
+    // the AI, Play again; in a LAN battle, Rematch (once both players ask, the next battle loads; under the buttons, what
+    // the other player is at: asking too, away, gone).
     // Built when the battle ends, over the dimmed board.
     public class EndScreen : MonoBehaviour
     {
@@ -19,8 +22,17 @@ namespace Gwent.Battle
         private const float RoundColumn = 170;
         private const float RowHeight = 116;
 
-        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player)
-        public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false, bool opponent_left = false)
+        private bool lanBattle;
+        private LanSession lan;         // the LAN battle's session, while it lasts
+        private int battle;             // the session's battle shown: another one is the rematch
+        private string opponentName;
+        private Button rematch, menu;
+        private TextMeshProUGUI status;
+        private bool loading;
+
+        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player); lan_battle: a LAN
+        // battle (its session may be gone already: the other player left)
+        public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false, bool opponent_left = false, bool lan_battle = false)
         {
             UITheme theme = UITheme.Current;
             foreach (Transform child in transform)
@@ -55,18 +67,69 @@ namespace Gwent.Battle
 
             BuildScoreboard(content, player, opponent);
 
-            // A LAN battle ends there: back to the main menu only
-            bool lan = LanSession.Current != null;
-            Button menu = UIKit.Button(content, "Main menu", lan ? UIKit.ButtonStyle.Primary : UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
-            ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(lan ? 0 : 170, -350), new Vector2(300, 72));
-            if (lan)
+            // A LAN battle whose session is gone (the other player left): back to the main menu only
+            lanBattle = lan_battle;
+            lan = lan_battle ? LanSession.Current : null;
+            bool menu_only = lan_battle && lan == null;
+            menu = UIKit.Button(content, "Main menu", menu_only ? UIKit.ButtonStyle.Primary : UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
+            ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(menu_only ? 0 : 170, -350), new Vector2(300, 72));
+            if (menu_only)
             {
                 UIKit.Focus(menu);
+                return;
+            }
+            if (lan != null)
+            {
+                battle = lan.Battle;
+                opponentName = opponent.Name;
+                rematch = UIKit.Button(content, "Rematch", UIKit.ButtonStyle.Primary, () => lan.AskRematch(), new Vector2(300, 72));
+                ((RectTransform)rematch.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
+                status = UIKit.Text(content, "", UIKit.TextStyle.Body, TextAlignmentOptions.Center);
+                status.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -432), new Vector2(1200, 44));
+                ShowRematch();
+                UIKit.Focus(rematch);
                 return;
             }
             Button again = UIKit.Button(content, "Play again", UIKit.ButtonStyle.Primary, PlayAgain, new Vector2(300, 72));
             ((RectTransform)again.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
             UIKit.Focus(again);
+        }
+
+        //----------------------------------------Rematch----------------------------------------//
+        private void Update()
+        {
+            if (!lanBattle || rematch == null || loading)
+                return;
+            if (lan != null && lan.State == LanSession.Stage.Battle && lan.Battle != battle)
+            {
+                // Both asked: the next battle
+                loading = true;
+                Time.timeScale = 1f;
+                LoadingScreen.Load(SceneNames.Game);
+                return;
+            }
+            ShowRematch();
+        }
+
+        // Rematch can be asked once the battle is over on both devices and the other player is there; under it, what the
+        // other player is at
+        private void ShowRematch()
+        {
+            UITheme theme = UITheme.Current;
+            bool gone = lan == null || lan.State == LanSession.Stage.Closed;
+            bool can = !gone && lan.Linked && lan.Over && !lan.AskedRematch;
+            if (rematch.interactable != can)
+            {
+                rematch.interactable = can;
+                if (!can && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == rematch.gameObject)
+                    UIKit.Focus(menu);
+            }
+            status.text = gone ? opponentName + " left"
+                : !lan.Linked ? opponentName + " is away"
+                : lan.AskedRematch ? "Waiting for " + opponentName
+                : lan.TheyAskedRematch ? opponentName + " wants a rematch"
+                : "";
+            status.color = !gone && lan.Linked && lan.TheyAskedRematch && !lan.AskedRematch ? theme.goldBright : theme.textMuted;
         }
 
         //----------------------------------------Scoreboard----------------------------------------//

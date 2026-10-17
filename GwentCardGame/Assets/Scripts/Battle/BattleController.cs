@@ -923,7 +923,7 @@ namespace Gwent.Battle
             CardShowcase.Clear();
             CardMotion.ClearLayer();
             PostGame.SetActive(true);
-            PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up, opponent_left);
+            PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up, opponent_left, !ReferenceEquals(lan, null));
             if (outcome == BattleState.Won)
                 GameAudio.PlaySfx("victory");
             else if (outcome == BattleState.Lost)

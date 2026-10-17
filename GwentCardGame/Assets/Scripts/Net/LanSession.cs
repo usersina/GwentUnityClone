@@ -16,15 +16,16 @@ namespace Gwent.Net
     // sides say they are there every second: a side not heard from for a few seconds is taken as gone, whatever the
     // link says (a device frozen a while, its old link seemingly kept alive by its attempts to come back). The battle is
     // kept on disk while it is on (LanSave): a player whose game closed takes it up again from the lobby (Rejoin), the
-    // host replaying it and waiting on the same port, the guest joining its host again. Lives across scenes: the lobby is
-    // the menu's, the battle the game's.
+    // host replaying it and waiting on the same port, the guest joining its host again. Once a battle is over, either
+    // side may ask for a rematch: when both have, the host begins the next battle on the same link (the same decks, a new
+    // coin toss) and both screens load it. Lives across scenes: the lobby is the menu's, the battle the game's.
     public class LanSession : MonoBehaviour
     {
         // Waiting: hosting, nobody there yet; Joining: on the way in (the host's answer not yet in); Ready: both there,
         // the host may start; Battle: under way; Closed: over (Problem says why, when something went wrong)
         public enum Stage { Waiting, Joining, Ready, Battle, Closed }
 
-        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here }
+        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch }
 
         private const float RejoinEvery = 2f;
         private const float HereEvery = 1f;     // in a battle, each side says it is there
@@ -54,6 +55,23 @@ namespace Gwent.Net
 
         // Whether the screen has every event there is to show (the guest's, once its host said it sent the rest)
         public bool CaughtUp { get { return Hosting || resumed; } }
+
+        // The battle under way (its number): a rematch begins another
+        public int Battle { get { return battle; } }
+
+        // The battle is over: a rematch may be asked
+        public bool Over
+        {
+            get
+            {
+                return State == Stage.Battle && (Hosting ? Match != null && Match.IsOver
+                    : received.Count > 0 && received[received.Count - 1].Kind == MatchEventKind.Ended);
+            }
+        }
+
+        // A rematch asked, by this side (AskRematch) and by the other
+        public bool AskedRematch { get; private set; }
+        public bool TheyAskedRematch { get; private set; }
 
         public event Action Changed; // the lobby's state: someone joined or left, the battle begins, the session closed
 
@@ -190,19 +208,47 @@ namespace Gwent.Net
         {
             if (!Hosting || State != Stage.Ready)
                 return;
+            if (discovery != null)
+                discovery.Dispose(); // no longer a game to join
+            discovery = null;
+            BeginBattle();
+            GameLog.Event(LogCategory.Game, "lan_battle", "host", MyName, "guest", TheirName);
+            Changed?.Invoke();
+        }
+
+        // Asks for a rematch, the battle over; the other side asked too, the next battle begins (the host's: its number
+        // changes, Battle, and both load it)
+        public void AskRematch()
+        {
+            if (!Over || AskedRematch)
+                return;
+            AskedRematch = true;
+            Send(Message.Rematch, w => { });
+            Say("rematch asked" + (TheyAskedRematch ? ", as the other side did" : ""));
+            if (Hosting && TheyAskedRematch)
+                Rematch();
+            Changed?.Invoke();
+        }
+
+        private void Rematch()
+        {
+            BeginBattle();
+            GameLog.Event(LogCategory.Game, "lan_rematch", "host", MyName, "guest", TheirName);
+        }
+
+        // A battle from both decks (the host's own the Player side's), its number and first events to the guest
+        private void BeginBattle()
+        {
             battle = UnityEngine.Random.Range(1, int.MaxValue);
             Match = new Match(new MatchSetup { Player = MyDeck, Enemy = TheirDeck, Seed = Rng.Shared.Next() }, CardLibrary.Get());
             Match.Start();
             State = Stage.Battle;
             resumed = true;
+            Rejoined = false;
+            AskedRematch = TheyAskedRematch = false;
             sent = 0;
-            if (discovery != null)
-                discovery.Dispose(); // no longer a game to join
-            discovery = null;
             Send(Message.Begin, w => w.Write(battle));
-            GameLog.Event(LogCategory.Game, "lan_battle", "host", MyName, "guest", TheirName);
             Keep();
-            Changed?.Invoke();
         }
 
         // The battle on disk, as it is now (the host's after each move; the guest's once, as it begins); gone once over
@@ -433,6 +479,8 @@ namespace Gwent.Net
                     lostAt = -1;
                     SendEvents(); // all it missed, then word that it has it all
                     Send(Message.Resumed, w => { });
+                    if (AskedRematch)
+                        Send(Message.Rematch, w => { }); // asked while it was away
                     Say("the guest is back, " + (Match.Events.Count - has) + " events to send it");
                     Changed?.Invoke();
                     break;
@@ -456,9 +504,14 @@ namespace Gwent.Net
                     Close(Problem);
                     break;
                 case Message.Begin when !Hosting:
+                    // The first battle, or a rematch: the last one's events go (its screen is done with them)
                     battle = r.ReadInt32();
                     State = Stage.Battle;
                     resumed = true;
+                    received.Clear();
+                    source = null;
+                    Rejoined = false;
+                    AskedRematch = TheyAskedRematch = false;
                     Keep();
                     Changed?.Invoke();
                     break;
@@ -466,6 +519,8 @@ namespace Gwent.Net
                     resumed = true;
                     lostAt = -1;
                     source?.Answered();
+                    if (AskedRematch)
+                        Send(Message.Rematch, w => { }); // asked while away
                     Say("back in the battle, after " + received.Count + " events");
                     Changed?.Invoke();
                     break;
@@ -480,6 +535,14 @@ namespace Gwent.Net
                     break;
                 case Message.CommandRefused when !Hosting:
                     source?.Refuse();
+                    break;
+
+                case Message.Rematch when State == Stage.Battle:
+                    TheyAskedRematch = true;
+                    Say("the other side asks for a rematch");
+                    if (Hosting && AskedRematch && Over)
+                        Rematch();
+                    Changed?.Invoke();
                     break;
 
                 case Message.Leave:
@@ -538,6 +601,14 @@ namespace Gwent.Net
             link = null;
             nextJoin = 0; // at once
             Changed?.Invoke();
+        }
+
+        // The game closed after a battle: the other player is told it left (not that it is away: no rematch is coming).
+        // During one, it is away: the battle is kept, to be taken up again.
+        private void OnApplicationQuit()
+        {
+            if (Over)
+                Leave();
         }
 
         private void OnDestroy()
