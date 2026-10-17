@@ -12,13 +12,15 @@ namespace Gwent.Net
     // battle, then plays this device's side from what its screen shows (the opponent's hand hidden), as Normal does, through
     // the screen's own moves; "-lan botrejoin" takes up the battle kept on disk (LanSave). Options (LanProbe.Option):
     // lanGiveUpAfter (gives up after that many moves of its own), lanRedrawWait (seconds before keeping its hand),
-    // lanRejoinAs (host or guest: the battle kept as which, when a computer keeps both). Logged as
-    // [lan] lines; in batch mode the game quits a few seconds after the battle ends.
+    // lanRejoinAs (host or guest: the battle kept as which, when a computer keeps both), lanRematches (asks for that many
+    // rematches, a couple of seconds after each battle). Logged as [lan] lines; in batch mode the game quits a few seconds
+    // after the last battle ends.
     public class LanBot : MonoBehaviour
     {
         private const float SearchFor = 15f;
         private const float QuitAfter = 4f;
         private const float BatchSpeed = 4f; // a test run's battle, sped up (its waits and animations are in game time)
+        private const float RematchAfter = 2f;
 
         private bool hosting;
         private string address;
@@ -32,6 +34,9 @@ namespace Gwent.Net
         private float redrawSeen = -1;
         private float lastMove;   // when this side last moved, or the battle last changed
         private int lastSeen = -1;
+        private int rematches;
+        private BattleController playing; // the battle screen played on (a rematch's is another)
+        private int playingBattle;        // its battle's number in the session
 
         public static void Begin(bool host, string address)
         {
@@ -76,6 +81,8 @@ namespace Gwent.Net
                 bot.giveUpAfter = give_up;
             if (float.TryParse(LanProbe.Option("lanRedrawWait"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float wait))
                 bot.redrawWait = wait;
+            if (int.TryParse(LanProbe.Option("lanRematches"), out int rematches))
+                bot.rematches = rematches;
             return bot;
         }
 
@@ -118,7 +125,10 @@ namespace Gwent.Net
                 return;
             }
             if (session == null)
+            {
+                Play(); // the other side left after the battle: its end
                 return;
+            }
             if (hosting && session.State == LanSession.Stage.Ready)
             {
                 Log(session.TheirName + " joined with " + session.TheirDeck.Name + ": starting");
@@ -139,17 +149,36 @@ namespace Gwent.Net
             BattleController battle = BattleController.Instance;
             if (battle == null)
                 return;
+            if (battle != playing)
+            {
+                // A battle begins (the first, or a rematch)
+                playing = battle;
+                playingBattle = LanSession.Current != null ? LanSession.Current.Battle : 0;
+                overAt = redrawSeen = -1;
+                moves = 0;
+                lastSeen = -1;
+                lastMove = Time.realtimeSinceStartup;
+            }
             if (Application.isBatchMode)
                 Time.timeScale = BatchSpeed;
             if (battle.IsBattleOver)
             {
+                LanSession session = LanSession.Current;
                 if (overAt < 0)
                 {
                     overAt = Time.realtimeSinceStartup;
                     Log("battle over: " + battle.battleState + " " + string.Join("-", battle.PlayerInfo.RoundsScore) + " vs " + string.Join("-", battle.EnemyInfo.RoundsScore)
                         + " after " + moves + " moves of mine");
                 }
-                else if (Application.isBatchMode && Time.realtimeSinceStartup - overAt > QuitAfter)
+                else if (rematches > 0 && session != null && session.Over && session.Linked && !session.AskedRematch
+                    && Time.realtimeSinceStartup - overAt > RematchAfter)
+                {
+                    rematches--;
+                    Log("asking for a rematch" + (session.TheyAskedRematch ? " (the other side asked)" : ""));
+                    session.AskRematch();
+                }
+                else if (Application.isBatchMode && Time.realtimeSinceStartup - overAt > QuitAfter && (session == null
+                    || rematches == 0 && !session.AskedRematch && session.Battle == playingBattle)) // no rematch asked or loading
                     Application.Quit();
                 return;
             }
