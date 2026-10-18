@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using Gwent.Core;
 using UnityEngine;
 
 namespace Gwent.Net
@@ -64,7 +65,7 @@ namespace Gwent.Net
         // discovery port cannot be had)
         public static LanDiscovery Answer(string name, int leader, ushort game_port)
         {
-            return Answer(name, leader, game_port, Application.version);
+            return Answer(name, leader, game_port, BuildInfo.Id);
         }
 
         internal static LanDiscovery Answer(string name, int leader, ushort game_port, string version)
@@ -89,7 +90,7 @@ namespace Gwent.Net
         // Searches for games (the list fills as they answer)
         public static LanDiscovery Search()
         {
-            return Search(Application.version);
+            return Search(BuildInfo.Id);
         }
 
         internal static LanDiscovery Search(string version)
@@ -180,7 +181,7 @@ namespace Gwent.Net
         // Another game's version as the list shows it: printable, short
         internal static string Shown(string version)
         {
-            string shown = new string((version ?? "").Where(c => c > ' ' && c < 0x7F && c != '<' && c != '>').Take(20).ToArray());
+            string shown = new string((version ?? "").Where(c => c > ' ' && c < 0x7F && c != '<' && c != '>').Take(32).ToArray());
             return shown.Length > 0 ? shown : "?";
         }
 

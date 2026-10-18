@@ -86,6 +86,8 @@
                 <Gwent.UI.DialogButton name="Button Main" text="Host a battle" class="button--primary lan__button" />
                 <Gwent.UI.DialogButton name="Button Back" text="Stop hosting" class="button--secondary lan__button" />
             </ui:VisualElement>
+            <!-- This build (both players need the same one) -->
+            <ui:Label name="Build" class="lan__build" picking-mode="Ignore" />
             <Gwent.UI.DialogButton name="Button Close" text="×" class="button--close" />
         </ui:VisualElement>
     </ui:VisualElement>

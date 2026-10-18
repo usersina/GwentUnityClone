@@ -84,7 +84,7 @@ namespace Gwent.Core
             GameObject watcher = new GameObject("GameLog") { hideFlags = HideFlags.HideAndDontSave };
             UnityEngine.Object.DontDestroyOnLoad(watcher);
             watcher.AddComponent<FrameWatch>();
-            Event(LogCategory.Game, "session_start", "version", Application.version, "unity", Application.unityVersion,
+            Event(LogCategory.Game, "session_start", "version", BuildInfo.Id, "unity", Application.unityVersion,
                 "platform", Application.platform, "editor", Application.isEditor, "os", SystemInfo.operatingSystem,
                 "device", SystemInfo.deviceModel, "gpu", SystemInfo.graphicsDeviceName, "memory_mb", SystemInfo.systemMemorySize,
                 "screen", Screen.width + "x" + Screen.height, "log", FilePath);

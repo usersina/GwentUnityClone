@@ -73,3 +73,7 @@ crashlytics-build.properties
 
 # Claude browser pane: a local server for the current web build (personal, version-specific path)
 .claude/launch.json
+
+# The build stamp (which commit a build comes from: EditorTools.BuildStamp writes it as each build starts)
+GwentCardGame/Assets/Resources/BuildStamp.txt
+GwentCardGame/Assets/Resources/BuildStamp.txt.meta

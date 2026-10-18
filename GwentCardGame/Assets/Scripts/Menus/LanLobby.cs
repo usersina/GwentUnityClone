@@ -170,6 +170,7 @@ namespace Gwent.Menus
                 main.clicked += MainClicked;
                 back.clicked += BackClicked;
                 root.Q<Button>("Button Close").clicked += () => UIScreens.Close(root); // leaving a room too (Closed)
+                root.Q<Label>("Build").text = "Build " + BuildInfo.Build;
                 copy.clicked += () => Copy(copy, copy.userData as string);
                 detailsButton.clicked += () =>
                 {
@@ -381,7 +382,7 @@ namespace Gwent.Menus
                     entry.name = "Game " + game.Name;
                     entry.Q<Label>("Title").text = game.Name;
                     bool known = db.Contains(game.Leader);
-                    entry.Q<Label>("Detail").text = !game.Compatible ? "Another version of the game (" + game.Version + "): can't be joined"
+                    entry.Q<Label>("Detail").text = !game.Compatible ? "Another build of the game (" + BuildInfo.Short(game.Version) + "): can't be joined"
                         : known ? db.Get(game.Leader).faction.DisplayName() + "  ·  " + db.Get(game.Leader).DisplayName : game.Address;
                     entry.EnableInClassList("lan__game--other", !game.Compatible);
                     entry.EnableInClassList("lan__game--touch", GameInput.IsTouch); // "Join" shows: no pointer to light it
@@ -403,7 +404,7 @@ namespace Gwent.Menus
                     chosen.RemoveFromHierarchy();
                     LanDiscovery.Game picked = game;
                     entry.clicked += () => Join(picked.Address, picked.Port, picked.Compatible ? null
-                        : "That battle runs version " + picked.Version + " of the game; yours is " + Application.version + ".");
+                        : "That battle runs another build of the game (" + BuildInfo.Short(picked.Version) + "; yours: " + BuildInfo.Build + "). Both players need the same build.");
                     games.Add(entry);
                     if (entry.name == focused)
                         UIScreens.Focus(entry);

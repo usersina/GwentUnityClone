@@ -109,7 +109,8 @@ namespace Gwent.Net.Tests
             (LanLink host, LanLink guest) = Joined("test-2");
             host.Connected += () => host_connected = true;
             Assert.AreEqual(LanLink.Status.Closed, guest.State);
-            StringAssert.Contains("version", guest.Reason);
+            StringAssert.Contains("another build", guest.Reason);
+            StringAssert.Contains(Version, guest.Reason, "the host's build named");
             Until(() => false, 0.3, host);
             Assert.IsFalse(host_connected);
             Assert.AreEqual(LanLink.Status.Waiting, host.State);
@@ -227,7 +228,8 @@ namespace Gwent.Net.Tests
             // What a battle found on the network says its version is, as its list entry shows it
             Assert.AreEqual("1.0.0", LanDiscovery.Shown("1.0.0"));
             Assert.AreEqual("bnot-bold/b", LanDiscovery.Shown("<b>not-bold</b>"));
-            Assert.AreEqual("12345678901234567890", LanDiscovery.Shown("1234567890123456789012345"));
+            Assert.AreEqual("1.0.0+1a2b3c4d.5e6f70", LanDiscovery.Shown("1.0.0+1a2b3c4d.5e6f70"), "a build id whole");
+            Assert.AreEqual("12345678901234567890123456789012", LanDiscovery.Shown("1234567890123456789012345678901234567890"));
             Assert.AreEqual("2.0", LanDiscovery.Shown(" 2.0\n\t"));
             Assert.AreEqual("?", LanDiscovery.Shown(""));
             Assert.AreEqual("?", LanDiscovery.Shown(null));
