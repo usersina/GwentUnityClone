@@ -13,7 +13,7 @@ namespace Gwent.Battle
     // The end of the battle: The Witcher 3's emblem of the outcome, the round tally, a scoreboard with both sides (leader
     // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on: against
     // the AI, Play again; in a LAN battle, Rematch (once both players ask, the next battle loads; under the buttons, what
-    // the other player is at: asking too, away, gone).
+    // the other player is at: asking too, away, gone) and, for its guest, the fair play check of the battle (FairPlay).
     // Built when the battle ends, over the dimmed board.
     public class EndScreen : MonoBehaviour
     {
@@ -26,7 +26,7 @@ namespace Gwent.Battle
         private int battle;             // the session's battle shown: another one is the rematch
         private string opponentName;
         private Button rematch, menu;
-        private TextMeshProUGUI status;
+        private TextMeshProUGUI status, fairPlay;
         private bool loading;
         private readonly RectTransform[] portraits = new RectTransform[2]; // the scoreboard's: the player's, the opponent's
 
@@ -95,6 +95,11 @@ namespace Gwent.Battle
                 ((RectTransform)rematch.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
                 status = UIKit.Text(content, "", UIKit.TextStyle.Body, TextAlignmentOptions.Center);
                 status.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -432), new Vector2(1200, 44));
+                if (!lan.Hosting)
+                {
+                    fairPlay = UIKit.Text(content, "", UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+                    fairPlay.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -486), new Vector2(1400, 36));
+                }
                 ShowRematch();
                 UIKit.Focus(rematch);
                 return;
@@ -135,6 +140,12 @@ namespace Gwent.Battle
                 : lan.TheyAskedRematch ? opponentName + " wants a rematch"
                 : "";
             status.color = !gone && lan.Linked && lan.TheyAskedRematch && !lan.AskedRematch ? theme.goldBright : theme.textMuted;
+            if (fairPlay != null && !gone && lan.FairChecked)
+            {
+                fairPlay.text = lan.FairProblem == null ? "Fair play checked: the shuffle was shared, and every move followed the rules"
+                    : "Fair play check failed. " + lan.FairProblem;
+                fairPlay.color = lan.FairProblem == null ? theme.textMuted : new Color(0.9f, 0.42f, 0.36f);
+            }
         }
 
         //----------------------------------------Scoreboard----------------------------------------//

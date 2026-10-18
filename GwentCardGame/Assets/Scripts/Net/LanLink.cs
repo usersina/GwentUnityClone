@@ -21,7 +21,7 @@ namespace Gwent.Net
     {
         public const ushort GamePort = 26947;      // or one of the next (PortsTried) when another program holds it
         private const int PortsTried = 10;
-        public const int Protocol = 2;              // the messages' shape (LanSession's too): raised when it changes
+        public const int Protocol = 3;              // the messages' shape (LanSession's too): raised when it changes
         public const int Largest = 32 * 1024;       // the largest message (bytes)
         private const int ConnectTimeoutMs = 500;   // a join is retried this often...
         private const int ConnectAttempts = 10;     // ...this many times: no answer in 5 s, no game there

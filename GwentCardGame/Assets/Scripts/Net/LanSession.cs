@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Gwent.Battle;
 using Gwent.Core;
 using Gwent.Rules;
@@ -21,15 +22,17 @@ namespace Gwent.Net
     // coin toss) and both screens load it. In a battle and after it, the players talk (Chat: quick lines and messages),
     // the other's heard unless muted; what was said is kept for the session (Talk). Each turn has a clock, the host's: a
     // minute (the redraw half that), counted once the side's screen has shown all there is and while both are linked;
-    // out of time, the side loses the round (Match.TimeOut). Lives across scenes: the lobby is the menu's, the battle the
-    // game's.
+    // out of time, the side loses the round (Match.TimeOut). Fair play (FairPlay, docs/lan-fair-play.md): each battle's
+    // shuffle comes from both devices (the host promises its part, the guest gives its own, the host shows its part with
+    // Begin), and once the battle is over the guest plays its record again (Record): the seed, both decks, every move and
+    // event. Lives across scenes: the lobby is the menu's, the battle the game's.
     public class LanSession : MonoBehaviour
     {
         // Waiting: hosting, nobody there yet; Joining: on the way in (the host's answer not yet in); Ready: both there,
         // the host may start; Battle: under way; Closed: over (Problem says why, when something went wrong)
         public enum Stage { Waiting, Joining, Ready, Battle, Closed }
 
-        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text, Shown, Clock }
+        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text, Shown, Clock, SeedPromise, SeedPart, Record }
 
         private const float RejoinEvery = 2f;
         private const float HereEvery = 1f;     // in a battle, each side says it is there
@@ -119,6 +122,10 @@ namespace Gwent.Net
         // The guest who just left the host's room (null once another joins)
         public string LeftRoom { get; private set; }
 
+        // The guest's fair play check of the battle just over (FairPlay.Check): done, and what was wrong (null: nothing)
+        public bool FairChecked { get; private set; }
+        public string FairProblem { get; private set; }
+
         private LanLink link;
         private LanDiscovery discovery;
         private string address;          // the host's (guest)
@@ -146,6 +153,13 @@ namespace Gwent.Net
         private int shownSent = -1;                        // guest: the last count told
         private float clockSentAt, clockHeardAt;
         private bool clockLinked = true;                   // host: both devices linked, as the clock last saw
+        private byte[] seedPart;                           // this device's part of the next battle's seed
+        private byte[] seedPromise;                        // guest: the host's promise of its part
+        private bool seedAsked;                            // host: its promise sent, the guest's part awaited
+        private int? fairSeed;                             // guest: the seed both made for the battle under way
+        private bool recordSent;                           // host: the battle's record went to the guest
+        private readonly List<FairPlay.Sent> sentMoves = new List<FairPlay.Sent>(); // guest: its moves of the battle
+        private bool movesKnown = true;                    // guest: all of them (not a battle taken up from the disk)
 
         //----------------------------------------Opening----------------------------------------//
         // Hosts a battle with that deck, under that name (closed at once, Problem saying why, when no port can be had)
@@ -222,6 +236,8 @@ namespace Gwent.Net
                 session.address = save.Address;
                 session.port = save.Port;
                 session.State = Stage.Battle;
+                session.fairSeed = save.Seed;
+                session.movesKnown = false; // those before the game closed are not known
                 ForBattle = session;
                 session.Connect();
                 Say("taken up again: joining " + save.TheirName + " at " + save.Address + ":" + save.Port);
@@ -274,12 +290,28 @@ namespace Gwent.Net
         {
             if (!Hosting || State != Stage.Ready)
                 return;
+            if (seedAsked)
+                return; // on its way
             if (discovery != null)
                 discovery.Dispose(); // no longer a game to join
             discovery = null;
-            BeginBattle();
+            AskSeed(); // the battle begins with the guest's part (SeedPart)
             GameLog.Event(LogCategory.Game, "lan_battle", "host", MyName, "guest", TheirName);
             Changed?.Invoke();
+        }
+
+        // The host's part of the seed promised to the guest (its hash), the guest's awaited
+        private void AskSeed()
+        {
+            seedPart = FairPlay.NewPart();
+            seedAsked = true;
+            SendPromise();
+        }
+
+        private void SendPromise()
+        {
+            byte[] promise = FairPlay.Promise(seedPart);
+            Send(Message.SeedPromise, w => w.Write(promise));
         }
 
         // Asks for a rematch, the battle over; the other side asked too, the next battle begins (the host's: its number
@@ -298,16 +330,21 @@ namespace Gwent.Net
 
         private void Rematch()
         {
-            BeginBattle();
+            if (seedAsked)
+                return;
+            AskSeed();
             GameLog.Event(LogCategory.Game, "lan_rematch", "host", MyName, "guest", TheirName);
         }
 
-        // A battle from both decks (the host's own the Player side's), its number and first events to the guest
-        private void BeginBattle()
+        // A battle from both decks (the host's own the Player side's) and the seed both devices made, its number, the host's
+        // part of the seed and first events to the guest
+        private void BeginBattle(int seed)
         {
             previous = battle;
             battle = UnityEngine.Random.Range(1, int.MaxValue);
-            Match = new Match(new MatchSetup { Player = MyDeck, Enemy = TheirDeck, Seed = Rng.Shared.Next() }, CardLibrary.Get());
+            seedAsked = false;
+            recordSent = false;
+            Match = new Match(new MatchSetup { Player = MyDeck, Enemy = TheirDeck, Seed = seed }, CardLibrary.Get());
             Match.Start();
             State = Stage.Battle;
             ForBattle = this;
@@ -324,7 +361,8 @@ namespace Gwent.Net
                 clockFrom[i] = clockChoice[i] = -1;
                 clockLeft[i] = -1;
             }
-            Send(Message.Begin, w => w.Write(battle));
+            byte[] part = seedPart;
+            Send(Message.Begin, w => { w.Write(battle); w.Write(part); });
             Keep();
         }
 
@@ -346,6 +384,7 @@ namespace Gwent.Net
                 TheirName = TheirName,
                 MyDeck = MyDeck,
                 TheirDeck = TheirDeck ?? new Deck(),
+                Seed = Hosting ? (int?)null : fairSeed,
             };
             if (Hosting)
             {
@@ -422,7 +461,11 @@ namespace Gwent.Net
             if (Hosting && State == Stage.Battle && Match.Commands.Count != kept)
                 Keep();
             if (Hosting && State == Stage.Battle && resumed)
+            {
                 SendEvents();
+                if (Match.IsOver && !recordSent && Linked)
+                    SendRecord();
+            }
             if (Hosting && State == Stage.Battle && Match != null && !Match.IsOver)
                 RunClock();
             if (State == Stage.Battle || State == Stage.Ready)
@@ -495,7 +538,12 @@ namespace Gwent.Net
                 if (lostAt < 0)
                     lostAt = Time.realtimeSinceStartup;
                 if (source != null && source.Waiting)
+                {
+                    if (sentMoves.Count > 0)
+                        Unsure(); // the host may have had it, or not
                     source.Refuse(); // a move on its way may be lost with the link: the card goes back, to be played again
+                }
+                recordSent = false; // sent again once it is back, in case it was lost with the link
                 Say("link lost (" + reason + "): waiting");
                 Changed?.Invoke();
                 return;
@@ -508,6 +556,7 @@ namespace Gwent.Net
 
         private void GuestLeftRoom()
         {
+            seedAsked = false;
             LeftRoom = TheirName;
             TheirName = null;
             TheirDeck = null;
@@ -579,6 +628,8 @@ namespace Gwent.Net
                     Send(Message.Resumed, w => { });
                     if (AskedRematch)
                         Send(Message.Rematch, w => w.Write(battle)); // asked while it was away
+                    if (seedAsked)
+                        SendPromise(); // the rematch's seed, its part not in yet (the same promise)
                     Say("the guest is back, " + (Match.Events.Count - has) + " events to send it");
                     Changed?.Invoke();
                     break;
@@ -589,6 +640,13 @@ namespace Gwent.Net
                     break;
                 case Message.Shown when Hosting:
                     guestShown = Mathf.Max(0, r.ReadInt32());
+                    break;
+                case Message.SeedPart when Hosting && seedAsked:
+                    byte[] their_part = r.ReadBytes(FairPlay.PartSize);
+                    if (their_part.Length != FairPlay.PartSize)
+                        break; // not one
+                    BeginBattle(FairPlay.Seed(seedPart, their_part));
+                    Changed?.Invoke();
                     break;
 
                 // Guest
@@ -604,9 +662,38 @@ namespace Gwent.Net
                         LanSave.Delete(Hosting); // the host has it no more
                     Close(Problem);
                     break;
+                case Message.SeedPromise when !Hosting && (State == Stage.Ready || Over):
+                    // The host's promise of its part of the next battle's seed: this device's own part in return. The same
+                    // promise again (lost with the link) has the same part; another one before the battle began is the host
+                    // trying seeds until one suits it
+                    byte[] promise = r.ReadBytes(32);
+                    if (seedPromise != null && !promise.SequenceEqual(seedPromise))
+                    {
+                        Close("The host asked for a new shuffle before the battle began: its game may have been changed.");
+                        break;
+                    }
+                    if (seedPromise == null)
+                        seedPart = FairPlay.NewPart();
+                    seedPromise = promise;
+                    byte[] my_part = seedPart;
+                    Send(Message.SeedPart, w => w.Write(my_part));
+                    break;
                 case Message.Begin when !Hosting && (State == Stage.Ready || Over):
-                    // The first battle, or a rematch: the last one's events go (its screen is done with them)
+                    // The first battle, or a rematch: the last one's events go (its screen is done with them). Its seed is
+                    // both parts, the host's as promised
                     battle = r.ReadInt32();
+                    byte[] host_part = r.ReadBytes(FairPlay.PartSize);
+                    if (!FairPlay.Kept(seedPromise, host_part))
+                    {
+                        Close("The host's part of the shuffle is not the one it promised: its game may have been changed.");
+                        break;
+                    }
+                    fairSeed = FairPlay.Seed(host_part, seedPart);
+                    seedPromise = null;
+                    sentMoves.Clear();
+                    movesKnown = true;
+                    FairChecked = false;
+                    FairProblem = null;
                     State = Stage.Battle;
                     ForBattle = this;
                     resumed = true;
@@ -641,7 +728,21 @@ namespace Gwent.Net
                     source?.Answered();
                     break;
                 case Message.CommandRefused when !Hosting:
+                    if (sentMoves.Count > 0)
+                        sentMoves.RemoveAt(sentMoves.Count - 1); // the host never took it
                     source?.Refuse();
+                    break;
+                case Message.Record when !Hosting && State == Stage.Battle:
+                    if (r.ReadInt32() != battle || FairChecked || !Ended)
+                        break; // another battle's, checked already, or before its end (never from a host as it should be)
+                    MatchSetup setup = MatchWire.ReadSetup(r);
+                    int count = r.ReadInt32();
+                    if (count < 0 || count > 10000)
+                        break;
+                    List<(bool seat, MatchCommand command)> commands = new List<(bool, MatchCommand)>(count);
+                    for (int i = 0; i < count; i++)
+                        commands.Add((r.ReadBoolean(), MatchCommand.Read(r)));
+                    CheckRecord(setup, commands);
                     break;
                 case Message.Clock when !Hosting:
                     for (int i = 0; i < 2; i++)
@@ -742,10 +843,57 @@ namespace Gwent.Net
             Heard?.Invoke(Remember(false, text));
         }
 
-        // A guest's move for the host's match
+        // A guest's move for the host's match (kept, for the fair play check)
         private bool SendCommand(MatchCommand command)
         {
-            return State == Stage.Battle && Linked && Send(Message.Command, command.Write);
+            if (!(State == Stage.Battle && Linked && Send(Message.Command, command.Write)))
+                return false;
+            sentMoves.Add(new FairPlay.Sent { Command = command });
+            return true;
+        }
+
+        // The host: the battle's record to the guest, once it is over (both decks, the seed, every move)
+        private void SendRecord()
+        {
+            recordSent = true;
+            MatchSetup setup = Match.Setup;
+            List<(bool seat, MatchCommand command)> commands = Match.Commands;
+            int number = battle;
+            Send(Message.Record, w =>
+            {
+                w.Write(number);
+                MatchWire.Write(w, setup);
+                w.Write(commands.Count);
+                foreach ((bool seat, MatchCommand command) in commands)
+                {
+                    w.Write(seat);
+                    command.Write(w);
+                }
+            });
+        }
+
+        // The guest: the record played again on its own (FairPlay.Check); a move still unanswered may not have reached the
+        // host
+        private void CheckRecord(MatchSetup setup, List<(bool seat, MatchCommand command)> commands)
+        {
+            if (source != null && source.Waiting && sentMoves.Count > 0)
+                Unsure();
+            FairProblem = FairPlay.Check(setup, commands, received, MyDeck, TheirDeck, fairSeed, movesKnown ? sentMoves : null, CardLibrary.Get());
+            FairChecked = true;
+            Say("fair play " + (FairProblem == null ? "checked" + (fairSeed.HasValue && movesKnown ? "" : " (in part: taken up again)") : "FAILED: " + FairProblem));
+            if (FairProblem != null) // what did not add up, for whoever looks into it
+                Say("the guest's moves in the record: " + string.Join(", ", commands.Where(c => !c.seat).Select(c => c.command.ToString()))
+                    + " | as it made them: " + string.Join(", ", sentMoves.Select(m => m.Command + (m.Unsure ? " (unsure)" : ""))));
+            GameLog.Event(LogCategory.Game, "lan_fair_play", "ok", FairProblem == null, "problem", FairProblem ?? "");
+            Changed?.Invoke();
+        }
+
+        // The guest's last move may not have reached the host
+        private void Unsure()
+        {
+            FairPlay.Sent last = sentMoves[sentMoves.Count - 1];
+            last.Unsure = true;
+            sentMoves[sentMoves.Count - 1] = last;
         }
 
         //----------------------------------------The clock----------------------------------------//
