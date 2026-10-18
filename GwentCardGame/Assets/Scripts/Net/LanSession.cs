@@ -43,6 +43,7 @@ namespace Gwent.Net
         private const float HeardEvery = 0.5f;  // the other's lines at most (a changed game could flood)
         public const float TurnTime = 60f;      // a turn's clock; the redraw's is half of it, a choice the turn brought has a quarter at least
         private const float ClockEvery = 0.5f;  // the host tells the guest what the clocks say
+        private const float ShownGrace = 90f;   // a screen not caught up this long after its wait began: its clock runs anyway
 
         public static LanSession Current { get; private set; }
 
@@ -163,6 +164,7 @@ namespace Gwent.Net
         private int? fairSeed;                             // guest: the seed both made for the battle under way
         private bool recordSent;                           // host: the battle's record went to the guest
         private readonly List<FairPlay.Sent> sentMoves = new List<FairPlay.Sent>(); // guest: its moves of the battle
+        private int unanswered;                            // guest: the last of them the host has not answered yet
         private bool movesKnown = true;                    // guest: all of them (not a battle taken up from the disk)
 
         //----------------------------------------Opening----------------------------------------//
@@ -560,6 +562,7 @@ namespace Gwent.Net
                 resumed = false;
                 if (lostAt < 0)
                     lostAt = Time.realtimeSinceStartup;
+                Unsure(); // the moves not answered yet: the host may have had them, or not (their answer is lost with the link)
                 if (source != null && source.Waiting)
                     source.Refuse(); // a move on its way may be lost with the link: the card goes back, to be played again
                 recordSent = false; // sent again once it is back, in case it was lost with the link
@@ -760,8 +763,11 @@ namespace Gwent.Net
                         source?.Answered();
                     break;
                 case Message.CommandRefused when !Hosting:
-                    if (sentMoves.Count > 0)
-                        sentMoves.RemoveAt(sentMoves.Count - 1); // the host never took it
+                    if (unanswered > 0)
+                    {
+                        sentMoves.RemoveAt(sentMoves.Count - unanswered); // the earliest not answered: the host never took it
+                        unanswered--;
+                    }
                     source?.Refuse();
                     break;
                 case Message.Record when !Hosting && State == Stage.Battle:
