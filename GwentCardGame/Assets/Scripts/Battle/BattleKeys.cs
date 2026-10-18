@@ -12,7 +12,8 @@ namespace Gwent.Battle
     // The battle's keyboard controls (desktop), as in The Witcher 3: Left/Right (A/D) go through the hand and Enter takes
     // the card; Up/Down (W/S) go through the places it can go and Enter plays it there (or where it fits, when only one
     // place does); Escape or a right click puts it back. X chooses the leader (as a click on it does), X again or Enter
-    // uses it. Space (hold to pass) is the pass button's; the redraw and the card picker have their own keys.
+    // uses it. Space (hold to pass) is the pass button's; the redraw and the card picker have their own keys. In a LAN
+    // battle, T opens the chat window to type, E the quick lines beside your portrait (ChatView: their own keys while open).
     public class BattleKeys : MonoBehaviour
     {
         private const string PlaceMark = "KeyPlace";
@@ -45,8 +46,8 @@ namespace Gwent.Battle
         {
             Keyboard keyboard = Keyboard.current;
             BattleController battle = BattleController.Instance;
-            if (keyboard == null || battle == null || UIOverlay.HasModal)
-                return;
+            if (keyboard == null || battle == null || UIOverlay.HasModal || battle.OpponentAway)
+                return; // a dialog's keys; or the board waiting under the LAN notice (its button has the keys)
 
             // Right-click puts a selected card back in the hand (The Witcher 3), and the chosen leader back in its place
             if (GameInput.SecondaryPressed() && (battle.selectedCard != null || battle.LeaderSelected) && battle.IsPlayerActionAllowed)
@@ -58,6 +59,10 @@ namespace Gwent.Battle
 
             if (keyboard.xKey.wasPressedThisFrame)
                 LeaderKey(battle);
+            if (keyboard.tKey.wasPressedThisFrame)
+                ChatView.KeyPressed(true);
+            if (keyboard.eKey.wasPressedThisFrame)
+                ChatView.KeyPressed(false);
 
             // The redraw, the card picker and the Scoia'tael choice have their own keys
             if (RedrawPicker.IsOpen || battle.Panel.activeInHierarchy || battle.TurnPicker.activeInHierarchy || CardCarousel.UsedKeyThisFrame)
@@ -89,7 +94,7 @@ namespace Gwent.Battle
             Unfocus();
             battle.LeaderKeyPressed();
             if (battle.LeaderSelected)
-                UIOverlay.Toast("X again or Enter uses your leader ability; Esc puts it back");
+                UIOverlay.Toast("{X} or {Enter} uses your leader ability   ·   {Esc} puts it back");
         }
 
         //----------------------------------------The hand----------------------------------------//
@@ -238,7 +243,7 @@ namespace Gwent.Battle
             if (places.Count != 1)
             {
                 GameAudio.PlaySfx("invalid");
-                UIOverlay.Toast(places.Count == 0 ? "This card has nowhere to go" : "This card fits more than one place: Up and Down choose where, Enter plays it");
+                UIOverlay.Toast(places.Count == 0 ? "This card has nowhere to go" : "It fits more than one place: {Up} or {Down} chooses where   ·   {Enter} plays it");
                 return;
             }
             PlayOn(battle, places[0]);

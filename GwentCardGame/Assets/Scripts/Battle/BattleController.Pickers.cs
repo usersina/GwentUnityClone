@@ -53,7 +53,7 @@ namespace Gwent.Battle
                     break;
                 case ChoiceKind.Discard:
                     pendingAction = PendingAction.DiscardCards;
-                    UIOverlay.Toast((GameInput.IsTouch ? "Double-tap" : "Double-click") + " 2 cards to discard them", 4f);
+                    UIOverlay.Toast("Discard two cards from your hand: " + (GameInput.IsTouch ? "double-tap" : "double-click") + " each", 4f);
                     break;
                 case ChoiceKind.DeckPick:
                     OpenPanel().ShowToDraw(PickSource.Deck, choice.Options, true);

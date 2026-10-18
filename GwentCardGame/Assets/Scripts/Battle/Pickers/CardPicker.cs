@@ -12,8 +12,8 @@ namespace Gwent.Battle
 {
     // A choice among cards as The Witcher 3 shows it (a medic's revival, a leader's pick, the opponent's hand, a discard
     // pile): a band across the top with the title, the carousel, the front card's description at the bottom right. A
-    // click on the front card (or Enter) picks it; the band's button gives up (Skip) or closes. Down goes to that button,
-    // Up comes back to the cards.
+    // click on the front card (or Enter) picks it; the band's × gives the choice up (asked first) or closes a look. Down
+    // goes to the ×, Up comes back to the cards.
     public class CardPicker : CardCarousel
     {
         private Action<int> pick;     // null: the cards are only shown
@@ -22,16 +22,17 @@ namespace Gwent.Battle
 
         public Button BandButton { get { return button; } }
 
+        // Whether a card is to be picked (its × gives the choice up), not only looked at (its × closes)
+        public bool Picks { get { return pick != null; } }
+
         // Shows the cards under the title, the one at front_index in front; pick gets the chosen card (null: nothing to
-        // pick, Enter presses the button), the button does on_button. The picker's parent is its root: destroy it to close.
-        public static CardPicker Open(Transform parent, string title, IList<int> card_ids, Action<int> pick, string button_label, Action on_button, int front_index = 0)
+        // pick, Enter presses the ×), the × does on_button (gives up or closes). The picker's parent is its root: destroy
+        // it to close.
+        public static CardPicker Open(Transform parent, string title, IList<int> card_ids, Action<int> pick, Action on_button, int front_index = 0)
         {
             RectTransform root = UIKit.Rect("CardPicker", parent).Stretch();
-            string hint = GameInput.IsTouch
-                ? (pick != null ? "Tap a card to bring it forward, tap it again to choose it" : "Tap a card to bring it forward")
-                : (pick != null ? "Click a card to bring it forward, click it again (or Enter) to choose it" : "Click a card (or the arrow keys) to bring it forward");
             TextMeshProUGUI title_text;
-            Button button = Band(root, title, hint, button_label, on_button, out title_text);
+            Button button = Band(root, title, null, null, on_button, out title_text);
             button.navigation = new Navigation { mode = Navigation.Mode.None }; // the arrows are the cards'
 
             CardPicker picker = Create<CardPicker>(root, new Vector2(0, 50));

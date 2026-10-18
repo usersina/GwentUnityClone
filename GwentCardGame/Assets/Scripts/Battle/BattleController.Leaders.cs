@@ -59,7 +59,7 @@ namespace Gwent.Battle
         public void HintLeaderCrown()
         {
             GameAudio.PlaySfx("invalid");
-            UIOverlay.Toast((GameInput.IsTouch ? "Tap" : "Click") + " the glowing crown to use your leader ability");
+            UIOverlay.Toast(GameInput.IsTouch ? "Tap the glowing crown to use your leader ability" : "Click the glowing crown or press {Enter} to use your leader ability");
         }
 
         private void SelectLeader()

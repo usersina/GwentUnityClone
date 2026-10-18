@@ -13,7 +13,7 @@ namespace Gwent.Net
     // their own (two copies of the game on one computer, testing, each keep theirs).
     public sealed class LanSave
     {
-        private const byte Format = 1;
+        private const byte Format = 2; // 2: the guest's seed
         private static readonly TimeSpan KeptFor = TimeSpan.FromHours(6);
 
         public bool Hosting;
@@ -23,6 +23,7 @@ namespace Gwent.Net
         public string MyName, TheirName;
         public Deck MyDeck, TheirDeck;
         public MatchSetup Setup;        // the host's
+        public int? Seed;               // the guest's: the seed both devices made (its fair play check)
         public List<(bool seat, MatchCommand command)> Commands = new List<(bool, MatchCommand)>();
         public DateTime Saved;
 
@@ -68,14 +69,17 @@ namespace Gwent.Net
                     };
                     if (r.ReadBoolean())
                         save.Setup = MatchWire.ReadSetup(r);
+                    if (r.ReadBoolean())
+                        save.Seed = r.ReadInt32();
                     int commands = r.ReadInt32();
                     for (int i = 0; i < commands; i++)
                         save.Commands.Add((r.ReadBoolean(), MatchCommand.Read(r)));
                     return DateTime.UtcNow - save.Saved < KeptFor ? save : null;
                 }
             }
-            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException || e is ArgumentException)
+            catch (Exception e)
             {
+                // Unreadable (cut short, another game's): as if there were none
                 Debug.LogWarning("[lan] The LAN battle kept could not be read: " + e.Message);
                 return null;
             }
@@ -102,6 +106,9 @@ namespace Gwent.Net
                     w.Write(Setup != null);
                     if (Setup != null)
                         MatchWire.Write(w, Setup);
+                    w.Write(Seed.HasValue);
+                    if (Seed.HasValue)
+                        w.Write(Seed.Value);
                     w.Write(Commands.Count);
                     foreach ((bool seat, MatchCommand command) in Commands)
                     {

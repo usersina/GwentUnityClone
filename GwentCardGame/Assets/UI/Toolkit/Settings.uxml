@@ -5,7 +5,6 @@
         <ui:VisualElement name="Panel" class="panel settings">
             <ui:VisualElement class="settings__header">
                 <ui:Label text="Settings" class="heading" />
-                <ui:Label name="Hint" text="Esc to close" class="caption" />
             </ui:VisualElement>
             <ui:VisualElement name="Tabs" class="settings__tabs">
                 <ui:Button name="Button Game" text="Game" class="tab"><ui:VisualElement class="tab__underline" picking-mode="Ignore" /></ui:Button>
@@ -23,8 +22,8 @@
             <ui:VisualElement class="divider" />
             <ui:VisualElement class="settings__footer">
                 <Gwent.UI.DialogButton name="Button Reset to defaults" text="Reset to defaults" class="button--ghost settings__reset" />
-                <Gwent.UI.DialogButton name="Button Back" text="Back" class="button--secondary settings__back" />
             </ui:VisualElement>
+            <Gwent.UI.DialogButton name="Button Close" text="×" class="button--close" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

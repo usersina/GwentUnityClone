@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using Gwent.Core;
 using UnityEngine;
 
 namespace Gwent.Net
@@ -11,8 +14,9 @@ namespace Gwent.Net
     // Finding games on the local network. A player looking asks everyone, every second (a broadcast to the whole network,
     // and to this computer); each host answers the one asking: its name, its game's version and the port it waits on. A
     // game not heard from for a few seconds is gone from the list. A phone hosting holds Android's multicast lock while
-    // it answers: without it, many phones never see a broadcast. Nothing runs on its own: the owner calls Update every
-    // frame.
+    // it answers: without it, many phones never see a broadcast. A host in a battle answers only a search for that battle
+    // (by its key, Key): its guest's, the link lost, in case the host's address changed (a phone whose network came back
+    // with another); no other list shows it. Nothing runs on its own: the owner calls Update every frame.
     public sealed class LanDiscovery : IDisposable
     {
         public const ushort Port = 26946;      // under the range systems hand out for a while (32768 and up)
@@ -32,6 +36,13 @@ namespace Gwent.Net
             public bool Compatible;
             internal uint Id;       // the host's, for the session (one host heard on several addresses is one game)
             internal float Seen;
+            internal readonly Dictionary<string, float> Heard = new Dictionary<string, float>(); // each address it answered from, and when
+
+            // Whether it answered from that address lately
+            public bool HeardAt(string address)
+            {
+                return IPAddress.TryParse(address, out IPAddress parsed) && Heard.Keys.Any(heard => IPAddress.Parse(heard).Equals(parsed));
+            }
         }
 
         private readonly UdpClient socket;
@@ -41,13 +52,16 @@ namespace Gwent.Net
         private readonly ushort gamePort;
         private readonly uint id;
         private readonly string version;
+        private readonly ulong looking;     // searching for a battle: its key (0: for the games waiting for a guest)
+        private bool inBattle;              // answering: in a battle, only to a search for it
+        private ulong[] keys = new ulong[0];
         private readonly List<Game> games = new List<Game>();
         private float asked = float.MinValue;
         private AndroidJavaObject multicastLock;
 
         public IReadOnlyList<Game> Games { get { return games; } }
 
-        private LanDiscovery(UdpClient socket, bool answering, string name, int leader, ushort game_port, string version)
+        private LanDiscovery(UdpClient socket, bool answering, string name, int leader, ushort game_port, string version, ulong looking = 0)
         {
             this.socket = socket;
             this.answering = answering;
@@ -55,6 +69,7 @@ namespace Gwent.Net
             this.leader = leader;
             gamePort = game_port;
             this.version = version;
+            this.looking = looking;
             id = (uint)Environment.TickCount ^ (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
             socket.EnableBroadcast = true;
         }
@@ -63,7 +78,7 @@ namespace Gwent.Net
         // discovery port cannot be had)
         public static LanDiscovery Answer(string name, int leader, ushort game_port)
         {
-            return Answer(name, leader, game_port, Application.version);
+            return Answer(name, leader, game_port, BuildInfo.Id);
         }
 
         internal static LanDiscovery Answer(string name, int leader, ushort game_port, string version)
@@ -88,12 +103,44 @@ namespace Gwent.Net
         // Searches for games (the list fills as they answer)
         public static LanDiscovery Search()
         {
-            return Search(Application.version);
+            return Search(BuildInfo.Id);
         }
 
         internal static LanDiscovery Search(string version)
         {
             return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version);
+        }
+
+        // Searches for the host of the battle with that key (Key): a guest whose link was lost, the host's address maybe
+        // changed
+        public static LanDiscovery Find(ulong key)
+        {
+            return Find(key, BuildInfo.Id);
+        }
+
+        internal static LanDiscovery Find(ulong key, string version)
+        {
+            return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version, key);
+        }
+
+        // The host now in a battle: answering only a search for it, with one of those keys (the battle's, the one before
+        // it: a guest gone as a rematch began)
+        public void InBattle(params ulong[] battle_keys)
+        {
+            inBattle = true;
+            keys = battle_keys;
+        }
+
+        // A battle's key, for its guest to find its host: from its number and its seed, which only the two devices know
+        // (heard by all, the number alone would let anyone take the guest's seat)
+        public static ulong Key(int battle, int seed)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(BitConverter.GetBytes(battle).Concat(BitConverter.GetBytes(seed)).Concat(Magic).ToArray());
+                ulong key = BitConverter.ToUInt64(hash, 0);
+                return key != 0 ? key : 1;
+            }
         }
 
         public void Update()
@@ -126,7 +173,12 @@ namespace Gwent.Net
 
         private void Ask()
         {
-            byte[] packet = Packet(Asking, writer => writer.Write((byte)LanLink.Protocol));
+            byte[] packet = Packet(Asking, writer =>
+            {
+                writer.Write((byte)LanLink.Protocol);
+                if (looking != 0)
+                    writer.Write(looking);
+            });
             List<IPAddress> to = new List<IPAddress> { IPAddress.Broadcast, IPAddress.Loopback };
             foreach ((IPAddress _, IPAddress broadcast) in Networks())
                 if (!to.Contains(broadcast))
@@ -157,23 +209,35 @@ namespace Gwent.Net
                 using (BinaryReader reader = new BinaryReader(new MemoryStream(packet, Magic.Length + 1, packet.Length - Magic.Length - 1)))
                 {
                     if (kind == Asking && answering)
-                        Reply(from);
+                    {
+                        reader.ReadByte(); // the protocol (the answer tells whether it is this one's)
+                        ulong wanted = reader.BaseStream.Length - reader.BaseStream.Position >= 8 ? reader.ReadUInt64() : 0;
+                        if (inBattle ? wanted != 0 && Array.IndexOf(keys, wanted) >= 0 : wanted == 0)
+                            Reply(from);
+                    }
                     else if (kind == Answering && !answering)
                     {
                         int protocol = reader.ReadByte();
                         uint host = reader.ReadUInt32();
                         ushort port = reader.ReadUInt16();
-                        string their_version = reader.ReadString();
+                        string their_version = Shown(reader.ReadString());
                         string their_name = PlayerNames.Clean(reader.ReadString()) ?? "Player";
                         int their_leader = reader.ReadInt16();
                         Found(host, from.Address, port, their_name, their_leader, their_version, protocol == LanLink.Protocol && their_version == version, now);
                     }
                 }
             }
-            catch (IOException)
+            catch (Exception)
             {
                 // Not one of ours after all
             }
+        }
+
+        // Another game's version as the list shows it: printable, short
+        internal static string Shown(string version)
+        {
+            string shown = new string((version ?? "").Where(c => c > ' ' && c < 0x7F && c != '<' && c != '>').Take(32).ToArray());
+            return shown.Length > 0 ? shown : "?";
         }
 
         private void Reply(IPEndPoint to)
@@ -205,9 +269,15 @@ namespace Gwent.Net
                 game = new Game { Id = host };
                 games.Add(game);
             }
-            // Heard on this computer and on the network: the network's address, which the other devices can reach too
-            if (game.Address == null || IPAddress.IsLoopback(IPAddress.Parse(game.Address)) && !IPAddress.IsLoopback(address))
-                game.Address = address.ToString();
+            // Heard on this computer and on the network: the network's address, which the other devices can reach too. One
+            // not heard from lately makes way (the host's network came back with another address).
+            string heard = address.ToString();
+            game.Heard[heard] = now;
+            foreach (string old in game.Heard.Where(pair => now - pair.Value > ForgetAfter).Select(pair => pair.Key).ToList())
+                game.Heard.Remove(old);
+            if (game.Address == null || !game.Heard.ContainsKey(game.Address)
+                || IPAddress.IsLoopback(IPAddress.Parse(game.Address)) && !IPAddress.IsLoopback(address))
+                game.Address = heard;
             game.Port = port;
             game.Name = their_name;
             game.Leader = their_leader;
@@ -231,30 +301,94 @@ namespace Gwent.Net
         }
 
         //----------------------------------------This device's networks----------------------------------------//
-        // This device's addresses on its networks (what another player types to join it): those of real networks first
-        // (Wi-Fi, a cable, a phone's hotspot), then those of the computer's own virtual ones (Docker, virtual machines,
-        // VPNs: no other device reaches them)
+        // A network this device is on that another device can reach it through, as the host's details show it
+        public sealed class Network
+        {
+            public string Kind;     // "Wi-Fi", "Ethernet", "Hotspot", "Network", or a VPN's name ("Tailscale"...) or "VPN"
+            public string Adapter;  // its adapter's name: "wlan0", "Wi-Fi", "tailscale0"...
+            public string Address;  // this device's address there
+            public bool Vpn;        // reached from anywhere, by the devices on the same VPN
+        }
+
+        // This device's addresses on its networks (what another player types to join it): those of the networks around it
+        // first (Wi-Fi, a cable, a phone's hotspot), then the rest (VPNs, the computer's own virtual networks)
         public static List<string> LocalAddresses()
         {
-            List<string> real = new List<string>(), virtual_ones = new List<string>();
-            foreach ((IPAddress address, IPAddress _, bool is_virtual) in Networks(true))
-                (is_virtual ? virtual_ones : real).Add(address.ToString());
-            real.AddRange(virtual_ones);
-            return real;
+            List<string> near = new List<string>(), rest = new List<string>();
+            foreach ((UnicastIPAddressInformation unicast, Network network) in Addresses())
+                (network != null && !network.Vpn ? near : rest).Add(unicast.Address.ToString());
+            near.AddRange(rest);
+            return near;
         }
 
-        // The addresses another device on the network can join (the virtual ones left out, unless there is nothing else)
+        // The addresses another device can join: on the networks around this one, else on its VPNs (none: on no network
+        // another device can reach, such as mobile data alone)
         public static List<string> JoinableAddresses()
         {
-            List<string> real = new List<string>();
-            foreach ((IPAddress address, IPAddress _, bool is_virtual) in Networks(true))
-                if (!is_virtual)
-                    real.Add(address.ToString());
-            return real.Count > 0 ? real : LocalAddresses();
+            List<Network> reachable = Reachable();
+            List<string> near = reachable.Where(network => !network.Vpn).Select(network => network.Address).ToList();
+            return near.Count > 0 ? near : reachable.Select(network => network.Address).ToList();
         }
 
-        private static readonly string[] VirtualNames = { "docker", "br-", "virbr", "veth", "vmnet", "vboxnet", "tailscale", "tun", "tap", "wg", "wt", "zt", "utun" };
-        private static readonly string[] VirtualDescriptions = { "virtual", "vmware", "hyper-v", "virtualbox", "wsl", "docker", "loopback", "tap-", "tunnel", "vpn" };
+        // The networks another device can reach this one through: those around it first, then VPNs
+        public static List<Network> Reachable()
+        {
+            return Addresses().Select(found => found.network).Where(network => network != null).OrderBy(network => network.Vpn).ToList();
+        }
+
+        private static readonly string[] OwnNames = { "docker", "br-", "virbr", "veth", "vmnet", "vboxnet", "vethernet", "lxcbr", "lxdbr" };
+        private static readonly string[] OwnDescriptions = { "vmware", "hyper-v", "virtualbox", "wsl", "docker", "loopback" };
+        private static readonly string[] MobileNames = { "rmnet", "v4-rmnet", "ccmni", "pdp_ip", "wwan" };
+        private static readonly (string word, string vpn)[] VpnNames =
+            { ("tailscale", "Tailscale"), ("zerotier", "ZeroTier"), ("hamachi", "Hamachi"), ("radmin", "Radmin VPN"), ("netbird", "NetBird"), ("wireguard", "WireGuard") };
+        private static readonly (string prefix, string vpn)[] VpnPrefixes = { ("zt", "ZeroTier"), ("wt", "NetBird"), ("wg", "WireGuard") };
+        private static readonly string[] TunnelNames = { "tun", "tap", "utun", "ipsec" };
+        private static readonly string[] TunnelDescriptions = { "tap-", "tunnel", "vpn", "virtual" };
+
+        // What a network is, from its adapter (name, description, type) and this device's address there; null for one no
+        // other device reaches this one through: the computer's own (containers, virtual machines), a phone's mobile data
+        // (its carrier's), an address a device gives itself when no network gave one (169.254...). A macOS adapter (en0...)
+        // does not say whether it is Wi-Fi or a cable: "Network".
+        public static Network Describe(string adapter, string description, NetworkInterfaceType type, IPAddress address, bool mac)
+        {
+            string name = (adapter ?? "").ToLowerInvariant(), about = (description ?? "").ToLowerInvariant();
+            byte[] bytes = address.GetAddressBytes();
+            if (type == NetworkInterfaceType.Loopback || Array.Exists(OwnNames, name.StartsWith) || Array.Exists(OwnDescriptions, about.Contains)
+                || Array.Exists(MobileNames, name.StartsWith) || bytes[0] == 169 && bytes[1] == 254)
+                return null;
+            Network network = new Network { Adapter = adapter, Address = address.ToString() };
+            foreach ((string word, string vpn) in VpnNames)
+                if (name.Contains(word) || about.Contains(word))
+                    network.Kind = vpn;
+            foreach ((string prefix, string vpn) in VpnPrefixes)
+                if (network.Kind == null && name.StartsWith(prefix))
+                    network.Kind = vpn;
+            if (network.Kind == null && about.Contains("wi-fi direct"))
+                network.Kind = "Hotspot"; // Windows' own hotspot
+            else if (network.Kind == null && (type == NetworkInterfaceType.Tunnel || Array.Exists(TunnelNames, name.StartsWith)
+                || Array.Exists(TunnelDescriptions, about.Contains)))
+                network.Kind = "VPN";
+            network.Vpn = network.Kind != null && network.Kind != "Hotspot";
+            if (network.Kind != null)
+                return network;
+
+            if (name.StartsWith("swlan") || name.StartsWith("softap") || name.StartsWith("ap") && name.Length > 2 && char.IsDigit(name[2]))
+                network.Kind = "Hotspot"; // a phone's
+            else if (type == NetworkInterfaceType.Wireless80211 || name.StartsWith("wl") || name.Contains("wi-fi") || name.Contains("wireless"))
+                network.Kind = "Wi-Fi";
+            else if (!mac && (type == NetworkInterfaceType.Ethernet || type == NetworkInterfaceType.GigabitEthernet
+                || type == NetworkInterfaceType.FastEthernetT || type == NetworkInterfaceType.FastEthernetFx
+                || name.StartsWith("eth") || name.StartsWith("en")))
+                network.Kind = "Ethernet";
+            else if (IsVpnAddress(address))
+            {
+                network.Kind = "VPN";
+                network.Vpn = true;
+            }
+            else
+                network.Kind = "Network";
+            return network;
+        }
 
         // 100.64.0.0/10, the range VPNs give their devices (Tailscale, NetBird, ZeroTier)
         private static bool IsVpnAddress(IPAddress address)
@@ -263,27 +397,18 @@ namespace Gwent.Net
             return bytes[0] == 100 && (bytes[1] & 0xC0) == 64;
         }
 
-        private static bool IsVirtual(NetworkInterface adapter)
-        {
-            string name = (adapter.Name ?? "").ToLowerInvariant(), description = (adapter.Description ?? "").ToLowerInvariant();
-            return adapter.NetworkInterfaceType == NetworkInterfaceType.Tunnel
-                || Array.Exists(VirtualNames, prefix => name.StartsWith(prefix))
-                || Array.Exists(VirtualDescriptions, word => description.Contains(word));
-        }
-
         // Each network this device is on: its address there, and that network's broadcast address
         private static List<(IPAddress address, IPAddress broadcast)> Networks()
         {
-            List<(IPAddress, IPAddress)> networks = new List<(IPAddress, IPAddress)>();
-            foreach ((IPAddress address, IPAddress broadcast, bool _) in Networks(true))
-                networks.Add((address, broadcast));
-            return networks;
+            return Addresses().Select(found => (found.unicast.Address, Broadcast(found.unicast))).ToList();
         }
 
-        // The same, and whether each is one of the computer's own virtual networks
-        private static List<(IPAddress address, IPAddress broadcast, bool is_virtual)> Networks(bool _)
+        // This device's IPv4 addresses, each with what its network is (null: no other device reaches it there); loopback and
+        // adapters down left out
+        private static List<(UnicastIPAddressInformation unicast, Network network)> Addresses()
         {
-            List<(IPAddress, IPAddress, bool)> networks = new List<(IPAddress, IPAddress, bool)>();
+            List<(UnicastIPAddressInformation, Network)> addresses = new List<(UnicastIPAddressInformation, Network)>();
+            bool mac = Application.platform == RuntimePlatform.OSXPlayer || Application.platform == RuntimePlatform.OSXEditor;
             try
             {
                 foreach (NetworkInterface adapter in NetworkInterface.GetAllNetworkInterfaces())
@@ -292,11 +417,8 @@ namespace Gwent.Net
                         || adapter.OperationalStatus != OperationalStatus.Up && adapter.OperationalStatus != OperationalStatus.Unknown)
                         continue;
                     foreach (UnicastIPAddressInformation unicast in adapter.GetIPProperties().UnicastAddresses)
-                    {
-                        if (unicast.Address.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(unicast.Address))
-                            continue;
-                        networks.Add((unicast.Address, Broadcast(unicast), IsVirtual(adapter) || IsVpnAddress(unicast.Address)));
-                    }
+                        if (unicast.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(unicast.Address))
+                            addresses.Add((unicast, Describe(adapter.Name, adapter.Description, adapter.NetworkInterfaceType, unicast.Address, mac)));
                 }
             }
             catch (Exception exception) when (exception is NetworkInformationException || exception is NotImplementedException
@@ -304,7 +426,7 @@ namespace Gwent.Net
             {
                 // The device does not say: the broadcast to everyone still goes
             }
-            return networks;
+            return addresses;
         }
 
         private static IPAddress Broadcast(UnicastIPAddressInformation unicast)

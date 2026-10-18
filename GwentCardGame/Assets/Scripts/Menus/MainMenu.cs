@@ -8,8 +8,9 @@ using Image = UnityEngine.UI.Image;
 
 namespace Gwent.Menus
 {
-    // The main menu: Witcher-style entries on the left of the key art. The entries are a UI Toolkit screen
-    // (Assets/UI/Toolkit/MainMenu.uxml); the key art and its "Legacy" title are the scene's.
+    // The main menu: Witcher-style entries on the left of the key art, the version and build in the bottom right corner
+    // (BuildInfo: two LAN players need the same). The entries are a UI Toolkit screen (Assets/UI/Toolkit/MainMenu.uxml);
+    // the key art and its "Legacy" title are the scene's.
     public class MainMenu : MonoBehaviour
     {
         private readonly List<MenuEntry> items = new List<MenuEntry>();
@@ -18,6 +19,7 @@ namespace Gwent.Menus
 
         private void Start()
         {
+            Gwent.Net.LanSession.ForgetBattle(); // a LAN battle that closed is no battle to load any more
             GameAudio.PlayMenuMusic();
             UIScreens.Show("MainMenu", UITheme.Current.mainMenu, Bind);
             CoverWithKeyArt();
@@ -30,6 +32,7 @@ namespace Gwent.Menus
         private void Bind(VisualElement root)
         {
             items.Clear();
+            root.Q<Label>("Build").text = "Version " + Application.version + " \u00B7 Build " + BuildInfo.Build;
             AddItem(root, "Item Play", PlayGame);
             MenuEntry lan = root.Q<MenuEntry>("Item Play on LAN");
             if (GameSettings.IsWeb) // a browser cannot host or find games on the network

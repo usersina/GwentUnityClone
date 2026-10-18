@@ -72,9 +72,10 @@ namespace Gwent.UI
             return carousel;
         }
 
-        // The Witcher 3's band across the top of the screen: a title (and a hint under it on desktop), with a button at
-        // its right (the redraw's Done, a picker's Skip or Close). Returns the button.
-        public static Button Band(Transform root, string title, string hint, string button_label, Action on_button, out TextMeshProUGUI title_text)
+        // The Witcher 3's band across the top of the screen: its title, and at its right a button: a round × (a picker's,
+        // to give the choice up or close a look: button_label null), or a labelled one (the redraw's Done) with its key in
+        // a cap (key: null on a touch screen). Returns the button.
+        public static Button Band(Transform root, string title, string button_label, string key, Action on_button, out TextMeshProUGUI title_text)
         {
             UITheme theme = UITheme.Current;
             RectTransform band = UIKit.NewImage(root, "Band", null, new Color(0, 0, 0, 0.78f)).rectTransform;
@@ -94,15 +95,26 @@ namespace Gwent.UI
             title_text = UIKit.Text(band, title, UIKit.TextStyle.Heading, TextAlignmentOptions.Center);
             title_text.fontSize = 36;
             title_text.color = theme.text;
-            title_text.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, hint != null ? -38 : -58), new Vector2(1100, 50));
-            if (hint != null)
-            {
-                TextMeshProUGUI hint_text = UIKit.Text(band, hint, UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
-                hint_text.rectTransform.Place(new Vector2(0.5f, 1f), new Vector2(0, -82), new Vector2(1300, 34));
-            }
+            title_text.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, 2), new Vector2(1100, 50));
 
+            if (button_label == null)
+            {
+                Button close = UIKit.RoundButton(band, "Button Close", "\u00D7", null, on_button, 48, true);
+                ((RectTransform)close.transform).Place(new Vector2(1f, 0.5f), new Vector2(-114, 0), new Vector2(48, 48));
+                return close;
+            }
             Button button = UIKit.Button(band, button_label, UIKit.ButtonStyle.Primary, on_button, new Vector2(200, 60));
-            ((RectTransform)button.transform).Place(new Vector2(1f, 0.5f), new Vector2(-190, 0), new Vector2(200, 60));
+            float width = 200;
+            if (key != null)
+            {
+                // Its key in a dark cap before its word: "(Space) Done"
+                RectTransform cap = UIKit.KeyCap(button.transform, key, 28, UITheme.WithAlpha(theme.background, 0.85f));
+                TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
+                width = 64 + cap.sizeDelta.x + label.GetPreferredValues(button_label).x;
+                cap.Place(new Vector2(0, 0.5f), new Vector2(22, 0), cap.sizeDelta, new Vector2(0, 0.5f));
+                label.rectTransform.Stretch(22 + cap.sizeDelta.x + 10, 12, 0, 2);
+            }
+            ((RectTransform)button.transform).Place(new Vector2(1f, 0.5f), new Vector2(-90 - width / 2, 0), new Vector2(width, 60));
             return button;
         }
 

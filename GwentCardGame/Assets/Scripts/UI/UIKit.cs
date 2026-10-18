@@ -214,6 +214,75 @@ namespace Gwent.UI
             return button;
         }
 
+        // A round button with a gold ring, lit under the pointer (or the keys): a glyph in it ("×" closes), or an icon (a
+        // sprite) when glyph is null; what it shows takes the ring's light. The chat window's × and speaker, the pickers' ×
+        // (backed: on a dark fill of its own, over whatever lies under the band).
+        public const float RoundSize = 34;
+
+        public static Button RoundButton(Transform parent, string name, string glyph, Sprite icon, Action on_click, float size = RoundSize, bool backed = false)
+        {
+            UITheme theme = Theme;
+            Image fill = NewImage(parent, name, theme.panelSprite, Color.clear, true);
+            fill.rectTransform.sizeDelta = new Vector2(size, size);
+            Button button = fill.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.targetGraphic = fill;
+            Image ring = NewImage(fill.transform, "Ring", theme.panelOutline, theme.gold);
+            ring.raycastTarget = false;
+            ring.rectTransform.Stretch();
+            Graphic shown;
+            if (glyph != null)
+            {
+                TextMeshProUGUI text = Text(fill.transform, glyph, TextStyle.Body, TextAlignmentOptions.Center);
+                text.fontSize = size * 0.88f;
+                text.raycastTarget = false;
+                text.rectTransform.Stretch(0, 0, 0, size * 0.09f);
+                shown = text;
+            }
+            else
+            {
+                Image image = NewImage(fill.transform, "Icon", icon, theme.gold);
+                image.raycastTarget = false;
+                image.preserveAspect = true;
+                image.rectTransform.Stretch(size * 0.15f, size * 0.15f, size * 0.15f, size * 0.15f);
+                shown = image;
+            }
+            UIStateColors states = fill.gameObject.AddComponent<UIStateColors>();
+            Color gold = UITheme.WithAlpha(theme.gold, 1);
+            Color under = backed ? UITheme.WithAlpha(theme.panelRaised, 1) : UITheme.WithAlpha(theme.gold, 0);
+            Color lit = backed ? Color.Lerp(under, gold, 0.16f) : UITheme.WithAlpha(theme.gold, 0.16f);
+            Color held = backed ? Color.Lerp(under, gold, 0.28f) : UITheme.WithAlpha(theme.gold, 0.28f);
+            states.Add(fill, under, lit, held);
+            states.Add(ring, UITheme.WithAlpha(theme.gold, 0.7f), theme.goldBright, theme.goldBright);
+            states.Add(shown, theme.gold, theme.goldBright, theme.goldBright);
+            if (on_click != null)
+                button.onClick.AddListener(() =>
+                {
+                    GameAudio.PlaySfx("ui_click");
+                    on_click();
+                });
+            return button;
+        }
+
+        // A key's name in a small ringed cap ("1", "Space"), as the keys' hints show (no "[Space]"): as wide as its name,
+        // gold, or the colour given (dark on a gold button)
+        public static RectTransform KeyCap(Transform parent, string key, float height = 28, Color? color = null)
+        {
+            UITheme theme = Theme;
+            Color shade = color ?? theme.gold;
+            RectTransform cap = Rect("Key " + key, parent);
+            Image ring = NewImage(cap, "Ring", theme.panelOutline, UITheme.WithAlpha(shade, 0.7f));
+            ring.raycastTarget = false;
+            ring.rectTransform.Stretch();
+            TextMeshProUGUI text = Text(cap, key, TextStyle.Body, TextAlignmentOptions.Center);
+            text.fontSize = height * 0.68f;
+            text.color = shade;
+            text.raycastTarget = false;
+            text.rectTransform.Stretch(0, 0, 0, height * 0.07f);
+            cap.sizeDelta = new Vector2(Mathf.Max(height, text.GetPreferredValues(key).x + height * 0.6f), height);
+            return cap;
+        }
+
         // Puts keyboard / gamepad focus on a control
         public static void Focus(Selectable selectable)
         {

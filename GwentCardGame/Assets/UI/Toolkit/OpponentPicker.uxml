@@ -6,7 +6,7 @@
             <ui:Label text="Choose your opponent" class="title" />
             <ui:VisualElement class="ornament opponent-picker__ornament" />
             <ui:VisualElement name="Entries" class="opponent-picker__entries" />
-            <Gwent.UI.DialogButton name="Button Back" text="Back" class="button--secondary opponent-picker__back" />
+            <Gwent.UI.DialogButton name="Button Close" text="×" class="button--close" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

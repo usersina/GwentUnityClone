@@ -19,7 +19,8 @@ namespace Gwent.Rules
 
     public enum PlaySource : byte { Hand, Discard, Deck, OpponentDiscard }
 
-    public enum PassReason : byte { Chose, EmptyHand, NothingToPlay }
+    // Why a side passed; TimedOut: why a round ended (RoundEnded, Seat: who ran out of time) or a redraw (RedrawDone)
+    public enum PassReason : byte { Chose, EmptyHand, NothingToPlay, TimedOut }
 
     public enum MatchEventKind : byte
     {
@@ -182,7 +183,7 @@ namespace Gwent.Rules
             {
                 case MatchEventKind.Played: return side + " played " + Card + " on " + Row + (Other >= 0 ? " for " + Other : "") + (From != PlaySource.Hand ? " from " + From : "");
                 case MatchEventKind.Passed: return side + " passed (" + Why + ")";
-                case MatchEventKind.RoundEnded: return "round ended: " + Winner + " " + PlayerTotal + "-" + EnemyTotal;
+                case MatchEventKind.RoundEnded: return "round ended: " + Winner + " " + PlayerTotal + "-" + EnemyTotal + (Why == PassReason.TimedOut ? " (" + side + " out of time)" : "");
                 case MatchEventKind.Ended: return "ended: " + Winner + (Flag ? " (" + side + " gave up)" : "");
                 default: return Kind + " " + side + (Card != -1 ? " " + Card : "");
             }

@@ -116,6 +116,13 @@
     bottom: 48px;
 }
 
+/* The version and build, in the bottom right corner across from the note */
+.main-menu__build {
+    position: absolute;
+    right: 156px;
+    bottom: 48px;
+}
+
 /*---------------------------------------- Dialogs ----------------------------------------*/
 /* Darkens the whole screen behind a dialog and takes its clicks */
 .dimmer {
@@ -188,6 +195,36 @@
     background-color: rgba(201, 164, 92, 0.28);
 }
 
+/* A gold-ringed × in a dialog's top right corner: it closes the dialog (as Escape does), as the battle's chat window's ×
+   does; no "Back" or "Esc to close" */
+.button--close {
+    position: absolute;
+    top: 28px;
+    right: 28px;
+    width: 46px;
+    height: 46px;
+    padding: 0 0 6px 0;
+    border-width: 2px;
+    border-radius: 10px;
+    border-color: rgba(201, 164, 92, 0.7);
+    background-color: rgba(201, 164, 92, 0);
+    -unity-font-definition: var(--body-font);
+    font-size: 50px;
+    letter-spacing: 0;
+    color: var(--gold);
+}
+
+.unity-button.button--close:hover,
+.unity-button.button--close:focus {
+    background-color: rgba(201, 164, 92, 0.16);
+    border-color: var(--gold-bright);
+    color: var(--gold-bright);
+}
+
+.unity-button.button--close:active {
+    background-color: rgba(201, 164, 92, 0.28);
+}
+
 /* Gold fill, dark text: the choice a dialog is about */
 .button--primary {
     background-color: var(--gold);
@@ -223,12 +260,6 @@
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: space-between;
-}
-
-.opponent-picker__back {
-    width: 240px;
-    height: 64px;
-    margin-top: 22px;
 }
 
 /* One opponent: the leader's portrait in a gold ring, the deck's name, its faction and leader; lights up like a menu
@@ -570,6 +601,7 @@
 /* The battles found: one a row, in the same frame as the empty list's */
 .lan__games {
     width: 1220px;
+    max-height: 330px; /* three battles; more scroll */
     padding: 8px 0;
     border-width: 1px;
     border-color: var(--line-soft);
@@ -601,7 +633,8 @@
 }
 
 .opponent:hover .lan__join,
-.opponent:focus .lan__join {
+.opponent:focus .lan__join,
+.lan__game--touch .lan__join {
     opacity: 1;
 }
 
@@ -637,7 +670,7 @@
     flex-grow: 1;
 }
 
-.lan__link {
+.button--ghost.lan__link {
     margin-top: 10px;
     font-size: 24px;
     height: 44px;
@@ -656,12 +689,13 @@
     margin: 18px 0 10px 0;
 }
 
+/* Both seats' contents from the top: the portraits level, whatever wraps under them */
 .lan__seat {
     width: 470px;
-    height: 330px;
+    height: 350px;
     align-items: center;
-    justify-content: center;
-    padding: 20px;
+    justify-content: flex-start;
+    padding: 24px 20px 16px 20px;
     border-width: 1px;
     border-color: var(--line-soft);
     border-radius: 12px;
@@ -778,7 +812,7 @@
     margin: 6px 0 0 0;
 }
 
-.lan__copy {
+.button--ghost.lan__copy {
     width: auto;
     height: 40px;
     margin-left: 10px;
@@ -787,10 +821,79 @@
     color: var(--gold);
 }
 
+/* The host's networks, on asking: what each is, its adapter, the address there; the ports and what a VPN's address is for */
+.lan__details {
+    width: 860px;
+    margin: 8px 0 0 0;
+    padding: 10px 24px 14px 24px;
+    background-color: rgba(10, 8, 6, 0.45);
+    border-width: 1px;
+    border-color: var(--line-soft);
+    border-radius: 10px;
+}
+
+.lan__network {
+    flex-direction: row;
+    align-items: center;
+    height: 46px;
+}
+
+.lan__network-kind {
+    width: 190px;
+    -unity-font-definition: var(--heading-font);
+    font-size: 22px;
+    letter-spacing: 1.4px;
+    color: var(--gold-bright);
+    padding: 0;
+    margin: 0;
+}
+
+.lan__network-adapter {
+    width: 230px;
+    -unity-font-definition: var(--body-font);
+    font-size: 20px;
+    color: var(--text-muted);
+    padding: 0 12px 0 0;
+    margin: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.lan__network-address {
+    flex-grow: 1;
+    -unity-font-definition: var(--body-font);
+    font-size: 24px;
+    color: var(--text-bright);
+    padding: 0;
+    margin: 0;
+}
+
+.lan__details-note {
+    -unity-font-definition: var(--body-font);
+    font-size: 20px;
+    color: var(--text-muted);
+    white-space: normal;
+    padding: 0;
+    margin: 6px 0 0 0;
+}
+
 .lan__buttons {
     flex-direction: row;
     justify-content: center;
     margin-top: 26px;
+}
+
+/* The build, small in the panel's bottom left corner: both players need the same */
+.lan__build {
+    position: absolute;
+    left: 28px;
+    bottom: 18px;
+    -unity-font-definition: var(--body-font);
+    font-size: 18px;
+    color: var(--text-muted);
+    padding: 0;
+    margin: 0;
 }
 
 .lan__button {
@@ -925,12 +1028,6 @@
     height: 56px;
     -unity-text-align: middle-left;
     padding-left: 0;
-}
-
-.settings__back {
-    width: 200px;
-    height: 56px;
-    font-size: 24px;
 }
 
 /* A page longer than the panel (Graphics) scrolls. Its scroll bar stands in the panel's right margin, so its rows line
@@ -1302,6 +1399,44 @@
     font-size: 30px;
 }
 
+/* A toast with keys: its words and key caps in a centred line that flows over */
+.toast__line {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.toast__word {
+    -unity-font-definition: var(--body-font);
+    font-size: 30px;
+    color: var(--text);
+    padding: 0;
+    margin: 2px 4px;
+}
+
+/* A key's name in a small gold-ringed cap ("Esc", "Space"), as the battle's buttons show it: no "[Esc]" */
+.keycap {
+    height: 36px;
+    min-width: 36px;
+    margin: 2px 6px;
+    padding: 0 10px 2px 10px;
+    border-width: 2px;
+    border-radius: 8px;
+    border-color: rgba(201, 164, 92, 0.7);
+    align-items: center;
+    justify-content: center;
+}
+
+.keycap__label {
+    -unity-font-definition: var(--body-font);
+    font-size: 22px;
+    color: var(--gold);
+    -unity-text-align: middle-center;
+    padding: 0;
+    margin: 0;
+}
+
 /*---------------------------------------- Tooltip ----------------------------------------*/
 .tooltip {
     position: absolute;
@@ -1321,7 +1456,7 @@
 /*---------------------------------------- How to play ----------------------------------------*/
 .rules {
     width: 1500px;
-    height: 900px;
+    height: 820px;
     padding: 30px 50px 26px 50px;
     align-items: center;
 }
@@ -1527,12 +1662,6 @@
     width: 88px;
     height: 137px;
     -unity-background-scale-mode: stretch-to-fill;
-}
-
-.rules__close {
-    width: 220px;
-    height: 60px;
-    margin-top: 20px;
 }
 
 /*---------------------------------------- Unity's own button states ----------------------------------------*/

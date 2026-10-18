@@ -11,7 +11,9 @@ using UnityEngine.UI;
 namespace Gwent.Battle
 {
     // The end of the battle: The Witcher 3's emblem of the outcome, the round tally, a scoreboard with both sides (leader
-    // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on.
+    // portrait, name, faction, every round's score, a laurel behind each round's winning score) and the way on: against
+    // the AI, Play again; in a LAN battle, Rematch (once both players ask, the next battle loads; under the buttons, what
+    // the other player is at: asking too, away, gone) and, for its guest, the fair play check of the battle (FairPlay).
     // Built when the battle ends, over the dimmed board.
     public class EndScreen : MonoBehaviour
     {
@@ -19,8 +21,25 @@ namespace Gwent.Battle
         private const float RoundColumn = 170;
         private const float RowHeight = 116;
 
-        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player)
-        public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false, bool opponent_left = false)
+        private bool lanBattle;
+        private LanSession lan;         // the LAN battle's session, while it lasts
+        private int battle;             // the session's battle shown: another one is the rematch
+        private string opponentName;
+        private Button rematch, menu;
+        private TextMeshProUGUI status, fairPlay;
+        private bool loading;
+        private readonly RectTransform[] portraits = new RectTransform[2]; // the scoreboard's: the player's, the opponent's
+
+        // A side's portrait on the scoreboard (what its chat bubbles come out of: ChatView); null before it shows
+        public RectTransform Portrait(bool player)
+        {
+            return portraits[player ? 0 : 1];
+        }
+
+        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player); lan_battle: a LAN
+        // battle (its session may be gone already: the other player left); ended_away: its host ended it while this guest
+        // was away
+        public void Show(BattleState outcome, BattleController.BattleSide player, BattleController.BattleSide opponent, bool gave_up = false, bool opponent_left = false, bool lan_battle = false, bool ended_away = false)
         {
             UITheme theme = UITheme.Current;
             foreach (Transform child in transform)
@@ -35,12 +54,14 @@ namespace Gwent.Battle
             int drawn = player.RoundsScore.Count - player_rounds - opponent_rounds;
             string drawn_text = drawn == 1 ? ", one round drawn" : drawn > 1 ? ", " + drawn + " rounds drawn" : "";
             string tally = outcome == BattleState.Won ? "You won the battle, " + Rounds(player_rounds) + " to " + opponent_rounds + drawn_text
-                : outcome == BattleState.Lost ? "The opponent won the battle, " + Rounds(opponent_rounds) + " to " + player_rounds + drawn_text
+                : outcome == BattleState.Lost ? (lan_battle ? opponent.Name : "The opponent") + " won the battle, " + Rounds(opponent_rounds) + " to " + player_rounds + drawn_text
                 : "Neither side came out ahead" + drawn_text;
             if (gave_up)
                 tally = "You gave up the battle";
             else if (opponent_left)
                 tally = opponent.Name + " left the battle";
+            else if (ended_away)
+                tally = opponent.Name + " ended the battle while you were away";
 
             // A faint light behind the emblem lifts it off the dimmed board (the emblem brings its own colour)
             Image glow = UIKit.NewImage(content, "Glow", theme.radial, UITheme.WithAlpha(theme.textBright, 0.1f));
@@ -55,18 +76,76 @@ namespace Gwent.Battle
 
             BuildScoreboard(content, player, opponent);
 
-            // A LAN battle ends there: back to the main menu only
-            bool lan = LanSession.Current != null;
-            Button menu = UIKit.Button(content, "Main menu", lan ? UIKit.ButtonStyle.Primary : UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
-            ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(lan ? 0 : 170, -350), new Vector2(300, 72));
-            if (lan)
+            // A LAN battle whose session is gone (the other player left): back to the main menu only
+            lanBattle = lan_battle;
+            lan = lan_battle ? LanSession.Current : null;
+            bool menu_only = lan_battle && lan == null;
+            menu = UIKit.Button(content, "Main menu", menu_only ? UIKit.ButtonStyle.Primary : UIKit.ButtonStyle.Secondary, ToMainMenu, new Vector2(300, 72));
+            ((RectTransform)menu.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(menu_only ? 0 : 170, -350), new Vector2(300, 72));
+            if (menu_only)
             {
                 UIKit.Focus(menu);
+                return;
+            }
+            if (lan != null)
+            {
+                battle = lan.Battle;
+                opponentName = opponent.Name;
+                rematch = UIKit.Button(content, "Rematch", UIKit.ButtonStyle.Primary, () => lan.AskRematch(), new Vector2(300, 72));
+                ((RectTransform)rematch.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
+                status = UIKit.Text(content, "", UIKit.TextStyle.Body, TextAlignmentOptions.Center);
+                status.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -432), new Vector2(1200, 44));
+                if (!lan.Hosting)
+                {
+                    fairPlay = UIKit.Text(content, "", UIKit.TextStyle.Caption, TextAlignmentOptions.Center);
+                    fairPlay.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2(0, -486), new Vector2(1400, 36));
+                }
+                ShowRematch();
+                UIKit.Focus(rematch);
                 return;
             }
             Button again = UIKit.Button(content, "Play again", UIKit.ButtonStyle.Primary, PlayAgain, new Vector2(300, 72));
             ((RectTransform)again.transform).Place(new Vector2(0.5f, 0.5f), new Vector2(-170, -350), new Vector2(300, 72));
             UIKit.Focus(again);
+        }
+
+        //----------------------------------------Rematch----------------------------------------//
+        private void Update()
+        {
+            if (!lanBattle || rematch == null || loading)
+                return;
+            if (lan != null && lan.State == LanSession.Stage.Battle && lan.Battle != battle)
+            {
+                // Both asked: the next battle
+                loading = true;
+                Time.timeScale = 1f;
+                LoadingScreen.Load(SceneNames.Game);
+                return;
+            }
+            ShowRematch();
+        }
+
+        // Rematch can be asked once the battle is over on both devices and the other player is there; under it, what the
+        // other player is at
+        private void ShowRematch()
+        {
+            UITheme theme = UITheme.Current;
+            bool gone = lan == null || lan.State == LanSession.Stage.Closed;
+            bool can = !gone && lan.Linked && lan.Over && !lan.AskedRematch;
+            if (rematch.interactable != can)
+                rematch.interactable = can; // the keys stay on it (moved to Main menu, a second press would leave)
+            status.text = gone ? opponentName + " left"
+                : !lan.Linked ? opponentName + " is away"
+                : lan.AskedRematch ? "Waiting for " + opponentName
+                : lan.TheyAskedRematch ? opponentName + " wants a rematch"
+                : "";
+            status.color = !gone && lan.Linked && lan.TheyAskedRematch && !lan.AskedRematch ? theme.goldBright : theme.textMuted;
+            if (fairPlay != null && !gone && lan.FairChecked)
+            {
+                fairPlay.text = lan.FairProblem == null ? "Fair play checked: the shuffle was shared, and every move followed the rules"
+                    : "Fair play check failed. " + lan.FairProblem;
+                fairPlay.color = lan.FairProblem == null ? theme.textMuted : new Color(0.9f, 0.42f, 0.36f);
+            }
         }
 
         //----------------------------------------Scoreboard----------------------------------------//
@@ -103,6 +182,7 @@ namespace Gwent.Battle
             // Leader portrait in a gold ring
             Image mask = UIKit.NewImage(board, "Portrait", theme.circle, Color.white);
             mask.rectTransform.Place(new Vector2(0, 1), new Vector2(30 + 56, y), new Vector2(84, 84));
+            portraits[index] = mask.rectTransform;
             mask.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             Image portrait = UIKit.NewImage(mask.transform, "Art", null, Color.white);
             CardArt.Show(portrait, info.Leader);
@@ -112,6 +192,11 @@ namespace Gwent.Battle
 
             TextMeshProUGUI who = UIKit.Text(board, name, UIKit.TextStyle.Heading, TextAlignmentOptions.BottomLeft);
             who.fontSize = 32;
+            // A long name (a LAN player's, up to 16) stops short of the first round's score: smaller, then cut with "…"
+            who.fontSizeMax = 32;
+            who.fontSizeMin = 18;
+            who.enableAutoSizing = true;
+            who.overflowMode = TextOverflowModes.Ellipsis;
             who.color = theme.text;
             who.rectTransform.Place(new Vector2(0, 1), new Vector2(30 + 120, y + 4), new Vector2(270, 44), new Vector2(0, 0));
             TextMeshProUGUI faction = UIKit.Text(board, Factions.DisplayName(info.Faction), UIKit.TextStyle.Caption, TextAlignmentOptions.TopLeft);

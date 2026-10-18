@@ -67,6 +67,7 @@ namespace Gwent.Battle
         private Match match;              // this device's (null: a LAN guest's battle is the host's)
         private BattleSource source;
         private LanSession lan;           // a LAN battle's (null: against the AI)
+        private int lanBattle;            // which of the session's battles this screen shows (a rematch's is another screen)
         private int shown;                // the match's events shown so far
         private MatchState latest;        // the battle as the event shown last left it, as this side sees it
         private MatchState logged;        // the whole battle as the event shown last left it (the log tells all of it)
@@ -129,12 +130,25 @@ namespace Gwent.Battle
 
         private void Start()
         {
+            LanSession meant = LanSession.ForBattle;
+            bool lan_battle = meant is object; // a session closed meanwhile is a destroyed object: "!= null" would say none
+            lan = lan_battle && meant.State == LanSession.Stage.Battle ? meant : null;
+            if (lan_battle && lan == null)
+            {
+                // The LAN battle this was loaded for closed meanwhile (the other player left, a battle no longer there):
+                // why, and the way back, over the empty board (no battle against the AI instead)
+                LanSession.ForgetBattle();
+                HandArtLoaded = true;
+                battleState = BattleState.Draw; // nothing to play (the pause menu offers the main menu)
+                UIOverlay.SetEscapeAction(OnEscape);
+                away = LanNotice.Show(meant, true, () => LoadingScreen.Load(SceneNames.Menu));
+                return;
+            }
             if (!GameInput.IsTouch)
                 gameObject.AddComponent<BattleKeys>();
             View(true).Deck.gameObject.AddComponent<DeckGiveUp>(); // a hand laid on your deck gives up
             GameAudio.PlayGameMusic();
             Time.timeScale = GameSettings.GameTimeScale;
-            lan = LanSession.Current != null && LanSession.Current.State == LanSession.Stage.Battle ? LanSession.Current : null;
             PlayerInfo.Name = lan != null ? lan.MyName : "Player";
             EnemyInfo.Name = lan != null ? lan.TheirName : "Opponent";
 
@@ -172,6 +186,31 @@ namespace Gwent.Battle
 
         public Rect DeckScreenRect(bool is_player) { return board.DeckRect(is_player); }
 
+        // The player's hand row on the screen (the LAN talk window opens over it)
+        public Rect HandScreenRect { get { return CardMotion.ScreenRect((RectTransform)View(true).Hand.transform); } }
+
+        // The line between the two halves of the board (the close combat rows'), on the screen: a LAN turn clock's fuse
+        internal Rect MiddleScreenRect
+        {
+            get
+            {
+                // Each side's close combat row: its horn slot on the left, its units' place on the right
+                Rect Row(bool is_player)
+                {
+                    RectTransform horn_rect = View(is_player).Rows[Gwent.Rules.Row.Close].Special.transform as RectTransform;
+                    Rect units = CardMotion.ScreenRect((RectTransform)View(is_player).Rows[Gwent.Rules.Row.Close].Unit.transform);
+                    Rect horn = horn_rect != null ? CardMotion.ScreenRect(horn_rect) : units;
+                    return Rect.MinMaxRect(Mathf.Min(horn.xMin, units.xMin), Mathf.Min(horn.yMin, units.yMin), Mathf.Max(horn.xMax, units.xMax), Mathf.Max(horn.yMax, units.yMax));
+                }
+                Rect mine = Row(true), theirs = Row(false);
+                float y = (Mathf.Min(mine.yMax, theirs.yMax) + Mathf.Max(mine.yMin, theirs.yMin)) / 2; // between the two
+                return Rect.MinMaxRect(Mathf.Min(mine.xMin, theirs.xMin), y - 1, Mathf.Max(mine.xMax, theirs.xMax), y + 1);
+            }
+        }
+
+        // The redraw's band while the redraw is open (its clock's fuse burns along its foot), else null
+        internal RectTransform RedrawBand { get { return mulliganPrompt != null ? (RectTransform)mulliganPrompt.transform.Find("Band") : null; } }
+
         private void Update()
         {
             if (battleState == BattleState.Start && PlayerInfo.CanExchange && mulliganPrompt != null && ShouldSkipCardExchange())
@@ -186,6 +225,10 @@ namespace Gwent.Battle
                 PassBtn.SetActive(can_pass);
 
             board.UpdateMarkers();
+
+            // A LAN battle's clock runs once this screen has shown all there is (its animations are not the player's time)
+            if (lan != null && presenting == 0 && source != null && shown >= source.Count)
+                lan.ScreenShown(shown, lanBattle);
         }
 
         // Right click (or a second finger) keeps the hand; Escape opens the pause menu instead
@@ -204,8 +247,9 @@ namespace Gwent.Battle
             get { return battleState == BattleState.PlayerTurn && pendingAction == PendingAction.None && !IsPresenting; }
         }
 
-        // The player may give up (a hand on their deck): in their turn, nothing pending or being shown
-        public bool CanGiveUp { get { return IsPlayerActionAllowed && !IsBattleOver; } }
+        // The player may give up (a hand on their deck): in their turn, nothing pending or being shown; in a LAN battle at
+        // any time, the other player there (holding its turn forever is no way to win)
+        public bool CanGiveUp { get { return !IsBattleOver && (IsPlayerActionAllowed || lan != null && lan.Linked && shown > 0); } }
 
         // A play is being shown, the match has moved on and the screen not yet, a move is on its way to a LAN host, or the
         // other device of a LAN battle is away: nothing else can be done until then
@@ -238,7 +282,21 @@ namespace Gwent.Battle
                 MyDeck = lan.MyDeck;
                 TheirDeck = lan.TheirDeck;
                 opponentName = lan.TheirName;
+                // Until the first event is in (a battle taken up again, the other device not back yet): both sides as their
+                // decks say
+                foreach (bool is_player in new[] { true, false })
+                {
+                    Deck deck = is_player ? MyDeck : TheirDeck;
+                    Info(is_player).Faction = deck.Faction;
+                    Info(is_player).Leader = deck.Leader;
+                    View(is_player).Stats.UISetGeneral(deck.Faction);
+                    View(is_player).Stats.UISetPlayer(Info(is_player).Name, deck.Leader);
+                }
+                lanBattle = lan.Battle;
                 lan.Changed += LanChanged;
+                ChatView.Attach(this, lan, View(true).Stats, View(false).Stats);
+                TurnFuse.Attach(this, lan);
+                LanChanged(); // a battle taken up again starts with the other device away
             }
             else
             {
@@ -529,6 +587,8 @@ namespace Gwent.Battle
         private async UniTask ShowRedrawDone(MatchEvent e, MatchState all, CancellationToken ct)
         {
             ApplyView(e.State, all);
+            if (e.Seat && e.Why == PassReason.TimedOut)
+                UIOverlay.Toast("Out of time: you keep your hand", 3f);
             if (!e.Seat || !EnemyInfo.CanExchange)
                 return;
             await While(() => RedrawPicker.IsAnimating, ct);
@@ -739,9 +799,15 @@ namespace Gwent.Battle
             BattleLog.RoundEnd(this, e.Winner, e.PlayerTotal, e.EnemyTotal);
             bool[] lost = { PlayerInfo.Lives < player_lives, EnemyInfo.Lives < enemy_lives }; // the player's, the opponent's
 
+            bool timed_out = e.Why == PassReason.TimedOut; // a LAN turn's clock: the side out of time lost the round
+            if (timed_out && e.Seat)
+                DropInput(); // what the player was doing goes with the round
             if (e.Flag)
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
-            if (e.Winner == RoundWinner.Player)
+            if (timed_out)
+                BattleBanner.Show(e.Seat ? BattleBanner.RoundLost : BattleBanner.RoundWon,
+                    e.Seat ? "Out of time: your opponent wins the round" : "Your opponent ran out of time: you win the round", BattleBanner.Long);
+            else if (e.Winner == RoundWinner.Player)
                 BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
             else if (e.Winner == RoundWinner.Enemy)
                 BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long);
@@ -832,14 +898,19 @@ namespace Gwent.Battle
         private void ShowEnd(MatchEvent e, MatchState all)
         {
             ApplyView(e.State, all);
+            // Given up by the other side; or for this one, by the host while this guest was away (its own giving up does
+            // not come here)
             ConcludeBattle(e.Winner == RoundWinner.Player ? BattleState.Won : e.Winner == RoundWinner.Enemy ? BattleState.Lost : BattleState.Draw,
-                false, e.Flag && !e.Seat);
+                false, e.Flag && !e.Seat, e.Flag && e.Seat);
         }
 
         // A move the LAN host refused after all: the battle shows as it was (a card played back in the hand)
         private void ShowRefused()
         {
-            GameAudio.PlaySfx("invalid");
+            if (IsBattleOver)
+                return; // given up meanwhile: the end stays
+            if (lan == null || lan.Linked)
+                GameAudio.PlaySfx("invalid"); // not for a move lost with the link (made again once it is back)
             if (latest == null)
                 return;
             ApplyView(latest, logged);
@@ -857,7 +928,8 @@ namespace Gwent.Battle
             if (lan.State == LanSession.Stage.Closed)
             {
                 CloseAway();
-                away = LanNotice.Show(lan, true, () => LoadingScreen.Load(SceneNames.Menu));
+                if (!lan.Ended) // else its end shows (the other gave up, then left)
+                    away = LanNotice.Show(lan, true, () => LoadingScreen.Load(SceneNames.Menu));
                 return;
             }
             if (lan.Linked)
@@ -871,7 +943,12 @@ namespace Gwent.Battle
             if (lan.Hosting)
                 lan.Match.Apply(false, MatchCommand.GiveUp()); // the guest's seat: it left the battle
             else
+            {
+                // Out of the session too: no joining again behind the end screen (the host, its minute up, ends it)
+                lan.Changed -= LanChanged;
+                lan.Leave();
                 GiveUp();
+            }
             CloseAway();
         }
 
@@ -901,29 +978,38 @@ namespace Gwent.Battle
             flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
             EndPresentations();
             BattleBanner.Clear();
-            DiscardViewer.Close();
             if (mulliganPrompt != null)
                 Destroy(mulliganPrompt);
-            TurnPicker.SetActive(false);
-            Panel.SetActive(false);
-            pendingAction = PendingAction.None;
-            DeselectCard();
-            SetHider(false);
+            DropInput();
             source.Submit(MatchCommand.GiveUp()); // a LAN guest away: the host finds out on its own
             shown = source.Count;
             ConcludeBattle(BattleState.Lost, true);
         }
 
-        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player)
-        private void ConcludeBattle(BattleState outcome, bool gave_up = false, bool opponent_left = false)
+        // What the player was in the middle of goes (a pile looked through, a card taken or picked, the leader lifted, a
+        // choice open): the battle moved on without it (given up, out of time)
+        private void DropInput()
+        {
+            DiscardViewer.Close();
+            TurnPicker.SetActive(false);
+            Panel.SetActive(false);
+            pendingAction = PendingAction.None;
+            DeselectCard();
+            SetHider(false);
+        }
+
+        // gave_up: the player gave up; opponent_left: the opponent did (a LAN battle's other player); ended_away: the LAN
+        // host ended it while this guest was away
+        private void ConcludeBattle(BattleState outcome, bool gave_up = false, bool opponent_left = false, bool ended_away = false)
         {
             BattleLog.End(outcome, gave_up);
             battleState = outcome;
             CloseAway();
+            BattleBanner.Clear(); // a notice under way (the other's turn, as it gave up) does not show over the end
             CardShowcase.Clear();
             CardMotion.ClearLayer();
             PostGame.SetActive(true);
-            PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up, opponent_left);
+            PostGame.GetComponent<EndScreen>().Show(outcome, PlayerInfo, EnemyInfo, gave_up, opponent_left, !ReferenceEquals(lan, null), ended_away);
             if (outcome == BattleState.Won)
                 GameAudio.PlaySfx("victory");
             else if (outcome == BattleState.Lost)

@@ -70,7 +70,7 @@ namespace Gwent.Battle
             cards.Clear();
             cards.AddRange(card_ids);
             bool look = mode == Mode.View;
-            picker = CardPicker.Open(UIOverlay.Root, Title(mode, field), cards, look ? (Action<int>)null : Choose, look ? "Close" : "Skip", OnSkip);
+            picker = CardPicker.Open(UIOverlay.Root, Title(mode, field), cards, look ? (Action<int>)null : Choose, OnSkip);
         }
 
         private static string Title(Mode mode, PickSource field)
@@ -95,7 +95,7 @@ namespace Gwent.Battle
             picker = null;
         }
 
-        // Skip / Close: give up the choice and end the turn. Skipping loses something (a medic's revival, a leader already
+        // The ×: give up the choice and end the turn. Skipping loses something (a medic's revival, a leader already
         // spent, Destroyer of Worlds' draw after its two discards): asked first, the safe answer focused, so a click or a
         // key too many cannot throw it away. Closing a look (Emhyr) loses nothing.
         private void OnSkip()

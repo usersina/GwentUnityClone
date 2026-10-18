@@ -50,14 +50,21 @@ namespace Gwent.Battle
 
         private void Start()
         {
-            // The Witcher 3's "[SPACE] [HOLD] Pass" hint, on keyboards
+            // The Witcher 3's "[SPACE] [HOLD] Pass" hint, on keyboards: its key in a cap before the words, both centred
             if (GameInput.IsTouch)
                 return;
             TMPro.TextMeshProUGUI label = GetComponentInChildren<TMPro.TextMeshProUGUI>();
-            if (label != null)
-                label.text = "<size=72%><color=#" + ColorUtility.ToHtmlStringRGB(UITheme.Current.textSecondary) + ">[Space]</color></size>  Hold to pass";
+            if (label == null)
+                return;
+            label.text = "Hold to pass";
+            RectTransform cap = UIKit.KeyCap(transform, "Space", 26);
+            float words = label.GetPreferredValues(label.text).x;
+            float together = cap.sizeDelta.x + 12 + words;
             RectTransform rect = (RectTransform)transform;
-            rect.sizeDelta = new Vector2(Mathf.Max(rect.sizeDelta.x, 300), rect.sizeDelta.y);
+            rect.sizeDelta = new Vector2(Mathf.Max(rect.sizeDelta.x, together + 48), rect.sizeDelta.y);
+            cap.Place(new Vector2(0.5f, 0.5f), new Vector2((cap.sizeDelta.x - together) / 2, 0), cap.sizeDelta);
+            label.alignment = TMPro.TextAlignmentOptions.Midline;
+            label.rectTransform.Place(new Vector2(0.5f, 0.5f), new Vector2((together - words) / 2, label.rectTransform.anchoredPosition.y), new Vector2(words + 4, label.rectTransform.rect.height));
         }
 
         private void Update()

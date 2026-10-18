@@ -14,6 +14,7 @@ namespace Gwent.Rules
         Discard,        // a card of the hand, for Eredin, Destroyer of Worlds
         Skip,           // the pending choice given up (the turn ends)
         GiveUp,
+        TimeOut,        // the side ran out of time (a LAN battle's clock, the host's): Match.TimeOut
     }
 
     // A side's move or answer, as one device sends it to the match (Match.Apply). Plain data: it is what a battle's log
@@ -43,6 +44,7 @@ namespace Gwent.Rules
         public static MatchCommand Discard(int card_id, int hand_index = -1) { return Of(CommandKind.Discard, card_id, Row.Close, hand_index); }
         public static MatchCommand Skip() { return Of(CommandKind.Skip); }
         public static MatchCommand GiveUp() { return Of(CommandKind.GiveUp); }
+        public static MatchCommand TimeOut() { return Of(CommandKind.TimeOut); }
 
         // The AI's move as a command
         public static MatchCommand From(AiAction action)

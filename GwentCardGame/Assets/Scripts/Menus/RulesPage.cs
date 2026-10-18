@@ -141,19 +141,23 @@ namespace Gwent.Menus
                     Entries = touch ? new[]
                     {
                         E("Play a card", "Tap it in your hand (it shows large on the right), then tap where it lights up.", "card:7"),
-                        E("Leader", "Tap the leader: it leaves its place for the right, shows where it acts, and its crown glows; tap the crown to use it, or the empty place to put it back. Hold a finger on the crown to see whether it can still be used.", "crown"),
+                        E("Leader", "Tap your leader, then its glowing crown; tap the empty place to put it back. Hold a finger on the crown to see whether it can still be used.", "crown"),
+                        E("Choose cards", "In the redraw, and when a card is to be chosen: tap a card to bring it forward, tap it again to take it. Done keeps the rest of your hand; × gives a choice up.", "card:7", "card:14"),
                         E("Pass", "Hold the Hold to pass button.", "key:Hold to pass"),
-                        E("Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large until you lift it; tap a discard pile to look through it.", "card:14"),
-                        E("Pause", "The menu button (or the Android app's back button): resume or settings.", "key:Back"),
-                        E("Give up", "Lay your hand on your deck: in your turn, hold a finger on it, then confirm. It counts as a loss.", "back:NR"),
+                        E("Look", "Hold a finger on any card (on the board, in your hand, a leader) to see it large; tap a discard pile to look through it.", "card:14"),
+                        E("Chat", "In a LAN battle: tap your portrait for the quick lines, its badge for the chat.", "key:..."),
+                        E("Pause", "The menu button, or the Android back button: resume or settings.", "key:Back"),
+                        E("Give up", "In your turn, hold a finger on your deck, then confirm. It counts as a loss.", "back:NR"),
                     } : new[]
                     {
-                        E("Play a card", "Click it in your hand, then click where it lights up; the cursor shows a red sign where it can't go. With the keys: Left/Right go through your hand, Enter takes the card, Up/Down choose where it goes, Enter plays it, Esc puts it back.", "key:<", "key:>", "key:Enter"),
-                        E("Leader", "Click the leader: it leaves its place for the right, shows where it acts, and its crown glows; click the crown to use it, or the empty place (or right-click, Esc) to put it back. Or X, then X again or Enter.", "key:X", "crown"),
-                        E("Pass", "Hold Space, or hold the Hold to pass button.", "key:Space"),
+                        E("Play a card", "Click it in your hand, then where it lights up (a red sign shows where it can't go). Keys: Left and Right pick a card, Enter takes it, Up and Down choose its place, Enter plays it, Esc puts it back.", "key:<", "key:>", "key:Enter"),
+                        E("Leader", "Click your leader, then its glowing crown; click the empty place (or Esc) to put it back. Keys: X, then X or Enter.", "key:X", "crown"),
+                        E("Choose cards", "In the redraw, and when a card is to be chosen: click a card to bring it forward, click it again (or Enter) to take it. Space or Done keeps the rest of your hand; × gives a choice up.", "key:Space", "key:Enter"),
+                        E("Pass", "Hold Space, or the Hold to pass button.", "key:Space"),
                         E("Look", "Hover a card to see it large; click a discard pile to look through it.", "card:14"),
+                        E("Chat", "In a LAN battle: E (or a click on your portrait) shows the quick lines, and 1 to 8 says one. T (or the portrait's badge) opens the chat: what was said, a message to type, mute.", "key:E", "key:T"),
                         E("Pause", "Esc or the menu button: resume, settings, or quit the game (outside the browser).", "key:Esc"),
-                        E("Give up", "Lay your hand on your deck: in your turn, the cursor over it turns into a hand; click, then confirm. It counts as a loss.", "back:NR"),
+                        E("Give up", "Click your deck when the cursor over it turns into a hand, then confirm. It counts as a loss.", "back:NR"),
                     },
                 },
             };

@@ -49,9 +49,9 @@
                     <ui:VisualElement name="Live" class="lan__live" picking-mode="Ignore" />
                     <ui:Label name="LiveText" text="Searching" class="lan__live-text" />
                 </ui:VisualElement>
-                <ui:VisualElement name="Games" class="lan__games" />
+                <ui:ScrollView name="Games" class="lan__games scroll" vertical-scroller-visibility="Auto" horizontal-scroller-visibility="Hidden" />
                 <ui:VisualElement name="Empty" class="lan__empty">
-                    <ui:Label text="No battles yet. Players on your Wi-Fi or hotspot show up here." class="lan__empty-body" />
+                    <ui:Label name="EmptyText" class="lan__empty-body" />
                 </ui:VisualElement>
                 <ui:VisualElement name="AddressRow" class="lan__address">
                     <ui:TextField name="Address" max-length="64" class="lan__field lan__address-field" />
@@ -72,13 +72,23 @@
                 <ui:VisualElement name="Reach" class="lan__reach">
                     <ui:Label name="ReachText" class="lan__detail" />
                     <Gwent.UI.DialogButton name="Button Copy" text="Copy" class="button--ghost lan__copy" />
+                    <Gwent.UI.DialogButton name="Button Details" text="Details" class="button--ghost lan__copy" />
+                </ui:VisualElement>
+                <!-- On asking: each network this device can be joined on (a VPN's too) and its address there, and the ports -->
+                <ui:VisualElement name="Details" class="lan__details">
+                    <ui:VisualElement name="Networks" />
+                    <ui:Label name="Ports" class="lan__details-note" />
+                    <ui:Label text="Friends on your VPN (Tailscale, ZeroTier, Hamachi...) can join from anywhere with its address." class="lan__details-note" />
                 </ui:VisualElement>
             </ui:VisualElement>
 
             <ui:VisualElement class="lan__buttons">
                 <Gwent.UI.DialogButton name="Button Main" text="Host a battle" class="button--primary lan__button" />
-                <Gwent.UI.DialogButton name="Button Back" text="Back" class="button--secondary lan__button" />
+                <Gwent.UI.DialogButton name="Button Back" text="Stop hosting" class="button--secondary lan__button" />
             </ui:VisualElement>
+            <!-- This build (both players need the same one) -->
+            <ui:Label name="Build" class="lan__build" picking-mode="Ignore" />
+            <Gwent.UI.DialogButton name="Button Close" text="×" class="button--close" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

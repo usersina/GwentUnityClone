@@ -6,11 +6,13 @@ using UnityEngine.UI;
 namespace Gwent.Battle
 {
     // A discard pile in the carousel, as The Witcher 3 shows it (click a pile on the board), its top card in front. The
-    // battle waits while it is open; Close, Enter, Escape or a right click puts it away.
+    // battle waits while it is open (not a LAN battle's: it goes on on the other device, and a screen held still would
+    // hold its turn's clock too); Close, Enter, Escape or a right click puts it away.
     public class DiscardViewer : MonoBehaviour
     {
         private static DiscardViewer current;
         private float previousTimeScale;
+        private bool stopped; // it stopped the time
 
         public static bool IsOpen { get { return current != null; } }
 
@@ -31,17 +33,20 @@ namespace Gwent.Battle
             blocker.color = Color.clear;
             current = root.gameObject.AddComponent<DiscardViewer>();
             current.previousTimeScale = Time.timeScale;
-            Time.timeScale = 0f;
+            current.stopped = !(Gwent.Net.LanSession.Current != null && Gwent.Net.LanSession.Current.State == Gwent.Net.LanSession.Stage.Battle);
+            if (current.stopped)
+                Time.timeScale = 0f;
 
             string whose = is_player ? "Your discard pile" : "Your opponent's discard pile";
-            CardPicker picker = CardPicker.Open(root, whose + "  (" + cards.Count + ")", cards, null, "Close", () => UIOverlay.CloseModal(root.gameObject), cards.Count - 1);
+            CardPicker picker = CardPicker.Open(root, whose + "  (" + cards.Count + ")", cards, null, () => UIOverlay.CloseModal(root.gameObject), cards.Count - 1);
             picker.StandIn(root.gameObject);
             UIOverlay.PushModal(root.gameObject, current.Closed);
         }
 
         private void Closed()
         {
-            Time.timeScale = previousTimeScale > 0 ? previousTimeScale : 1f;
+            if (stopped)
+                Time.timeScale = previousTimeScale > 0 ? previousTimeScale : 1f;
             if (current == this)
                 current = null;
         }

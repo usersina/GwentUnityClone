@@ -73,6 +73,7 @@ namespace Gwent.EditorTools
                 float tip = Segment(x, y, 11, 37, 15.5f, 32.5f) - 2f;
                 return Mathf.Min(body, Mathf.Min(band, tip));
             }, Vector4.zero);
+            TalkIcons();
 
             GenerateBoard();
             GenerateCursors();
@@ -87,6 +88,33 @@ namespace Gwent.EditorTools
             AssetDatabase.Refresh();
             WireTheme();
             Debug.Log("UI sprites and theme regenerated in " + SpriteFolder);
+        }
+
+        // The LAN talk window's mute: a speaker sounding (two waves), and silenced (a cross where the waves were)
+        internal static void TalkIcons()
+        {
+            Write("IconSpeaker", 48, 48, (x, y) => Mathf.Min(Speaker(x, y), Mathf.Min(Arc(x, y, 21, 24, 8, 45), Arc(x, y, 21, 24, 14, 45))) - 2f, Vector4.zero);
+            Write("IconMuted", 48, 48, (x, y) => Mathf.Min(Speaker(x, y), Mathf.Min(Segment(x, y, 28, 19, 38, 29), Segment(x, y, 38, 19, 28, 29))) - 2f, Vector4.zero);
+        }
+
+        // A speaker's outline: its box, and the cone opening to the right
+        private static float Speaker(float x, float y)
+        {
+            float box = Mathf.Min(Mathf.Min(Segment(x, y, 8, 19, 14, 19), Segment(x, y, 8, 29, 14, 29)), Segment(x, y, 8, 19, 8, 29));
+            float cone = Mathf.Min(Mathf.Min(Segment(x, y, 14, 19, 21, 12), Segment(x, y, 21, 12, 21, 36)), Segment(x, y, 21, 36, 14, 29));
+            return Mathf.Min(box, cone);
+        }
+
+        // Distance to an arc of that radius, opening to the right, that many degrees above and below the middle
+        private static float Arc(float x, float y, float cx, float cy, float radius, float degrees)
+        {
+            Vector2 p = new Vector2(x - cx, y - cy);
+            float angle = Mathf.Atan2(p.y, p.x) * Mathf.Rad2Deg;
+            if (Mathf.Abs(angle) <= degrees)
+                return Mathf.Abs(p.magnitude - radius);
+            float end = degrees * Mathf.Deg2Rad;
+            Vector2 a = new Vector2(Mathf.Cos(end), Mathf.Sin(end)) * radius, b = new Vector2(a.x, -a.y);
+            return Mathf.Min((p - a).magnitude, (p - b).magnitude);
         }
 
         //----------------------------------------Shapes (signed distances in texture pixels)----------------------------------------//
@@ -735,6 +763,8 @@ namespace Gwent.EditorTools
             theme.rule = sprite("Rule");
             theme.chevronLeft = sprite("ChevronLeft");
             theme.chevronRight = sprite("ChevronRight");
+            theme.iconSpeaker = sprite("IconSpeaker");
+            theme.iconMuted = sprite("IconMuted");
             theme.softShadow = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/SoftShadow.png");
             theme.glowRing = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/GlowRing.png");
             theme.leaderReady = AssetDatabase.LoadAssetAtPath<Sprite>(BoardFolder + "/AbilityButtonReady.png");

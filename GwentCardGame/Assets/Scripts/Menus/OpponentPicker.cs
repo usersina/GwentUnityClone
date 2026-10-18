@@ -33,7 +33,7 @@ namespace Gwent.Menus
                 if (file.name == chosen)
                     focus = entry;
             }
-            root.Q<Button>("Button Back").clicked += () => UIScreens.Close(root);
+            root.Q<Button>("Button Close").clicked += () => UIScreens.Close(root);
             root.schedule.Execute(() => UIScreens.Focus(focus));
         }
 

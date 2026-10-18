@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Threading;
 using Gwent.Net;
 using NUnit.Framework;
@@ -107,7 +109,8 @@ namespace Gwent.Net.Tests
             (LanLink host, LanLink guest) = Joined("test-2");
             host.Connected += () => host_connected = true;
             Assert.AreEqual(LanLink.Status.Closed, guest.State);
-            StringAssert.Contains("version", guest.Reason);
+            StringAssert.Contains("another build", guest.Reason);
+            StringAssert.Contains(Version, guest.Reason, "the host's build named");
             Until(() => false, 0.3, host);
             Assert.IsFalse(host_connected);
             Assert.AreEqual(LanLink.Status.Waiting, host.State);
@@ -150,6 +153,35 @@ namespace Gwent.Net.Tests
         }
 
         [Test]
+        public void AHostInABattleAnswersOnlyASearchForItsBattle()
+        {
+            ulong key = LanDiscovery.Key(1234, 5678), before = LanDiscovery.Key(1233, 5678);
+            Assert.AreNotEqual(key, LanDiscovery.Key(1234, 5679)); // the seed is in the key, not the number alone
+            LanDiscovery answering = Made(LanDiscovery.Answer("Battle table", 44, TestPort, Version));
+            answering.InBattle(key, before);
+            LanDiscovery rooms = Made(LanDiscovery.Search(Version));
+            LanDiscovery guest = Made(LanDiscovery.Find(key, Version));
+            LanDiscovery late = Made(LanDiscovery.Find(before, Version)); // gone as the rematch began
+            LanDiscovery stranger = Made(LanDiscovery.Find(LanDiscovery.Key(99, 5678), Version));
+            Assert.IsTrue(Until(() => guest.Games.Any(game => game.Name == "Battle table") && late.Games.Any(game => game.Name == "Battle table"),
+                3, answering, rooms, guest, late, stranger), "its guest did not find it");
+            LanDiscovery.Game found = guest.Games.First(game => game.Name == "Battle table");
+            Assert.AreEqual(TestPort, found.Port);
+            Assert.IsTrue(found.Compatible);
+            Assert.IsTrue(found.HeardAt("127.0.0.1") || found.HeardAt(found.Address));
+            Assert.IsFalse(found.HeardAt("10.255.255.254"));
+            Until(() => false, 1.5, answering, rooms, guest, late, stranger);
+            Assert.IsFalse(rooms.Games.Any(game => game.Name == "Battle table"), "listed for all");
+            Assert.IsFalse(stranger.Games.Any(game => game.Name == "Battle table"), "found by another battle's key");
+
+            // A room answers no search for a battle
+            LanDiscovery room = Made(LanDiscovery.Answer("Room table", 44, TestPort, Version));
+            Until(() => false, 1.5, answering, room, rooms, guest);
+            Assert.IsTrue(rooms.Games.Any(game => game.Name == "Room table"), "the room not listed");
+            Assert.IsFalse(guest.Games.Any(game => game.Name == "Room table"), "a room answered a battle's search");
+        }
+
+        [Test]
         public void ANameKeepsToLettersDigitsAndAFewMarksUpToSixteen()
         {
             // As it is typed: what else is typed is left out, a space only between words (one last stays: a word follows)
@@ -163,6 +195,73 @@ namespace Gwent.Net.Tests
             Assert.IsNull(PlayerNames.Clean("Жрец"));
             Assert.IsNull(PlayerNames.Clean("- . _"));
             Assert.IsNull(PlayerNames.Clean(null));
+        }
+
+        [Test]
+        public void AMessageKeepsToWhatTheFontsShowUpToAHundred()
+        {
+            // As it is typed: Latin-1 kept (accents, symbols), the rest left out, one space between words (one last stays)
+            Assert.AreEqual("\u00C7a va? Tr\u00E8s bien!", Chat.Typed("\u00C7a va? Tr\u00E8s bien!"));
+            Assert.AreEqual("Stra\u00DFe 12 \u00BD dash", Chat.Typed("Stra\u00DFe 12 \u00BD \u2013 dash"));
+            Assert.AreEqual("Skull and smile ", Chat.Typed("Skull \u2620 and smile \U0001F600 "));
+            Assert.AreEqual("Tab and no-break", Chat.Typed("\tTab\u00A0and\u00A0no-break"));
+            Assert.AreEqual("line one two", Chat.Typed("line one\r\ntwo")); // a line break is a space
+            Assert.AreEqual("ab", Chat.Typed("a\u0007b")); // control characters
+            Assert.AreEqual(Chat.MaxLength, Chat.Typed(new string('x', 150)).Length);
+            // Tags stay as typed (shown as plain text)
+            Assert.AreEqual("<b>not bold</b>", Chat.Clean(" <b>not bold</b> "));
+            // To send or show: trimmed; nothing when nothing is left
+            Assert.AreEqual("spaced out words", Chat.Clean("  spaced    out   words  "));
+            Assert.IsNull(Chat.Clean(" \u2620\U0001F600 "));
+            Assert.IsNull(Chat.Clean(null));
+            Assert.IsNull(Chat.Clean("\u00AD\u00AD")); // soft hyphens show nothing
+            // The quick lines keep to it too
+            foreach (string line in Chat.Lines)
+                Assert.AreEqual(line, Chat.Clean(line));
+        }
+
+        [Test]
+        public void ANetworkIsToldByItsAdapterAndOnlyReachableOnesShow()
+        {
+            string Kind(string adapter, string description, NetworkInterfaceType type, string address, bool mac = false)
+            {
+                LanDiscovery.Network network = LanDiscovery.Describe(adapter, description, type, IPAddress.Parse(address), mac);
+                return network == null ? null : network.Kind + (network.Vpn ? " (VPN)" : "");
+            }
+
+            // Around the device
+            Assert.AreEqual("Wi-Fi", Kind("wlan0", "wlan0", NetworkInterfaceType.Wireless80211, "192.168.1.20"));
+            Assert.AreEqual("Wi-Fi", Kind("Wi-Fi", "Intel(R) Wi-Fi 6 AX201", NetworkInterfaceType.Wireless80211, "100.70.1.2")); // a hotel's
+            Assert.AreEqual("Ethernet", Kind("enp3s0", "enp3s0", NetworkInterfaceType.Ethernet, "10.0.0.5"));
+            Assert.AreEqual("Network", Kind("en0", "en0", NetworkInterfaceType.Ethernet, "192.168.1.30", mac: true));
+            Assert.AreEqual("Hotspot", Kind("swlan0", "swlan0", NetworkInterfaceType.Unknown, "192.168.43.1"));
+            Assert.AreEqual("Hotspot", Kind("Local Area Connection* 10", "Microsoft Wi-Fi Direct Virtual Adapter #2", NetworkInterfaceType.Wireless80211, "192.168.137.1"));
+            // VPNs, by name when they say it
+            Assert.AreEqual("Tailscale (VPN)", Kind("tailscale0", "tailscale0", NetworkInterfaceType.Unknown, "100.101.7.3"));
+            Assert.AreEqual("NetBird (VPN)", Kind("wt0", "wt0", NetworkInterfaceType.Unknown, "100.103.77.25"));
+            Assert.AreEqual("ZeroTier (VPN)", Kind("ZeroTier One [8056c2e21c000001]", "ZeroTier Virtual Port", NetworkInterfaceType.Ethernet, "10.147.17.4"));
+            Assert.AreEqual("Hamachi (VPN)", Kind("Hamachi", "LogMeIn Hamachi Virtual Ethernet Adapter", NetworkInterfaceType.Ethernet, "25.1.2.3"));
+            Assert.AreEqual("VPN (VPN)", Kind("utun4", "utun4", NetworkInterfaceType.Unknown, "100.101.7.3", mac: true));
+            Assert.AreEqual("VPN (VPN)", Kind("tun0", "tun0", NetworkInterfaceType.Unknown, "10.8.0.2"));
+            // Not reachable from another device
+            Assert.IsNull(Kind("docker0", "docker0", NetworkInterfaceType.Ethernet, "172.17.0.1"));
+            Assert.IsNull(Kind("br-4d1e3da24da6", "br-4d1e3da24da6", NetworkInterfaceType.Ethernet, "172.20.0.1"));
+            Assert.IsNull(Kind("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", NetworkInterfaceType.Ethernet, "172.28.0.1"));
+            Assert.IsNull(Kind("rmnet_data0", "rmnet_data0", NetworkInterfaceType.Unknown, "100.88.4.2"));
+            Assert.IsNull(Kind("Ethernet 2", "Realtek PCIe GbE", NetworkInterfaceType.Ethernet, "169.254.12.7"));
+        }
+
+        [Test]
+        public void AnotherGamesVersionShowsShortAndPlain()
+        {
+            // What a battle found on the network says its version is, as its list entry shows it
+            Assert.AreEqual("1.0.0", LanDiscovery.Shown("1.0.0"));
+            Assert.AreEqual("bnot-bold/b", LanDiscovery.Shown("<b>not-bold</b>"));
+            Assert.AreEqual("1.0.0+1a2b3c4d.5e6f70", LanDiscovery.Shown("1.0.0+1a2b3c4d.5e6f70"), "a build id whole");
+            Assert.AreEqual("12345678901234567890123456789012", LanDiscovery.Shown("1234567890123456789012345678901234567890"));
+            Assert.AreEqual("2.0", LanDiscovery.Shown(" 2.0\n\t"));
+            Assert.AreEqual("?", LanDiscovery.Shown(""));
+            Assert.AreEqual("?", LanDiscovery.Shown(null));
         }
     }
 }

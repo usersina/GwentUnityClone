@@ -56,10 +56,16 @@ namespace Gwent.Rules
         // (both on a draw), the passes are over. Returns the round's winner and the totals.
         public static RoundWinner EndRound(Board board, out int player_total, out int enemy_total)
         {
+            return EndRound(board, null, out player_total, out enemy_total);
+        }
+
+        // The same, the round given to one side whatever the totals (the other ran out of time: given)
+        public static RoundWinner EndRound(Board board, RoundWinner? given, out int player_total, out int enemy_total)
+        {
             board.Recalculate();
             player_total = board.Player.TotalScore();
             enemy_total = board.Enemy.TotalScore();
-            RoundWinner winner = DecideRound(player_total, enemy_total, board.Player.Faction, board.Enemy.Faction);
+            RoundWinner winner = given ?? DecideRound(player_total, enemy_total, board.Player.Faction, board.Enemy.Faction);
             ApplyRoundResult(board.Player, board.Enemy, winner);
             board.Player.hasPassed = board.Enemy.hasPassed = false;
             return winner;
