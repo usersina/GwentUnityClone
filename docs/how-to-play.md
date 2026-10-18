@@ -92,6 +92,8 @@ Main menu or pause menu > **Settings**:
 - **Audio** and **Display**.
 - **Game > Game speed** (Slow, Normal, Fast) sets how fast cards move, notices pass and the opponent plays.
 - **Game > Difficulty** (Easy, Normal, Hard) sets how well the opponent plays (see [The AI](ai.md)).
+- **Game > Censored artwork** (on by default) shows covered versions of the cards' art that has them, and of the main menu's
+  key art. It switches at once, everywhere on screen, even in the middle of a battle.
 - **Graphics** has a preset (Low, Medium, High; Custom once you change one) over how many particles the effects emit, and each
   effect on or off, under Weather, Battle effects, Motion and Menus: animated weather (off: still pictures), the storm's lightning
   and thunder, Clear Weather's sun, the hero's landing, the scorch's fire, the ability flares (off, each keeps a light stand-in: a

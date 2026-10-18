@@ -45,6 +45,12 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.Gwe
   `Assets/Editor/CardTextureImport.cs` sets as they import, chosen so the capped sizes are multiples of 4 too (the content
   test `EveryCardImageCompressesOnEveryPlatform` checks it). So the desktop builds carry about 30 MB more art than the others.
   No mipmaps: Unity compresses a texture with mipmaps only when both its sides are powers of two.
+- **Censored artwork**: a censored image is its original's file with `-censored` after the name, beside it and of the same size
+  (`Content/CardArt/14-censored.png`, `Resources/Cards/List/135x87/14-censored.png`,
+  `Resources/Background/gwent_cover 1-censored.png`). It imports as its original does (`CardTextureImport`), the full art's
+  Addressables entry is named after the file (`CardArt/14-censored`), and the game finds it by that name: nothing else to set
+  up. Both versions ship (about 11 MB more on the desktop, 3 MB on Android and the web); the content test
+  `EveryCensoredImageMatchesItsOriginal` checks each one has its original, its size and its import.
 - **Shaders**: one graphics API per platform (Windows Direct3D 11, Linux OpenGL Core, macOS Metal, Android OpenGL ES 3, the web
   WebGL 2) and no post-processing in the renderer (the game uses none): shaders are compiled once per platform, not for every effect
   and API.
