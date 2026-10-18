@@ -31,6 +31,7 @@ jobs:
     outputs:
       release: ${{ steps.changelog.outputs.release }}
       version_code: ${{ steps.code.outputs.version_code }}
+      build_stamp: ${{ steps.code.outputs.build_stamp }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,9 +46,13 @@ jobs:
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Android version code (the number of commits, so every release installs over the one before)
+      # The build number every platform's build carries (BuildStamp): the commit, given to the builds, which run where
+      # git may not
+      - name: Android version code (the number of commits, so every release installs over the one before) and build number
         id: code
-        run: echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "build_stamp=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
 
   # Skipped when there is nothing to release, and the builds and the release with it
   test:
@@ -107,7 +112,7 @@ jobs:
           targetPlatform: ${{ matrix.target }}
           # The game's own build: GwentBuild builds and packages it into Builds/<version>/GwentLegacy-<platform>.*
           buildMethod: Gwent.EditorTools.GwentBuild.BuildAllBatch
-          customParameters: -buildTargets ${{ matrix.name }}
+          customParameters: -buildTargets ${{ matrix.name }} -buildStamp ${{ needs.prepare.outputs.build_stamp }}
           versioning: None
           androidVersionCode: ${{ needs.prepare.outputs.version_code }}
           androidKeystoreName: ${{ matrix.name == 'android' && secrets.ANDROID_KEYSTORE_BASE64 != '' && 'gwentlegacy.keystore' || '' }}

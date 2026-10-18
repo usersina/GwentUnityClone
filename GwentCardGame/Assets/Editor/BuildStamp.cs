@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using UnityEditor;
@@ -13,7 +14,10 @@ namespace Gwent.EditorTools
     // Stamps which source a build comes from (BuildInfo): the commit ("1a2b3c4d"), and when the working tree has changes
     // not committed, a hash of them too ("1a2b3c4d.5e6f70"), so that two builds match only when built from the same files.
     // Written to Assets/Resources/BuildStamp.txt (ignored by git) as each build starts, and as the editor loads its scripts
-    // (the editor's own play is the working tree's build). "unknown" without git.
+    // (the editor's own play is the working tree's build). "unknown" without git. A stamp given on the command line
+    // (-buildStamp 1a2b3c4d) is taken as it is: the release workflow gives its commit, its builds running in a container
+    // where git may not (the checkout another user's) and where a platform's own files (Android's keystore) would count
+    // as changes.
     public class BuildStamp : IPreprocessBuildWithReport
     {
         private const string StampPath = "Assets/Resources/BuildStamp.txt";
@@ -45,9 +49,12 @@ namespace Gwent.EditorTools
             return stamp;
         }
 
-        // The commit, and a hash of what differs from it (changed files, new files not ignored)
+        // The commit, and a hash of what differs from it (changed files, new files not ignored); or the one given
         public static string Compute()
         {
+            string given = Given(Environment.GetCommandLineArgs());
+            if (given != null)
+                return given;
             string commit = Git("rev-parse --short=8 HEAD");
             if (string.IsNullOrEmpty(commit))
                 return "unknown";
@@ -67,6 +74,19 @@ namespace Gwent.EditorTools
                 byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(all.ToString()));
                 return commit + "." + BitConverter.ToString(hash, 0, 3).Replace("-", "").ToLowerInvariant();
             }
+        }
+
+        // The stamp after -buildStamp on that command line: a commit (its first 8 characters), or a stamp as this writes
+        // them; null when none is given, or it is not one
+        public static string Given(string[] arguments)
+        {
+            int at = Array.IndexOf(arguments, "-buildStamp");
+            if (at < 0 || at + 1 >= arguments.Length)
+                return null;
+            string stamp = arguments[at + 1].Trim().ToLowerInvariant();
+            if (stamp.Length == 0 || stamp.Length > 40 || !stamp.All(c => c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c == '.'))
+                return null;
+            return stamp.Length == 40 ? stamp.Substring(0, 8) : stamp;
         }
 
         private static string root;

@@ -51,6 +51,10 @@ writes it to `Assets/Resources/BuildStamp.txt` (not kept in git) as each build s
 reads it through `BuildInfo` ("1.0.0+1a2b3c4d"), shows it on the main menu and in the LAN lobby, and writes it in the game log's
 `session_start`.
 
+A stamp given on the command line, `-buildStamp 1a2b3c4d`, is taken as it is: the release workflow gives every platform's build
+its commit, since those builds run in a container where git may not work (the checkout belongs to another user) and where a
+platform's own files (Android's keystore) would count as changes.
+
 Two devices play each other on LAN only with the same build ([Play on LAN](lan.md#the-same-build)). Unity's own
 `Application.buildGUID` would not do: it differs between platforms built from the same source.
 
