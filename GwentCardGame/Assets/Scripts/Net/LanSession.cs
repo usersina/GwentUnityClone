@@ -13,19 +13,21 @@ namespace Gwent.Net
     // the battle. The host runs the match (Match): the guest's moves come over the link and go to it, and each of its
     // events goes to the guest as the guest sees it (MatchEvent.For). The guest shows those (Source) and sends its moves.
     // A link lost during the battle is waited for: the guest joins again (every few seconds, at once when the app comes
-    // back from the background), says how much of the battle it has, and the host sends it the rest. In a battle both
-    // sides say they are there every second: a side not heard from for a few seconds is taken as gone, whatever the
-    // link says (a device frozen a while, its old link seemingly kept alive by its attempts to come back). The battle is
-    // kept on disk while it is on (LanSave): a player whose game closed takes it up again from the lobby (Rejoin), the
-    // host replaying it and waiting on the same port, the guest joining its host again. Once a battle is over, either
-    // side may ask for a rematch: when both have, the host begins the next battle on the same link (the same decks, a new
-    // coin toss) and both screens load it. In a battle and after it, the players talk (Chat: quick lines and messages),
-    // the other's heard unless muted; what was said is kept for the session (Talk). Each turn has a clock, the host's: a
-    // minute (the redraw half that), counted once the side's screen has shown all there is and while both are linked;
-    // out of time, the side loses the round (Match.TimeOut). Fair play (FairPlay, docs/lan-fair-play.md): each battle's
-    // shuffle comes from both devices (the host promises its part, the guest gives its own, the host shows its part with
-    // Begin), and once the battle is over the guest plays its record again (Record): the seed, both decks, every move and
-    // event. Lives across scenes: the lobby is the menu's, the battle the game's.
+    // back from the background), says how much of the battle it has, and the host sends it the rest. Meanwhile it looks
+    // for its host on the network too (LanDiscovery.Find, by the battle's key): a host found at another address (a phone
+    // whose network came back with another one) is joined there. In a battle both sides say they are there every
+    // second: a side not heard from for a few seconds is taken as gone, whatever the link says (a device frozen a
+    // while, its old link seemingly kept alive by its attempts to come back). The battle is kept on disk while it is on
+    // (LanSave): a player whose game closed takes it up again from the lobby (Rejoin), the host replaying it and
+    // waiting on the same port, the guest joining its host again. Once a battle is over, either side may ask for a
+    // rematch: when both have, the host begins the next battle on the same link (the same decks, a new coin toss) and
+    // both screens load it. In a battle and after it, the players talk (Chat: quick lines and messages), the other's
+    // heard unless muted; what was said is kept for the session (Talk). Each turn has a clock, the host's: a minute
+    // (the redraw half that), counted once the side's screen has shown all there is and while both are linked; out of
+    // time, the side loses the round (Match.TimeOut). Fair play (FairPlay, docs/lan-fair-play.md): each battle's
+    // shuffle comes from both devices (the host promises its part, the guest gives its own, the host shows its part
+    // with Begin), and once the battle is over the guest plays its record again (Record): the seed, both decks, every
+    // move and event. Lives across scenes: the lobby is the menu's, the battle the game's.
     public class LanSession : MonoBehaviour
     {
         // Waiting: hosting, nobody there yet; Joining: on the way in (the host's answer not yet in); Ready: both there,
@@ -130,6 +132,7 @@ namespace Gwent.Net
 
         private LanLink link;
         private LanDiscovery discovery;
+        private LanDiscovery finding;    // guest: its host looked for on the network while away (its address may have changed)
         private string address;          // the host's (guest)
         private ushort port;
         private int battle;              // the battle's number, for a guest coming back to it
@@ -233,6 +236,8 @@ namespace Gwent.Net
                     return session;
                 }
                 session.Listen();
+                session.discovery = LanDiscovery.Answer(save.MyName, save.MyDeck.Leader, session.port); // its guest looking for it
+                session.discovery?.InBattle(LanDiscovery.Key(save.Battle, session.Match.Setup.Seed));
                 session.State = Stage.Battle; // waiting for the guest (resumed once it is back)
                 ForBattle = session;
                 Say("taken up again (" + session.Match.Events.Count + " events) on port " + session.port + ": waiting for " + save.TheirName);
@@ -299,9 +304,6 @@ namespace Gwent.Net
                 return;
             if (seedAsked)
                 return; // on its way
-            if (discovery != null)
-                discovery.Dispose(); // no longer a game to join
-            discovery = null;
             AskSeed(); // the battle begins with the guest's part (SeedPart)
             GameLog.Event(LogCategory.Game, "lan_battle", "host", MyName, "guest", TheirName);
             Changed?.Invoke();
@@ -347,12 +349,14 @@ namespace Gwent.Net
         // part of the seed and first events to the guest
         private void BeginBattle(int seed)
         {
+            ulong before = Match != null ? LanDiscovery.Key(battle, Match.Setup.Seed) : 0; // the battle just over (a rematch)
             previous = battle;
             battle = UnityEngine.Random.Range(1, int.MaxValue);
             seedAsked = false;
             recordSent = false;
             Match = new Match(new MatchSetup { Player = MyDeck, Enemy = TheirDeck, Seed = seed }, CardLibrary.Get());
             Match.Start();
+            discovery?.InBattle(LanDiscovery.Key(battle, seed), before); // no longer a game to join: its guest's search only
             State = Stage.Battle;
             ForBattle = this;
             resumed = true;
@@ -439,8 +443,10 @@ namespace Gwent.Net
                 link.Dispose();
             if (discovery != null)
                 discovery.Dispose();
+            finding?.Dispose();
             link = null;
             discovery = null;
+            finding = null;
             if (Current == this)
                 Current = null;
             Changed?.Invoke();
@@ -483,6 +489,7 @@ namespace Gwent.Net
                     Say("joining again (try " + rejoins + "): " + (link.Reason ?? "no answer"));
                 Connect();
             }
+            FindHost();
             if (Hosting && State == Stage.Battle && Match.Commands.Count != kept)
                 Keep();
             if (Hosting && State == Stage.Battle && resumed)
@@ -516,6 +523,31 @@ namespace Gwent.Net
                 link.Drop(reason); // OnDisconnected follows
             else
                 JoinAgain(reason);
+        }
+
+        // The guest away from the battle looks for its host on the network: heard only at another address or port (its
+        // network came back with another address), it is joined there (and the battle on disk says so)
+        private void FindHost()
+        {
+            if (Hosting || State != Stage.Battle || resumed || fairSeed == null)
+            {
+                finding?.Dispose();
+                finding = null;
+                return;
+            }
+            if (finding == null)
+                finding = LanDiscovery.Find(LanDiscovery.Key(battle, fairSeed.Value));
+            finding.Update();
+            if (link != null && link.State == LanLink.Status.Connected)
+                return; // through, catching up
+            LanDiscovery.Game host = finding.Games.FirstOrDefault(game => game.Compatible);
+            if (host == null || host.HeardAt(address) && host.Port == port)
+                return;
+            Say("the host answers at " + host.Address + ":" + host.Port + " (not " + address + ":" + port + "): joining it there");
+            address = host.Address;
+            port = host.Port;
+            Keep();
+            Connect();
         }
 
         // The guest lets its link go and joins again at once (the host sends what it lacks)
@@ -1084,6 +1116,7 @@ namespace Gwent.Net
                 link.Dispose();
             if (discovery != null)
                 discovery.Dispose();
+            finding?.Dispose();
             if (Current == this)
                 Current = null;
         }

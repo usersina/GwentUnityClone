@@ -153,6 +153,35 @@ namespace Gwent.Net.Tests
         }
 
         [Test]
+        public void AHostInABattleAnswersOnlyASearchForItsBattle()
+        {
+            ulong key = LanDiscovery.Key(1234, 5678), before = LanDiscovery.Key(1233, 5678);
+            Assert.AreNotEqual(key, LanDiscovery.Key(1234, 5679)); // the seed is in the key, not the number alone
+            LanDiscovery answering = Made(LanDiscovery.Answer("Battle table", 44, TestPort, Version));
+            answering.InBattle(key, before);
+            LanDiscovery rooms = Made(LanDiscovery.Search(Version));
+            LanDiscovery guest = Made(LanDiscovery.Find(key, Version));
+            LanDiscovery late = Made(LanDiscovery.Find(before, Version)); // gone as the rematch began
+            LanDiscovery stranger = Made(LanDiscovery.Find(LanDiscovery.Key(99, 5678), Version));
+            Assert.IsTrue(Until(() => guest.Games.Any(game => game.Name == "Battle table") && late.Games.Any(game => game.Name == "Battle table"),
+                3, answering, rooms, guest, late, stranger), "its guest did not find it");
+            LanDiscovery.Game found = guest.Games.First(game => game.Name == "Battle table");
+            Assert.AreEqual(TestPort, found.Port);
+            Assert.IsTrue(found.Compatible);
+            Assert.IsTrue(found.HeardAt("127.0.0.1") || found.HeardAt(found.Address));
+            Assert.IsFalse(found.HeardAt("10.255.255.254"));
+            Until(() => false, 1.5, answering, rooms, guest, late, stranger);
+            Assert.IsFalse(rooms.Games.Any(game => game.Name == "Battle table"), "listed for all");
+            Assert.IsFalse(stranger.Games.Any(game => game.Name == "Battle table"), "found by another battle's key");
+
+            // A room answers no search for a battle
+            LanDiscovery room = Made(LanDiscovery.Answer("Room table", 44, TestPort, Version));
+            Until(() => false, 1.5, answering, room, rooms, guest);
+            Assert.IsTrue(rooms.Games.Any(game => game.Name == "Room table"), "the room not listed");
+            Assert.IsFalse(guest.Games.Any(game => game.Name == "Room table"), "a room answered a battle's search");
+        }
+
+        [Test]
         public void ANameKeepsToLettersDigitsAndAFewMarksUpToSixteen()
         {
             // As it is typed: what else is typed is left out, a space only between words (one last stays: a word follows)

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using Gwent.Core;
 using UnityEngine;
 
@@ -13,8 +14,9 @@ namespace Gwent.Net
     // Finding games on the local network. A player looking asks everyone, every second (a broadcast to the whole network,
     // and to this computer); each host answers the one asking: its name, its game's version and the port it waits on. A
     // game not heard from for a few seconds is gone from the list. A phone hosting holds Android's multicast lock while
-    // it answers: without it, many phones never see a broadcast. Nothing runs on its own: the owner calls Update every
-    // frame.
+    // it answers: without it, many phones never see a broadcast. A host in a battle answers only a search for that battle
+    // (by its key, Key): its guest's, the link lost, in case the host's address changed (a phone whose network came back
+    // with another); no other list shows it. Nothing runs on its own: the owner calls Update every frame.
     public sealed class LanDiscovery : IDisposable
     {
         public const ushort Port = 26946;      // under the range systems hand out for a while (32768 and up)
@@ -34,6 +36,13 @@ namespace Gwent.Net
             public bool Compatible;
             internal uint Id;       // the host's, for the session (one host heard on several addresses is one game)
             internal float Seen;
+            internal readonly Dictionary<string, float> Heard = new Dictionary<string, float>(); // each address it answered from, and when
+
+            // Whether it answered from that address lately
+            public bool HeardAt(string address)
+            {
+                return IPAddress.TryParse(address, out IPAddress parsed) && Heard.Keys.Any(heard => IPAddress.Parse(heard).Equals(parsed));
+            }
         }
 
         private readonly UdpClient socket;
@@ -43,13 +52,16 @@ namespace Gwent.Net
         private readonly ushort gamePort;
         private readonly uint id;
         private readonly string version;
+        private readonly ulong looking;     // searching for a battle: its key (0: for the games waiting for a guest)
+        private bool inBattle;              // answering: in a battle, only to a search for it
+        private ulong[] keys = new ulong[0];
         private readonly List<Game> games = new List<Game>();
         private float asked = float.MinValue;
         private AndroidJavaObject multicastLock;
 
         public IReadOnlyList<Game> Games { get { return games; } }
 
-        private LanDiscovery(UdpClient socket, bool answering, string name, int leader, ushort game_port, string version)
+        private LanDiscovery(UdpClient socket, bool answering, string name, int leader, ushort game_port, string version, ulong looking = 0)
         {
             this.socket = socket;
             this.answering = answering;
@@ -57,6 +69,7 @@ namespace Gwent.Net
             this.leader = leader;
             gamePort = game_port;
             this.version = version;
+            this.looking = looking;
             id = (uint)Environment.TickCount ^ (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
             socket.EnableBroadcast = true;
         }
@@ -98,6 +111,38 @@ namespace Gwent.Net
             return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version);
         }
 
+        // Searches for the host of the battle with that key (Key): a guest whose link was lost, the host's address maybe
+        // changed
+        public static LanDiscovery Find(ulong key)
+        {
+            return Find(key, BuildInfo.Id);
+        }
+
+        internal static LanDiscovery Find(ulong key, string version)
+        {
+            return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version, key);
+        }
+
+        // The host now in a battle: answering only a search for it, with one of those keys (the battle's, the one before
+        // it: a guest gone as a rematch began)
+        public void InBattle(params ulong[] battle_keys)
+        {
+            inBattle = true;
+            keys = battle_keys;
+        }
+
+        // A battle's key, for its guest to find its host: from its number and its seed, which only the two devices know
+        // (heard by all, the number alone would let anyone take the guest's seat)
+        public static ulong Key(int battle, int seed)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(BitConverter.GetBytes(battle).Concat(BitConverter.GetBytes(seed)).Concat(Magic).ToArray());
+                ulong key = BitConverter.ToUInt64(hash, 0);
+                return key != 0 ? key : 1;
+            }
+        }
+
         public void Update()
         {
             float now = Time.realtimeSinceStartup;
@@ -128,7 +173,12 @@ namespace Gwent.Net
 
         private void Ask()
         {
-            byte[] packet = Packet(Asking, writer => writer.Write((byte)LanLink.Protocol));
+            byte[] packet = Packet(Asking, writer =>
+            {
+                writer.Write((byte)LanLink.Protocol);
+                if (looking != 0)
+                    writer.Write(looking);
+            });
             List<IPAddress> to = new List<IPAddress> { IPAddress.Broadcast, IPAddress.Loopback };
             foreach ((IPAddress _, IPAddress broadcast) in Networks())
                 if (!to.Contains(broadcast))
@@ -159,7 +209,12 @@ namespace Gwent.Net
                 using (BinaryReader reader = new BinaryReader(new MemoryStream(packet, Magic.Length + 1, packet.Length - Magic.Length - 1)))
                 {
                     if (kind == Asking && answering)
-                        Reply(from);
+                    {
+                        reader.ReadByte(); // the protocol (the answer tells whether it is this one's)
+                        ulong wanted = reader.BaseStream.Length - reader.BaseStream.Position >= 8 ? reader.ReadUInt64() : 0;
+                        if (inBattle ? wanted != 0 && Array.IndexOf(keys, wanted) >= 0 : wanted == 0)
+                            Reply(from);
+                    }
                     else if (kind == Answering && !answering)
                     {
                         int protocol = reader.ReadByte();
@@ -214,9 +269,15 @@ namespace Gwent.Net
                 game = new Game { Id = host };
                 games.Add(game);
             }
-            // Heard on this computer and on the network: the network's address, which the other devices can reach too
-            if (game.Address == null || IPAddress.IsLoopback(IPAddress.Parse(game.Address)) && !IPAddress.IsLoopback(address))
-                game.Address = address.ToString();
+            // Heard on this computer and on the network: the network's address, which the other devices can reach too. One
+            // not heard from lately makes way (the host's network came back with another address).
+            string heard = address.ToString();
+            game.Heard[heard] = now;
+            foreach (string old in game.Heard.Where(pair => now - pair.Value > ForgetAfter).Select(pair => pair.Key).ToList())
+                game.Heard.Remove(old);
+            if (game.Address == null || !game.Heard.ContainsKey(game.Address)
+                || IPAddress.IsLoopback(IPAddress.Parse(game.Address)) && !IPAddress.IsLoopback(address))
+                game.Address = heard;
             game.Port = port;
             game.Name = their_name;
             game.Leader = their_leader;
