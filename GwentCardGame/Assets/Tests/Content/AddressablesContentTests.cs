@@ -62,6 +62,39 @@ namespace Gwent.Content.Tests
             }
         }
 
+        // The cards' images compress on every platform: their size there (Android's and the web's capped,
+        // CardTextureImport) has both sides multiples of 4, else it would ship uncompressed, several times larger
+        [Test]
+        public void EveryCardImageCompressesOnEveryPlatform()
+        {
+            List<string> wrong = new List<string>();
+            int seen = 0;
+            foreach ((string folder, int _, int _) in CardTextureImport.Rules)
+            {
+                foreach (string guid in AssetDatabase.FindAssets("t:Texture2D", new[] { folder.TrimEnd('/') }))
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(path);
+                    importer.GetSourceTextureWidthAndHeight(out int width, out int height);
+                    int cap = CardTextureImport.MobileCap(path, width, height);
+                    seen++;
+                    if (width % 4 != 0 || height % 4 != 0)
+                        wrong.Add(path + ": " + width + "x" + height);
+                    foreach (string platform in CardTextureImport.Mobile)
+                    {
+                        TextureImporterPlatformSettings settings = importer.GetPlatformTextureSettings(platform);
+                        if (settings.overridden != cap > 0 || cap > 0 && settings.maxTextureSize != cap)
+                            wrong.Add(path + ": " + platform + "'s cap is not the rule's (" + cap + "): reimport it");
+                        Vector2Int there = CardTextureImport.Capped(width, height, cap);
+                        if (there.x % 4 != 0 || there.y % 4 != 0)
+                            wrong.Add(path + ": " + there.x + "x" + there.y + " on " + platform);
+                    }
+                }
+            }
+            Assert.Greater(seen, 300, "The cards' images were not found");
+            Assert.IsEmpty(wrong, "Card images that would ship uncompressed");
+        }
+
         // An asset both in Resources and in a bundle would ship twice
         [Test]
         public void NothingAddressableIsInResources()
