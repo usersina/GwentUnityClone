@@ -371,7 +371,7 @@ namespace Gwent.Menus
                     return Picture(SpriteCache.Load("W3/Notifications/" + arg), size = new Vector2(126, 90));
                 case "card":
                     overlap = -8;
-                    return CardPicture(SpriteCache.Load("Cards/List/135x87/" + arg), size = new Vector2(64, 99));
+                    return CardPicture(int.TryParse(arg, out int card_id) ? CensoredArt.BoardPicture(card_id) : null, size = new Vector2(64, 99));
                 case "back":
                     overlap = 38;
                     return CardPicture(SpriteCache.Load("Cards/Back/" + arg), size = new Vector2(64, 99));

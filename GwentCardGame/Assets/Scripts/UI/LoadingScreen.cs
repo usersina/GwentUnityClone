@@ -84,7 +84,7 @@ namespace Gwent.UI
             }
             else if (scene == SceneNames.Menu)
             {
-                Image art = UIKit.NewImage(root, "KeyArt", Resources.Load<Sprite>("Background/gwent_cover 1"), Color.white);
+                Image art = UIKit.NewImage(root, "KeyArt", CensoredArt.KeyArt(), Color.white);
                 art.rectTransform.Stretch();
                 art.preserveAspect = true;
                 art.raycastTarget = false;

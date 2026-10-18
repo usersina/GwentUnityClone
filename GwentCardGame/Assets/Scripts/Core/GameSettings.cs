@@ -22,6 +22,7 @@ namespace Gwent.Core
         private const string MenuScaleKey = "menuScale";
         private const string GameSpeedKey = "gameSpeed";
         private const string AiDifficultyKey = "aiDifficulty";
+        private const string CensoredArtKey = "censoredArt";
         private const string ParticleDensityKey = "particleDensity";
 
         // Frame rate choices: VSync follows the screen, 0 is unlimited (desktop); phones have no VSync choice
@@ -231,13 +232,20 @@ namespace Gwent.Core
             set { SetInt(AiDifficultyKey, Mathf.Clamp((int)value, 0, AiDifficultyNames.Length - 1)); }
         }
 
+        // The censored versions of the art that has them (Gwent.Core.CensoredArt): on unless turned off
+        public static bool CensoredArt
+        {
+            get { return PlayerPrefs.GetInt(CensoredArtKey, 1) == 1; }
+            set { SetInt(CensoredArtKey, value ? 1 : 0); }
+        }
+
         //----------------------------------------Apply / reset----------------------------------------//
         public static void ResetToDefaults()
         {
             bool window_was_set = WindowSet;
             foreach (string key in new[] { MasterVolumeKey, MusicVolumeKey, SfxVolumeKey, MuteInBackgroundKey, FullscreenKey,
                                            ResolutionWidthKey, ResolutionHeightKey, FrameRateKey, MenuScaleKey, ParticleDensityKey,
-                                           GameSpeedKey, AiDifficultyKey }.Concat(EffectKeys))
+                                           GameSpeedKey, AiDifficultyKey, CensoredArtKey }.Concat(EffectKeys))
                 PlayerPrefs.DeleteKey(key);
             PlayerPrefs.Save();
             ApplyFrameRate();
@@ -265,6 +273,7 @@ namespace Gwent.Core
                 { "mute_in_background", MuteInBackground }, { "fullscreen", Fullscreen }, { "resolution", Resolution.x + "x" + Resolution.y },
                 { "frame_rate", FrameRate }, { "menu_scale", MenuScale }, { "graphics", GraphicsPresetNames[(int)Graphics] },
                 { "particle_density", ParticleDensity }, { "game_speed", GameSpeedNames[GameSpeed] }, { "difficulty", AiDifficulty },
+                { "censored_art", CensoredArt },
             };
             foreach (Effect effect in Enum.GetValues(typeof(Effect)))
                 values[EffectKeys[(int)effect]] = Shows(effect);

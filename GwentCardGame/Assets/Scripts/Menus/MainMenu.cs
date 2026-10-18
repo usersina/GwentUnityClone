@@ -14,6 +14,7 @@ namespace Gwent.Menus
     public class MainMenu : MonoBehaviour
     {
         private readonly List<MenuEntry> items = new List<MenuEntry>();
+        private Image keyArt;
 
         public IList<MenuEntry> Items { get { return items; } }
 
@@ -78,12 +79,29 @@ namespace Gwent.Menus
             Image art = background != null ? background.GetComponent<Image>() : null;
             if (art != null && art.sprite != null)
             {
+                // Its censored version when the setting is on (before the first frame: the other never shows), and the
+                // other one at once when the setting changes
+                keyArt = art;
+                ShowKeyArt();
+                CensoredArt.Changed += ShowKeyArt;
                 art.preserveAspect = false;
                 AspectRatioFitter cover = art.gameObject.AddComponent<AspectRatioFitter>();
                 cover.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
                 cover.aspectRatio = art.sprite.rect.width / art.sprite.rect.height;
                 LegacyTitle.Create(art);
             }
+        }
+
+        private void ShowKeyArt()
+        {
+            Sprite sprite = CensoredArt.KeyArt();
+            if (keyArt != null && sprite != null)
+                keyArt.sprite = sprite;
+        }
+
+        private void OnDestroy()
+        {
+            CensoredArt.Changed -= ShowKeyArt;
         }
 
         // Play: choose the opponent first

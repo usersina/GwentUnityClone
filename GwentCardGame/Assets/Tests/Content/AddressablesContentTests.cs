@@ -95,6 +95,36 @@ namespace Gwent.Content.Tests
             Assert.IsEmpty(wrong, "Card images that would ship uncompressed");
         }
 
+        // A censored image (CensoredArt) stands in for its original: beside it, the same size, imported the same way (a single
+        // sprite: the game loads it as one)
+        [Test]
+        public void EveryCensoredImageMatchesItsOriginal()
+        {
+            List<string> wrong = new List<string>();
+            foreach (string guid in AssetDatabase.FindAssets("t:Texture2D " + CensoredArt.Suffix, new[] { "Assets" }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                string name = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (!name.EndsWith(CensoredArt.Suffix))
+                    continue;
+                string original = path.Replace(CensoredArt.Suffix + System.IO.Path.GetExtension(path), System.IO.Path.GetExtension(path));
+                TextureImporter mine = (TextureImporter)AssetImporter.GetAtPath(path);
+                TextureImporter theirs = AssetImporter.GetAtPath(original) as TextureImporter;
+                if (theirs == null)
+                {
+                    wrong.Add(path + ": no original (" + original + ")");
+                    continue;
+                }
+                mine.GetSourceTextureWidthAndHeight(out int w, out int h);
+                theirs.GetSourceTextureWidthAndHeight(out int ow, out int oh);
+                if (w != ow || h != oh)
+                    wrong.Add(path + ": " + w + "x" + h + ", its original " + ow + "x" + oh);
+                if (mine.textureType != theirs.textureType || mine.spriteImportMode != theirs.spriteImportMode)
+                    wrong.Add(path + ": not imported as its original (reimport it)");
+            }
+            Assert.IsEmpty(wrong);
+        }
+
         // An asset both in Resources and in a bundle would ship twice
         [Test]
         public void NothingAddressableIsInResources()

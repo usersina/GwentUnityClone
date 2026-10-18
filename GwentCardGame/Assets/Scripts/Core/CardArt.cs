@@ -15,10 +15,13 @@ using Image = UnityEngine.UI.Image;
 
 namespace Gwent.Core
 {
-    // The cards' full art (380x592, the whole card: the previews, the showcase, the pickers, the deck builder), from
-    // Addressables at "CardArt/<id>", a bundle per card (see GwentContent). A card's art is loaded the first time it is
-    // shown, and released once no open scene has shown it. Until it is there the image shows the back of the card's
-    // faction: nothing waits for it, and on the web a card turns face up as its art arrives. A battle asks for both
+    // The cards' full art (the whole card: the previews, the showcase, the pickers, the deck builder), from Addressables
+    // at "CardArt/<id>", a bundle per card (see GwentContent), or its censored version "CardArt/<id>-censored" when there
+    // is one and Censored artwork is on (CensoredArt). A card's art is loaded the first time it is shown, and released
+    // once no open scene has shown it. Until it is there the image shows the back of the card's faction: nothing waits
+    // for it, and on the web a card turns face up as its art arrives. Which cards have a censored version is read from
+    // the content's catalog first (an original never shows while the setting is on); the setting changed, every image
+    // on show turns to the other version (the one it showed staying until the other is there). A battle asks for both
     // decks' art as it starts (Preload), so its cards are face up by the time they are seen.
     public static class CardArt
     {
@@ -28,21 +31,66 @@ namespace Gwent.Core
             public readonly HashSet<Scene> scenes = new HashSet<Scene>(); // the open scenes that asked for it
         }
 
-        private static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
-        private static readonly Dictionary<object, int> waiting = new Dictionary<object, int>(); // the card each image or element waits for
+        // An image or element showing a card's art: how to show it there again
+        private class Target
+        {
+            public int card;
+            public Scene scene;
+            public Action<Sprite> show;
+            public Func<bool> alive;
+        }
+
+        private const string Prefix = "CardArt/";
+        private static readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>(); // by address
+        private static readonly Dictionary<object, string> waiting = new Dictionary<object, string>(); // the art each image or element waits for
+        private static readonly Dictionary<object, Target> targets = new Dictionary<object, Target>();
+        private static readonly HashSet<int> censored = new HashSet<int>(); // the cards with a censored version
+        private static bool catalogRead;
+        private static event Action CatalogRead;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void Init()
         {
             entries.Clear();
             waiting.Clear();
+            targets.Clear();
+            censored.Clear();
+            catalogRead = false;
+            CatalogRead = null;
             SceneManager.sceneUnloaded -= Unloaded;
             SceneManager.sceneUnloaded += Unloaded;
+            CensoredArt.Changed -= ShowAgain;
+            CensoredArt.Changed += ShowAgain;
         }
 
+        // The cards with a censored version, from the catalog of the content (a catalog that fails to load: none)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ReadCatalog()
+        {
+            Addressables.InitializeAsync().Completed += done =>
+            {
+                foreach (UnityEngine.AddressableAssets.ResourceLocators.IResourceLocator locator in Addressables.ResourceLocators)
+                    foreach (object key in locator.Keys)
+                        if (key is string address && address.StartsWith(Prefix) && address.EndsWith(CensoredArt.Suffix)
+                            && int.TryParse(address.Substring(Prefix.Length, address.Length - Prefix.Length - CensoredArt.Suffix.Length), out int card_id))
+                            censored.Add(card_id);
+                catalogRead = true;
+                Action read = CatalogRead;
+                CatalogRead = null;
+                read?.Invoke();
+            };
+        }
+
+        // A card's art in the content (the original)
         public static string Address(int card_id)
         {
-            return "CardArt/" + card_id;
+            return Prefix + card_id;
+        }
+
+        // The art a card shows: its censored version when the setting is on and it has one
+        private static string Shown(int card_id)
+        {
+            return CensoredArt.On && censored.Contains(card_id) ? Address(card_id) + CensoredArt.Suffix : Address(card_id);
         }
 
         // Shows the card's art on the image: at once when it is loaded, otherwise the card's back until it is
@@ -58,27 +106,57 @@ namespace Gwent.Core
             Show(element, SceneManager.GetActiveScene(), card_id, sprite => element.style.backgroundImage = new StyleBackground(sprite), () => element.panel != null);
         }
 
-        private static void Show(object target, Scene scene, int card_id, Action<Sprite> show, Func<bool> alive)
+        // keep: what it shows stays until the art is there (the other version of the same card, the setting changed)
+        private static void Show(object target, Scene scene, int card_id, Action<Sprite> show, Func<bool> alive, bool keep = false)
         {
-            Entry entry = Request(card_id, scene);
+            targets[target] = new Target { card = card_id, scene = scene, show = show, alive = alive };
+            if (!catalogRead)
+            {
+                // Which version it shows is known once the catalog is read
+                if (!keep)
+                    show(Back(card_id));
+                string token = "catalog " + card_id;
+                waiting[target] = token;
+                CatalogRead += () =>
+                {
+                    if (alive() && waiting.TryGetValue(target, out string still) && still == token)
+                        Show(target, scene, card_id, show, alive, true);
+                };
+                return;
+            }
+            string address = Shown(card_id);
+            Entry entry = Request(address, scene);
             if (entry.handle.IsDone)
             {
                 waiting.Remove(target);
                 show(entry.handle.Status == AsyncOperationStatus.Succeeded ? entry.handle.Result : Back(card_id));
                 return;
             }
-            show(Back(card_id));
-            waiting[target] = card_id;
+            if (!keep)
+                show(Back(card_id));
+            waiting[target] = address;
             entry.handle.Completed += loaded =>
             {
-                // The image may be gone, or show another card by now
-                int wanted;
-                if (!alive() || !waiting.TryGetValue(target, out wanted) || wanted != card_id)
+                // The image may be gone, or show another card (or the other version) by now
+                if (!alive() || !waiting.TryGetValue(target, out string wanted) || wanted != address)
                     return;
                 waiting.Remove(target);
                 if (loaded.Status == AsyncOperationStatus.Succeeded)
                     show(loaded.Result);
             };
+        }
+
+        // Censored artwork turned on or off: every image on show, the other version
+        private static void ShowAgain()
+        {
+            foreach (KeyValuePair<object, Target> pair in targets.ToList())
+            {
+                Target target = pair.Value;
+                if (Gone(pair.Key) || !target.alive())
+                    targets.Remove(pair.Key);
+                else
+                    Show(pair.Key, target.scene, target.card, target.show, target.alive, true);
+            }
         }
 
         // Whether an image or element on show still waits for its art (the loading screen waits for the next screen's)
@@ -98,12 +176,13 @@ namespace Gwent.Core
         {
             Stopwatch watch = Stopwatch.StartNew();
             Scene scene = SceneManager.GetActiveScene();
+            await UniTask.WaitUntil(() => catalogRead, cancellationToken: ct);
             List<UniTask> loads = new List<UniTask>();
             int cards = 0;
             foreach (int card_id in card_ids.Distinct())
             {
                 cards++;
-                Entry entry = Request(card_id, scene);
+                Entry entry = Request(Shown(card_id), scene);
                 if (!entry.handle.IsDone)
                     loads.Add(Loaded(entry.handle, ct));
             }
@@ -124,13 +203,13 @@ namespace Gwent.Core
             }
         }
 
-        private static Entry Request(int card_id, Scene scene)
+        private static Entry Request(string address, Scene scene)
         {
             Entry entry;
-            if (!entries.TryGetValue(card_id, out entry))
+            if (!entries.TryGetValue(address, out entry))
             {
-                entry = new Entry { handle = Addressables.LoadAssetAsync<Sprite>(Address(card_id)) };
-                entries[card_id] = entry;
+                entry = new Entry { handle = Addressables.LoadAssetAsync<Sprite>(address) };
+                entries[address] = entry;
             }
             entry.scenes.Add(scene);
             return entry;
@@ -139,17 +218,19 @@ namespace Gwent.Core
         // A scene closed: the art no other open scene asked for is released (its bundle unloads)
         private static void Unloaded(Scene scene)
         {
-            foreach (int card_id in entries.Keys.ToList())
+            foreach (string address in entries.Keys.ToList())
             {
-                Entry entry = entries[card_id];
+                Entry entry = entries[address];
                 entry.scenes.Remove(scene);
                 if (entry.scenes.Count > 0)
                     continue;
                 Addressables.Release(entry.handle);
-                entries.Remove(card_id);
+                entries.Remove(address);
             }
             foreach (object gone in waiting.Keys.Where(Gone).ToList())
                 waiting.Remove(gone);
+            foreach (object gone in targets.Keys.Where(Gone).ToList())
+                targets.Remove(gone);
         }
 
         // A destroyed image, or an element no longer on a panel

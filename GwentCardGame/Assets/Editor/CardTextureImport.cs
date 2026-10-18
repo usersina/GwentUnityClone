@@ -9,7 +9,8 @@ namespace Gwent.EditorTools
     // when both its sides are multiples of 4, on every platform: the sizes and caps are chosen so (a 380x592 image capped
     // at 512 would be 329 wide and ship uncompressed, five times larger; the content tests check it). No mipmaps: Unity
     // compresses a texture with mipmaps only when both its sides are powers of two (the cards' are not), and a card drawn
-    // at half its size (the showcase, the board at 1080p) is filtered cleanly without them.
+    // at half its size (the showcase, the board at 1080p) is filtered cleanly without them. A censored image ("<name>-censored"
+    // beside its original, CensoredArt) imports as its original does, wherever it is (a sprite, not a sheet of them).
     public class CardTextureImport : AssetPostprocessor
     {
         // Each folder, the largest side Android and the web keep (0: as it is), and the size from which it applies
@@ -45,9 +46,30 @@ namespace Gwent.EditorTools
             return new Vector2Int(Mathf.RoundToInt(width * scale), Mathf.RoundToInt(height * scale));
         }
 
+        private static readonly string[] Platforms = { "Standalone", "Android", "WebGL", "iOS" };
+
+        // A censored image: its original's settings (its type, sprite and filtering, each platform's size and format)
+        private void ImportAsOriginal(TextureImporter importer)
+        {
+            string name = System.IO.Path.GetFileNameWithoutExtension(assetPath);
+            if (!name.EndsWith(Gwent.Core.CensoredArt.Suffix))
+                return;
+            string original = assetPath.Substring(0, assetPath.Length - System.IO.Path.GetFileName(assetPath).Length)
+                + name.Substring(0, name.Length - Gwent.Core.CensoredArt.Suffix.Length) + System.IO.Path.GetExtension(assetPath);
+            if (!(AssetImporter.GetAtPath(original) is TextureImporter source))
+                return;
+            TextureImporterSettings settings = new TextureImporterSettings();
+            source.ReadTextureSettings(settings);
+            importer.SetTextureSettings(settings);
+            importer.textureCompression = source.textureCompression;
+            foreach (string platform in Platforms)
+                importer.SetPlatformTextureSettings(source.GetPlatformTextureSettings(platform));
+        }
+
         private void OnPreprocessTexture()
         {
             TextureImporter importer = (TextureImporter)assetImporter;
+            ImportAsOriginal(importer);
             importer.GetSourceTextureWidthAndHeight(out int width, out int height);
             int cap = MobileCap(assetPath, width, height);
             if (cap < 0)
