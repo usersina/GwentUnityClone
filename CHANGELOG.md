@@ -4,6 +4,52 @@ Every push to `main` is a release: it replaces the one GitHub release, `latest`,
 notes. A push to `main` is only released when this file has a new section since the last release: add one, headed by the
 date, before pushing.
 
+## 2026-10-18
+
+LAN battles grow up: talk to the other player, a turn clock, rematches, a fairer shuffle, and a build number both players
+compare. The menus get a cleaner look.
+
+### Play on LAN
+
+- **Rematch**: once a battle is over, either player asks on the end screen; when both have, the next battle begins with the
+  same decks, a new coin toss and a new shuffle. Under the buttons, what the other player is at: wants a rematch, waited for,
+  away, left.
+- **Talk**, as in Rocket League: E (or a click on your portrait) pops up The Witcher 3's quick lines, 1 to 8 says one; T (or
+  your portrait's "..." badge) opens the chat window over your hand, with what was said, a message to type (up to 100
+  characters), a speaker to mute the other player and a × to hide it. What either says pops up in a bubble from their
+  portrait, on the end screen too.
+- **A turn clock**: 60 seconds a turn, 30 for the redraw. It counts only once your screen has shown everything, and holds
+  while either device is away. A fuse burns along the board in the last 15 seconds; out of time in a turn, you lose the
+  round; in the redraw, you keep your hand. Never against the AI.
+- **A fairer shuffle**: each battle's shuffle comes from both devices, so neither can choose it, and once the battle is over
+  the guest's game checks the host's record of it, move by move.
+- **The same build**: both players need the very same build of the game, shown in the main menu's bottom right corner and in
+  the lobby. A battle of another build shows in the list but can't be joined, and says why.
+- **Details**, by the address a host gives, lists every network another device can join it on (Wi-Fi, Ethernet, a hotspot,
+  a VPN such as Tailscale or ZeroTier) and the ports. Friends on the same VPN join from anywhere with its address. The
+  address shown no longer offers a phone's mobile data.
+- A host whose address changed (a phone whose Wi-Fi came back with another) is found again, and the battle goes on.
+- You can give up at any time in a LAN battle. When the other player has been away a minute, the way out says what it does:
+  **Claim the win** or **Give up**. The pause menu no longer stops the battle.
+- Fixes: the host no longer drops its guest at the start after a while in the room; a battle taken up again shows its
+  notice at once; a join that hangs is tried again; a card played as the connection dropped goes back to your hand; a guest
+  whose connection dropped as a rematch began comes back to it.
+- The lobby: Escape leaves a room before the lobby, Enter in the address field joins, the room says who left, the list of
+  battles scrolls, and Abandon asks first.
+
+### A cleaner look
+
+- Dialogs close with a × in their top right corner (or Escape), as the chat window does: no more "Esc to close", Back or
+  Close.
+- A card picker's Skip or Close is a × (giving a choice up still asks first). Done and the pass button show their key, Space,
+  in a small cap, and the battle's notices show keys the same way.
+- How to play tells the controls shorter, with two more: choosing cards and the LAN chat.
+
+### Documentation
+
+- The README is a quick look at the game; every detail moved to the
+  [docs](https://github.com/usersina/GwentUnityClone/blob/main/docs/README.md), each page with its table of contents.
+
 ## 2026-10-16
 
 Play against a friend on your network, the weather comes alive, a Graphics tab, loading screens, and the game is called
