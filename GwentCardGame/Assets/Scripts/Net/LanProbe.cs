@@ -17,7 +17,7 @@ namespace Gwent.Net
     // into packets and put back together), a burst of small ones sent at once (all back, in order), then leaves ("join")
     // or stays until the host goes ("stay": to see how a lost player is noticed). Each step is logged ("[lan]") and shown
     // on screen. "bothost" and "botjoin [address]" play a whole LAN battle instead, the AI on both devices (LanBot);
-    // "botrejoin" takes up the battle kept on disk (LanSave).
+    // "botrejoin" takes up the battle kept on disk (LanSave); "botsolo" plays battles against the AI alone (LanBot).
     public class LanProbe : MonoBehaviour
     {
         private const float SearchFor = 15f;
@@ -44,6 +44,8 @@ namespace Gwent.Net
                 LanBot.Begin(role == "bothost", address);
             else if (role == "botrejoin")
                 LanBot.Rejoin();
+            else if (role == "botsolo")
+                LanBot.BeginSolo();
         }
 
         // Runs it ("host", or "join" or "stay" with the address to join or null to search)

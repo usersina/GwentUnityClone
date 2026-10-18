@@ -18,7 +18,9 @@ namespace Gwent.Net
     // first), lanMute (1: hears nothing of the other), lanTalkOpen (opens its talk panel that many seconds into each
     // battle, for 6 s: screenshots), lanStallAfter (no more moves in its turns after that many: the turn clock's tests,
     // the host's clock lanTurnTime seconds long, LanSession). What it says and hears is logged. Logged as [lan] lines; in
-    // batch mode the game quits a few seconds after the last battle ends.
+    // batch mode the game quits a few seconds after the last battle ends. "-lan botsolo" plays soloBattles battles (3)
+    // against the AI instead, Play again between them, and sums them up at the end (a single player game's test on a
+    // device: the battle screen, the AI, the animations); a battle stuck a minute is logged as a FAIL.
     public class LanBot : MonoBehaviour
     {
         private const float SearchFor = 15f;
@@ -37,6 +39,9 @@ namespace Gwent.Net
         private int stallAfter = -1;
         private int fairBattle; // the battle whose fair play check was logged
         private bool starting;  // the battle asked to start
+        private bool solo;      // against the AI, no LAN
+        private int soloLeft, won, lost, drawn;
+        private float stuckSince = -1;
         private bool stalling;
         private float redrawWait;
         private float redrawSeen = -1;
@@ -81,6 +86,16 @@ namespace Gwent.Net
             else
                 bot.search = LanDiscovery.Search();
             Log((host ? "hosting" : "joining") + " as " + name + " with " + deck.Name + " (" + deck.Faction + ")");
+        }
+
+        // Battles against the AI alone (soloBattles of them), through the battle screen as a player plays them
+        public static void BeginSolo()
+        {
+            LanBot bot = Make();
+            bot.solo = true;
+            bot.soloLeft = int.TryParse(LanProbe.Option("soloBattles"), out int battles) ? Mathf.Max(1, battles) : 3;
+            Log("solo: " + bot.soloLeft + " battles against the AI");
+            LoadingScreen.Load(SceneNames.Game);
         }
 
         // Takes up the battle kept on disk
@@ -153,6 +168,11 @@ namespace Gwent.Net
 
         private void Update()
         {
+            if (solo)
+            {
+                Play();
+                return;
+            }
             LanSession session = LanSession.Current;
             if (search != null)
             {
@@ -268,6 +288,8 @@ namespace Gwent.Net
                 if (overAt < 0)
                 {
                     overAt = Time.realtimeSinceStartup;
+                    if (solo)
+                        soloLeft--;
                     Log("battle over: " + battle.battleState + " " + string.Join("-", battle.PlayerInfo.RoundsScore) + " vs " + string.Join("-", battle.EnemyInfo.RoundsScore)
                         + " after " + moves + " moves of mine");
                 }
@@ -276,14 +298,32 @@ namespace Gwent.Net
                     fairBattle = session.Battle;
                     Log("fair play: " + (session.FairProblem == null ? "checked" : "FAILED: " + session.FairProblem));
                 }
+                else if (solo && Time.realtimeSinceStartup - overAt > RematchAfter && overAt > 0 && battle.PostGame.activeInHierarchy)
+                {
+                    won += battle.battleState == BattleState.Won ? 1 : 0; // as the end screen says
+                    lost += battle.battleState == BattleState.Lost ? 1 : 0;
+                    drawn += battle.battleState == BattleState.Draw ? 1 : 0;
+                    if (soloLeft > 0)
+                    {
+                        overAt = 0; // once
+                        battle.PostGame.GetComponent<EndScreen>().PlayAgain();
+                    }
+                    else
+                    {
+                        overAt = 0;
+                        Log("solo: done, " + (won + lost + drawn) + " battles: " + won + " won, " + lost + " lost, " + drawn + " drawn");
+                        if (Application.isBatchMode)
+                            Application.Quit();
+                    }
+                }
                 else if (rematches > 0 && session != null && session.Over && session.Linked && !session.AskedRematch
-                    && Time.realtimeSinceStartup - overAt > RematchAfter)
+                    && Time.realtimeSinceStartup - overAt > RematchAfter && battle.PostGame.activeInHierarchy) // from the end screen, as a player
                 {
                     rematches--;
                     Log("asking for a rematch" + (session.TheyAskedRematch ? " (the other side asked)" : ""));
                     session.AskRematch();
                 }
-                else if (Application.isBatchMode && Time.realtimeSinceStartup - overAt > QuitAfter && (session == null
+                else if (!solo && Application.isBatchMode && Time.realtimeSinceStartup - overAt > QuitAfter && (session == null
                     || rematches == 0 && !session.AskedRematch && session.Battle == playingBattle)) // no rematch asked or loading
                     Application.Quit();
                 return;
@@ -299,6 +339,12 @@ namespace Gwent.Net
             {
                 lastSeen = seen.GetHashCode();
                 lastMove = Time.realtimeSinceStartup;
+            }
+            if (solo && Time.realtimeSinceStartup - lastMove > 60 && stuckSince != lastMove)
+            {
+                stuckSince = lastMove;
+                Log("FAIL: stuck a minute: " + (seen != null ? seen.Phase + (seen.Turn ? " (mine)" : " (theirs)") : "nothing seen") + ", presenting "
+                    + battle.IsPresenting + ", modal " + UIOverlay.HasModal + ", state " + battle.battleState);
             }
             if (Time.realtimeSinceStartup - lastMove > 15)
             {
