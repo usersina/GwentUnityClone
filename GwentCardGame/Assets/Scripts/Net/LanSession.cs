@@ -140,7 +140,7 @@ namespace Gwent.Net
         private float nextHere;
         private int sent;                // host: the events the guest has
         private int kept = -1;           // host: the moves on disk
-        private readonly List<MatchEvent> received = new List<MatchEvent>(); // guest
+        private List<MatchEvent> received = new List<MatchEvent>(); // guest: the battle's (a rematch's starts a list of its own)
         private readonly List<Said> talk = new List<Said>();
         private float heardAt = float.MinValue;
         private GuestSource source;
@@ -697,7 +697,7 @@ namespace Gwent.Net
                     State = Stage.Battle;
                     ForBattle = this;
                     resumed = true;
-                    received.Clear();
+                    received = new List<MatchEvent>(); // the last battle's screen keeps its own, to finish showing its end
                     source = null;
                     Rejoined = false;
                     AskedRematch = TheyAskedRematch = false;
@@ -910,10 +910,13 @@ namespace Gwent.Net
             return clockLeft[i] >= 0 && State == Stage.Battle;
         }
 
-        // This device's battle screen has shown that many events and waits for nothing more (its animations are not the
-        // player's time): the host's own count, told to the host by the guest
-        public void ScreenShown(int count)
+        // This device's battle screen has shown that many events of the battle and waits for nothing more (its animations
+        // are not the player's time): the host's own count, told to the host by the guest. Only the battle under way's
+        // screen tells it (the last battle's, still showing as a rematch begins, would tell the new one's clock it is there)
+        public void ScreenShown(int count, int of_battle)
         {
+            if (of_battle != battle)
+                return;
             if (Hosting)
                 hostShown = count;
             else if (count != shownSent && State == Stage.Battle && Linked && Send(Message.Shown, w => w.Write(count)))
@@ -1046,14 +1049,17 @@ namespace Gwent.Net
             private readonly LanSession session;
             private bool waiting;
 
+            private readonly List<MatchEvent> events; // its battle's (the next one's are another list)
+
             public GuestSource(LanSession session)
             {
                 this.session = session;
+                events = session.received;
             }
 
-            public override int Count { get { return session.received.Count; } }
-            public override MatchEvent Seen(int index) { return session.received[index]; }
-            public override MatchEvent All(int index) { return session.received[index]; }
+            public override int Count { get { return events.Count; } }
+            public override MatchEvent Seen(int index) { return events[index]; }
+            public override MatchEvent All(int index) { return events[index]; }
             public override bool Waiting { get { return waiting; } }
 
             public override bool Submit(MatchCommand command)

@@ -67,6 +67,7 @@ namespace Gwent.Battle
         private Match match;              // this device's (null: a LAN guest's battle is the host's)
         private BattleSource source;
         private LanSession lan;           // a LAN battle's (null: against the AI)
+        private int lanBattle;            // which of the session's battles this screen shows (a rematch's is another screen)
         private int shown;                // the match's events shown so far
         private MatchState latest;        // the battle as the event shown last left it, as this side sees it
         private MatchState logged;        // the whole battle as the event shown last left it (the log tells all of it)
@@ -227,7 +228,7 @@ namespace Gwent.Battle
 
             // A LAN battle's clock runs once this screen has shown all there is (its animations are not the player's time)
             if (lan != null && presenting == 0 && source != null && shown >= source.Count)
-                lan.ScreenShown(shown);
+                lan.ScreenShown(shown, lanBattle);
         }
 
         // Right click (or a second finger) keeps the hand; Escape opens the pause menu instead
@@ -291,6 +292,7 @@ namespace Gwent.Battle
                     View(is_player).Stats.UISetGeneral(deck.Faction);
                     View(is_player).Stats.UISetPlayer(Info(is_player).Name, deck.Leader);
                 }
+                lanBattle = lan.Battle;
                 lan.Changed += LanChanged;
                 ChatView.Attach(this, lan, View(true).Stats, View(false).Stats);
                 TurnFuse.Attach(this, lan);
