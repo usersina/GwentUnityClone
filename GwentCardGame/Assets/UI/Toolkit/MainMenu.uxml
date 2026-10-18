@@ -12,5 +12,7 @@
             <Gwent.UI.MenuEntry name="Item Quit" text="Quit" />
         </ui:VisualElement>
         <ui:Label name="Note" text="Fan project, not affiliated with CD PROJEKT RED" class="caption main-menu__note" picking-mode="Ignore" />
+        <!-- The version and build (MainMenu fills it in), across from the note -->
+        <ui:Label name="Build" class="caption main-menu__build" picking-mode="Ignore" />
     </ui:VisualElement>
 </ui:UXML>

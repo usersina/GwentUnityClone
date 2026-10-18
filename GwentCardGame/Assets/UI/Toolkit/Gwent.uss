@@ -116,6 +116,13 @@
     bottom: 48px;
 }
 
+/* The version and build, in the bottom right corner across from the note */
+.main-menu__build {
+    position: absolute;
+    right: 156px;
+    bottom: 48px;
+}
+
 /*---------------------------------------- Dialogs ----------------------------------------*/
 /* Darkens the whole screen behind a dialog and takes its clicks */
 .dimmer {
