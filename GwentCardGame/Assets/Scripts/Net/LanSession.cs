@@ -634,7 +634,8 @@ namespace Gwent.Net
                     if (State == Stage.Battle && number == previous && previous != 0 && number != battle)
                     {
                         // Gone as the rematch began: its start, then all of it
-                        Send(Message.Begin, w => w.Write(battle));
+                        byte[] part = seedPart;
+                        Send(Message.Begin, w => { w.Write(battle); w.Write(part); });
                         number = battle;
                         has = 0;
                     }
