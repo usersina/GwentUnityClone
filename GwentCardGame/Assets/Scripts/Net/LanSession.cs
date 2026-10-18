@@ -32,7 +32,7 @@ namespace Gwent.Net
         // the host may start; Battle: under way; Closed: over (Problem says why, when something went wrong)
         public enum Stage { Waiting, Joining, Ready, Battle, Closed }
 
-        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text, Shown, Clock, SeedPromise, SeedPart, Record }
+        private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text, Shown, Clock, SeedPromise, SeedPart, Record, CommandTaken }
 
         private const float RejoinEvery = 2f;
         private const float HereEvery = 1f;     // in a battle, each side says it is there
@@ -149,6 +149,7 @@ namespace Gwent.Net
         private readonly bool[] clockRunning = new bool[2];
         private readonly int[] clockFrom = { -1, -1 };     // host: the event its wait began with
         private readonly int[] clockChoice = { -1, -1 };   // host: the choice its turn brought, given its quarter
+        private readonly float[] clockSince = new float[2]; // host: when its wait began
         private int hostShown, guestShown;                 // host: the events each screen has shown
         private int shownSent = -1;                        // guest: the last count told
         private float clockSentAt, clockHeardAt;
@@ -273,7 +274,8 @@ namespace Gwent.Net
                 return;
             }
             Listen();
-            nextJoin = Time.realtimeSinceStartup + RejoinEvery;
+            joinStarted = Time.realtimeSinceStartup;
+            nextJoin = joinStarted + RejoinEvery;
         }
 
         private void Listen()
@@ -538,11 +540,7 @@ namespace Gwent.Net
                 if (lostAt < 0)
                     lostAt = Time.realtimeSinceStartup;
                 if (source != null && source.Waiting)
-                {
-                    if (sentMoves.Count > 0)
-                        Unsure(); // the host may have had it, or not
                     source.Refuse(); // a move on its way may be lost with the link: the card goes back, to be played again
-                }
                 recordSent = false; // sent again once it is back, in case it was lost with the link
                 Say("link lost (" + reason + "): waiting");
                 Changed?.Invoke();
@@ -634,9 +632,15 @@ namespace Gwent.Net
                     Changed?.Invoke();
                     break;
                 case Message.Command when Hosting && State == Stage.Battle:
+                    // Every move answered, in order: taken (after the events it made), or refused
                     MatchCommand command = MatchCommand.Read(r);
                     if (command.Kind == CommandKind.TimeOut || !Match.Apply(false, command)) // the clock is the host's
                         Send(Message.CommandRefused, w => { });
+                    else
+                    {
+                        SendEvents();
+                        Send(Message.CommandTaken, w => { });
+                    }
                     break;
                 case Message.Shown when Hosting:
                     guestShown = Mathf.Max(0, r.ReadInt32());
@@ -691,6 +695,7 @@ namespace Gwent.Net
                     fairSeed = FairPlay.Seed(host_part, seedPart);
                     seedPromise = null;
                     sentMoves.Clear();
+                    unanswered = 0;
                     movesKnown = true;
                     FairChecked = false;
                     FairProblem = null;
@@ -705,6 +710,7 @@ namespace Gwent.Net
                     Changed?.Invoke();
                     break;
                 case Message.Resumed when !Hosting:
+                    rejoins = 0;
                     resumed = true;
                     lostAt = -1;
                     source?.Answered();
@@ -725,7 +731,12 @@ namespace Gwent.Net
                         received.Add(e);
                     if (e.Kind == MatchEventKind.Ended)
                         LanSave.Delete(Hosting);
-                    source?.Answered();
+                    break; // (not the answer to a move of this side's: one from an earlier move may still be on its way)
+                case Message.CommandTaken when !Hosting:
+                    if (unanswered > 0)
+                        unanswered--;
+                    if (unanswered == 0)
+                        source?.Answered();
                     break;
                 case Message.CommandRefused when !Hosting:
                     if (sentMoves.Count > 0)
@@ -849,6 +860,7 @@ namespace Gwent.Net
             if (!(State == Stage.Battle && Linked && Send(Message.Command, command.Write)))
                 return false;
             sentMoves.Add(new FairPlay.Sent { Command = command });
+            unanswered++;
             return true;
         }
 
@@ -876,8 +888,7 @@ namespace Gwent.Net
         // host
         private void CheckRecord(MatchSetup setup, List<(bool seat, MatchCommand command)> commands)
         {
-            if (source != null && source.Waiting && sentMoves.Count > 0)
-                Unsure();
+            Unsure(); // a move with no answer yet (one after the end: it will be refused)
             FairProblem = FairPlay.Check(setup, commands, received, MyDeck, TheirDeck, fairSeed, movesKnown ? sentMoves : null, CardLibrary.Get());
             FairChecked = true;
             Say("fair play " + (FairProblem == null ? "checked" + (fairSeed.HasValue && movesKnown ? "" : " (in part: taken up again)") : "FAILED: " + FairProblem));
@@ -888,12 +899,16 @@ namespace Gwent.Net
             Changed?.Invoke();
         }
 
-        // The guest's last move may not have reached the host
+        // The guest's moves the host has not answered: perhaps taken, perhaps not
         private void Unsure()
         {
-            FairPlay.Sent last = sentMoves[sentMoves.Count - 1];
-            last.Unsure = true;
-            sentMoves[sentMoves.Count - 1] = last;
+            for (int i = Mathf.Max(0, sentMoves.Count - unanswered); i < sentMoves.Count; i++)
+            {
+                FairPlay.Sent move = sentMoves[i];
+                move.Unsure = true;
+                sentMoves[i] = move;
+            }
+            unanswered = 0;
         }
 
         //----------------------------------------The clock----------------------------------------//
@@ -950,6 +965,7 @@ namespace Gwent.Net
                 if (from != clockFrom[i])
                 {
                     clockFrom[i] = from;
+                    clockSince[i] = Time.realtimeSinceStartup;
                     clockChoice[i] = -1;
                     clockLeft[i] = Match.Phase == MatchPhase.Redraw ? turnTime / 2 : turnTime;
                 }
@@ -958,7 +974,9 @@ namespace Gwent.Net
                     clockChoice[i] = choice;
                     clockLeft[i] = Mathf.Max(clockLeft[i], turnTime / 4);
                 }
-                clockRunning[i] = Linked && (seat ? hostShown : guestShown) >= Match.Events.Count;
+                // Once its screen has shown all there is; or, a screen held still (a tampered game never saying so), a while
+                // after its wait began
+                clockRunning[i] = Linked && ((seat ? hostShown : guestShown) >= Match.Events.Count || Time.realtimeSinceStartup - clockSince[i] > ShownGrace);
                 if (clockRunning[i])
                     clockLeft[i] -= dt;
                 if (clockLeft[i] > 0)
