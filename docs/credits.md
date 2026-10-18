@@ -14,7 +14,8 @@ Hunt; all credit goes to its owner, CD PROJEKT RED. This is a non-commercial fan
 
 ## The game's material
 
-- Card art & rules come from [matt77hias/Gwent](https://github.com/matt77hias/Gwent).
+- Card art & rules come from [matt77hias/Gwent](https://github.com/matt77hias/Gwent): the full cards from its print files, the
+  board's pictures from The Witcher 3's own card textures it gathered, and the card backs from its print files too.
 - Skellige's cards (Blood and Wine) come from Black Swan's English print set, in the same style, as gathered by the community's
   [printing guide](https://www.reddit.com/r/gwent/comments/4rabye/another_guide_for_printing_gwent_cards_complete/) (King Bran with
   Black Swan's own fix).
@@ -27,7 +28,8 @@ Hunt; all credit goes to its owner, CD PROJEKT RED. This is a non-commercial fan
   cards (see [The AI](ai.md#the-ais-decks)).
 - The battle's notification emblems, ability flares, end of battle emblems, gems and row-score circles are The Witcher 3's own
   interface art, as extracted by gwent-classic (see `GwentCardGame/Assets/Resources/W3/CREDITS.md`); so are Skellige's card back and
-  its abilities' glyphs (Berserker, Mardroeme, Skellige Storm, Avenger), set in this game's icon discs.
+  its abilities' glyphs (Berserker, Mardroeme, Skellige Storm, Avenger), set in this game's icon discs, the cards' ability and row
+  icons, and Skellige's board pictures (its game textures).
 
 ## Code and packages
 

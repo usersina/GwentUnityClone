@@ -39,6 +39,12 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.Gwe
   LAN play.
 - **Images** are kept to sizes that are multiples of 4 so they compress on every platform (a card at 380x591 would ship
   uncompressed, four times larger).
+- **The cards' images** are about twice the size the battle draws them at 1920x1080, sharp up to 4K: the full art 672x1048,
+  the board's pictures 168x256, the backs 216x328, the icons 60x60. Android and the web take the full art and the board's
+  pictures at about the size a 1080p screen draws them (328x512, 84x128): a cap per platform that
+  `Assets/Editor/CardTextureImport.cs` sets as they import, chosen so the capped sizes are multiples of 4 too (the content
+  test `EveryCardImageCompressesOnEveryPlatform` checks it). So the desktop builds carry about 30 MB more art than the others.
+  No mipmaps: Unity compresses a texture with mipmaps only when both its sides are powers of two.
 - **Shaders**: one graphics API per platform (Windows Direct3D 11, Linux OpenGL Core, macOS Metal, Android OpenGL ES 3, the web
   WebGL 2) and no post-processing in the renderer (the game uses none): shaders are compiled once per platform, not for every effect
   and API.
