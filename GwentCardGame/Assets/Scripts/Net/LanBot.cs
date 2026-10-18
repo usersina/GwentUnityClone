@@ -35,6 +35,8 @@ namespace Gwent.Net
         private int moves;
         private int giveUpAfter = -1;
         private int stallAfter = -1;
+        private int fairBattle; // the battle whose fair play check was logged
+        private bool starting;  // the battle asked to start
         private bool stalling;
         private float redrawWait;
         private float redrawSeen = -1;
@@ -177,9 +179,13 @@ namespace Gwent.Net
             }
             if (hosting && session.State == LanSession.Stage.Ready)
             {
-                Log(session.TheirName + " joined with " + session.TheirDeck.Name + ": starting");
-                session.StartBattle();
+                if (!starting)
+                    Log(session.TheirName + " joined with " + session.TheirDeck.Name + ": starting");
+                starting = true;
+                session.StartBattle(); // (it begins once the guest's part of the seed is in)
             }
+            else
+                starting = false;
             if (session.State == LanSession.Stage.Battle && !loading)
             {
                 loading = true;
@@ -264,6 +270,11 @@ namespace Gwent.Net
                     overAt = Time.realtimeSinceStartup;
                     Log("battle over: " + battle.battleState + " " + string.Join("-", battle.PlayerInfo.RoundsScore) + " vs " + string.Join("-", battle.EnemyInfo.RoundsScore)
                         + " after " + moves + " moves of mine");
+                }
+                if (session != null && session.FairChecked && fairBattle != session.Battle)
+                {
+                    fairBattle = session.Battle;
+                    Log("fair play: " + (session.FairProblem == null ? "checked" : "FAILED: " + session.FairProblem));
                 }
                 else if (rematches > 0 && session != null && session.Over && session.Linked && !session.AskedRematch
                     && Time.realtimeSinceStartup - overAt > RematchAfter)
