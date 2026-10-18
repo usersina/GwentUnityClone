@@ -35,6 +35,7 @@ namespace Gwent.Net
         private enum Message : byte { Join = 1, Resume, Welcome, Refused, Begin, Event, Command, CommandRefused, Leave, Resumed, Here, Rematch, Emote, Text, Shown, Clock, SeedPromise, SeedPart, Record, CommandTaken }
 
         private const float RejoinEvery = 2f;
+        private const float JoinGiveUp = 8f;    // a join neither through nor failed this long: given up (the transport can hang on one)
         private const float HereEvery = 1f;     // in a battle, each side says it is there
         private const float SilentFor = 6f;     // not heard from that long: gone
         private const float PausedTooLong = 8f; // in the background longer: the other side has dropped the link
@@ -135,6 +136,8 @@ namespace Gwent.Net
         private bool resumed;            // in a battle: the guest is back and caught up (or never left)
         private float lostAt = -1;
         private float nextJoin;
+        private int rejoins;             // guest: tries to join again since the link was lost
+        private float joinStarted;       // guest: when the link now joining began
         private float pausedAt = -1;
         private float lastHeard;         // the other device's last message
         private float nextHere;
@@ -457,9 +460,27 @@ namespace Gwent.Net
                 Close(link.Reason ?? "No game answered at that address.");
                 return;
             }
+            // A join that hangs (the transport neither through nor giving up: seen with a host back from a network cut):
+            // given up after a while; in a battle, tried again
+            bool hung = !Hosting && link != null && link.State == LanLink.Status.Joining && Time.realtimeSinceStartup - joinStarted > JoinGiveUp;
+            if (hung && State == Stage.Joining)
+            {
+                Close("No game answered at that address.");
+                return;
+            }
+            if (hung && State == Stage.Battle)
+            {
+                Say("joining again: the last try hung");
+                Connect();
+            }
             // The guest away from the battle: it joins again now and then (the link it had gave up)
             if (!Hosting && State == Stage.Battle && (link == null || link.State == LanLink.Status.Closed) && Time.realtimeSinceStartup >= nextJoin)
+            {
+                // Joining again, the battle's host away: why the last try failed, now and then (a log to look at)
+                if (link != null && rejoins++ % 5 == 0)
+                    Say("joining again (try " + rejoins + "): " + (link.Reason ?? "no answer"));
                 Connect();
+            }
             if (Hosting && State == Stage.Battle && Match.Commands.Count != kept)
                 Keep();
             if (Hosting && State == Stage.Battle && resumed)
