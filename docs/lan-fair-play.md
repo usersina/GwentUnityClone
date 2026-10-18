@@ -1,8 +1,22 @@
 # Fair play in LAN battles
 
+[Docs](README.md) › [Play on LAN](lan.md) › Fair play
+
 A LAN battle is **host-authoritative**. The host's game runs the whole match: both decks, the shuffle, every rule. The guest's game shows what the host sends it and sends its moves back. The guest only ever receives what it may see (`MatchEvent.For`), and an unmodified host never shows its player the guest's hand. Still, the host's game holds everything: the guest's hand, both decks' order and the random seed.
 
 This page covers what the game checks today, what it cannot check, and the larger design (**private decks**) that would close the remaining gap.
+
+## Contents
+
+- [What the game does today](#what-the-game-does-today)
+  - [A shared seed](#a-shared-seed)
+  - [The record, checked at the end](#the-record-checked-at-the-end)
+- [What it cannot check](#what-it-cannot-check)
+- [The larger design: private decks](#the-larger-design-private-decks)
+  - [The pieces](#the-pieces)
+  - [What it would take](#what-it-would-take)
+  - [Alternatives](#alternatives)
+- [Where the code is](#where-the-code-is)
 
 ## What the game does today
 
