@@ -2,8 +2,9 @@
 
 [Docs](README.md) › Play on LAN
 
-Two players on the same network battle each other: main menu > **Play on LAN**. Over the internet, not yet
-([issue #14](https://github.com/usersina/GwentUnityClone/issues/14)).
+Two players on the same network battle each other: main menu > **Multiplayer** > **Local network**. Its other way, **Online**
+(through a server), is not there yet ([issue #14](https://github.com/usersina/GwentUnityClone/issues/14)); in a browser, neither
+is Local network: a browser can't host or find games on a network.
 
 ## Contents
 
@@ -39,7 +40,7 @@ Two players on the same network battle each other: main menu > **Play on LAN**. 
   the ports.
 - A battle still on when the game closed (Android closing it in the background, a crash) is offered first: **Rejoin** it, or
   **Abandon** it. It is kept for 6 hours.
-- Esc (the Android back button) goes back a step: out of a room, then out of the lobby.
+- Esc (the Android back button) goes back a step: out of a room, then out of the lobby to Multiplayer, then to the main menu.
 
 ## In the battle
 
@@ -77,8 +78,8 @@ Only in a LAN battle, and after it on the end screen:
   After a minute counting down (01:00, 00:59...), the host can claim the win and the guest can give up.
 - A host whose address changed (a phone whose Wi-Fi came back with another address) is found again on the network: the guest
   follows it there.
-- A game closed in the middle of a battle can go back to it: **Play on LAN** offers to rejoin it, for 6 hours. The host takes the
-  battle up where it was, on the same port, and its guest joins it again.
+- A game closed in the middle of a battle can go back to it: **Local network** says **Rejoin**, and the lobby offers it, for 6
+  hours. The host takes the battle up where it was, on the same port, and its guest joins it again.
 
 ## Rematch
 

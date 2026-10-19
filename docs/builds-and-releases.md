@@ -34,9 +34,10 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.Gwe
   (`StreamingAssets/aa`, built with each player), loaded the first time they are shown or played. The web build starts once the
   rest is downloaded; a battle fetches its two decks' art as it begins, the deck builder the cards it shows, and the browser caches
   them.
-- **Web**: compressed with a fallback, so any static host serves it. In a browser Hard thinks a few milliseconds a frame (there is
-  no other thread), Quit is gone, the display settings are a Fullscreen switch, decks are stored in the browser, and there is no
-  LAN play.
+- **Web**: compressed with a fallback, so any static host serves it (GitHub Pages does, see [Releases](#releases)). In a browser
+  Hard thinks a few milliseconds a frame (there is no other thread), Quit is gone, the display settings are a Fullscreen switch,
+  decks are stored in the browser (for that site's address), and Multiplayer offers nothing yet: a browser can't host or find games
+  on a network, and online play is still to come.
 - **Images** are kept to sizes that are multiples of 4 so they compress on every platform (a card at 380x591 would ship
   uncompressed, four times larger).
 - **The cards' images** are about twice the size the battle draws them at 1920x1080, sharp up to 4K: the full art 672x1048,
@@ -78,6 +79,11 @@ the one release, tagged `latest`, with the new archives; its notes are the newes
 followed by the downloads and their checksums. Nothing is published unless the tests and all five builds pass, and a push whose
 `CHANGELOG.md` has no new section since the last release is not released (its run checks the changelog, skips the rest and
 passes): add a section, headed by the date, before pushing. Work on other branches and merge into `main` only to release.
+
+The same run then publishes the web build on GitHub Pages, at <https://usersina.github.io/GwentUnityClone/> (the repository's
+Pages source is GitHub Actions): the archive unpacked, as released. A first visit downloads about 27 MB (the engine and the game's
+data), the cards' art and the music then as they are shown or played, and the browser keeps them. GitHub Pages allows a site of up
+to 1 GB and about 100 GB of traffic a month.
 
 The download links stay the same from one release to the next:
 `https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-<Windows.zip|macOS.zip|Linux.tar.gz|Android.apk|Web.zip>`.
