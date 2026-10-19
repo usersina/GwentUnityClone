@@ -22,7 +22,7 @@ Every control, on the desktop (mouse and keyboard) and on Android (touch). The g
 | Action | Desktop | Android |
 | --- | --- | --- |
 | Start a battle | **Play**, then choose your opponent (one of 11 decks across the five factions) or **Random opponent**; the choice is remembered | Same, with taps |
-| Play someone on your network (not on the web) | **Play on LAN**: see [Play on LAN](lan.md) | Same |
+| Play someone on your network (not in a browser) | **Multiplayer** > **Local network**: see [Play on LAN](lan.md) | Same |
 | Read the rules | Main menu > **How to play**: the rules with the game's own pieces (the battle, the board, cards, abilities, special cards, the factions with their perks and leaders, controls); hover a leader to read its ability | Same; hold a finger on a leader |
 
 The battle uses [your battle deck](#your-battle-deck).

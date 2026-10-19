@@ -7,6 +7,8 @@
 Gwent, the card game of The Witcher 3: Wild Hunt (the original in-game version, not the standalone Gwent), remade in Unity for
 Windows, macOS, Linux, Android and the web.
 
+**[Play it in your browser](https://usersina.github.io/gwent-legacy/)**, or [download it](#download).
+
 ## About
 
 This is a fan remake of Gwent, the famous card game of The Witcher 3. I'm aware that CD PROJEKT RED made an official standalone
@@ -16,19 +18,20 @@ got so immersed in the world of The Witcher 3. So here it is, made nearly from s
 - **The Witcher 3's rules**, all five factions, Skellige (Blood and Wine) included, covered by automated tests
 - **An AI opponent** with three difficulties (Easy, Normal, Hard) and 11 decks
 - **A deck builder** with full deck editing
-- **Play on LAN**: two players on the same network, on any mix of Windows, macOS, Linux and Android, with chat, a turn clock and
-  rematches (over the internet, not yet)
+- **Multiplayer on your network** (Multiplayer > Local network): two players on the same network, on any mix of Windows, macOS,
+  Linux and Android, with chat, a turn clock and rematches (online, through a server: not yet)
 
 ## Download
 
 The latest release:
 
-| Windows                                                                                                         | macOS                                                                                                         | Linux                                                                                                               | Android                                                                                                         | Web                                                                                                         |
-| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [Download (.zip)](https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-Windows.zip) | [Download (.zip)](https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-macOS.zip) | [Download (.tar.gz)](https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-Linux.tar.gz) | [Download (.apk)](https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-Android.apk) | [Download (.zip)](https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-Web.zip) |
+| Windows                                                                                                      | macOS                                                                                                      | Linux                                                                                                            | Android                                                                                                      | Web                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Download (.zip)](https://github.com/usersina/gwent-legacy/releases/latest/download/GwentLegacy-Windows.zip) | [Download (.zip)](https://github.com/usersina/gwent-legacy/releases/latest/download/GwentLegacy-macOS.zip) | [Download (.tar.gz)](https://github.com/usersina/gwent-legacy/releases/latest/download/GwentLegacy-Linux.tar.gz) | [Download (.apk)](https://github.com/usersina/gwent-legacy/releases/latest/download/GwentLegacy-Android.apk) | [Play in the browser](https://usersina.github.io/gwent-legacy/) · [Download (.zip)](https://github.com/usersina/gwent-legacy/releases/latest/download/GwentLegacy-Web.zip) |
 
 Windows and macOS ask once before running a game that isn't signed by a known developer
-([how to allow it](docs/builds-and-releases.md#platform-notes)). The web build is a folder to put on any static host.
+([how to allow it](docs/builds-and-releases.md#platform-notes)). The web version plays everything but multiplayer; its download
+is a folder to put on any static host.
 
 ## Screenshots
 

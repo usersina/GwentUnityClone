@@ -6,8 +6,27 @@ date, before pushing.
 
 ## 2026-10-19
 
-Sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in
-step with what they go with.
+The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, a gold-edged icon,
+sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in step
+with what they go with.
+
+### Play in your browser
+
+- Every release is published on GitHub Pages: [play it in your browser](https://usersina.github.io/gwent-legacy/), nothing to
+  install. Everything but multiplayer is there; decks are kept in the browser.
+
+### Multiplayer
+
+- The main menu's **Play on LAN** is now **Multiplayer**, on every platform: it offers **Local network** (the LAN lobby, as before)
+  and **Online**, through a server, coming later. What can't be chosen says why: Online is coming soon, and a browser can't play on
+  a local network.
+- A LAN battle still on shows as **Rejoin** on Local network. Leaving the lobby comes back to Multiplayer.
+
+### The icon
+
+- A gold contour all around, on every platform: on Android the crown's green disc sits in gold, whatever shape the phone
+  gives its icons; on macOS (Windows and Linux too) a thicker gold frame, in the size and shape macOS expects, so it no
+  longer shows on a dark plate.
 
 ### Sharper cards
 
@@ -49,6 +68,7 @@ step with what they go with.
 - New screenshots in the README.
 - [Rules](docs/rules.md#cards): how every scorch treats heroes, ties and a row's 10. [Play on LAN](docs/lan.md#networks-and-ports):
   the ports, and how to open them on Linux.
+- The README links the browser version; [Builds and releases](docs/builds-and-releases.md#releases) says how it is published.
 
 ## 2026-10-18
 

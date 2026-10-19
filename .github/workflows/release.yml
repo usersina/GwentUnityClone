@@ -1,7 +1,8 @@
 # Every push to main is a release: the tests, then the five builds, then the one GitHub release ("latest") replaced by
-# the new one, its notes taken from the newest section of CHANGELOG.md. Nothing is published unless all of it succeeds,
-# and a push whose CHANGELOG.md has no new section since the last release is not released at all: its run only checks the
-# changelog, skips the rest and passes.
+# the new one, its notes taken from the newest section of CHANGELOG.md, and the web build published on GitHub Pages
+# (https://usersina.github.io/gwent-legacy/, the repository's Pages source set to GitHub Actions). Nothing is
+# published unless all of it succeeds, and a push whose CHANGELOG.md has no new section since the last release is not
+# released at all: its run only checks the changelog, skips the rest and passes.
 #
 # Secrets (tools/release-secrets.sh sets them): UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD; for an Android release key,
 # ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASS, ANDROID_KEY_ALIAS, ANDROID_KEY_PASS (without them the APK is signed with
@@ -162,3 +163,31 @@ jobs:
             --title "Gwent Legacy" \
             --notes-file notes.md \
             --latest
+
+  # The web build, as released, played in the browser: the site is the archive unpacked (its index.html at the top)
+  pages:
+    name: Web on GitHub Pages
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-web
+          path: web
+      - name: Unpack the web build
+        run: |
+          mkdir site
+          unzip -q web/GwentLegacy-Web.zip -d site
+          test -f site/index.html
+          du -sh site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

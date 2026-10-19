@@ -10,7 +10,7 @@
 #   that folder. A later key would sign APKs that no longer install over the ones already out.
 set -euo pipefail
 
-repo=${1:-usersina/GwentUnityClone}
+repo=${1:-usersina/gwent-legacy}
 license="$HOME/.local/share/unity3d/Unity/Unity_lic.ulf"
 keys="$HOME/.config/gwentlegacy"
 keystore="$keys/gwentlegacy.keystore"
