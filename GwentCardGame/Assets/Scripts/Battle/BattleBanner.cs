@@ -10,8 +10,9 @@ namespace Gwent.Battle
 {
     // The Witcher 3's notices across the middle of the screen ("Your turn!", "Your opponent has passed", "You won the
     // round!"): a translucent dark band, the game's bronze emblem left of centre (overflowing the band) and the message
-    // in gold beside it. Notices queue up and show one after another, and the band never catches a click. Runs on game
-    // time, so pausing the game holds it.
+    // in gold beside it. Notices queue up and show one after another, and the band never catches a click. A notice's
+    // sound plays as it shows, not as it is queued (it may wait behind another). Runs on game time, so pausing the game
+    // holds it.
     public class BattleBanner : MonoBehaviour
     {
         // How long a notice stays, fades included (as measured in The Witcher 3)
@@ -42,6 +43,8 @@ namespace Gwent.Battle
             public string Emblem;
             public string Text;
             public float Duration;
+            public string Sound;
+            public int Number;
         }
 
         private static BattleBanner instance;
@@ -51,9 +54,17 @@ namespace Gwent.Battle
         private TextMeshProUGUI text;
         private float age = -1; // -1: nothing showing
         private float duration;
+        private int queued, begun; // the notices' numbers (Show's): the last queued, the last that began to show
 
         // True while a notice shows or waits for its turn
         public static bool Busy { get { return instance != null && (instance.age >= 0 || instance.queue.Count > 0); } }
+
+        // Whether that notice (Show's number) began to show, or never will (the notices were cleared): what goes with it
+        // waits for it
+        public static bool Begun(int notice)
+        {
+            return instance == null || instance.begun >= notice;
+        }
 
         // The faction's crest, for its perk's notice
         public static string FactionEmblem(Faction faction)
@@ -69,12 +80,14 @@ namespace Gwent.Battle
             }
         }
 
-        public static void Show(string emblem, string text, float duration = Turn)
+        // Queues a notice, with the sound effect it shows with (GameAudio); its number, for Begun
+        public static int Show(string emblem, string text, float duration = Turn, string sound = null)
         {
             if (instance == null)
                 instance = Create();
-            instance.queue.Enqueue(new Notice { Emblem = emblem, Text = text, Duration = duration });
+            instance.queue.Enqueue(new Notice { Emblem = emblem, Text = text, Duration = duration, Sound = sound, Number = ++instance.queued });
             GameLog.Event(LogCategory.Ui, "notice", "text", text);
+            return instance.queued;
         }
 
         // Drops every notice (the battle is over)
@@ -83,6 +96,7 @@ namespace Gwent.Battle
             if (instance == null)
                 return;
             instance.queue.Clear();
+            instance.begun = instance.queued;
             instance.age = -1;
             instance.group.alpha = 0;
         }
@@ -180,6 +194,9 @@ namespace Gwent.Battle
                 text.text = next.Text;
                 duration = next.Duration;
                 age = 0;
+                begun = next.Number;
+                if (next.Sound != null)
+                    GameAudio.PlaySfx(next.Sound);
             }
 
             age += Time.deltaTime;

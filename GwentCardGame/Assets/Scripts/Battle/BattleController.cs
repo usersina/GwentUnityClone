@@ -154,7 +154,6 @@ namespace Gwent.Battle
             PlayerInfo.Name = lan != null ? lan.MyName : "Player";
             EnemyInfo.Name = lan != null ? lan.TheirName : "Opponent";
 
-            GameAudio.PlaySfx("game_start");
             UIOverlay.SetEscapeAction(OnEscape);
             battleState = BattleState.Start;
             SetupBattle();
@@ -175,6 +174,8 @@ namespace Gwent.Battle
             BattleLog.Begin(this, MyDeck, TheirDeck, opponentName);
 
             await While(() => LoadingScreen.Showing, ct); // the field fades up first
+            GameAudio.PlaySfx("game_start"); // as it shows, the hands dealt (the loading screen may take a while on a phone)
+            GameAudio.PlaySfx("card_draw");
             if (deckProblem != null)
                 UIOverlay.Toast("Your selected deck can't be used (" + deckProblem + "). Playing with the default deck.", 4f);
 
@@ -366,7 +367,6 @@ namespace Gwent.Battle
                     whiteFlameNotice = is_player ? "Your opponent's leader cancels your leader ability" : "Your leader cancels your opponent's leader ability";
                 }
             }
-            GameAudio.PlaySfx("card_draw");
         }
 
         // Sets the leader in the UI
@@ -641,16 +641,18 @@ namespace Gwent.Battle
             if (!e.Seat)
             {
                 battleState = BattleState.EnemyTurn;
-                AnnounceTurn(false);
+                bool told = AnnounceTurn(false);
                 BattleLog.TurnStart(this, false);
-                GameAudio.PlaySfx("turn_enemy");
+                if (!told)
+                    GameAudio.PlaySfx("turn_enemy");
                 return; // the opponent's move comes next (AskOpponent)
             }
-            AnnounceTurn(true);
+            bool announced = AnnounceTurn(true);
             await Wait(0.3f, ct);
             await While(() => BattleBanner.Busy, ct);
             BattleLog.TurnStart(this, true);
-            GameAudio.PlaySfx("turn_player");
+            if (!announced)
+                GameAudio.PlaySfx("turn_player");
             battleState = BattleState.PlayerTurn;
         }
 
@@ -662,14 +664,18 @@ namespace Gwent.Battle
             SetHider(false);
         }
 
-        // The Witcher 3's turn notices: each change of side. Not while the other side has passed: its pass was
-        // announced already and the turns no longer alternate.
-        private void AnnounceTurn(bool is_player)
+        // The Witcher 3's turn notices, the turn's chime with them: each change of side. Not while the other side has
+        // passed: its pass was announced already and the turns no longer alternate. Whether one is shown (else the chime
+        // is the caller's).
+        private bool AnnounceTurn(bool is_player)
         {
             roundOpening = false;
-            if (lastTurnWasPlayer != is_player && !Opponent(is_player).hasPassed)
-                BattleBanner.Show(is_player ? BattleBanner.YourTurn : BattleBanner.OpponentsTurn, is_player ? "Your turn!" : "Opponent's turn");
+            bool shown = lastTurnWasPlayer != is_player && !Opponent(is_player).hasPassed;
+            if (shown)
+                BattleBanner.Show(is_player ? BattleBanner.YourTurn : BattleBanner.OpponentsTurn, is_player ? "Your turn!" : "Opponent's turn",
+                    BattleBanner.Turn, is_player ? "turn_player" : "turn_enemy");
             lastTurnWasPlayer = is_player;
+            return shown;
         }
 
         private static string Why(PassReason why)
@@ -681,12 +687,13 @@ namespace Gwent.Battle
         {
             bool is_player = e.Seat;
             BattleLog.Passed(this, is_player, Why(e.Why));
-            GameAudio.PlaySfx("pass");
             ApplyView(e.State, all);
             // A pass that ends the round is followed by the round's result instead; at the opening of a round the
-            // other side's "Round N" notice says it all
+            // other side's "Round N" notice says it all. Its sound goes with its notice (which may wait behind another).
             if (!Opponent(is_player).hasPassed && !roundOpening)
-                BattleBanner.Show(BattleBanner.Passed, is_player ? "Turn passed" : "Your opponent has passed");
+                BattleBanner.Show(BattleBanner.Passed, is_player ? "Turn passed" : "Your opponent has passed", BattleBanner.Turn, "pass");
+            else
+                GameAudio.PlaySfx("pass");
             if (is_player)
             {
                 DeselectCard();
@@ -712,11 +719,8 @@ namespace Gwent.Battle
             pendingAction = PendingAction.None;
             CardShowcase.Clear();
             PlayCardAudio(card);
-            int hand_before = Info(is_player).HandList.Count - (e.From == PlaySource.Hand ? 1 : 0);
             board.BeginChange();
             ApplyView(e.State, all);
-            if (!decoy && Info(is_player).HandList.Count > hand_before)
-                GameAudio.PlaySfx("card_draw"); // a spy's two cards
             RefreshBoard();
             BattleLog.Played(this, decoy ? "decoy_played" : "card_played", is_player, e.Card, e.Row);
             SetHider(false);
@@ -761,7 +765,6 @@ namespace Gwent.Battle
                 GameLog.Event(LogCategory.Battle, "picked", "side", e.Seat ? "player" : "enemy", "card", Db.Get(e.Card).name, "from", e.From);
             RefreshBoard();
             BoardChange change = board.EndChange();
-            GameAudio.PlaySfx("card_draw");
             await ShowChange(change, show => presenter.Play(change, -1, e.Seat, false, show), ct);
         }
 
@@ -789,8 +792,8 @@ namespace Gwent.Battle
         }
 
         //----------------------------------------------ROUNDS---------------------------------------------------//
-        // The result over the board as it ended (a tie Nilfgaard wins is announced first), then the gem of each side that
-        // lost a life breaks (The Witcher 3)
+        // The result over the board as it ended (a tie Nilfgaard wins is announced first), and as it shows, to its sound,
+        // the gem of each side that lost a life breaks (The Witcher 3)
         private async UniTask ShowRoundEnd(MatchEvent e, MatchState all, CancellationToken ct)
         {
             battleState = BattleState.RoundOver;
@@ -806,18 +809,19 @@ namespace Gwent.Battle
                 DropInput(); // what the player was doing goes with the round
             if (e.Flag)
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Nilfgaard), "Nilfgaardian faction ability triggered: Nilfgaard wins the tie.");
+            string sound = RoundOutcomeSound(e.Winner);
+            int result;
             if (timed_out)
-                BattleBanner.Show(e.Seat ? BattleBanner.RoundLost : BattleBanner.RoundWon,
-                    e.Seat ? "Out of time: your opponent wins the round" : "Your opponent ran out of time: you win the round", BattleBanner.Long);
+                result = BattleBanner.Show(e.Seat ? BattleBanner.RoundLost : BattleBanner.RoundWon,
+                    e.Seat ? "Out of time: your opponent wins the round" : "Your opponent ran out of time: you win the round", BattleBanner.Long, sound);
             else if (e.Winner == RoundWinner.Player)
-                BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long);
+                result = BattleBanner.Show(BattleBanner.RoundWon, "You won the round!", BattleBanner.Long, sound);
             else if (e.Winner == RoundWinner.Enemy)
-                BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long);
+                result = BattleBanner.Show(BattleBanner.RoundLost, "Your opponent won the round", BattleBanner.Long, sound);
             else
-                BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long);
-            PlayRoundOutcomeAudio(e.Winner);
+                result = BattleBanner.Show(BattleBanner.RoundDrawn, "The round ended in a draw", BattleBanner.Long, sound);
 
-            await While(() => BattleBanner.Busy, ct);
+            await While(() => !BattleBanner.Begun(result), ct);
             List<UniTask> shatters = new List<UniTask>();
             foreach (bool is_player in new[] { true, false })
                 if (lost[is_player ? 0 : 1])
@@ -825,21 +829,16 @@ namespace Gwent.Battle
             await UniTask.WhenAll(shatters);
             View(true).Stats.UIUpdateGemLives(PlayerInfo.Lives);
             View(false).Stats.UIUpdateGemLives(EnemyInfo.Lives);
+            await While(() => BattleBanner.Busy, ct);
         }
 
-        private void PlayRoundOutcomeAudio(RoundWinner winner)
+        private static string RoundOutcomeSound(RoundWinner winner)
         {
             switch (winner)
             {
-                case RoundWinner.Player:
-                    GameAudio.PlaySfx("round_win");
-                    break;
-                case RoundWinner.Enemy:
-                    GameAudio.PlaySfx("round_lose");
-                    break;
-                default:
-                    GameAudio.PlaySfx("round_end");
-                    break;
+                case RoundWinner.Player: return "round_win";
+                case RoundWinner.Enemy: return "round_lose";
+                default: return "round_end";
             }
         }
 
@@ -864,7 +863,6 @@ namespace Gwent.Battle
             {
                 if (!(is_player ? e.PlayerDrew : e.EnemyDrew))
                     continue;
-                GameAudio.PlaySfx("card_draw");
                 GameLog.Event(LogCategory.Battle, "northern_realms_draw", "side", is_player ? "player" : "enemy");
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.NorthernRealms), "Northern Realms faction ability triggered: North draws an additional card.");
             }
