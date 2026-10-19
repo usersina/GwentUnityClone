@@ -1679,14 +1679,16 @@ namespace Gwent.EditorTools
                 {
                     check(count() == before + 1 && saved() == before + 1, "double-clicking a card in the collection adds it to the deck (and saves it)");
                     int left = added >= 0 ? DeckRules.MaxCopies(dc.Db.Get(added)) - 1 : -1;
-                    check(added >= 0 && (left == 0 ? !Shown(browse).Contains(added) : BadgeOf(browse, added) == left), "the collection then counts one copy fewer (" + left + " left)");
+                    check(added >= 0 && BadgeOf(browse, added) == left && SpentIn(browse, added) == (left == 0),
+                        "the collection then counts one copy fewer (" + left + " left" + (left == 0 ? ": still shown, greyed" : "") + ")");
                 });
                 Click(1.3, () => ScreenPoint(browse.currentSprites[4].transform));
-                At(1.8, () => check(Shown(browse).Count == 0, "with every hero in the deck, the collection offers none (" + Shown(browse).Count + " shown)"));
+                At(1.8, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => BadgeOf(browse, id) == 0 && SpentIn(browse, id)),
+                    "with every hero in the deck, the collection shows each at 0, greyed (" + Shown(browse).Count + " shown)"));
                 Click(2.1, () => ScreenPoint(browse.currentSprites[CardGrid.WeatherTab].transform));
                 At(2.6, () => check(Shown(browse).Count > 0 && Shown(browse).All(id => dc.Db.Get(id).row == Row.Weather), "the Weather tab lists the weather cards only"));
                 Click(2.9, () => ScreenPoint(browse.currentSprites[CardGrid.SpecialTab].transform));
-                DoubleClickAt(3.4, FirstCardOf(browse));
+                DoubleClickAt(3.4, FirstOpenCardOf(browse));
                 At(4.0, () => check(count() == before + 1 && ToastText().Contains("special cards") && Shown(browse).All(id => dc.Db.Get(id).IsSpecial && dc.Db.Get(id).row != Row.Weather),
                     "the Specials tab lists the other special cards, and an 11th special card is refused (\"" + ToastText() + "\")"));
                 Click(4.3, () => ScreenPoint(browse.currentSprites[0].transform));
@@ -1759,11 +1761,11 @@ namespace Gwent.EditorTools
                     Vector2 at = AddableCard();
                     dragged = addTarget != null ? addTarget.GetComponent<CardRef>().Card._id : -1;
                     return at;
-                }, () => ScreenPoint(dc.deckCollection.transform));
+                }, () => ColumnPoint(dc.deckCollection, 60));
                 At(14.6, () => check(dragged >= 0 && count() == before + 1 && saved() == before + 1 && dc.my_deck.Cards.Contains(dragged),
-                    "a card dragged from the collection onto the deck goes in (and is saved)"));
-                Drag(14.9, FirstCardOf(dc.deckCollection), () => ScreenPoint(browse.transform));
-                At(15.8, () => check(count() == before && saved() == before, "a card dragged from the deck onto the collection goes out (and is saved)"));
+                    "a card dragged from the collection into the deck's column (dropped above its cards, on its title) goes in (and is saved)"));
+                Drag(14.9, FirstCardOf(dc.deckCollection), () => ColumnPoint(browse, -200));
+                At(15.8, () => check(count() == before && saved() == before, "a card dragged from the deck onto the collection's cards goes out (and is saved)"));
                 Drag(16.1, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(-120, 0));
                 At(17.0, () => check(count() == before && CardMotion.Layer.childCount == 0, "a card dropped back on its own grid stays as it was, its copy gone"));
                 ScrollRect scroll = browse.cardsArea.transform.parent.GetComponent<ScrollRect>();
@@ -1818,6 +1820,28 @@ namespace Gwent.EditorTools
 
             private Transform addTarget;
 
+            // Whether the collection shows that card spent: all its copies in the deck, greyed under its veil
+            private static bool SpentIn(CardGrid collection, int id)
+            {
+                foreach (Transform card in collection.cardsArea.transform)
+                    if (card.GetComponent<CardRef>().Card._id == id)
+                        return CardGrid.IsSpent(card.gameObject);
+                return false;
+            }
+
+            // A point in a grid's column: its card panel's middle across, that far above the panel's top (below it, negative)
+            private static Vector2 ColumnPoint(CardGrid grid, float above)
+            {
+                RectTransform panel = (RectTransform)grid.cardsArea.GetComponentInParent<ScrollRect>().transform;
+                Vector3[] corners = new Vector3[4];
+                panel.GetWorldCorners(corners);
+                Canvas canvas = panel.GetComponentInParent<Canvas>().rootCanvas;
+                Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+                Vector2 bottom_left = RectTransformUtility.WorldToScreenPoint(camera, corners[0]);
+                Vector2 top_right = RectTransformUtility.WorldToScreenPoint(camera, corners[2]);
+                return new Vector2((bottom_left.x + top_right.x) / 2, Mathf.Clamp(top_right.y + above, 5, Screen.height - 5));
+            }
+
             // One of the collection's first cards the deck has room for (not a special: their limit is checked apart)
             private Vector2 AddableCard()
             {
@@ -1834,6 +1858,17 @@ namespace Gwent.EditorTools
                 check(target != null, "the collection's first cards include one the deck has room for");
                 addTarget = target;
                 return target != null ? ScreenPoint(target) : Vector2.zero;
+            }
+
+            // The first card of the collection that is not spent (one the deck could still take)
+            private Func<Vector2> FirstOpenCardOf(CardGrid collection)
+            {
+                return () =>
+                {
+                    Transform open = collection.cardsArea.transform.Cast<Transform>().FirstOrDefault(card => !CardGrid.IsSpent(card.gameObject));
+                    check(open != null, "the collection shows a card the deck could still take");
+                    return open != null ? ScreenPoint(open) : Vector2.zero;
+                };
             }
 
             // The first card of a card list (the deck's or the collection's), where it is when the click happens

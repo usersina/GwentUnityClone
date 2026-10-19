@@ -74,7 +74,7 @@ Only in a LAN battle, never against the AI. More in [Play on LAN](lan.md).
 
 | Action | Desktop | Android |
 | --- | --- | --- |
-| Add or remove a card | Double-click it, or drag it across. It flies to the other grid: one copy while others are left, the card itself when it is the last. Each card shows once with its count: the copies in the deck, or in the collection the copies left to add (a card whose copies are all in the deck leaves the collection). Tabs: all, close, ranged, siege, heroes, weather, special cards | Tap it, or drag it across |
+| Add or remove a card | Double-click it, or drag it across and drop it anywhere in the other side's column (its title, its cards, the space under them). It flies to the other grid: one copy while others are left, the card itself when it is the last. Each card shows once with its count: the copies in the deck, or in the collection the copies left to add (a card whose copies are all in the deck stays there, greyed, at x0). Tabs: all, close, ranged, siege, heroes, weather, special cards | Tap it, or drag it across |
 | Card details | Right-click | Hold a finger on it |
 | Presets | Each faction's AI decks are listed after your own decks, marked "(preset)". Pick one to play with it as it is; your first change saves your own copy ("The Monster Horde (copy)") and the preset stays as it was. Presets can't be renamed or deleted | Same, with taps |
 
