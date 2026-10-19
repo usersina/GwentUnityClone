@@ -127,6 +127,21 @@ namespace Gwent.Net.Tests
             Assert.AreEqual(LanLink.Status.Connected, host.State);
         }
 
+        // A guest silent a while (its link dead without a word, or its host's address changed) gives way to a newcomer: most
+        // likely itself, joining again
+        [Test]
+        public void AGuestSilentAWhileGivesWayToANewcomer()
+        {
+            (LanLink host, LanLink first) = Joined();
+            string left = null;
+            host.Disconnected += reason => left = reason;
+            Until(() => false, 3.2, host); // the first says nothing (not even updated: gone)
+            LanLink second = Made(LanLink.Join("127.0.0.1", TestPort, Version));
+            Assert.IsTrue(Until(() => second.State == LanLink.Status.Connected, 5, host, second), "the newcomer was turned away: " + second.Reason);
+            Assert.AreEqual(LanLink.Status.Connected, host.State);
+            StringAssert.Contains("stopped answering", left);
+        }
+
         [Test]
         public void JoiningWhereNoGameIsGivesUpInAFewSeconds()
         {

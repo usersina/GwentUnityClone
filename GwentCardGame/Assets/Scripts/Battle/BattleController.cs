@@ -101,10 +101,12 @@ namespace Gwent.Battle
             board = new BoardView(this);
             presenter = new BoardPresenter(board, Db);
             flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
+            ScreenAwake.Hold(this);
         }
 
         private void OnDestroy()
         {
+            ScreenAwake.Release(this);
             if (lan != null)
                 lan.Changed -= LanChanged;
             if (flow != null)

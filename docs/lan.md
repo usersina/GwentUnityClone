@@ -46,6 +46,7 @@ Two players on the same network battle each other: main menu > **Play on LAN**. 
 - The host's game runs the battle; each screen shows only its own player's hand, the other's cards face down.
 - While the other player decides (their redraw, who goes first), it shows as their turn.
 - You can give up at any time (a hand on your deck, as against the AI): it counts as a loss.
+- A phone's screen stays on in a room and in a battle (in any battle, against the AI too): asleep, its player would be away.
 
 ## The turn clock
 
@@ -92,21 +93,31 @@ which build it runs. See [Builds and releases](builds-and-releases.md#the-build-
 
 ## Networks and ports
 
-- The game uses two UDP ports: **26946** to find battles and **26947** for the battle itself (when another program holds it, the
-  next free one up to 26956; **Details** shows which).
-- If your firewall asks, let the game through on your private network.
+- The game uses the UDP ports **26946 to 26959**: **26946** to find battles, **26947** for the battle itself (when another program
+  holds it, the next free one up to 26956; **Details** shows which) and **26957** for the answers to a search (up to 26959 when
+  another copy of the game on the device searches too).
+- **Windows and macOS** ask once whether to let the game through: allow it on your private network.
+- **Linux** firewalls don't ask, and most let nothing in: open the ports once. Without that, nobody finds or joins a battle the
+  computer hosts, and its own list of battles stays empty.
+  - firewalld (Fedora, Arch...): `sudo firewall-cmd --permanent --add-port=26946-26959/udp`, then `sudo firewall-cmd --reload`
+    (for the default zone: when your network is in another, `firewall-cmd --get-active-zones` names it, add `--zone=` it)
+  - ufw (Ubuntu, Mint...): `sudo ufw allow 26946:26959/udp`
 - When a battle hosted on your network doesn't show in the list, join it by the address the host's screen shows. Some networks
   (guest Wi-Fi, public hotspots) keep devices apart altogether: there, use a phone's hotspot or a VPN.
 
 ## How it works
 
 - **The link**: Unity Transport over UDP (`LanLink`), with the game's own search: a broadcast to the network every second, each
-  host answering with its name, version and port (`LanDiscovery`). The battle (`LanSession`): the host runs the match (`Match`) and
+  host answering with its name, version and port (`LanDiscovery`), to the search's own port (26957), which a firewall can let
+  in: an answer to a random port looks like a stranger's packet to a firewall that tracks what was asked (the question went to
+  the whole network, the answer comes from one address). The battle (`LanSession`): the host runs the match (`Match`) and
   sends each event as the guest may see it; the guest sends its moves, each answered (taken or refused).
 - **Coming back**: both sides say they are there every second; a side silent for 6 seconds is taken as away. The guest joins again
-  every few seconds, says how much of the battle it has, and the host sends the rest. Meanwhile it searches for its host with the
-  battle's key (a hash of the battle's number and seed, which only the two devices know): a host that moved is joined at its new
-  address, and no one else's list shows a battle under way. The battle is kept on disk while it is on (`LanSave`).
+  every few seconds, says how much of the battle it has, and the host sends the rest (a guest silent for 3 seconds already gives
+  way to a newcomer: most likely itself, its old link dead, and the newcomer still has to name the battle). Meanwhile it searches
+  for its host with the battle's key (a hash of the battle's number and seed, which only the two devices know): a host that moved
+  is joined at its new address, and no one else's list shows a battle under way. The battle is kept on disk while it is on
+  (`LanSave`).
 - **Fair play**: the shuffle comes from both devices, and once the battle is over the guest checks the host's record of it. What
   that guarantees, what it can't, and the larger design that would: [Fair play in LAN battles](lan-fair-play.md).
 - **Testing it**: [LAN tests and bots](testing.md#lan-tests-and-bots).

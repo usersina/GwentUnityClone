@@ -16,8 +16,9 @@ namespace Gwent.Net
     // guest joins the host at its address. A message arrives whole, once and in order (a reliable pipeline, split into
     // packets and put back together when it is bigger than one). Joining, the guest says which game it runs and the host
     // answers: a guest of another version is turned away (both must play by the same rules), and so is a second guest
-    // while one is there. A side that stops answering is dropped after DropAfter. Nothing runs on its own: the owner
-    // calls Update every frame, and the events are raised from there.
+    // while one is there. A side that stops answering is dropped after DropAfter; a guest silent for StaleAfter already
+    // gives way to a newcomer (most likely itself, joining again: its old link dead, or its host's address changed).
+    // Nothing runs on its own: the owner calls Update every frame, and the events are raised from there.
     public sealed class LanLink : IDisposable
     {
         public const ushort GamePort = 26947;      // or one of the next (PortsTried) when another program holds it
@@ -29,6 +30,8 @@ namespace Gwent.Net
         private const int DropAfterMs = 10000;      // a side not heard from this long is gone
         private const int Window = 64;              // reliable packets in flight (the largest message fits)
         private const float RefusedHold = 2f;       // a guest turned away is cut off this long after the answer
+        private const float StaleAfter = 3f;        // a guest not heard from this long gives way to a newcomer (its
+                                                    // session says it is there every second, LanSession)
 
         private enum Kind : byte { Hello = 1, Welcome = 2, Refused = 3, Message = 4 }
 
@@ -37,6 +40,7 @@ namespace Gwent.Net
         private NetworkDriver driver;
         private NetworkPipeline pipeline;
         private NetworkConnection other;            // the guest (hosting) or the host (joining)
+        private float heardAt;                      // the other side's last word
         private readonly bool hosting;
         private readonly string version;
         private readonly Queue<byte[]> outgoing = new Queue<byte[]>(); // waiting for room in the reliable window
@@ -161,10 +165,22 @@ namespace Gwent.Net
                 NetworkConnection guest;
                 while ((guest = driver.Accept()) != default)
                 {
+                    if (other.IsCreated && Time.realtimeSinceStartup - heardAt >= StaleAfter)
+                    {
+                        // The guest gone quiet: let go for the newcomer (whether it is that guest back, the session
+                        // tells: a battle's guest has to say which battle)
+                        driver.Disconnect(other);
+                        Lost("The other player stopped answering.");
+                        if (!driver.IsCreated)
+                            return; // closed by what was raised
+                    }
                     if (other.IsCreated)
                         Refuse(guest, "A battle is already under way there.");
                     else
+                    {
                         other = guest;
+                        heardAt = Time.realtimeSinceStartup;
+                    }
                 }
                 for (int i = refused.Count - 1; i >= 0; i--)
                     if (Time.realtimeSinceStartup > refused[i].until)
@@ -179,6 +195,7 @@ namespace Gwent.Net
             {
                 if (from != other)
                     continue; // a guest turned away: only its leaving, ignored
+                heardAt = Time.realtimeSinceStartup;
                 if (type == NetworkEvent.Type.Connect)
                     Queue(Kind.Hello, Hello());
                 else if (type == NetworkEvent.Type.Data)

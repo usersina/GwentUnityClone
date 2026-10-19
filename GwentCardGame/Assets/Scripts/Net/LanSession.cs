@@ -1110,8 +1110,15 @@ namespace Gwent.Net
                 Leave();
         }
 
+        // The phone kept awake while the room or the battle is open: asleep, it would be away
+        private void Awake()
+        {
+            ScreenAwake.Hold(this);
+        }
+
         private void OnDestroy()
         {
+            ScreenAwake.Release(this);
             if (link != null)
                 link.Dispose();
             if (discovery != null)
