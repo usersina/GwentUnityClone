@@ -63,6 +63,7 @@ namespace Gwent.UI
         public VisualTreeAsset mainMenu;
         public VisualTreeAsset opponentPicker;
         public VisualTreeAsset opponentEntry;
+        public VisualTreeAsset multiplayerPicker;
         public VisualTreeAsset lanLobby;
         public VisualTreeAsset settings;
         public VisualTreeAsset pauseMenu;

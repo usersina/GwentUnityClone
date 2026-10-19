@@ -11,9 +11,9 @@ using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
-    // Play on LAN, laid out the way games' lobbies go. At the top, who you are: your leader, your name (remembered, kept to
-    // PlayerNames' rule as it is typed) and the battle deck you play, with the way to the deck builder (the lobby opens
-    // again on the way back).
+    // Multiplayer > Local network (MultiplayerPicker), laid out the way games' lobbies go. At the top, who you are: your
+    // leader, your name (remembered, kept to PlayerNames' rule as it is typed) and the battle deck you play, with the way to
+    // the deck builder (the lobby opens again on the way back, over the picker).
     // Under it the battles hosted on your network, found as you look (a live dot says it searches; each its host's name,
     // faction and leader; one of another version shows and cannot be joined), one at an address for a network that hides
     // them, and Host a battle. Hosting or joined, the room: both players face to face (an empty seat breathes until

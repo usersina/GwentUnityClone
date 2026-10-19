@@ -25,9 +25,9 @@ namespace Gwent.Menus
             UIScreens.Show("MainMenu", UITheme.Current.mainMenu, Bind);
             CoverWithKeyArt();
             if (LanLobby.Reopen()) // back from the deck builder the lobby sent the player to
-                PlayOnLan();
+                OpenMultiplayer(true);
             else if (!GameSettings.IsWeb && Gwent.Net.LanSession.Current == null && Gwent.Net.LanSave.Load() != null)
-                UIOverlay.Toast("A LAN battle is still on: Play on LAN to rejoin it", 4f);
+                UIOverlay.Toast("A LAN battle is still on: Multiplayer, then Local network, to rejoin it", 4f);
         }
 
         private void Bind(VisualElement root)
@@ -35,11 +35,7 @@ namespace Gwent.Menus
             items.Clear();
             root.Q<Label>("Build").text = "Version " + Application.version + " \u00B7 Build " + BuildInfo.Build;
             AddItem(root, "Item Play", PlayGame);
-            MenuEntry lan = root.Q<MenuEntry>("Item Play on LAN");
-            if (GameSettings.IsWeb) // a browser cannot host or find games on the network
-                lan.RemoveFromHierarchy();
-            else
-                AddItem(root, "Item Play on LAN", PlayOnLan);
+            AddItem(root, "Item Multiplayer", () => OpenMultiplayer());
             AddItem(root, "Item Deck builder", EditDeck);
             AddItem(root, "Item How to play", OpenRules);
             AddItem(root, "Item Settings", OpenSettings);
@@ -110,10 +106,11 @@ namespace Gwent.Menus
             OpponentPicker.Open(() => Focus(0));
         }
 
-        // Play on LAN: host a battle or join one on the network (LanLobby)
-        public void PlayOnLan()
+        // Multiplayer: on the local network or online (MultiplayerPicker), in a browser too (where it says neither can be
+        // had there yet); lobby: the LAN lobby over it at once
+        public void OpenMultiplayer(bool lobby = false)
         {
-            LanLobby.Open(() => Focus("Item Play on LAN"));
+            MultiplayerPicker.Open(() => Focus("Item Multiplayer"), lobby);
         }
 
         public void EditDeck()

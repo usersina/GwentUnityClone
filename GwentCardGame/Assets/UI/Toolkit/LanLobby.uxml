@@ -1,11 +1,11 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/UI/Toolkit/Gwent.uss" />
-    <!-- Play on LAN (LanLobby): who you are and what you play; then either the battles on your network (or one at an
+    <!-- Multiplayer > Local network (LanLobby): who you are and what you play; then either the battles on your network (or one at an
          address) and hosting your own, or, hosting or joined, the room: both players face to face. A battle still on is
          offered first. -->
     <ui:VisualElement name="Dimmer" class="dimmer">
         <ui:VisualElement name="Panel" class="panel lan">
-            <ui:Label text="Play on LAN" class="title" />
+            <ui:Label text="Local network" class="title" />
             <ui:VisualElement class="ornament lan__ornament" />
 
             <!-- You: your name (as the other player sees it; the rule under it while it is typed) and the deck you play -->
