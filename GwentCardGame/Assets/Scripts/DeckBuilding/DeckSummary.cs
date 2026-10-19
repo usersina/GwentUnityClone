@@ -56,6 +56,7 @@ namespace Gwent.DeckBuilding
         // select_for_battle: the shown deck becomes the battle deck (if valid). False when another deck gets selected right after.
         public void LoadDecks(bool select_for_battle = true)
         {
+            deckBuilder.StopNaming(); // another deck, another faction: the name being typed goes
             // Clear Dropdown
             deckPicker.ClearOptions();
 

@@ -867,7 +867,7 @@ namespace Gwent.EditorTools
 
             private void RunDeckBuilderChecks(DeckBuilder dc, List<string> created)
             {
-                TMP_InputField input = UnityEngine.Object.FindAnyObjectByType<TMP_InputField>();
+                TMP_InputField input = UnityEngine.Object.FindAnyObjectByType<TMP_InputField>(FindObjectsInactive.Include); // hidden until the pencil
                 Check(input != null, "deck name input field found");
                 Faction faction = dc.my_deck.Faction;
                 string tag = "Autoplay " + seed;
@@ -878,6 +878,13 @@ namespace Gwent.EditorTools
                 // an edit is saved as the player's own copy and the preset stays as it was
                 List<string> presets = OpponentDecks.PresetPaths(faction);
                 Check(presets.Count > 0 && presets.All(p => dc.deckSummary.myPaths.Contains(p)), "the faction's AI decks are offered as presets");
+                string first_preset = presets.FirstOrDefault();
+                // A new deck of the player's: a preset named (its cards, under that name)
+                Func<string, bool> from_preset = name =>
+                {
+                    dc.deckSummary.SelectDeckPath(first_preset);
+                    return dc.NameDeck(name);
+                };
                 if (presets.Count > 0)
                 {
                     string preset = presets[0];
@@ -885,9 +892,19 @@ namespace Gwent.EditorTools
                     dc.deckSummary.SelectDeckPath(preset);
                     Check(dc.currentDeckPath == preset && PlayerPrefs.GetString("playerDeckPath", "") == preset && dc.BattleDeckStatus.Contains(original.Name + " (preset)"),
                         "a preset picked in the builder is the battle deck (\"" + dc.BattleDeckStatus + "\")");
-                    input.text = tag + " Preset";
+                    // The pencil: the list gives way to the name field, offering a copy's name; the cross leaves it all as it was
                     dc.RenameDeck(input);
-                    Check(dc.currentDeckPath == preset && deck_count() == before, "a preset cannot be renamed");
+                    Check(dc.Naming && input.gameObject.activeInHierarchy && !dc.deckSummary.deckPicker.gameObject.activeInHierarchy
+                        && input.text.StartsWith(original.Name + " (copy"), "the pencil opens the name field over the list, offering a copy's name (\"" + input.text + "\")");
+                    dc.DeleteDeck();
+                    Check(!dc.Naming && dc.deckSummary.deckPicker.gameObject.activeInHierarchy && dc.currentDeckPath == preset && deck_count() == before
+                        && GameObject.Find("ConfirmDialog") == null, "the cross closes the name field, nothing named, nothing deleted");
+                    Check(dc.NameDeck(tag + " Preset") && !OpponentDecks.IsPreset(dc.currentDeckPath) && dc.my_deck.Name == tag + " Preset"
+                        && dc.my_deck.Cards.Count == original.Cards.Count && deck_count() == before + 1 && DeckStorage.Load(preset).Name == original.Name,
+                        "naming a preset makes the player's own copy under that name; the preset stays as it was");
+                    created.Add(dc.currentDeckPath);
+                    dc.ConfirmDelete(dc.currentDeckPath);
+                    dc.deckSummary.SelectDeckPath(preset);
                     dc.DeleteDeck();
                     Check(GameObject.Find("ConfirmDialog") == null && dc.currentDeckPath == preset, "a preset cannot be deleted");
                     dc.my_deck.Cards.RemoveAt(0);
@@ -902,19 +919,17 @@ namespace Gwent.EditorTools
                     before = deck_count();
                 }
 
-                // Add a deck
-                input.text = "  " + tag + "  Deck ";
-                dc.AddDeck(input);
+                // A new deck: a preset named, its spaces tidied
+                from_preset("  " + tag + "  Deck ");
                 string path = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Deck"));
                 created.Add(path);
-                Check(File.Exists(path) && deck_count() == before + 1, "AddDeck creates the deck file");
+                Check(File.Exists(path) && deck_count() == before + 1, "naming a preset creates the deck file");
                 Check(dc.currentDeckPath == path && dc.my_deck.Name == tag + " Deck", "the new deck is selected");
 
                 // Same name with other letter case / spacing: rejected, nothing overwritten (B3)
                 dc.my_deck.Cards.Add(LeaderIds.ByFaction[faction][0]); // marker that must survive
                 File.WriteAllText(path, JsonUtility.ToJson(DeckFile.Of(new Deck { Faction = faction, Name = tag + " Deck", Leader = dc.my_deck.Leader, Cards = new List<int> { 1 } })));
-                input.text = tag.ToUpperInvariant() + " DECK";
-                dc.AddDeck(input);
+                from_preset(tag.ToUpperInvariant() + " DECK");
                 Deck after_duplicate = DeckStorage.Load(path);
                 Check(deck_count() == before + 1 && after_duplicate != null && after_duplicate.Cards.Count == 1, "a duplicate name does not overwrite the existing deck");
 
@@ -933,25 +948,21 @@ namespace Gwent.EditorTools
                 Check(DeckStorage.BattleDeckPath == null && !PlayerPrefs.HasKey("playerDeckPath"), "an invalid deck stops being the battle deck");
 
                 // Rename (B4)
-                input.text = tag + " Renamed";
-                dc.RenameDeck(input);
+                dc.NameDeck(tag + " Renamed");
                 string renamed = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Renamed"));
                 created.Add(renamed);
                 Check(File.Exists(renamed) && !File.Exists(path), "rename moves the deck file");
                 Check(dc.my_deck.Name == tag + " Renamed" && dc.my_deck.Cards.Count == 14, "rename keeps the cards");
 
                 // Rename another deck onto that name: rejected, both decks intact
-                input.text = tag + " Other";
-                dc.AddDeck(input);
+                from_preset(tag + " Other");
                 string other = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Other"));
                 created.Add(other);
-                input.text = (tag + " renamed").ToLowerInvariant();
-                dc.RenameDeck(input);
+                dc.NameDeck((tag + " renamed").ToLowerInvariant());
                 Check(File.Exists(other) && File.Exists(renamed) && DeckStorage.Load(renamed).Cards.Count == 14, "rename onto an existing name is rejected");
 
                 // Unsafe names never leave the deck folder (B20)
-                input.text = "../../" + tag + " escape";
-                dc.AddDeck(input);
+                from_preset("../../" + tag + " escape");
                 string escaped = DeckStorage.PathFor(faction, DeckRules.ToFileName("../../" + tag + " escape"));
                 created.Add(escaped);
                 Check(File.Exists(escaped) && Path.GetDirectoryName(escaped) == DeckStorage.FactionFolder(faction), "unsafe characters are stripped from the file name");

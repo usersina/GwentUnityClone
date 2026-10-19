@@ -76,7 +76,9 @@ Only in a LAN battle, never against the AI. More in [Play on LAN](lan.md).
 | --- | --- | --- |
 | Add or remove a card | Double-click it, or drag it across and drop it anywhere in the other side's column (its title, its cards, the space under them). It flies to the other grid: one copy while others are left, the card itself when it is the last. Each card shows once with its count: the copies in the deck, or in the collection the copies left to add (a card whose copies are all in the deck stays there, greyed, at x0). Tabs: all, close, ranged, siege, heroes, weather, special cards | Tap it, or drag it across |
 | Card details | Right-click | Hold a finger on it |
-| Presets | Each faction's AI decks are listed after your own decks, marked "(preset)". Pick one to play with it as it is; your first change saves your own copy ("The Monster Horde (copy)") and the preset stays as it was. Presets can't be renamed or deleted | Same, with taps |
+| Name a deck | The pencil, beside the deck list: the list gives way to the deck's name, ready to type over. Enter (or the check) keeps it, Escape (or the cross) leaves things as they were. Your own deck is renamed; a preset gives its cards to a new deck of yours under that name. A name already taken says so and stays to be changed | Same, with taps; the keyboard's Done keeps the name |
+| Presets | Each faction's AI decks are listed after your own decks, marked "(preset)". Pick one to play with it as it is; your first change saves your own copy ("The Monster Horde (copy)"), and naming one makes your own deck from it. The preset stays as it was: presets can't be renamed or deleted | Same, with taps |
+| Delete a deck | The trash, beside the pencil (your own decks; it asks first) | Same |
 
 ## Your battle deck
 
