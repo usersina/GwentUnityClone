@@ -6,9 +6,9 @@ date, before pushing.
 
 ## 2026-10-19
 
-The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, sharper cards, a
-Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in step with what they
-go with.
+The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, a gold-edged icon,
+sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in step
+with what they go with.
 
 ### Play in your browser
 
@@ -21,6 +21,12 @@ go with.
   and **Online**, through a server, coming later. What can't be chosen says why: Online is coming soon, and a browser can't play on
   a local network.
 - A LAN battle still on shows as **Rejoin** on Local network. Leaving the lobby comes back to Multiplayer.
+
+### The icon
+
+- A gold contour all around, on every platform: on Android the crown's green disc sits in gold, whatever shape the phone
+  gives its icons; on macOS (Windows and Linux too) a thicker gold frame, in the size and shape macOS expects, so it no
+  longer shows on a dark plate.
 
 ### Sharper cards
 
