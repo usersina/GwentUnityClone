@@ -44,5 +44,20 @@ namespace Gwent.Rules
                 default: return faction.Code();
             }
         }
+
+        // The faction's ability (its perk, always in effect), as the deck builder, the battle's side panels and the rules
+        // tell it
+        public static string Ability(this Faction faction)
+        {
+            switch (faction)
+            {
+                case Faction.NorthernRealms: return "Draw a card from your deck whenever you win a round.";
+                case Faction.Nilfgaard: return "Win any round that ends in a draw (unless your opponent is Nilfgaard too).";
+                case Faction.Scoiatael: return "Decide who goes first at the start of the battle.";
+                case Faction.Monsters: return "Keep one random unit on the board after each round.";
+                case Faction.Skellige: return "Two random units of your discard pile (no heroes or spies) return to the board in the third round.";
+                default: return null;
+            }
+        }
     }
 }

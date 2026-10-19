@@ -12,7 +12,7 @@ namespace Gwent.Menus
     // "How to play" (main menu): the rules of The Witcher 3's Gwent, one topic at a time. Topics on the left, the topic's
     // rules on the right (they scroll when long), each beside the game's own pieces as on the printed Gwent rule cards
     // (matt77hias/Gwent): faction shields, the hand count, row emblems, the abilities' medallions, life gems, The Witcher 3's
-    // notices, cards, keys. The factions show their perk and leaders (hover a leader, or hold a finger on it, to read its
+    // notices, cards, keys. The factions show their ability and leaders (hover a leader, or hold a finger on it, to read its
     // ability). A UI Toolkit dialog: Assets/UI/Toolkit/RulesPage.uxml, the topics and their rules made here.
     public static class RulesPage
     {
@@ -35,7 +35,6 @@ namespace Gwent.Menus
         private struct FactionTopic
         {
             public Faction Faction;
-            public string Perk;
             public int[] Leaders;
         }
 
@@ -56,8 +55,8 @@ namespace Gwent.Menus
                     Intro = "Gwent is a card game for two players. Win two rounds out of three: a round goes to the side whose cards on the board add up to more.",
                     Entries = new[]
                     {
-                        E("Factions", "Each deck belongs to one of five factions, with its own perk and cards; neutral cards fit any deck.", "shield:NR", "shield:SC", "shield:M", "shield:NF", "shield:SK"),
-                        E("Hand cards", "You draw 10 cards and may redraw up to 2 of them before the first round. Nobody draws between rounds, so every card you play is one fewer for the rounds ahead; only spies, a few leaders and the Northern Realms perk bring more.", "cards", "num:10"),
+                        E("Factions", "Each deck belongs to one of five factions, with its own ability and cards; neutral cards fit any deck.", "shield:NR", "shield:SC", "shield:M", "shield:NF", "shield:SK"),
+                        E("Hand cards", "You draw 10 cards and may redraw up to 2 of them before the first round. Nobody draws between rounds, so every card you play is one fewer for the rounds ahead; only spies, a few leaders and the Northern Realms ability bring more.", "cards", "num:10"),
                         E("Your turn", "Do one thing: play a card, use your leader's ability, or pass. Playing a card ends your turn.", "notice:me_turn"),
                         E("Combat rows", "Units go on the close combat, ranged or siege row, as shown on the card.", "emblem:0", "emblem:1", "emblem:2"),
                         E("Special cards", "Weather, Commander's Horn, Decoy and Scorch, and your leader's ability, can turn a round around.", "medal:biting_frost", "medal:decoy", "medal:scorch"),
@@ -131,7 +130,7 @@ namespace Gwent.Menus
                 new Topic
                 {
                     Name = "Factions",
-                    Intro = "Every faction has its own perk, always in effect, and its leaders to choose from (Skellige's two came with Blood and Wine). " + (touch ? "Hold a finger on" : "Rest the pointer on") + " a leader to read its ability.",
+                    Intro = "Every faction has its own ability, always in effect, and its leaders to choose from (Skellige's two came with Blood and Wine). " + (touch ? "Hold a finger on" : "Rest the pointer on") + " a leader to read its ability.",
                     Factions = true,
                 },
                 new Topic
@@ -165,11 +164,11 @@ namespace Gwent.Menus
 
         private static readonly FactionTopic[] FactionList =
         {
-            new FactionTopic { Faction = Faction.NorthernRealms, Perk = "Draws a card from the deck each time it wins a round.", Leaders = new[] { 51, 52, 53, 54, 55 } },
-            new FactionTopic { Faction = Faction.Nilfgaard, Perk = "Wins every round that ends in a draw (against anyone but Nilfgaard).", Leaders = new[] { 33, 34, 35, 36, 37 } },
-            new FactionTopic { Faction = Faction.Scoiatael, Perk = "Decides who goes first in the battle.", Leaders = new[] { 57, 58, 59, 60, 61 } },
-            new FactionTopic { Faction = Faction.Monsters, Perk = "One random unit stays on the board after each round.", Leaders = new[] { 40, 41, 42, 43, 44 } },
-            new FactionTopic { Faction = Faction.Skellige, Perk = "Two random units of its discard pile (no heroes or spies) return to the board at the start of the third round.", Leaders = new[] { 157, 165 } },
+            new FactionTopic { Faction = Faction.NorthernRealms, Leaders = new[] { 51, 52, 53, 54, 55 } },
+            new FactionTopic { Faction = Faction.Nilfgaard, Leaders = new[] { 33, 34, 35, 36, 37 } },
+            new FactionTopic { Faction = Faction.Scoiatael, Leaders = new[] { 57, 58, 59, 60, 61 } },
+            new FactionTopic { Faction = Faction.Monsters, Leaders = new[] { 40, 41, 42, 43, 44 } },
+            new FactionTopic { Faction = Faction.Skellige, Leaders = new[] { 157, 165 } },
         };
 
         // The leaders as The Witcher 3's cards name them (their abilities: CardDescription, as on their cards)
@@ -485,11 +484,11 @@ namespace Gwent.Menus
         }
 
         //----------------------------------------Factions----------------------------------------//
-        // A faction like any rule (its shield, its name, its perk), its leaders below the perk
+        // A faction like any rule (its shield, its name, its ability), its leaders below the ability
         private static VisualElement AddFaction(VisualElement parent, FactionTopic faction, Columns columns)
         {
             VisualElement text;
-            VisualElement row = AddEntry(parent, new[] { "shield:" + faction.Faction.Code() }, faction.Faction.DisplayName(), faction.Perk, columns, out text);
+            VisualElement row = AddEntry(parent, new[] { "shield:" + faction.Faction.Code() }, faction.Faction.DisplayName(), faction.Faction.Ability(), columns, out text);
             VisualElement leaders = new VisualElement { name = "Leaders" };
             leaders.AddToClassList("rules__leaders");
             foreach (int leader in faction.Leaders)
