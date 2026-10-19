@@ -14,6 +14,7 @@ with what they go with.
 
 - Every release is published on GitHub Pages: [play it in your browser](https://usersina.github.io/gwent-legacy/), nothing to
   install. Everything but multiplayer is there; decks are kept in the browser.
+- The browser tab shows the crown, and a phone adding the page to its home screen gets the gold icon.
 
 ### Multiplayer
 
