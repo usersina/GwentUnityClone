@@ -30,6 +30,10 @@ Unity -batchmode -projectPath GwentCardGame -executeMethod Gwent.EditorTools.Gwe
   The keystore path and version code it sets are put back in the project's settings after the build.
 - **macOS and Windows**: the macOS app is ad-hoc signed by Unity, not notarized: macOS asks once to allow it (System Settings >
   Privacy & Security > Open Anyway). Windows shows "Windows protected your PC" once (More info > Run anyway).
+- **App icons** (`Assets/UI/AppIcon`), made by `tools/app-icons.py` from the crown of `Resources/Various/gwent_icon.png`: the
+  desktop one (Windows, macOS, Linux) in Apple's icon grid, a rounded square of 824 in 1024 with a gold frame, so macOS shows it
+  as it is rather than on a grey plate; Android's adaptive icon, the green disc and crown over a gold layer, so whatever shape the
+  launcher cuts has a gold edge.
 - **Content on demand**: the cards' full art and the music are not in a build's data: they are Addressables bundles beside it
   (`StreamingAssets/aa`, built with each player), loaded the first time they are shown or played. The web build starts once the
   rest is downloaded; a battle fetches its two decks' art as it begins, the deck builder the cards it shows, and the browser caches
