@@ -29,6 +29,23 @@ namespace Gwent.Battle
             EnsureShown();
         }
 
+        // Censored artwork turned on or off: the picture's other version, at once
+        void OnEnable()
+        {
+            CensoredArt.Changed += ShowPicture;
+        }
+
+        void OnDisable()
+        {
+            CensoredArt.Changed -= ShowPicture;
+        }
+
+        private void ShowPicture()
+        {
+            if (shown && Card._id != CardIds.Hidden)
+                artworkImage.GetComponent<Image>().sprite = CensoredArt.BoardPicture(Card._id);
+        }
+
         // Its art, strength and icons, at once if not done yet (a card object made this frame is only drawn from its Start:
         // a copy of it for a flight needs them now)
         public void EnsureShown()
@@ -53,8 +70,8 @@ namespace Gwent.Battle
                 return;
             }
 
-            // Change the artwork based on ID
-            artworkImage.GetComponent<Image>().sprite = SpriteCache.Load("Cards/List/135x87/" + card._id);
+            // Its picture (the censored one when the setting is on and there is one)
+            artworkImage.GetComponent<Image>().sprite = CensoredArt.BoardPicture(card._id);
 
             if (card.faction == Faction.Special)
             {// Special Card:

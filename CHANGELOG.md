@@ -4,6 +4,28 @@ Every push to `main` is a release: it replaces the one GitHub release, `latest`,
 notes. A push to `main` is only released when this file has a new section since the last release: add one, headed by the
 date, before pushing.
 
+## 2026-10-19
+
+Sharper cards, and a Censored artwork setting, on by default.
+
+### Sharper cards
+
+- On Windows, macOS and Linux the cards are about twice as sharp, up to 4K: the full art (the showcase, the pickers, the
+  deck builder, the leaders' portraits), the pictures on the board and in the hand, the card backs (Skellige's too) and the
+  ability and row icons.
+- Android and the web get the cards at the size their screens show them, so their downloads stay small.
+
+### Censored artwork
+
+- **Settings > Game > Censored artwork**, on by default: covered versions of the art of the cards that show women and of
+  some female monsters, and of the main menu's art.
+- Switch it any time, even in the middle of a battle: every card on screen changes at once. In a LAN battle each player
+  sees their own choice.
+
+### Documentation
+
+- New screenshots in the README.
+
 ## 2026-10-18
 
 LAN battles grow up: talk to the other player, a turn clock, rematches, a fairer shuffle, and a build number both players

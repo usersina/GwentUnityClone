@@ -77,3 +77,6 @@ crashlytics-build.properties
 # The build stamp (which commit a build comes from: EditorTools.BuildStamp writes it as each build starts)
 GwentCardGame/Assets/Resources/BuildStamp.txt
 GwentCardGame/Assets/Resources/BuildStamp.txt.meta
+
+# Review copies of artwork (exports, zips): not part of the project
+output/
