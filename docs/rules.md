@@ -23,9 +23,9 @@ how the game settles the cases the cards leave open, and where it differs from T
 
 ## Leaders
 
-- A leader ability that would do nothing right now (no weather to clear, an enemy row under 10 for a scorch, no matching weather card
-  in the deck...) can't be used, so it is never wasted. Passive leaders (The Treacherous, Invader of the North, The White Flame,
-  Daisy of the Valley) work from the start; The White Flame cancels the other leader, passive ones included.
+- A leader ability that would do nothing right now (no weather to clear, an enemy row under 10 for a scorch or holding only heroes,
+  no matching weather card in the deck...) can't be used, so it is never wasted. Passive leaders (The Treacherous, Invader of the
+  North, The White Flame, Daisy of the Valley) work from the start; The White Flame cancels the other leader, passive ones included.
 - Francesca, Hope of the Aen Seidhe moves an agile unit when its own strength would be higher on the other row (ranged row first),
   as The Witcher 3 judges it, not when your total would be.
 - The Eredin leaders do what their cards say in The Witcher 3 (as the Witcher wiki lists them): Commander of the Red Riders doubles
@@ -34,6 +34,10 @@ how the game settles the cases the cards leave open, and where it differs from T
 
 ## Cards
 
+- Heroes are immune to every scorch, which burns the strongest units that are not heroes: a hero on top is passed over, never
+  shielding the next one. Strengths count as shown (weather, horns, bonds, morale), every tie burns, and the Scorch card (as the Clan
+  Dimun Pirate) burns your own units too. A row scorch (Villentretenmerth, the Toad, Schirru, three leaders) burns only the enemy's
+  row, when it shows 10 or more, heroes included.
 - A decoy on a row is not a unit: morale, horns and scorch ignore it, and Monsters never keep it (nor a hero) at the end of a round.
 - The Cow summons the Bovine Defense Force (8, close combat). Killed by a scorch, it is avenged at once: the Defense Force takes the
   field as soon as the scorch is over (a choice of this game, see below). Discarded any other way (cleared at a round's end, or from

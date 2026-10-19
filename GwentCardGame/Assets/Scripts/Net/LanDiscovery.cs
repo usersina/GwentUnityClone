@@ -16,10 +16,15 @@ namespace Gwent.Net
     // game not heard from for a few seconds is gone from the list. A phone hosting holds Android's multicast lock while
     // it answers: without it, many phones never see a broadcast. A host in a battle answers only a search for that battle
     // (by its key, Key): its guest's, the link lost, in case the host's address changed (a phone whose network came back
-    // with another); no other list shows it. Nothing runs on its own: the owner calls Update every frame.
+    // with another); no other list shows it. A search asks from a port of its own (AnswersPort), where the answers come
+    // back: a firewall lets them in by that port (to a port picked at random, a firewall that keeps track of what was
+    // asked takes them for strangers' packets: the question went to the whole network, the answer comes from one
+    // address). Nothing runs on its own: the owner calls Update every frame.
     public sealed class LanDiscovery : IDisposable
     {
         public const ushort Port = 26946;      // under the range systems hand out for a while (32768 and up)
+        public const ushort AnswersPort = 26957; // a search's (past the game's ports, LanLink), or one of the next
+        private const int AnswersPortsTried = 3; // (other searches on this device), then any
         private const float AskEvery = 1f;
         private const float ForgetAfter = 3.5f;
         private static readonly byte[] Magic = { (byte)'G', (byte)'W', (byte)'N', (byte)'T' };
@@ -108,7 +113,7 @@ namespace Gwent.Net
 
         internal static LanDiscovery Search(string version)
         {
-            return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version);
+            return new LanDiscovery(SearchSocket(), false, null, -1, 0, version);
         }
 
         // Searches for the host of the battle with that key (Key): a guest whose link was lost, the host's address maybe
@@ -120,7 +125,27 @@ namespace Gwent.Net
 
         internal static LanDiscovery Find(ulong key, string version)
         {
-            return new LanDiscovery(new UdpClient(0, AddressFamily.InterNetwork), false, null, -1, 0, version, key);
+            return new LanDiscovery(SearchSocket(), false, null, -1, 0, version, key);
+        }
+
+        // A search's socket, on the answers' port (AnswersPort) or the next free one, else on any
+        private static UdpClient SearchSocket()
+        {
+            for (int port = AnswersPort; port < AnswersPort + AnswersPortsTried; port++)
+            {
+                UdpClient socket = new UdpClient(AddressFamily.InterNetwork);
+                try
+                {
+                    socket.ExclusiveAddressUse = true;
+                    socket.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+                    return socket;
+                }
+                catch (SocketException)
+                {
+                    socket.Close();
+                }
+            }
+            return new UdpClient(0, AddressFamily.InterNetwork);
         }
 
         // The host now in a battle: answering only a search for it, with one of those keys (the battle's, the one before

@@ -6,7 +6,8 @@ date, before pushing.
 
 ## 2026-10-19
 
-Sharper cards, and a Censored artwork setting, on by default.
+Sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in
+step with what they go with.
 
 ### Sharper cards
 
@@ -22,9 +23,32 @@ Sharper cards, and a Censored artwork setting, on by default.
 - Switch it any time, even in the middle of a battle: every card on screen changes at once. In a LAN battle each player
   sees their own choice.
 
+### Play on LAN
+
+- A phone's screen stays on during a battle and in a LAN room. Left untouched through the other player's turn, it used to
+  fall asleep, its player away: after a minute, the other could claim the win.
+- Behind a firewall that only lets the game's ports in (Linux's firewalld and ufw let nothing in until told), the list of
+  battles stayed empty: the answers to a search came back to a random port. They now come to port 26957, and the game's
+  ports are UDP 26946 to 26959. [Play on LAN](docs/lan.md#networks-and-ports) gives the commands to open them.
+- A player coming back to a battle (a phone whose address changed, a game restarted) is let in at once, where the host,
+  still holding their old, silent link, turned them away for a few seconds.
+
+### Battles
+
+- A lost round's gem breaks as the result shows, to its sound; it used to break only once the notice had gone.
+- A notice's sound plays as the notice shows, even one waiting behind another: "Your turn!" no longer chimes as it fades,
+  nor a pass or a round's result over the notice before it (Nilfgaard winning a tie).
+- The draw's sound plays as the cards fly to the hand (a spy's two, the Northern Realms' card, a leader's pick), and the
+  battle's opening sound as the board shows, no longer behind the loading screen.
+- A scorch leader facing a row of only heroes says so (heroes are immune), instead of asking for a strength of 10 the row has.
+- Every scorch tested against every board we could think of (26 cases: heroes on top, ties, weather, horns, bonds, morale,
+  spies, medics and decoys bringing a scorcher back): heroes are passed over, the strongest units that are not heroes burn.
+
 ### Documentation
 
 - New screenshots in the README.
+- [Rules](docs/rules.md#cards): how every scorch treats heroes, ties and a row's 10. [Play on LAN](docs/lan.md#networks-and-ports):
+  the ports, and how to open them on Linux.
 
 ## 2026-10-18
 

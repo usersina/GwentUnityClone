@@ -518,7 +518,7 @@ namespace Gwent.Menus
                     copy_it.clicked += () => Copy(copy_it, at);
                     row.Add(copy_it);
                 }
-                ports.text = "Ports: " + session.Port + " for the battle, " + LanDiscovery.Port + " for the search (both UDP)";
+                ports.text = "Ports: " + session.Port + " for the battle, " + LanDiscovery.Port + " and " + LanDiscovery.AnswersPort + " for the search (all UDP)";
             }
 
             // A player's seat: their leader in a big ring, their faction's crest, name, faction and leader, and a tag

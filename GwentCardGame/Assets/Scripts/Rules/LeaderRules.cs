@@ -25,8 +25,11 @@ namespace Gwent.Rules
             {
                 board.Recalculate();
                 string row_name = scorch_row == Row.Close ? "close combat" : scorch_row == Row.Range ? "ranged" : "siege";
-                return opp.RowScore(scorch_row.Value) >= 10 && AbilityRules.HasScorchTarget(opp, scorch_row.Value, board.Db)
-                    ? null : "Your opponent's " + row_name + " row needs a strength of 10 or more";
+                if (opp.RowScore(scorch_row.Value) < 10)
+                    return "Your opponent's " + row_name + " row needs a strength of 10 or more";
+                // 10 or more, but all of it heroes (who count toward it, and are immune)
+                return AbilityRules.HasScorchTarget(opp, scorch_row.Value, board.Db)
+                    ? null : "Your opponent's " + row_name + " row holds only heroes: they are immune to scorch";
             }
 
             switch (leader_id)

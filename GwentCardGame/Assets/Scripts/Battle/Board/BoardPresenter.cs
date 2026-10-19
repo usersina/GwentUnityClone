@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using Gwent.Core;
 using Gwent.Rules;
 using Place = Gwent.Battle.BoardChange.Place;
 using UnityEngine;
@@ -169,6 +170,8 @@ namespace Gwent.Battle
         {
             if (delay > 0)
                 await Wait(delay, ct);
+            if (move.From.From == Place.Discard && move.To.To == Place.Hand)
+                DrawClick();
             LaneHold.Release(move.From.Spacer);
             LaneHold.Release(move.To.Card);
             await CardMotion.Fly(move.From.Ghost, move.To.Card, MoveSeconds, ct: ct);
@@ -184,6 +187,8 @@ namespace Gwent.Battle
                 return;
             if (from_deck)
             {
+                if (arrival.To == Place.Hand)
+                    DrawClick();
                 // At its size where it goes (a hand or a row card), from the middle of the deck
                 Vector2 size = CardMotion.ScreenRect((RectTransform)arrival.Card.transform).size;
                 Rect from = CardMotion.Around(board.DeckRect(arrival.IsPlayer).center, size);
@@ -192,6 +197,18 @@ namespace Gwent.Battle
             }
             CardMotion.Hide(arrival.Card, false);
             CardMotion.SettleIn(arrival.Card);
+        }
+
+        // The draw's sound, as a card sets off for a hand from a deck or a discard pile (a spy's two cards, the Northern
+        // Realms' card, a leader's pick): once for cards that go together
+        private static float lastDrawClick = float.NegativeInfinity;
+
+        private static void DrawClick()
+        {
+            if (Time.unscaledTime - lastDrawClick < 0.2f)
+                return;
+            lastDrawClick = Time.unscaledTime;
+            GameAudio.PlaySfx("card_draw");
         }
 
         // A summoned card (not from the deck) appears in its place, in white wisps
