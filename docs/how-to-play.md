@@ -23,7 +23,7 @@ Every control, on the desktop (mouse and keyboard) and on Android (touch). The g
 | --- | --- | --- |
 | Start a battle | **Play**, then choose your opponent (one of 11 decks across the five factions) or **Random opponent**; the choice is remembered | Same, with taps |
 | Play someone on your network (not in a browser) | **Multiplayer** > **Local network**: see [Play on LAN](lan.md) | Same |
-| Read the rules | Main menu > **How to play**: the rules with the game's own pieces (the battle, the board, cards, abilities, special cards, the factions with their perks and leaders, controls); hover a leader to read its ability | Same; hold a finger on a leader |
+| Read the rules | Main menu > **How to play**: the rules with the game's own pieces (the battle, the board, cards, abilities, special cards, the factions with their abilities and leaders, controls); hover a leader to read its ability | Same; hold a finger on a leader |
 
 The battle uses [your battle deck](#your-battle-deck).
 
@@ -41,7 +41,7 @@ The battle uses [your battle deck](#your-battle-deck).
 | --- | --- | --- |
 | Select a card from your hand | Click it: it goes to the showcase on the right, with its description, while you choose its place (click its empty slot in the hand to put it back). Keyboard: Left/Right (or A/D) go through the hand, Enter takes the card | Tap it |
 | Play the selected card | Click a highlighted row (weather/scorch: the lit weather board, decoy: one of your framed units). The cursor turns gold where the card can go and shows a red "no" where it can't; clicking there plays a warning sound and keeps the card in your hand. Keyboard: Up/Down (or W/S) choose among the places it fits, Enter plays it there (or where it fits, when only one place does); Esc or right-click puts it back | Same, with taps (the warning sound, no cursor) |
-| Use your leader | Click the leader card: it leaves its slot for the right, as a card about to be played, shows where its ability acts (a row, a horn slot, the weather board, a discard pile), and its crown glows. Click the crown to use it; its empty slot, Esc, right-click or another card puts it back. Keyboard: X, then X again or Enter. The crown is gold while the ability can still be used this round, grey once used or after passing | Tap it, then tap the glowing crown. Hold a finger on the crown to see whether it can still be used |
+| Use your leader | Click the leader card: it leaves its slot for the right, as a card about to be played, shows where its ability acts (a row, a horn slot, the weather board, a discard pile), and its crown glows. Click the crown to use it; its empty slot, Esc, right-click or another card puts it back. Keyboard: X, then X again or Enter. The crown is gold while the ability can still be used this round, grey once used or after passing, faded out for a passive leader (always in effect, never used) | Tap it, then tap the glowing crown. Hold a finger on the crown to see whether it can still be used |
 | Pass (for the rest of the round) | Hold Space, or hold the **Hold to pass** button | Hold the button |
 
 ## Looking at cards
@@ -49,6 +49,7 @@ The battle uses [your battle deck](#your-battle-deck).
 | Action | Desktop | Android |
 | --- | --- | --- |
 | Preview a card (board, hand, weather, discard pile, leaders) | Hover it | Hold a finger on it: it shows on the right until you lift the finger (a hand card: tap it to select it) |
+| Read a faction's ability | Hover the faction's shield or name on either side panel | Hold a finger on it |
 | Browse a discard pile (either side) | Click it: it opens in the card carousel, its top card in front (arrow keys or the wheel browse, Esc or the × puts it away) | Tap it |
 | Choose a card in a picker (medic, leaders, Emhyr's look at the opponent's hand) | The cards show in the carousel under a title, as in the redraw: click a card to bring it forward, click it again (or Enter) to choose it; arrow keys or the wheel browse. The × (Down reaches it) gives the choice up, after asking, since it ends your turn; for a look, it closes | Tap a card to bring it forward, tap it again to choose it |
 
@@ -76,6 +77,8 @@ Only in a LAN battle, never against the AI. More in [Play on LAN](lan.md).
 | --- | --- | --- |
 | Add or remove a card | Double-click it, or drag it across and drop it anywhere in the other side's column (its title, its cards, the space under them). It flies to the other grid: one copy while others are left, the card itself when it is the last. Each card shows once with its count: the copies in the deck, or in the collection the copies left to add (a card whose copies are all in the deck stays there, greyed, at x0). Tabs: all, close, ranged, siege, heroes, weather, special cards | Tap it, or drag it across |
 | Card details | Right-click | Hold a finger on it |
+| Faction ability | Under the faction's banner, at the top of the middle column | Same |
+| Choose the leader | Click the leader card in the middle column: the faction's leaders open in the carousel, the deck's in front and the front one's ability at the bottom right. Click a leader (or the arrow keys, A/D, the wheel) to bring it forward, click it again (or Enter) to make it the deck's leader. The ×, Escape or a right-click leave it as it was | Tap it, tap a leader to bring it forward, tap it again to choose it |
 | Name a deck | The pencil, beside the deck list: the list gives way to the deck's name, ready to type over. Enter (or the check) keeps it, Escape (or the cross) leaves things as they were. Your own deck is renamed; a preset gives its cards to a new deck of yours under that name. A name already taken says so and stays to be changed | Same, with taps; the keyboard's Done keeps the name |
 | New empty deck | "+ New empty deck", the deck list's last entry: the same field opens for its name ("New deck" offered); Enter makes the deck, with no cards, for the faction shown | Same |
 | Presets | Each faction's AI decks are listed after your own decks, marked "(preset)". Pick one to play with it as it is; your first change saves your own copy ("The Monster Horde (copy)"), and naming one makes your own deck from it. The preset stays as it was: presets can't be renamed or deleted | Same, with taps |

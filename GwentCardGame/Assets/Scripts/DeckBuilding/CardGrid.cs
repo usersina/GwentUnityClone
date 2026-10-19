@@ -13,16 +13,8 @@ namespace Gwent.DeckBuilding
 {
     public class CardGrid : MonoBehaviour
     {
-        // The factions of the header's panels, in order, and their perks
+        // The factions of the header's panels, in order
         public static readonly Faction[] HeaderFactions = { Faction.NorthernRealms, Faction.Nilfgaard, Faction.Scoiatael, Faction.Monsters, Faction.Skellige };
-        private static readonly string[] Perks =
-        {
-            "Draw a card from your deck whenever you win a round",
-            "Automatically win the round that ends in a draw",
-            "Choose who goes first at the start of the battle",
-            "Keep one random unit on the board after each round",
-            "Two random discarded units return in the third round",
-        };
 
         public DeckBuilder deckBuilder;
         public FactionHeader header;
@@ -459,7 +451,7 @@ namespace Gwent.DeckBuilding
         }
 
         //----------------------------------------------------Event Handlers---------------------------------------------------//
-        // Opens on a faction (the deck's, before the header places itself): its cards and its perk
+        // Opens on a faction (the deck's, before the header places itself): its cards and its ability
         public void OpenOn(Faction deck_faction)
         {
             int panel = System.Array.IndexOf(HeaderFactions, deck_faction);
@@ -467,7 +459,7 @@ namespace Gwent.DeckBuilding
                 return;
             faction = deck_faction;
             if (factionPerk != null)
-                factionPerk.text = Perks[panel];
+                factionPerk.text = faction.Ability();
             if (header != null)
                 header.startingPanel = panel;
         }
@@ -479,7 +471,7 @@ namespace Gwent.DeckBuilding
             if (panel >= 0 && panel < HeaderFactions.Length)
             {
                 faction = HeaderFactions[panel];
-                factionPerk.text = Perks[panel];
+                factionPerk.text = faction.Ability();
                 Select(selectedTab);
             }
 

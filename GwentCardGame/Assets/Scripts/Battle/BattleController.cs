@@ -292,7 +292,7 @@ namespace Gwent.Battle
                     Deck deck = is_player ? MyDeck : TheirDeck;
                     Info(is_player).Faction = deck.Faction;
                     Info(is_player).Leader = deck.Leader;
-                    View(is_player).Stats.UISetGeneral(deck.Faction);
+                    View(is_player).Stats.UISetGeneral(deck.Faction, is_player);
                     View(is_player).Stats.UISetPlayer(Info(is_player).Name, deck.Leader);
                 }
                 lanBattle = lan.Battle;
@@ -356,7 +356,7 @@ namespace Gwent.Battle
             {
                 BattleSide info = Info(is_player);
                 info.DeckBSprite = Resources.Load<Sprite>("Cards/Back/" + info.Faction.Code());
-                View(is_player).Stats.UISetGeneral(info.Faction);
+                View(is_player).Stats.UISetGeneral(info.Faction, is_player);
                 View(is_player).Stats.UISetPlayer(info.Name, info.Leader);
                 SetLeaderCard(info.Leader, is_player);
                 SetDeckObject(info, is_player);
@@ -573,7 +573,7 @@ namespace Gwent.Battle
             bool opponents_perk = e.Flag && EnemyInfo.Faction == Faction.Scoiatael;
             if (opponents_perk)
                 BattleBanner.Show(BattleBanner.FactionEmblem(Faction.Scoiatael), player_first
-                    ? "Opponent used the Scoia'tael faction perk to let you go first." : "Opponent used the Scoia'tael faction perk to go first.");
+                    ? "Opponent used the Scoia'tael faction ability to let you go first." : "Opponent used the Scoia'tael faction ability to go first.");
             else
                 BattleBanner.Show(player_first ? BattleBanner.YouFirst : BattleBanner.OpponentFirst, player_first ? "You will go first" : "Your opponent will go first");
             await While(() => BattleBanner.Busy, ct);

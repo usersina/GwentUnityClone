@@ -304,7 +304,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   deckBuilder: {fileID: 0}
-  LeaderPicker: {fileID: 0}
 --- !u!114 &4134777168374610913
 MonoBehaviour:
   m_ObjectHideFlags: 0

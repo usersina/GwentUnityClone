@@ -16,6 +16,8 @@ namespace Gwent.Battle
         public List<Sprite> factionShields; // Monsters, Nilfgaard, Northern Realms, Scoia'tael, Skellige
 
         private Image factionShield;
+        private Faction faction;
+        private bool isPlayers;
         private TextMeshProUGUI nameText;
         private TextMeshProUGUI deckText;
         private TextMeshProUGUI totalText;
@@ -76,9 +78,19 @@ namespace Gwent.Battle
             }
         }
 
-        public void UISetGeneral(Faction faction)
+        // The side's faction: its shield and its name, which tell its ability when the pointer rests on them (or a finger
+        // is held on them), as the crown tells the leader's
+        public void UISetGeneral(Faction faction, bool is_player)
         {
             CacheReferences();
+            if (factionShield.GetComponent<UITooltip>() == null)
+                foreach (Graphic part in new Graphic[] { factionShield, deckText })
+                {
+                    part.raycastTarget = true;
+                    part.gameObject.AddComponent<UITooltip>().text = AbilityTooltip;
+                }
+            this.faction = faction;
+            isPlayers = is_player;
             string faction_name = faction.Code();
             switch (faction)
             {
@@ -104,6 +116,14 @@ namespace Gwent.Battle
                     break;
             }
             deckText.text = faction_name;
+        }
+
+        private string AbilityTooltip()
+        {
+            string ability = faction.Ability();
+            if (ability == null)
+                return null;
+            return (isPlayers ? "Faction ability" : "Opponent's faction ability") + " (" + deckText.text + "): " + ability;
         }
 
         // Player name, and the leader card's art in the round portrait frame (Avatar/Image masks Avatar/Image/Portrait)

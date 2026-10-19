@@ -8,8 +8,8 @@ using UnityEngine.UI;
 namespace Gwent.Battle
 {
     // A side's leader: its card and its crown. The crown shows the ability's state (gold while it can be used, grey once
-    // used or for a passive leader, red when cancelled) and, for the player, uses it: it glows and becomes a button only
-    // while the leader card is lifted (BattleController.LeaderSelected).
+    // used, faded out for a passive leader, always in effect and never used, red when cancelled) and, for the player,
+    // uses it: it glows and becomes a button only while the leader card is lifted (BattleController.LeaderSelected).
     public class LeaderSlot : MonoBehaviour
     {
         [HideInInspector]
@@ -31,7 +31,7 @@ namespace Gwent.Battle
         private MotionHandle throb;
 
         private static readonly Color UsedGrey = new Color(0.45f, 0.45f, 0.45f, 0.9f);
-        private static readonly Color PassiveGrey = new Color(0.78f, 0.78f, 0.78f, 1f);
+        private static readonly Color PassiveFaded = new Color(1f, 1f, 1f, 0.35f); // the gold crown, phased out
         private static readonly Color CancelledRed = new Color32(255, 134, 134, 200);
 
         private Button ActivateButton
@@ -103,7 +103,7 @@ namespace Gwent.Battle
         }
 
         // The crown: gold while the ability can still be used this round; glowing (orange and gold), swelling softly and
-        // a button while the leader is lifted; grey once used, after passing, or when passive; red when cancelled
+        // a button while the leader is lifted; grey once used or after passing; faded out when passive; red when cancelled
         private void Refresh()
         {
             Button button = ActivateButton;
@@ -116,7 +116,7 @@ namespace Gwent.Battle
             bool usable = ready && !used && !cancelled && !passive;
             bool glowing = usable && lifted && IsPlayers && UITheme.Current.leaderReady != null;
             face.sprite = glowing ? UITheme.Current.leaderReady : plainFace;
-            face.color = cancelled ? CancelledRed : used ? UsedGrey : passive ? PassiveGrey : usable ? Color.white : UsedGrey;
+            face.color = cancelled ? CancelledRed : used ? UsedGrey : passive ? PassiveFaded : usable ? Color.white : UsedGrey;
             if (button.transition == Selectable.Transition.None)
                 face.canvasRenderer.SetColor(Color.white); // no tint left over from the button's earlier look
             button.interactable = glowing;

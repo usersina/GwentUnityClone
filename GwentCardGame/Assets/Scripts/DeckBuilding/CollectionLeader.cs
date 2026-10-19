@@ -1,4 +1,3 @@
-using Gwent.Battle;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
@@ -6,35 +5,31 @@ using UnityEngine.EventSystems;
 
 namespace Gwent.DeckBuilding
 {
+    // The deck's leader in the middle column: a click (a tap) opens the faction's leaders in the carousel (LeaderChoice)
     public class CollectionLeader : MonoBehaviour, IPointerClickHandler
     {
         public DeckBuilder deckBuilder;
-        public GameObject LeaderPicker;
 
-        private readonly DoubleClick doubleClick = new DoubleClick();
+        private void Awake()
+        {
+            gameObject.AddComponent<UITooltip>().text = () => (GameInput.IsTouch ? "Tap" : "Click") + " to choose your leader";
+        }
 
         public void OnPointerClick(PointerEventData eventData)
         {
-            // Double-click (tap on mobile) opens the leader picker
             if (eventData.button == PointerEventData.InputButton.Left)
-            {
-                if (GameInput.IsTouch || doubleClick.Register())
-                    OpenLeaderPicker();
-            }
+                OpenLeaders();
         }
 
-        private void OpenLeaderPicker()
+        private void OpenLeaders()
         {
             if (deckBuilder.my_deck.Name == Gwent.Rules.DeckRules.EmptyDeckName)
             {
                 GameAudio.PlaySfx("invalid");
-                UIOverlay.Toast("Create a deck first: type its name, then press +");
+                UIOverlay.Toast("Make a deck first: \"" + DeckSummary.NewDeckOption + "\", at the end of the deck list");
                 return;
             }
-
-            LeaderPicker.SetActive(true);
-            LeaderPicker.GetComponent<LeaderPicker>().ClearLeaderContent();
-            LeaderPicker.GetComponent<LeaderPicker>().SetLeaderContent(GetComponent<CardRef>().Card.faction);
+            LeaderChoice.Open(deckBuilder);
         }
     }
 }

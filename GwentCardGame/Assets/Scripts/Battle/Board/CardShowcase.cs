@@ -151,9 +151,12 @@ namespace Gwent.Battle
             box = null;
         }
 
-        // Where a card's description shows on the right (screen rectangle)
+        // Where a card's description shows on the right (screen rectangle); outside a battle (the deck builder's leader
+        // carousel), the same place: the card prefab's, in the 1920x1080 reference
         public static Rect DescriptionScreenRect()
         {
+            if (BattleController.Instance == null)
+                return ReferenceToScreen(new Vector2(748, -360), new Vector2(380, 315));
             return LayoutToScreen(Layout(false));
         }
 
@@ -167,11 +170,17 @@ namespace Gwent.Battle
 
         private static Rect LayoutToScreen(RectTransform layout)
         {
+            return ReferenceToScreen(layout.anchoredPosition, layout.sizeDelta);
+        }
+
+        // A rectangle of the 1920x1080 reference (its centre from the screen's centre) on the screen
+        private static Rect ReferenceToScreen(Vector2 center, Vector2 size)
+        {
             Transform root = UIOverlay.FixedRoot;
             float scale = root.GetComponent<Canvas>().scaleFactor;
-            Vector2 center = root.TransformPoint(layout.anchoredPosition);
-            Vector2 size = layout.sizeDelta * scale;
-            return new Rect(center - size / 2, size);
+            Vector2 on_screen = root.TransformPoint(center);
+            Vector2 scaled = size * scale;
+            return new Rect(on_screen - scaled / 2, scaled);
         }
     }
 }

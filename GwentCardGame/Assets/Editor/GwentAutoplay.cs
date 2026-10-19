@@ -731,8 +731,8 @@ namespace Gwent.EditorTools
                 Check(dc.currentDeckPath == testDeckPath && dc.my_deck.Name == testDeckName, "the deck builder opens on the battle deck");
                 Check(dc.deckCollection.faction == Faction.Monsters && browse != null && browse.faction == Faction.Monsters
                     && dc.deckCollection.header.CurrentPanel == Array.IndexOf(CardGrid.HeaderFactions, Faction.Monsters)
-                    && dc.deckCollection.factionPerk.text.Contains("random unit"),
-                    "... on its faction: the header, its perk, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.header.CurrentPanel + ")");
+                    && dc.deckCollection.factionPerk.text == Faction.Monsters.Ability(),
+                    "... on its faction: the header, its ability, the deck's cards and the collection (" + dc.deckCollection.faction + ", panel " + dc.deckCollection.header.CurrentPanel + ")");
                 TMP_Dropdown picker = dc.deckSummary.deckPicker;
                 Check(picker.options.Count > picker.value && picker.options[picker.value].text == testDeckName, "the deck dropdown shows the deck");
                 Check(dc.BattleDeckStatus == "Battle deck: " + testDeckName, "the status line names the battle deck (\"" + dc.BattleDeckStatus + "\")");
@@ -1736,34 +1736,50 @@ namespace Gwent.EditorTools
                 At(6.8, () => check(!browse.cardDetails.activeSelf && count() == before, "(touch) lifting the finger puts it away, and the card is not added"));
                 At(6.9, () => GameInput.SimulateTouch = savedTouch);
 
-                // The leader picker
-                GameObject picker = dc.deckSummary.leaderGo.GetComponent<CollectionLeader>().LeaderPicker;
-                int leader = -1;
-                DoubleClickAt(7.2, () => ScreenPoint(dc.deckSummary.leaderGo.transform));
-                At(7.8, () => check(picker.activeSelf && picker.GetComponent<LeaderPicker>().contentGO.transform.childCount == LeaderIds.ByFaction[Faction.Monsters].Length,
-                    "double-clicking the leader opens the faction's leaders"));
-                DoubleClickAt(8.1, () =>
+                // The leader: its carousel, the deck's leader in front; Escape leaves it, a side leader brought to the front
+                // and clicked becomes the deck's (saved)
+                int leader = -1, first_leader = -1;
+                Click(7.2, () => ScreenPoint(dc.deckSummary.leaderGo.transform));
+                At(7.6, () =>
                 {
-                    Transform content = picker.GetComponent<LeaderPicker>().contentGO.transform;
-                    Transform second = content.childCount > 1 ? content.GetChild(1) : null;
-                    leader = second != null ? second.GetComponent<LeaderWindow>().leaderId : -1;
-                    return second != null ? ScreenPoint(second) : Vector2.zero;
+                    first_leader = dc.my_deck.Leader;
+                    check(LeaderChoice.IsOpen && LeaderChoice.Picker.CardCount == LeaderIds.ByFaction[Faction.Monsters].Length
+                        && LeaderChoice.Picker.FocusedCardId == first_leader,
+                        "a click on the leader opens the faction's leaders in the carousel, the deck's in front");
                 });
-                At(8.7, () =>
+                Key(7.7, UnityEngine.InputSystem.Key.Escape);
+                At(8.0, () => check(!LeaderChoice.IsOpen && dc.my_deck.Leader == first_leader && DeckStorage.Load(deck_path).Leader == first_leader,
+                    "Escape closes the leaders and leaves the deck's leader as it was"));
+                Click(8.2, () => ScreenPoint(dc.deckSummary.leaderGo.transform));
+                Click(8.6, () =>
+                {
+                    CardCarousel carousel = LeaderChoice.Picker;
+                    int side = carousel != null ? (carousel.FocusIndex + 1) % carousel.CardCount : -1;
+                    return carousel != null && side != carousel.FocusIndex ? ScreenPoint(carousel.CardAt(side)) : Vector2.zero;
+                });
+                At(9.0, () =>
+                {
+                    leader = LeaderChoice.Picker != null ? LeaderChoice.Picker.FocusedCardId : -1;
+                    check(leader >= 0 && leader != first_leader && LeaderChoice.IsOpen && dc.my_deck.Leader == first_leader,
+                        "a click on a side leader brings it to the front, and chooses nothing yet");
+                });
+                Click(9.7, () => LeaderChoice.Picker != null ? ScreenPoint(LeaderChoice.Picker.CardAt(LeaderChoice.Picker.FocusIndex)) : Vector2.zero);
+                At(10.2, () =>
                 {
                     Deck deck = DeckStorage.Load(deck_path);
-                    check(leader >= 0 && dc.my_deck.Leader == leader && deck != null && deck.Leader == leader && !picker.activeSelf, "double-clicking a leader makes it the deck's leader (saved)");
+                    check(dc.my_deck.Leader == leader && deck != null && deck.Leader == leader && !LeaderChoice.IsOpen,
+                        "a click on the front leader makes it the deck's leader (saved) and closes the carousel");
                 });
 
                 // The header's arrows: the previous faction (its cards, its perk, its decks), then back
-                Click(9.0, () => ScreenPoint(dc.deckCollection.header.previousButton.transform));
-                At(10.3, () => check(ShowsFaction(dc, browse, Faction.Scoiatael, "goes first"), "the header's left arrow switches to the previous faction: its cards, its perk and its decks"));
-                Click(10.6, () => ScreenPoint(dc.deckCollection.header.nextButton.transform));
-                At(11.9, () => check(ShowsFaction(dc, browse, Faction.Monsters, "random unit"), "the right arrow switches back"));
+                Click(10.5, () => ScreenPoint(dc.deckCollection.header.previousButton.transform));
+                At(11.8, () => check(ShowsFaction(dc, browse, Faction.Scoiatael), "the header's left arrow switches to the previous faction: its cards, its ability and its decks"));
+                Click(12.1, () => ScreenPoint(dc.deckCollection.header.nextButton.transform));
+                At(13.4, () => check(ShowsFaction(dc, browse, Faction.Monsters), "the right arrow switches back"));
 
                 // The deck dropdown
-                Click(12.2, () => ScreenPoint(dc.deckSummary.deckPicker.transform));
-                Click(12.8, () =>
+                Click(13.7, () => ScreenPoint(dc.deckSummary.deckPicker.transform));
+                Click(14.3, () =>
                 {
                     GameObject list = GameObject.Find("Dropdown List");
                     string wanted = DeckStorage.Load(deck_path).Name;
@@ -1771,7 +1787,7 @@ namespace Gwent.EditorTools
                     check(item != null, "the deck dropdown lists the test deck");
                     return item != null ? ScreenPoint(item.transform) : Vector2.zero;
                 });
-                At(13.4, () =>
+                At(14.9, () =>
                 {
                     string wanted = DeckStorage.Load(deck_path).Name;
                     check(DeckStorage.SamePath(dc.currentDeckPath, deck_path) && dc.my_deck.Name == wanted, "picking the deck in the dropdown shows it");
@@ -1783,23 +1799,23 @@ namespace Gwent.EditorTools
                 // Dragging: a card of the collection onto the deck's panel goes in; one of the deck onto the collection's
                 // goes out; one dropped back on its own grid stays as it was; a drag up the collection scrolls it
                 int dragged = -1;
-                Drag(13.7, () =>
+                Drag(15.2, () =>
                 {
                     Vector2 at = AddableCard();
                     dragged = addTarget != null ? addTarget.GetComponent<CardRef>().Card._id : -1;
                     return at;
                 }, () => ColumnPoint(dc.deckCollection, 60));
-                At(14.6, () => check(dragged >= 0 && count() == before + 1 && saved() == before + 1 && dc.my_deck.Cards.Contains(dragged),
+                At(16.1, () => check(dragged >= 0 && count() == before + 1 && saved() == before + 1 && dc.my_deck.Cards.Contains(dragged),
                     "a card dragged from the collection into the deck's column (dropped above its cards, on its title) goes in (and is saved)"));
-                Drag(14.9, FirstCardOf(dc.deckCollection), () => ColumnPoint(browse, -200));
-                At(15.8, () => check(count() == before && saved() == before, "a card dragged from the deck onto the collection's cards goes out (and is saved)"));
-                Drag(16.1, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(-120, 0));
-                At(17.0, () => check(count() == before && CardMotion.Layer.childCount == 0, "a card dropped back on its own grid stays as it was, its copy gone"));
+                Drag(16.4, FirstCardOf(dc.deckCollection), () => ColumnPoint(browse, -200));
+                At(17.3, () => check(count() == before && saved() == before, "a card dragged from the deck onto the collection's cards goes out (and is saved)"));
+                Drag(17.6, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(-120, 0));
+                At(18.5, () => check(count() == before && CardMotion.Layer.childCount == 0, "a card dropped back on its own grid stays as it was, its copy gone"));
                 ScrollRect scroll = browse.cardsArea.transform.parent.GetComponent<ScrollRect>();
                 float scrolled = 0;
-                At(17.2, () => scrolled = scroll.verticalNormalizedPosition);
-                Drag(17.3, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(0, 220));
-                At(18.2, () => check(count() == before && (scroll.content.rect.height <= ((RectTransform)scroll.transform).rect.height + 1 || scroll.verticalNormalizedPosition != scrolled),
+                At(18.7, () => scrolled = scroll.verticalNormalizedPosition);
+                Drag(18.8, FirstCardOf(browse), () => FirstCardOf(browse)() + new Vector2(0, 220));
+                At(19.7, () => check(count() == before && (scroll.content.rect.height <= ((RectTransform)scroll.transform).rect.height + 1 || scroll.verticalNormalizedPosition != scrolled),
                     "a drag up the collection scrolls it and adds nothing (" + scrolled.ToString("0.00") + " to " + scroll.verticalNormalizedPosition.ToString("0.00") + ")"));
             }
 
@@ -1815,10 +1831,10 @@ namespace Gwent.EditorTools
                     + ", showcase " + CardShowcase.IsShown + ", over " + Hovered() + (c != null ? ", " + c.battleState : "");
             }
 
-            private static bool ShowsFaction(DeckBuilder dc, CardGrid browse, Faction faction, string perk)
+            private static bool ShowsFaction(DeckBuilder dc, CardGrid browse, Faction faction)
             {
                 return dc.deckCollection.faction == faction && browse.faction == faction && dc.my_deck.Faction == faction
-                    && dc.deckCollection.factionPerk.text.Contains(perk)
+                    && dc.deckCollection.factionPerk.text == faction.Ability()
                     && dc.deckSummary.myPaths.All(p => OpponentDecks.IsPreset(p)
                         ? DeckStorage.Load(p).Faction == faction // the faction's presets
                         : DeckStorage.SamePath(Path.GetDirectoryName(p), DeckStorage.FactionFolder(faction)));
