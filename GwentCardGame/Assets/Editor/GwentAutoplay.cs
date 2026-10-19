@@ -919,6 +919,22 @@ namespace Gwent.EditorTools
                     before = deck_count();
                 }
 
+                // The list's last entry: a new empty deck, named first (the cross leaves it unmade)
+                dc.deckSummary.OnOptionChanged(dc.deckSummary.myDecks.Count);
+                Check(dc.Naming && input.gameObject.activeInHierarchy && input.text.StartsWith("New deck"),
+                    "the list's \"" + DeckSummary.NewDeckOption + "\" opens the name field, offering \"" + input.text + "\"");
+                dc.DeleteDeck();
+                Check(!dc.Naming && deck_count() == before && GameObject.Find("ConfirmDialog") == null, "the cross leaves no new deck");
+                dc.deckSummary.OnOptionChanged(dc.deckSummary.myDecks.Count);
+                input.text = tag + " Empty";
+                dc.RenameDeck(input); // the check
+                string empty = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Empty"));
+                created.Add(empty);
+                Deck made = DeckStorage.Load(empty);
+                Check(!dc.Naming && made != null && made.Cards.Count == 0 && made.Name == tag + " Empty" && dc.currentDeckPath == empty && deck_count() == before + 1,
+                    "naming the new deck makes it, with no cards, and shows it");
+                dc.ConfirmDelete(empty);
+
                 // A new deck: a preset named, its spaces tidied
                 from_preset("  " + tag + "  Deck ");
                 string path = DeckStorage.PathFor(faction, DeckRules.ToFileName(tag + " Deck"));

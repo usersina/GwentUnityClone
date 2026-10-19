@@ -217,11 +217,12 @@ namespace Gwent.DeckBuilding
         // field holding its name, chosen whole (typing replaces it); Enter or the pencil, now a check, keeps the name;
         // Escape or the trash, now a cross, leaves things as they were (clicking elsewhere leaves the field open). Your own
         // deck is renamed; a preset stays as it is and the name goes to your own copy of it (the field offers a free
-        // "(copy)" name). New decks come from presets this way.
+        // "(copy)" name). The list's last entry, "+ New empty deck", opens the same field for a new deck with no cards.
         private TMP_InputField nameField;
         private UnityEngine.UI.Image pencilIcon, trashIcon;
         private Sprite pencilSprite, trashSprite;
         private bool naming;
+        private bool creating; // naming a new empty deck (else the deck shown)
         private int namedFrame = -1; // Enter and the keyboard's Done may both end one edit
 
         public bool Naming { get { return naming; } }
@@ -248,6 +249,10 @@ namespace Gwent.DeckBuilding
             field.sizeDelta = list.sizeDelta;
             nameField.characterLimit = DeckRules.MaxNameLength;
             nameField.gameObject.SetActive(false);
+            // The list opens on up to six entries, "+ New empty deck" among them (it shrinks to fewer)
+            RectTransform template = deckSummary.deckPicker.template;
+            if (template != null)
+                template.sizeDelta = new Vector2(template.sizeDelta.x, 6 * list.sizeDelta.y);
 
             pencilIcon = pencil.GetComponent<UnityEngine.UI.Image>();
             trashIcon = trash.GetComponent<UnityEngine.UI.Image>();
@@ -272,19 +277,28 @@ namespace Gwent.DeckBuilding
                 StartNaming();
         }
 
-        private void StartNaming()
+        // The list's "+ New empty deck": the name field, offering a free "New deck" name
+        public void StartNewDeck()
         {
-            if (nameField == null || currentDeckPath == EmptyDeckResourcePath || my_deck.Name == DeckRules.EmptyDeckName)
+            if (naming)
+                StopNaming();
+            StartNaming(true);
+        }
+
+        private void StartNaming(bool create = false)
+        {
+            if (nameField == null || !create && (currentDeckPath == EmptyDeckResourcePath || my_deck.Name == DeckRules.EmptyDeckName))
             {
                 RejectName("Choose a deck first");
                 return;
             }
             naming = true;
+            creating = create;
             deckSummary.deckPicker.gameObject.SetActive(false);
             nameField.gameObject.SetActive(true);
             if (nameField.placeholder is TMP_Text placeholder)
-                placeholder.text = ShowsPreset ? "Name your copy" : "Deck name";
-            nameField.text = ShowsPreset ? FreeCopyName() ?? "" : my_deck.Name;
+                placeholder.text = create ? "Name your new deck" : ShowsPreset ? "Name your copy" : "Deck name";
+            nameField.text = create ? FreeNewDeckName() ?? "" : ShowsPreset ? FreeCopyName() ?? "" : my_deck.Name;
             pencilIcon.sprite = UITheme.Current.iconCheck != null ? UITheme.Current.iconCheck : pencilSprite;
             trashIcon.sprite = UITheme.Current.iconClose != null ? UITheme.Current.iconClose : trashSprite;
             UpdateDeckActions();
@@ -301,12 +315,12 @@ namespace Gwent.DeckBuilding
             if (!naming)
                 return;
             namedFrame = Time.frameCount;
-            if (!ShowsPreset && DeckRules.NormalizeDisplayName(nameField.text) == my_deck.Name)
+            if (!creating && !ShowsPreset && DeckRules.NormalizeDisplayName(nameField.text) == my_deck.Name)
             {
                 StopNaming();
                 return;
             }
-            if (NameDeck(nameField.text))
+            if (creating ? CreateDeck(nameField.text) : NameDeck(nameField.text))
                 StopNaming();
             else
                 nameField.ActivateInputField();
@@ -318,6 +332,7 @@ namespace Gwent.DeckBuilding
             if (!naming)
                 return;
             naming = false;
+            creating = false;
             deckSummary.deckPicker.gameObject.SetActive(true);
             pencilIcon.sprite = pencilSprite;
             trashIcon.sprite = trashSprite;
@@ -365,6 +380,56 @@ namespace Gwent.DeckBuilding
                 return false;
             UIOverlay.Toast("Saved as your own deck, \"" + name + "\": the preset stays as it was", 4f);
             return true;
+        }
+
+        // A new deck of the faction shown, with no cards, under that name (its leader the deck shown's when it is the
+        // faction's), shown from then on. False, saying why, when the name cannot be had.
+        public bool CreateDeck(string typed)
+        {
+            string name = DeckRules.NormalizeDisplayName(typed);
+            string file_name = DeckRules.ToFileName(name);
+            if (file_name == null)
+            {
+                RejectName("A deck's name needs a letter or a number");
+                return false;
+            }
+            if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
+                return false;
+            if (NameTaken(name, null))
+            {
+                RejectName("Another deck is already called \"" + name + "\"");
+                return false;
+            }
+            Deck deck = new Deck
+            {
+                Faction = my_deck.Faction,
+                Name = name,
+                Leader = LeaderIds.BelongsTo(my_deck.Leader, my_deck.Faction) ? my_deck.Leader : LeaderIds.DefaultFor(my_deck.Faction),
+            };
+            string path = DeckStorage.PathFor(deck.Faction, file_name);
+            if (!DeckStorage.Save(deck, path))
+            {
+                RejectName("Could not save the deck");
+                return false;
+            }
+            GameLog.Event(LogCategory.Deck, "deck_added", "path", path);
+            GameAudio.PlaySfx("deck_save");
+            PopulateDeckAssets();
+            deckSummary.LoadDecks(false);
+            deckSummary.SelectDeckPath(path);
+            return true;
+        }
+
+        // "New deck", else "New deck 2"... the first no deck of the faction shown has (null: too many)
+        private string FreeNewDeckName()
+        {
+            for (int n = 1; n <= MaxPresetCopies; n++)
+            {
+                string name = n == 1 ? "New deck" : "New deck " + n;
+                if (!NameTaken(name, null))
+                    return name;
+            }
+            return null;
         }
 
         private bool Rename(string name, string file_name)
