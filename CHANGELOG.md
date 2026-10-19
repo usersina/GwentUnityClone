@@ -7,7 +7,7 @@ date, before pushing.
 ## 2026-10-19
 
 The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, a gold-edged icon,
-drag and drop in the deck builder, sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real
+drag and drop and a leader carousel in the deck builder, sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real
 phone, and the battle's sounds in step with what they go with.
 
 ### Play in your browser
@@ -33,6 +33,11 @@ phone, and the battle's sounds in step with what they go with.
 - The deck's name: the name field and its + are gone. The pencil, now beside the trash, opens the deck's name in place of the
   list: Enter keeps it, Escape leaves it. Your own deck is renamed; named, a preset gives its cards to a new deck of yours.
   "+ New empty deck", at the bottom of the deck list, names a new deck with no cards the same way.
+- The leader: a click on it opens the faction's leaders in the carousel of the battle's redraw, your deck's in front and its
+  ability at the bottom right. Click a leader to bring it forward, click it again (or Enter) to make it your deck's leader; the
+  ×, Escape or a right click leave it as it was. It replaces the list a double click opened.
+- The faction's perk is now called its ability, as the battle's notices say. Nilfgaard's and Skellige's, the longer ones, wrap
+  to a second line instead of running past the middle column.
 
 ### The icon
 
@@ -74,6 +79,10 @@ phone, and the battle's sounds in step with what they go with.
 - A scorch leader facing a row of only heroes says so (heroes are immune), instead of asking for a strength of 10 the row has.
 - Every scorch tested against every board we could think of (26 cases: heroes on top, ties, weather, horns, bonds, morale,
   spies, medics and decoys bringing a scorcher back): heroes are passed over, the strongest units that are not heroes burn.
+- A faction's ability shows when the pointer rests on a side panel's shield or faction name (or a finger is held on it), for
+  both sides. It was written nowhere in the battle.
+- A passive leader's crown (Daisy of the Valley, the White Flame, Invader of the North, The Treacherous, King Bran) is faded
+  out: always in effect, never used. It looked almost like a crown ready to use.
 
 ### Documentation
 
@@ -81,6 +90,7 @@ phone, and the battle's sounds in step with what they go with.
 - [Rules](docs/rules.md#cards): how every scorch treats heroes, ties and a row's 10. [Play on LAN](docs/lan.md#networks-and-ports):
   the ports, and how to open them on Linux.
 - The README links the browser version; [Builds and releases](docs/builds-and-releases.md#releases) says how it is published.
+- [How to play](docs/how-to-play.md#the-deck-builder): choosing the leader, and where to read a faction's ability.
 
 ## 2026-10-18
 
