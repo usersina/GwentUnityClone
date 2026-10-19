@@ -7,8 +7,8 @@ date, before pushing.
 ## 2026-10-19
 
 The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, a gold-edged icon,
-sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in step
-with what they go with.
+drag and drop in the deck builder, sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real
+phone, and the battle's sounds in step with what they go with.
 
 ### Play in your browser
 
@@ -22,6 +22,14 @@ with what they go with.
   and **Online**, through a server, coming later. What can't be chosen says why: Online is coming soon, and a browser can't play on
   a local network.
 - A LAN battle still on shows as **Rejoin** on Local network. Leaving the lobby comes back to Multiplayer.
+
+### Deck builder
+
+- Dragging a card between the collection and the deck works: drop it anywhere in the other side's column, its title, its
+  cards or the space under them. The game looked for the drop in an empty spot off the screen, so only a double click
+  worked.
+- A card all of whose copies are in your deck stays in the collection, greyed, at x0, instead of vanishing; double-click it
+  and it says why it can't be added.
 
 ### The icon
 
