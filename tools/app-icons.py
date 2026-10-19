@@ -8,6 +8,9 @@
   launcher cuts its own shape (a circle, a squircle...) out of the middle 72 dp: the background is gold all over, so that
   shape's edge is gold whatever it is; the foreground is the green disc (64 dp, inside the 66 dp every shape keeps) with
   the crown.
+- Assets/WebGLTemplates/GwentLegacy (the web page): TemplateData/favicon.ico, the crown alone (16 to 64), faintly
+  outlined so it reads on a light tab bar too; TemplateData/apple-touch-icon.png (180), Android's tile as a phone shows it,
+  for a home screen; thumbnail.png (128), the same, for the editor's template list.
 
 tools/app-icons.py [project dir, default GwentCardGame]
 """
@@ -21,6 +24,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 PROJECT = sys.argv[1] if len(sys.argv) > 1 else "GwentCardGame"
 SOURCE = os.path.join(PROJECT, "Assets/Resources/Various/gwent_icon.png")
 OUT = os.path.join(PROJECT, "Assets/UI/AppIcon")
+WEB = os.path.join(PROJECT, "Assets/WebGLTemplates/GwentLegacy")
 
 GOLD_LIGHT, GOLD_MID, GOLD_DARK = (250, 224, 136), (220, 176, 80), (146, 100, 34)
 GREEN_CENTER, GREEN_EDGE = (20, 96, 74), (4, 34, 27)
@@ -57,12 +61,17 @@ def diagonal(size):
     return g.crop((c, c, c + size, c + size))
 
 
+def noise(size, sigma, seed):
+    """Gaussian noise around 128, the same for the same seed (the icons come out the same every run)"""
+    rng = random.Random(seed)
+    w, h = size
+    return Image.frombytes("L", size, bytes(max(0, min(255, int(rng.gauss(128, sigma)))) for _ in range(w * h)))
+
+
 def mottle(size, scale, sigma, seed):
     """Soft noise around 128: blotches about size/scale wide"""
-    random.seed(seed)
     small = max(2, size // scale)
-    n = Image.effect_noise((small, small), sigma)
-    return n.resize((size, size), Image.BICUBIC)
+    return noise((small, small), sigma, seed).resize((size, size), Image.BICUBIC)
 
 
 def gold(size, seed=1):
@@ -71,7 +80,7 @@ def gold(size, seed=1):
     sheen = diagonal(size).point(lambda v: int(70 * max(0.0, 1 - abs(v - 96) / 70.0)))  # a light band across
     base = ImageChops.add(base, Image.merge("RGB", [sheen, sheen, sheen.point(lambda v: v // 2)]))
     blotch = mottle(size, 10, 24, seed)
-    grain = Image.effect_noise((size, size // 3), 18).resize((size, size), Image.BILINEAR)  # stretched: brushed
+    grain = noise((size, size // 3), 18, seed + 100).resize((size, size), Image.BILINEAR)  # stretched: brushed
     tone = ImageChops.add(blotch, grain, scale=2.0, offset=0)
     tone = tone.point(lambda v: int(128 + (v - 128) * 0.55))
     return ImageChops.overlay(base, Image.merge("RGB", [tone, tone, tone]))
@@ -210,10 +219,37 @@ def android_foreground(crown_img, size=432):
     return canvas
 
 
+def favicon(crown_img, size=256):
+    """The crown alone, as wide as the square, a faint dark edge around it"""
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    scale = size * 0.96 / crown_img.width
+    c = crown_img.resize((round(crown_img.width * scale), round(crown_img.height * scale)), Image.LANCZOS)
+    x, y = (size - c.width) // 2, (size - c.height) // 2
+    silhouette = Image.new("L", (size, size), 0)
+    silhouette.paste(c.getchannel("A"), (x, y))
+    paint(canvas, (52, 32, 6), grow(silhouette, max(1, size // 64)).filter(ImageFilter.GaussianBlur(size / 256)), 0.75)
+    canvas.alpha_composite(c, (x, y))
+    return canvas
+
+
+def tile(background, foreground, size):
+    """Android's icon as a launcher shows it (the middle 72 dp of 108), square and opaque"""
+    t = background.copy()
+    t.alpha_composite(foreground)
+    v = t.width * 72 / 108 / 2
+    c = t.width / 2
+    return t.crop((round(c - v), round(c - v), round(c + v), round(c + v))).resize((size, size), Image.LANCZOS).convert("RGB")
+
+
 if __name__ == "__main__":
     c = crown()
     os.makedirs(OUT, exist_ok=True)
     desktop(c).save(os.path.join(OUT, "AppIconDesktop.png"))
-    android_background().convert("RGB").save(os.path.join(OUT, "AppIconBackground.png"))
-    android_foreground(c).save(os.path.join(OUT, "AppIconForeground.png"))
-    print("written to", OUT)
+    background, foreground = android_background(), android_foreground(c)
+    background.convert("RGB").save(os.path.join(OUT, "AppIconBackground.png"))
+    foreground.save(os.path.join(OUT, "AppIconForeground.png"))
+    os.makedirs(os.path.join(WEB, "TemplateData"), exist_ok=True)
+    favicon(c).save(os.path.join(WEB, "TemplateData", "favicon.ico"), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+    tile(background, foreground, 180).save(os.path.join(WEB, "TemplateData", "apple-touch-icon.png"))
+    tile(background, foreground, 128).save(os.path.join(WEB, "thumbnail.png"))
+    print("written to", OUT, "and", WEB)
