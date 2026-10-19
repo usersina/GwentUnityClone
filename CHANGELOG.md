@@ -30,6 +30,8 @@ phone, and the battle's sounds in step with what they go with.
   worked.
 - A card all of whose copies are in your deck stays in the collection, greyed, at x0, instead of vanishing; double-click it
   and it says why it can't be added.
+- The deck's name: the name field and its + are gone. The pencil, now beside the trash, opens the deck's name in place of the
+  list: Enter keeps it, Escape leaves it. Your own deck is renamed; named, a preset gives its cards to a new deck of yours.
 
 ### The icon
 
