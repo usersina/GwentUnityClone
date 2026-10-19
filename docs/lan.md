@@ -3,7 +3,7 @@
 [Docs](README.md) › Play on LAN
 
 Two players on the same network battle each other: main menu > **Multiplayer** > **Local network**. Its other way, **Online**
-(through a server), is not there yet ([issue #14](https://github.com/usersina/GwentUnityClone/issues/14)); in a browser, neither
+(through a server), is not there yet ([issue #14](https://github.com/usersina/gwent-legacy/issues/14)); in a browser, neither
 is Local network: a browser can't host or find games on a network.
 
 ## Contents

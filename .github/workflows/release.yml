@@ -1,6 +1,6 @@
 # Every push to main is a release: the tests, then the five builds, then the one GitHub release ("latest") replaced by
 # the new one, its notes taken from the newest section of CHANGELOG.md, and the web build published on GitHub Pages
-# (https://usersina.github.io/GwentUnityClone/, the repository's Pages source set to GitHub Actions). Nothing is
+# (https://usersina.github.io/gwent-legacy/, the repository's Pages source set to GitHub Actions). Nothing is
 # published unless all of it succeeds, and a push whose CHANGELOG.md has no new section since the last release is not
 # released at all: its run only checks the changelog, skips the rest and passes.
 #

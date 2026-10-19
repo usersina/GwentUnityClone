@@ -80,13 +80,13 @@ followed by the downloads and their checksums. Nothing is published unless the t
 `CHANGELOG.md` has no new section since the last release is not released (its run checks the changelog, skips the rest and
 passes): add a section, headed by the date, before pushing. Work on other branches and merge into `main` only to release.
 
-The same run then publishes the web build on GitHub Pages, at <https://usersina.github.io/GwentUnityClone/> (the repository's
+The same run then publishes the web build on GitHub Pages, at <https://usersina.github.io/gwent-legacy/> (the repository's
 Pages source is GitHub Actions): the archive unpacked, as released. A first visit downloads about 27 MB (the engine and the game's
 data), the cards' art and the music then as they are shown or played, and the browser keeps them. GitHub Pages allows a site of up
 to 1 GB and about 100 GB of traffic a month.
 
 The download links stay the same from one release to the next:
-`https://github.com/usersina/GwentUnityClone/releases/latest/download/GwentLegacy-<Windows.zip|macOS.zip|Linux.tar.gz|Android.apk|Web.zip>`.
+`https://github.com/usersina/gwent-legacy/releases/latest/download/GwentLegacy-<Windows.zip|macOS.zip|Linux.tar.gz|Android.apk|Web.zip>`.
 
 The workflow needs the Unity license and the Android release key as repository secrets; `tools/release-secrets.sh` sets them once
 (it reads the license Unity Hub keeps on the machine, asks for the Unity account, and makes the Android key in

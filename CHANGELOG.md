@@ -6,13 +6,13 @@ date, before pushing.
 
 ## 2026-10-19
 
-The game plays in your browser now, at <https://usersina.github.io/GwentUnityClone/>. Also: a Multiplayer menu, sharper cards, a
+The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, sharper cards, a
 Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in step with what they
 go with.
 
 ### Play in your browser
 
-- Every release is published on GitHub Pages: [play it in your browser](https://usersina.github.io/GwentUnityClone/), nothing to
+- Every release is published on GitHub Pages: [play it in your browser](https://usersina.github.io/gwent-legacy/), nothing to
   install. Everything but multiplayer is there; decks are kept in the browser.
 
 ### Multiplayer
