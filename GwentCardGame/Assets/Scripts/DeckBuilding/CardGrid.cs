@@ -149,7 +149,7 @@ namespace Gwent.DeckBuilding
         }
 
         // The Witcher 3 shows each card once, with its count: the copies in the deck, or in the collection the copies
-        // left to add (a card whose copies are all in the deck leaves the collection)
+        // left to add (a card whose copies are all in the deck stays there, at 0 and greyed: Spent)
         private void SetCardsArea(List<Card> cards_list)
         {
             ClearCardsArea();
@@ -165,7 +165,7 @@ namespace Gwent.DeckBuilding
                     continue;
                 in_deck.TryGetValue(card._id, out int used);
                 int count = deck ? used : DeckRules.MaxCopies(card) - used;
-                if (count <= 0)
+                if (deck && count <= 0)
                     continue;
 
                 GameObject instantiatedCard = Instantiate(CCardPrefab);
@@ -176,6 +176,7 @@ namespace Gwent.DeckBuilding
                 CardArt.Show(instantiatedCard.GetComponent<Image>(), card._id);
                 instantiatedCard.transform.SetParent(cardsArea.transform, false);
                 AddCountBadge(instantiatedCard.transform, count);
+                SetSpent(instantiatedCard, count <= 0);
             }
             foreach (int card_id in arriving.Keys)
                 ShowArrivals(card_id); // made anew while copies are still on their way
@@ -199,6 +200,47 @@ namespace Gwent.DeckBuilding
             text.fontSize = 21;
             text.color = theme.goldBright;
             text.raycastTarget = false;
+        }
+
+        // A card of the collection all of whose copies are in the deck: still shown, at 0, under a dark veil (its count
+        // above it, muted); it cannot be added, nor taken by a drag. Not the CanvasGroup's alpha: that hides a card whose
+        // copies are on their way (CardMotion.Hide).
+        public const string SpentVeil = "Spent";
+
+        private static void SetSpent(GameObject card, bool spent)
+        {
+            Transform veil = card.transform.Find(SpentVeil);
+            if (veil == null && spent)
+            {
+                RectTransform rect = UIKit.Rect(SpentVeil, card.transform).Stretch();
+                Image dim = rect.gameObject.AddComponent<Image>();
+                dim.color = new Color(0.06f, 0.05f, 0.04f, 0.68f);
+                dim.raycastTarget = false;
+                Transform badge = card.transform.Find(CountBadge);
+                if (badge != null)
+                    rect.SetSiblingIndex(badge.GetSiblingIndex()); // under the count
+                veil = rect;
+            }
+            if (veil != null)
+                veil.gameObject.SetActive(spent);
+            TextMeshProUGUI count = CountText(card);
+            if (count != null)
+                count.color = spent ? UITheme.Current.textMuted : UITheme.Current.goldBright;
+        }
+
+        public static bool IsSpent(GameObject card)
+        {
+            Transform veil = card.transform.Find(SpentVeil);
+            return veil != null && veil.gameObject.activeSelf;
+        }
+
+        // Where a card dragged from the other grid counts as dropped here: anywhere in this grid's column, its panel's
+        // width from top to bottom (its title and tabs, its cards, the space under them)
+        public bool TakesDropAt(Vector2 screen_point)
+        {
+            ScrollRect scroll = cardsArea.GetComponentInParent<ScrollRect>();
+            Rect panel = CardMotion.ScreenRect((RectTransform)(scroll != null ? scroll.transform : cardsArea.transform));
+            return screen_point.x >= panel.xMin && screen_point.x <= panel.xMax;
         }
 
         // The scene has six tabs, the specials last; The Witcher 3 gives the weather cards a tab of their own, before
@@ -302,10 +344,13 @@ namespace Gwent.DeckBuilding
             int on_the_way;
             arriving.TryGetValue(card_id, out on_the_way);
             int shown = CopiesOf(card_id) - on_the_way;
-            CardMotion.Hide(card, shown <= 0);
+            bool deck = transform.CompareTag("Player");
+            CardMotion.Hide(card, deck && shown <= 0); // the deck shows what it holds; the collection keeps a spent card
+            if (!deck)
+                SetSpent(card, shown <= 0);
             TextMeshProUGUI count = CountText(card);
-            if (count != null && shown > 0)
-                count.text = "x" + shown;
+            if (count != null && (shown > 0 || !deck))
+                count.text = "x" + Mathf.Max(0, shown);
         }
 
         private static TextMeshProUGUI CountText(GameObject card)

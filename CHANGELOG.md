@@ -7,13 +7,14 @@ date, before pushing.
 ## 2026-10-19
 
 The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, a gold-edged icon,
-sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real phone, and the battle's sounds in step
-with what they go with.
+drag and drop in the deck builder, sharper cards, a Censored artwork setting (on by default), LAN fixes from a test with a real
+phone, and the battle's sounds in step with what they go with.
 
 ### Play in your browser
 
 - Every release is published on GitHub Pages: [play it in your browser](https://usersina.github.io/gwent-legacy/), nothing to
   install. Everything but multiplayer is there; decks are kept in the browser.
+- The browser tab shows the crown, and a phone adding the page to its home screen gets the gold icon.
 
 ### Multiplayer
 
@@ -21,6 +22,17 @@ with what they go with.
   and **Online**, through a server, coming later. What can't be chosen says why: Online is coming soon, and a browser can't play on
   a local network.
 - A LAN battle still on shows as **Rejoin** on Local network. Leaving the lobby comes back to Multiplayer.
+
+### Deck builder
+
+- Dragging a card between the collection and the deck works: drop it anywhere in the other side's column, its title, its
+  cards or the space under them. The game looked for the drop in an empty spot off the screen, so only a double click
+  worked.
+- A card all of whose copies are in your deck stays in the collection, greyed, at x0, instead of vanishing; double-click it
+  and it says why it can't be added.
+- The deck's name: the name field and its + are gone. The pencil, now beside the trash, opens the deck's name in place of the
+  list: Enter keeps it, Escape leaves it. Your own deck is renamed; named, a preset gives its cards to a new deck of yours.
+  "+ New empty deck", at the bottom of the deck list, names a new deck with no cards the same way.
 
 ### The icon
 

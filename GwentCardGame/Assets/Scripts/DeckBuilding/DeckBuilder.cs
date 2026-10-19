@@ -86,6 +86,7 @@ namespace Gwent.DeckBuilding
         {
             GameAudio.PlayDeckMusic();
             ConfigureMobileDeckBuilder();
+            LayOutDeckControls(); // after the touch sizes
             UpdateBattleDeckStatus();
         }
 
@@ -104,7 +105,6 @@ namespace Gwent.DeckBuilding
                 input.onSelect.AddListener(delegate { input.ActivateInputField(); });
             }
 
-            ExpandTouchTarget("AddBtn", 52f, 52f);
             ExpandTouchTarget("RenameBtn", 52f, 52f);
             ExpandTouchTarget("DeleteBtn", 52f, 52f);
         }
@@ -212,82 +212,228 @@ namespace Gwent.DeckBuilding
             return GetSpecialCards(GetCardsFromDeck(deck)).Count;
         }
 
-        //------------------------------------Middle Action Buttons---------------------------------------------------//
-        // Reference: "+" button
-        public void AddDeck(TMP_InputField input)
-        {
-            if (input == null)
-                return;
+        //------------------------------------The deck's name---------------------------------------------------//
+        // The deck list's row: the list, the pencil, the trash. The pencil names the deck shown: the list gives way to a
+        // field holding its name, chosen whole (typing replaces it); Enter or the pencil, now a check, keeps the name;
+        // Escape or the trash, now a cross, leaves things as they were (clicking elsewhere leaves the field open). Your own
+        // deck is renamed; a preset stays as it is and the name goes to your own copy of it (the field offers a free
+        // "(copy)" name). The list's last entry, "+ New empty deck", opens the same field for a new deck with no cards.
+        private TMP_InputField nameField;
+        private UnityEngine.UI.Image pencilIcon, trashIcon;
+        private Sprite pencilSprite, trashSprite;
+        private bool naming;
+        private bool creating; // naming a new empty deck (else the deck shown)
+        private int namedFrame = -1; // Enter and the keyboard's Done may both end one edit
 
-            input.DeactivateInputField();
-            string name = DeckRules.NormalizeDisplayName(input.text);
+        public bool Naming { get { return naming; } }
+
+        // The list, the pencil and the trash on one row (the buttons at their touch size on a phone), the name field
+        // over the list, hidden until the pencil is pressed
+        private void LayOutDeckControls()
+        {
+            RectTransform list = (RectTransform)deckSummary.deckPicker.transform;
+            GameObject pencil = GameObject.Find("RenameBtn"), trash = GameObject.Find("DeleteBtn");
+            nameField = FindAnyObjectByType<TMP_InputField>();
+            if (pencil == null || trash == null || nameField == null)
+                return;
+            const float gap = 6;
+            RectTransform pencil_rect = (RectTransform)pencil.transform, trash_rect = (RectTransform)trash.transform;
+            float left = list.anchoredPosition.x - list.sizeDelta.x / 2;
+            pencil_rect.anchoredPosition = new Vector2(trash_rect.anchoredPosition.x - trash_rect.sizeDelta.x / 2 - gap - pencil_rect.sizeDelta.x / 2,
+                trash_rect.anchoredPosition.y);
+            float right = pencil_rect.anchoredPosition.x - pencil_rect.sizeDelta.x / 2 - gap;
+            list.sizeDelta = new Vector2(right - left, list.sizeDelta.y);
+            list.anchoredPosition = new Vector2((left + right) / 2, list.anchoredPosition.y);
+            RectTransform field = (RectTransform)nameField.transform;
+            field.anchoredPosition = list.anchoredPosition;
+            field.sizeDelta = list.sizeDelta;
+            nameField.characterLimit = DeckRules.MaxNameLength;
+            nameField.gameObject.SetActive(false);
+            // The list opens on up to six entries, "+ New empty deck" among them (it shrinks to fewer)
+            RectTransform template = deckSummary.deckPicker.template;
+            if (template != null)
+                template.sizeDelta = new Vector2(template.sizeDelta.x, 6 * list.sizeDelta.y);
+
+            pencilIcon = pencil.GetComponent<UnityEngine.UI.Image>();
+            trashIcon = trash.GetComponent<UnityEngine.UI.Image>();
+            pencilSprite = pencilIcon.sprite;
+            trashSprite = trashIcon.sprite;
+            nameField.onSubmit.AddListener(_ => KeepName());
+            nameField.onEndEdit.AddListener(_ =>
+            {
+                if (nameField.wasCanceled)
+                    StopNaming();
+                else if (GameInput.IsTouch && naming && namedFrame != Time.frameCount)
+                    KeepName(); // the phone's keyboard closed: its Done
+            });
+        }
+
+        // Reference: pencil button (named so in the scene): starts naming the deck, or keeps the name typed
+        public void RenameDeck(TMP_InputField input)
+        {
+            if (naming)
+                KeepName();
+            else
+                StartNaming();
+        }
+
+        // The list's "+ New empty deck": the name field, offering a free "New deck" name
+        public void StartNewDeck()
+        {
+            if (naming)
+                StopNaming();
+            StartNaming(true);
+        }
+
+        private void StartNaming(bool create = false)
+        {
+            if (nameField == null || !create && (currentDeckPath == EmptyDeckResourcePath || my_deck.Name == DeckRules.EmptyDeckName))
+            {
+                RejectName("Choose a deck first");
+                return;
+            }
+            naming = true;
+            creating = create;
+            deckSummary.deckPicker.gameObject.SetActive(false);
+            nameField.gameObject.SetActive(true);
+            if (nameField.placeholder is TMP_Text placeholder)
+                placeholder.text = create ? "Name your new deck" : ShowsPreset ? "Name your copy" : "Deck name";
+            nameField.text = create ? FreeNewDeckName() ?? "" : ShowsPreset ? FreeCopyName() ?? "" : my_deck.Name;
+            pencilIcon.sprite = UITheme.Current.iconCheck != null ? UITheme.Current.iconCheck : pencilSprite;
+            trashIcon.sprite = UITheme.Current.iconClose != null ? UITheme.Current.iconClose : trashSprite;
+            UpdateDeckActions();
+            if (EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(nameField.gameObject);
+            nameField.ActivateInputField();
+            GameAudio.PlaySfx("ui_click");
+        }
+
+        // Keeps the name typed: the deck renamed, or the preset's copy made (an unchanged name of your own deck: nothing to
+        // do); a name that cannot be had says why and stays to be changed
+        private void KeepName()
+        {
+            if (!naming)
+                return;
+            namedFrame = Time.frameCount;
+            if (!creating && !ShowsPreset && DeckRules.NormalizeDisplayName(nameField.text) == my_deck.Name)
+            {
+                StopNaming();
+                return;
+            }
+            if (creating ? CreateDeck(nameField.text) : NameDeck(nameField.text))
+                StopNaming();
+            else
+                nameField.ActivateInputField();
+        }
+
+        // Back to the deck list, nothing named. The field goes a frame later: this may run inside the field's own events.
+        public void StopNaming()
+        {
+            if (!naming)
+                return;
+            naming = false;
+            creating = false;
+            deckSummary.deckPicker.gameObject.SetActive(true);
+            pencilIcon.sprite = pencilSprite;
+            trashIcon.sprite = trashSprite;
+            UpdateDeckActions();
+            HideNameField().Forget();
+        }
+
+        private async Cysharp.Threading.Tasks.UniTaskVoid HideNameField()
+        {
+            await Cysharp.Threading.Tasks.UniTask.Yield(destroyCancellationToken);
+            if (!naming && nameField != null)
+            {
+                nameField.DeactivateInputField();
+                nameField.gameObject.SetActive(false);
+            }
+        }
+
+        // Names the deck shown: your own deck is renamed; a preset gives its cards to your own copy under that name (the
+        // preset stays as it was), the deck shown from then on. False, saying why, when the name cannot be had.
+        public bool NameDeck(string typed)
+        {
+            if (currentDeckPath == EmptyDeckResourcePath || my_deck.Name == DeckRules.EmptyDeckName)
+            {
+                RejectName("Choose a deck first");
+                return false;
+            }
+            string name = DeckRules.NormalizeDisplayName(typed);
             string file_name = DeckRules.ToFileName(name);
             if (file_name == null)
             {
                 RejectName("A deck's name needs a letter or a number");
-                return;
+                return false;
             }
             if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
-                return;
+                return false; // a hand-edited faction must not choose the folder the deck goes to
+            bool preset = ShowsPreset;
+            if (NameTaken(name, preset ? null : currentDeckPath))
+            {
+                RejectName("Another deck is already called \"" + name + "\"");
+                return false;
+            }
+            if (!preset)
+                return Rename(name, file_name);
+            if (!SaveCopy(name))
+                return false;
+            UIOverlay.Toast("Saved as your own deck, \"" + name + "\": the preset stays as it was", 4f);
+            return true;
+        }
+
+        // A new deck of the faction shown, with no cards, under that name (its leader the deck shown's when it is the
+        // faction's), shown from then on. False, saying why, when the name cannot be had.
+        public bool CreateDeck(string typed)
+        {
+            string name = DeckRules.NormalizeDisplayName(typed);
+            string file_name = DeckRules.ToFileName(name);
+            if (file_name == null)
+            {
+                RejectName("A deck's name needs a letter or a number");
+                return false;
+            }
+            if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
+                return false;
             if (NameTaken(name, null))
             {
-                RejectName("A deck called \"" + name + "\" already exists for this faction");
-                return;
+                RejectName("Another deck is already called \"" + name + "\"");
+                return false;
             }
-
-            Deck newDeck = new Deck
+            Deck deck = new Deck
             {
-                Faction = my_deck.Faction, // Same faction as the currently selected
+                Faction = my_deck.Faction,
                 Name = name,
                 Leader = LeaderIds.BelongsTo(my_deck.Leader, my_deck.Faction) ? my_deck.Leader : LeaderIds.DefaultFor(my_deck.Faction),
             };
-            string newPath = DeckStorage.PathFor(newDeck.Faction, file_name);
-            if (!DeckStorage.Save(newDeck, newPath))
+            string path = DeckStorage.PathFor(deck.Faction, file_name);
+            if (!DeckStorage.Save(deck, path))
             {
                 RejectName("Could not save the deck");
-                return;
+                return false;
             }
-
-            GameLog.Event(LogCategory.Deck, "deck_added", "path", newPath);
+            GameLog.Event(LogCategory.Deck, "deck_added", "path", path);
             GameAudio.PlaySfx("deck_save");
-            input.text = "";
             PopulateDeckAssets();
             deckSummary.LoadDecks(false);
-            deckSummary.SelectDeckPath(newPath);
+            deckSummary.SelectDeckPath(path);
+            return true;
         }
 
-        // Reference: pencil button
-        public void RenameDeck(TMP_InputField input)
+        // "New deck", else "New deck 2"... the first no deck of the faction shown has (null: too many)
+        private string FreeNewDeckName()
         {
-            if (input == null)
-                return;
+            for (int n = 1; n <= MaxPresetCopies; n++)
+            {
+                string name = n == 1 ? "New deck" : "New deck " + n;
+                if (!NameTaken(name, null))
+                    return name;
+            }
+            return null;
+        }
 
-            input.DeactivateInputField();
-            if (my_deck.Name == DeckRules.EmptyDeckName || currentDeckPath == EmptyDeckResourcePath)
-            {
-                RejectName("Select a deck to rename first");
-                return;
-            }
-            if (ShowsPreset)
-            {
-                RejectName("A preset keeps its name: change it, and it becomes your own deck to rename");
-                return;
-            }
-            string name = DeckRules.NormalizeDisplayName(input.text);
-            string file_name = DeckRules.ToFileName(name);
-            if (file_name == null)
-            {
-                RejectName("A deck's name needs a letter or a number");
-                return;
-            }
-            if (NameTaken(name, currentDeckPath))
-            {
-                RejectName("Another deck is already called \"" + name + "\"");
-                return;
-            }
-            if (System.Array.IndexOf(Factions.Playable, my_deck.Faction) < 0)
-                return; // a hand-edited faction must not choose the folder the deck moves to
-
+        private bool Rename(string name, string file_name)
+        {
             string oldPath = currentDeckPath;
             string newPath = DeckStorage.PathFor(my_deck.Faction, file_name);
             Deck renamed = new Deck { Faction = my_deck.Faction, Name = name, Leader = my_deck.Leader, Cards = new List<int>(my_deck.Cards) };
@@ -296,7 +442,7 @@ namespace Gwent.DeckBuilding
             if (!DeckStorage.Save(renamed, newPath))
             {
                 RejectName("Could not rename the deck");
-                return;
+                return false;
             }
             if (!DeckStorage.SamePath(oldPath, newPath))
                 DeckStorage.Delete(oldPath);
@@ -305,17 +451,34 @@ namespace Gwent.DeckBuilding
 
             GameLog.Event(LogCategory.Deck, "deck_renamed", "from", oldPath, "to", newPath);
             GameAudio.PlaySfx("deck_save");
-            input.text = "";
             my_deck = renamed;
             currentDeckPath = newPath;
             PopulateDeckAssets();
             deckSummary.LoadDecks(false);
             deckSummary.SelectDeckPath(newPath);
+            return true;
         }
 
-        // Reference: trash button (asks for confirmation first)
+        // The pencil (the deck's name: a preset's too, for a copy) and the trash (your own deck; the cross while naming)
+        private void UpdateDeckActions()
+        {
+            bool deck = currentDeckPath != EmptyDeckResourcePath;
+            foreach ((string control, bool on) in new[] { ("RenameBtn", deck), ("DeleteBtn", naming || deck && !ShowsPreset) })
+            {
+                GameObject button = GameObject.Find(control);
+                if (button != null && button.GetComponent<UnityEngine.UI.Button>() != null)
+                    button.GetComponent<UnityEngine.UI.Button>().interactable = on;
+            }
+        }
+
+        // Reference: trash button (asks for confirmation first); while naming, the cross: back, nothing named
         public void DeleteDeck()
         {
+            if (naming)
+            {
+                StopNaming();
+                return;
+            }
             if (deckSummary.deckPicker.options.Count <= 0 || currentDeckPath == EmptyDeckResourcePath)
                 return;
             if (ShowsPreset)
@@ -354,23 +517,37 @@ namespace Gwent.DeckBuilding
         {
             if (!ShowsPreset)
                 return;
-            int n = 1;
-            string name = DeckRules.CopyName(my_deck.Name, n);
-            while (NameTaken(name, null))
+            string name = FreeCopyName();
+            if (name == null)
             {
-                if (++n > MaxPresetCopies)
-                {
-                    RejectName("Too many copies of this preset: delete some first");
-                    return;
-                }
-                name = DeckRules.CopyName(my_deck.Name, n);
+                RejectName("Too many copies of this preset: delete some first");
+                return;
             }
+            if (SaveCopy(name))
+                UIOverlay.Toast("Presets stay as they are: your changes are saved in your own deck, \"" + name + "\"", 4f);
+        }
+
+        // The first "(copy)" name of the deck shown that no deck of its faction has (null: too many)
+        private string FreeCopyName()
+        {
+            for (int n = 1; n <= MaxPresetCopies; n++)
+            {
+                string name = DeckRules.CopyName(my_deck.Name, n);
+                if (!NameTaken(name, null))
+                    return name;
+            }
+            return null;
+        }
+
+        // The deck shown, saved as the player's own under that name, and shown from then on (a preset's copy)
+        private bool SaveCopy(string name)
+        {
             Deck copy = new Deck { Faction = my_deck.Faction, Name = name, Leader = my_deck.Leader, Cards = new List<int>(my_deck.Cards) };
             string path = DeckStorage.PathFor(copy.Faction, DeckRules.ToFileName(name));
             if (!DeckStorage.Save(copy, path))
             {
                 RejectName("Could not save the deck");
-                return;
+                return false;
             }
             GameLog.Event(LogCategory.Deck, "preset_copied", "path", path);
             GameAudio.PlaySfx("deck_save");
@@ -379,7 +556,7 @@ namespace Gwent.DeckBuilding
             PopulateDeckAssets();
             deckSummary.LoadDecks(false);
             deckSummary.SelectDeckPath(path);
-            UIOverlay.Toast("Presets stay as they are: your changes are saved in your own deck, \"" + name + "\"", 4f);
+            return true;
         }
 
         // Same display name (ignoring case/spaces) or same file name as another deck of the faction
@@ -456,14 +633,8 @@ namespace Gwent.DeckBuilding
                 battleDeckStatus.color = UIOverlay.Gold;
             }
             if (ShowsPreset)
-                battleDeckStatus.text += "\nA preset: changing it makes your own copy";
-            // A preset is never renamed or deleted: those buttons dim
-            foreach (string control in new[] { "RenameBtn", "DeleteBtn" })
-            {
-                GameObject button = GameObject.Find(control);
-                if (button != null && button.GetComponent<UnityEngine.UI.Button>() != null)
-                    button.GetComponent<UnityEngine.UI.Button>().interactable = !ShowsPreset;
-            }
+                battleDeckStatus.text += "\nA preset: changing or naming it makes your own copy";
+            UpdateDeckActions();
         }
 
         //----------------------Helper Methods---------------------//

@@ -15,8 +15,9 @@ namespace Gwent.DeckBuilding
 {
     // A card of the deck builder's grids: the collection's (added to the deck by a double click, a tap on touch) or the
     // deck's (taken out of it the same way). It can also be dragged across: a drag mostly sideways carries a copy of it,
-    // dropped on the other grid's panel it is added or taken out as a double click does (refused: it goes back), dropped
-    // anywhere else it goes back; a drag mostly up or down scrolls the grid, as before.
+    // dropped anywhere in the other grid's column (CardGrid.TakesDropAt) it is added or taken out as a double click does
+    // (refused: it goes back), dropped anywhere else it goes back; a drag mostly up or down scrolls the grid, as before.
+    // A collection card all of whose copies are in the deck (spent, greyed) is not taken: its drag scrolls.
     public class CollectionCard : MonoBehaviour, IPointerClickHandler, IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public List<Sprite> normalPatch;
@@ -161,7 +162,7 @@ namespace Gwent.DeckBuilding
         public void OnBeginDrag(PointerEventData eventData)
         {
             Vector2 moved = eventData.position - eventData.pressPosition;
-            if (eventData.button != PointerEventData.InputButton.Left || Mathf.Abs(moved.x) <= Mathf.Abs(moved.y))
+            if (eventData.button != PointerEventData.InputButton.Left || Mathf.Abs(moved.x) <= Mathf.Abs(moved.y) || CardGrid.IsSpent(gameObject))
             {
                 ScrollRect scroll = Scroll;
                 if (scroll != null)
@@ -185,16 +186,14 @@ namespace Gwent.DeckBuilding
                 Follow(eventData.position);
         }
 
-        // On the other grid's panel, the card goes in (or out of the deck); anywhere else, or refused, it goes back
+        // In the other grid's column, the card goes in (or out of the deck); anywhere else, or refused, it goes back
         public void OnEndDrag(PointerEventData eventData)
         {
             if (carried == null)
                 return;
             RectTransform ghost = carried;
             carried = null;
-            RectTransform target = (RectTransform)OtherGrid().transform;
-            bool over = RectTransformUtility.RectangleContainsScreenPoint(target, eventData.position, eventData.pressEventCamera);
-            if (over && EditDeckWithThisCard(ghost))
+            if (OtherGrid().TakesDropAt(eventData.position) && EditDeckWithThisCard(ghost))
                 return;
             GoBack(ghost, this != null ? CardMotion.ScreenRect((RectTransform)transform) : takenFrom, deckBuilder.destroyCancellationToken).Forget();
         }

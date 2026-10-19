@@ -23,6 +23,9 @@ namespace Gwent.DeckBuilding
         [System.NonSerialized] public List<Deck> myDecks = new List<Deck>();
         public List<string> myPaths = new List<string>();
 
+        // The list's last entry, after the decks: a new empty deck, named first (DeckBuilder.StartNewDeck)
+        public const string NewDeckOption = "+ New empty deck";
+
         private async UniTaskVoid Start()
         {
             // Long names ("Siege Engines of Temeria (preset)") shrink to fit rather than lose their end
@@ -56,6 +59,7 @@ namespace Gwent.DeckBuilding
         // select_for_battle: the shown deck becomes the battle deck (if valid). False when another deck gets selected right after.
         public void LoadDecks(bool select_for_battle = true)
         {
+            deckBuilder.StopNaming(); // another deck, another faction: the name being typed goes
             // Clear Dropdown
             deckPicker.ClearOptions();
 
@@ -81,6 +85,7 @@ namespace Gwent.DeckBuilding
                 myPaths.Add(path);
                 decks_list_drop.Add(new TMP_Dropdown.OptionData(OpponentDecks.IsPreset(path) ? auxdeck.Name + " (preset)" : auxdeck.Name));
             }
+            decks_list_drop.Add(new TMP_Dropdown.OptionData(NewDeckOption));
             deckPicker.AddOptions(decks_list_drop);
             if (skipped > 0)
                 UIOverlay.Toast(skipped + " deck file(s) could not be read and were skipped");
@@ -110,6 +115,14 @@ namespace Gwent.DeckBuilding
 
         public void OnOptionChanged(int index)
         {
+            if (index == myDecks.Count)
+            {
+                // A new empty deck: its name first, the list back on the deck shown meanwhile
+                int shown = myPaths.FindIndex(p => DeckStorage.SamePath(p, deckBuilder.currentDeckPath));
+                deckPicker.SetValueWithoutNotify(Mathf.Max(0, shown));
+                deckBuilder.StartNewDeck();
+                return;
+            }
             if (index < 0 || index >= myDecks.Count || index >= myPaths.Count)
                 return;
 

@@ -45,6 +45,8 @@ namespace Gwent.UI
         public Sprite chevronRight;
         public Sprite iconSpeaker;   // sounding (the LAN talk window's mute)
         public Sprite iconMuted;     // silenced
+        public Sprite iconCheck;     // keep (the deck builder's pencil while naming a deck)
+        public Sprite iconClose;     // leave, nothing changed (its trash while naming)
         public Sprite softShadow; // soft blurred rounded rectangle (card shadows, glows)
         public Sprite glowRing;   // a glow around a rectangle, clear inside (nine-sliced, reaching 32 px out)
         public Sprite leaderReady; // the leader ability's crown, glowing: the leader is lifted and the crown uses it
