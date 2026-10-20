@@ -102,6 +102,19 @@ namespace Gwent.Battle
             presenter = new BoardPresenter(board, Db);
             flow = CancellationTokenSource.CreateLinkedTokenSource(destroyCancellationToken);
             ScreenAwake.Hold(this);
+            LayOutForScreen();
+        }
+
+        // The board on any screen: the 1920 x 1080 layout whole in the middle (the canvas fits it), the table's wood
+        // covering the rest; on a touch screen the menu button takes a finger over a larger square
+        private void LayOutForScreen()
+        {
+            GameObject table = GameObject.Find("Main Canvas/Background");
+            if (table != null)
+                ((RectTransform)table.transform).Cover(16f / 9f);
+            GameObject menu = GameObject.Find("Main Canvas/PauseButton");
+            if (menu != null)
+                UIKit.GrowTouchArea((RectTransform)menu.transform, new Vector2(120, 120));
         }
 
         private void OnDestroy()
@@ -423,7 +436,7 @@ namespace Gwent.Battle
             Submit(MatchCommand.Redraw(card_id, hand_index));
         }
 
-        // The menu button at the top right
+        // The menu button at the top left
         public void OpenPauseMenu()
         {
             PauseMenu.Open();
@@ -968,8 +981,9 @@ namespace Gwent.Battle
             }
         }
 
-        // Giving up (a hand laid on the player's deck, DeckGiveUp): everything in progress stops and the battle is lost
-        public void GiveUp()
+        // Giving up (a hand laid on the player's deck, DeckGiveUp; the pause menu's Leave battle): everything in progress
+        // stops and the battle is lost. leaving: the main menu loads next, so no end screen and no defeat sound
+        public void GiveUp(bool leaving = false)
         {
             if (IsBattleOver)
                 return;
@@ -983,6 +997,12 @@ namespace Gwent.Battle
             DropInput();
             source.Submit(MatchCommand.GiveUp()); // a LAN guest away: the host finds out on its own
             shown = source.Count;
+            if (leaving)
+            {
+                BattleLog.End(BattleState.Lost, true);
+                battleState = BattleState.Lost;
+                return;
+            }
             ConcludeBattle(BattleState.Lost, true);
         }
 

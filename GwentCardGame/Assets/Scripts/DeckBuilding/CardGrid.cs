@@ -42,6 +42,10 @@ namespace Gwent.DeckBuilding
         public const int WeatherTab = 5;
         public const int SpecialTab = 6;
 
+        // The tabs' names: the list's subtitle, and the tab's tooltip
+        private static readonly string[] TabNames = { "All Cards", "Close Units", "Ranged Units", "Siege Units", "Heroes", "Weather", "Specials" };
+        private const float TabSize = 84;
+
         private async UniTaskVoid Start()
         {
             AddWeatherTab();
@@ -82,34 +86,29 @@ namespace Gwent.DeckBuilding
 
             // UI: Text and Icon
             currentSprites[index].sprite = selectedSprites[index];
+            if (index >= 0 && index < TabNames.Length)
+                subtitle.text = TabNames[index];
             switch (index)
             {
                 case 0:
-                    subtitle.text = "All Cards";
                     listing = Listing.All;
                     break;
                 case 1:
-                    subtitle.text = "Close Units";
                     listing = Listing.Close;
                     break;
                 case 2:
-                    subtitle.text = "Ranged Units";
                     listing = Listing.Range;
                     break;
                 case 3:
-                    subtitle.text = "Siege Units";
                     listing = Listing.Siege;
                     break;
                 case 4:
-                    subtitle.text = "Heroes";
                     listing = Listing.Heroes;
                     break;
                 case WeatherTab:
-                    subtitle.text = "Weather";
                     listing = Listing.Weather;
                     break;
                 case SpecialTab:
-                    subtitle.text = "Specials";
                     listing = Listing.Specials;
                     break;
                 default:
@@ -236,7 +235,8 @@ namespace Gwent.DeckBuilding
         }
 
         // The scene has six tabs, the specials last; The Witcher 3 gives the weather cards a tab of their own, before
-        // the specials. The specials' tab is copied for it, and the seven tabs share the menu's width.
+        // the specials. The specials' tab is copied for it, and the seven tabs share the menu's width (its row's spacing
+        // was the scene's six tabs': seven ran past both sides of the list), each telling its name when hovered.
         private void AddWeatherTab()
         {
             if (currentSprites.Count > SpecialTab)
@@ -252,13 +252,17 @@ namespace Gwent.DeckBuilding
             OnClickSelects(weather.GetComponent<Button>(), WeatherTab);
             OnClickSelects(special.GetComponent<Button>(), SpecialTab);
 
-            RectTransform first = (RectTransform)currentSprites[0].transform;
-            float left = first.anchoredPosition.x, right = ((RectTransform)special.transform).anchoredPosition.x;
+            RectTransform menu = (RectTransform)special.transform.parent;
+            GridLayoutGroup row = menu.GetComponent<GridLayoutGroup>(); // it sizes the tabs: its cells
+            if (row != null)
+            {
+                row.cellSize = new Vector2(TabSize, TabSize);
+                row.spacing = new Vector2((menu.rect.width - TabSize * currentSprites.Count) / (currentSprites.Count - 1), row.spacing.y);
+            }
             for (int i = 0; i < currentSprites.Count; i++)
             {
-                RectTransform tab = (RectTransform)currentSprites[i].transform;
-                tab.anchoredPosition = new Vector2(Mathf.Lerp(left, right, i / (float)(currentSprites.Count - 1)), tab.anchoredPosition.y);
-                tab.sizeDelta = new Vector2(90, 90);
+                string tab_name = TabNames[i];
+                currentSprites[i].gameObject.AddComponent<UITooltip>().text = () => tab_name;
             }
         }
 

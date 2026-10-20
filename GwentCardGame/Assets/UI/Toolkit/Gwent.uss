@@ -286,7 +286,14 @@
     flex-shrink: 0;
 }
 
-/* The leader's card, its face in the circle (the point 28% down the card at the circle's middle) */
+/* A leader's round portrait: framed on the face from code (LeaderFaces, which sizes and places it); empty while its art
+   loads, then the face fades in (CardArt.ShowPortrait) */
+.portrait-art {
+    transition-property: opacity;
+    transition-duration: 0.3s;
+}
+
+/* The leader's card, its face in the circle (LeaderFaces frames it; these are its sizes before) */
 .opponent__art {
     position: absolute;
     left: -30px;
@@ -1440,6 +1447,19 @@
     margin: 0 20px;
 }
 
+/* A question's two answers look alike; the selected one (the safe one as it opens; the arrows, Tab or a click move it)
+   is filled with gold, as a dialog's choice is: Enter presses it */
+.unity-button.confirm__choice:focus {
+    background-color: var(--gold);
+    border-color: var(--gold);
+    color: var(--background);
+}
+
+.unity-button.confirm__choice:focus:hover {
+    background-color: var(--gold-bright);
+    border-color: var(--gold-bright);
+}
+
 /*---------------------------------------- Toast ----------------------------------------*/
 /* At the top of the screen; fades in and out (UIOverlay.Toast) */
 .toast {
@@ -1732,12 +1752,16 @@
 }
 
 /*---------------------------------------- Unity's own button states ----------------------------------------*/
-/* The default theme fills a button grey and outlines it when hovered, focused or pressed, as specifically as a class and a
-   state: the buttons drawn here only by their text, band or icon keep no fill or outline of Unity's */
+/* The default theme fills a button grey and outlines it when hovered, focused, pressed or disabled, as specifically as a
+   class and a state (two, for a disabled button keeping the focus: a stepper's arrow clicked to its last option): the
+   buttons drawn here only by their text, band or icon keep no fill or outline of Unity's */
 .unity-button.menu-item:hover, .unity-button.menu-item:focus, .unity-button.menu-item:active,
 .unity-button.tab:hover, .unity-button.tab:focus, .unity-button.tab:active,
 .unity-button.button--ghost:hover, .unity-button.button--ghost:focus, .unity-button.button--ghost:active,
-.unity-button.stepper__arrow:hover, .unity-button.stepper__arrow:focus, .unity-button.stepper__arrow:active {
+.unity-button.stepper__arrow:hover, .unity-button.stepper__arrow:focus, .unity-button.stepper__arrow:active,
+.unity-button.menu-item:disabled, .unity-button.tab:disabled, .unity-button.button--ghost:disabled, .unity-button.stepper__arrow:disabled,
+.unity-button.menu-item:focus:disabled, .unity-button.tab:focus:disabled, .unity-button.button--ghost:focus:disabled,
+.unity-button.stepper__arrow:focus:disabled, .unity-button.stepper__arrow:hover:disabled {
     background-color: rgba(0, 0, 0, 0);
     border-color: rgba(0, 0, 0, 0);
 }

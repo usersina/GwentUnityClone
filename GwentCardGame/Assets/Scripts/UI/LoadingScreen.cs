@@ -65,13 +65,13 @@ namespace Gwent.UI
             CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080); // the scene canvases' (the backdrop falls where theirs does)
-            scaler.matchWidthOrHeight = 1;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             gameObject.AddComponent<GraphicRaycaster>();
             screen = gameObject.AddComponent<CanvasGroup>();
             screen.alpha = 0;
 
-            // The next screen's backdrop, as it lays it: the battle's table (1920 x 1080 in the middle), the menu's key art
-            // (fitted to the screen), the deck builder's plain background
+            // The next screen's backdrop, as it lays it: the battle's table and the menu's key art (covering the screen),
+            // the deck builder's plain background
             RectTransform root = (RectTransform)transform;
             Image under = UIKit.NewImage(root, "Under", null, scene == SceneNames.Deck ? theme.background : Color.black);
             under.rectTransform.Stretch();
@@ -79,14 +79,14 @@ namespace Gwent.UI
             if (scene == SceneNames.Game)
             {
                 Image table = UIKit.NewImage(root, "Table", theme.table, Color.white);
-                table.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1920, 1080));
+                table.rectTransform.Cover(16f / 9f);
                 table.raycastTarget = false;
             }
             else if (scene == SceneNames.Menu)
             {
                 Image art = UIKit.NewImage(root, "KeyArt", CensoredArt.KeyArt(), Color.white);
-                art.rectTransform.Stretch();
-                art.preserveAspect = true;
+                if (art.sprite != null)
+                    art.rectTransform.Cover(art.sprite.rect.width / art.sprite.rect.height);
                 art.raycastTarget = false;
             }
             Image veil = UIKit.NewImage(root, "Veil", null, new Color(0, 0, 0, Dim));

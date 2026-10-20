@@ -133,7 +133,7 @@ namespace Gwent.Battle
             nameText.text = player_name;
             if (portrait == null)
                 return;
-            CardArt.Show(portrait, leader);
+            CardArt.ShowPortrait(portrait, leader); // the leader's face in the circle
             portrait.enabled = true;
         }
 

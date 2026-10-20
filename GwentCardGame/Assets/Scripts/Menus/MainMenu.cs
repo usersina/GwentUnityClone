@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using Cysharp.Threading.Tasks;
 using Gwent.Core;
 using Gwent.UI;
 using UnityEngine;
@@ -24,6 +26,9 @@ namespace Gwent.Menus
             GameAudio.PlayMenuMusic();
             UIScreens.Show("MainMenu", UITheme.Current.mainMenu, Bind);
             CoverWithKeyArt();
+            // The leaders' faces, for the opponent picker, the LAN lobby and How to play: loading while the menu is on,
+            // they are there when those open (released with the menu)
+            CardArt.Preload(Gwent.Rules.LeaderIds.ByFaction.Values.SelectMany(leaders => leaders), "menu leaders", destroyCancellationToken).Forget();
             if (LanLobby.Reopen()) // back from the deck builder the lobby sent the player to
                 OpenMultiplayer(true);
             else if (!GameSettings.IsWeb && Gwent.Net.LanSession.Current == null && Gwent.Net.LanSave.Load() != null)
@@ -81,9 +86,7 @@ namespace Gwent.Menus
                 ShowKeyArt();
                 CensoredArt.Changed += ShowKeyArt;
                 art.preserveAspect = false;
-                AspectRatioFitter cover = art.gameObject.AddComponent<AspectRatioFitter>();
-                cover.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-                cover.aspectRatio = art.sprite.rect.width / art.sprite.rect.height;
+                art.rectTransform.Cover(art.sprite.rect.width / art.sprite.rect.height);
                 LegacyTitle.Create(art);
             }
         }

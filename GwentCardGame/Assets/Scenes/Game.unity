@@ -279,17 +279,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 458248937673638524, guid: 172c90d5000347d4dbd1b749f313070c, type: 3}
   m_PrefabInstance: {fileID: 458248937532685719}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &217374056 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 4472262641451055309, guid: 172c90d5000347d4dbd1b749f313070c, type: 3}
-  m_PrefabInstance: {fileID: 657734806}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 657734810}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &257002764
 GameObject:
   m_ObjectHideFlags: 0
@@ -2713,8 +2702,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 936.8, y: 518.4}
-  m_SizeDelta: {x: 48, y: 48}
+  m_AnchoredPosition: {x: -920, y: 500}
+  m_SizeDelta: {x: 60, y: 60}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1804951729
 MonoBehaviour:
@@ -2862,7 +2851,7 @@ MonoBehaviour:
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
   m_ReferenceResolution: {x: 1920, y: 1080}
-  m_ScreenMatchMode: 0
+  m_ScreenMatchMode: 1
   m_MatchWidthOrHeight: 1
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96
@@ -3004,17 +2993,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2089276177}
   m_CullTransparentMesh: 1
---- !u!114 &2099699834 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 4472262641451055309, guid: 172c90d5000347d4dbd1b749f313070c, type: 3}
-  m_PrefabInstance: {fileID: 458248937532685719}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 458248937532685721}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &2127944993
 GameObject:
   m_ObjectHideFlags: 0
@@ -3070,7 +3048,7 @@ MonoBehaviour:
   PlayerField: {fileID: 35476508}
   EnemyField: {fileID: 657734807}
   PlayerInfo:
-    Faction: 
+    Faction: 0
     Leader: 0
     canLeader: 1
     leaderDisabled: 0
@@ -3090,7 +3068,7 @@ MonoBehaviour:
     MRangeStrength: 
     MSiegeStrength: 
     WeatherPlayed: 
-    LeaderHornRows: []
+    LeaderHornRows: 
     PendingSummons: 
     CanExchange: 1
     CardsExchanged: 0
@@ -3101,10 +3079,9 @@ MonoBehaviour:
     RoundsScore: 
     RoundsWon: 
     Name: Player
-    Avatar: {fileID: 2099699834}
     DeckBSprite: {fileID: 0}
   EnemyInfo:
-    Faction: 
+    Faction: 0
     Leader: 0
     canLeader: 1
     leaderDisabled: 0
@@ -3124,7 +3101,7 @@ MonoBehaviour:
     MRangeStrength: 
     MSiegeStrength: 
     WeatherPlayed: 
-    LeaderHornRows: []
+    LeaderHornRows: 
     PendingSummons: 
     CanExchange: 1
     CardsExchanged: 0
@@ -3135,7 +3112,6 @@ MonoBehaviour:
     RoundsScore: 
     RoundsWon: 
     Name: Opponent
-    Avatar: {fileID: 217374056}
     DeckBSprite: {fileID: 0}
   TurnPicker: {fileID: 289557631}
   Panel: {fileID: 450726549}

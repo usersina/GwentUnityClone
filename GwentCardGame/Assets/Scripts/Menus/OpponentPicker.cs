@@ -28,8 +28,9 @@ namespace Gwent.Menus
                 Deck deck = CardLibrary.ParseDeck(file.text, file.name);
                 if (deck == null)
                     continue;
+                // The faction and the leader on a line each: on one, a long leader's name was cut short
                 string leader = db.Contains(deck.Leader) ? db.Get(deck.Leader).DisplayName : "";
-                MenuEntry entry = Entry(entries, deck.Leader, deck.Name, deck.Faction.DisplayName() + "  ·  " + leader, file.name, file.name == chosen);
+                MenuEntry entry = Entry(entries, deck.Leader, deck.Name, deck.Faction.DisplayName() + "\n" + leader, file.name, file.name == chosen);
                 if (file.name == chosen)
                     focus = entry;
             }
@@ -48,7 +49,7 @@ namespace Gwent.Menus
             VisualElement art = entry.Q("Art");
             if (leader >= 0)
             {
-                CardArt.Show(art, leader);
+                CardArt.ShowPortrait(art, leader);
                 entry.Q("Question").RemoveFromHierarchy();
             }
             else

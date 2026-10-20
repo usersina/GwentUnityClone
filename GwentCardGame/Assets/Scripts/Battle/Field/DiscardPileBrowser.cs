@@ -19,6 +19,24 @@ namespace Gwent.Battle
             }
         }
 
+        private void Awake()
+        {
+            gameObject.AddComponent<Gwent.UI.UITooltip>().text = Tooltip;
+        }
+
+        // Whose pile it is and what a click does
+        private string Tooltip()
+        {
+            BattleController battle = BattleController.Instance;
+            if (battle == null)
+                return null;
+            int count = (isPlayer ? battle.PlayerInfo : battle.EnemyInfo).DiscardList.Count;
+            string pile = isPlayer ? "Your discard pile" : "Your opponent's discard pile";
+            if (count == 0)
+                return pile + ": empty";
+            return pile + " (" + count + (count == 1 ? " card" : " cards") + "): " + (GameInput.IsTouch ? "tap" : "click") + " to look through it";
+        }
+
         public void OnPointerClick(PointerEventData eventData)
         {
             if (eventData.button == PointerEventData.InputButton.Left)

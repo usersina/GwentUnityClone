@@ -16,6 +16,18 @@ namespace Gwent.Battle
 
         public bool isWeatherCard;
 
+        private void Awake()
+        {
+            // What the empty slot is for (its cards, once some lie there, show themselves when hovered)
+            gameObject.AddComponent<Gwent.UI.UITooltip>().text = () =>
+            {
+                BattleController battle = BattleController.Instance;
+                if (battle == null || battle.weatherList.Count > 0)
+                    return null;
+                return "Weather: none in play. A weather card lands here and brings its row down to 1 on both sides; Clear Weather lifts it";
+            };
+        }
+
         private void Start()
         {
             controller = BattleController.Instance;
