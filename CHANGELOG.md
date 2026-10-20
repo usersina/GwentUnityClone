@@ -4,6 +4,53 @@ Every push to `main` is a release: it replaces the one GitHub release, `latest`,
 notes. A push to `main` is only released when this file has a new section since the last release: add one, headed by the
 date, before pushing.
 
+## 2026-10-20
+
+Every screen fits a 16:10 screen, and the battle's menu is easier to reach: a bigger button at the top left, and a way to
+leave a battle. Also: leaders' portraits framed on their faces, clearer questions, tooltips on the icons that had none, and a
+few names no longer cut short.
+
+### Battles
+
+- The menu button is at the top left, and bigger. On a phone a finger takes it over a larger area, as it does the crowns
+  and the pass button.
+- **Leave battle** in the menu gives the battle up (it asks first: it counts as a loss) and goes back to the main menu; in a
+  LAN battle the other player wins. Once the battle is over, **Main menu** takes its place.
+- Hovering the empty weather slot says what it is for, and a discard pile says whose it is and how many cards it holds.
+- On a phone's wide screen the table's wood covers it all: no black bands at the sides.
+
+### Every screen
+
+- On a screen narrower than 16:9 (16:10 laptops and MacBooks, tablets) the battle and the deck builder lost their sides:
+  the menu button, the deck builder's back arrow, the side panels, the decks. The whole layout fits now, the background
+  going on above and below it.
+- A question's gold answer is the one Enter takes: the safe one ("Stay", "Keep playing") as it opens. The risky one used to
+  look chosen.
+- **Quit game** is in the pause menu on Android too, as in the main menu (where **Quit** is now **Quit game**). A browser
+  has neither: a page can't close its own tab.
+- The settings' arrows at their first or last option are a faint gold: once clicked there, they showed on a grey square.
+- With Censored artwork on, the main menu's art also covers the woman standing behind the title, on the left.
+
+### Deck builder
+
+- Esc, and Android's Back button, go back to the main menu. Esc first closes the name being typed, the deck list or a card's
+  details.
+- The seven filter tabs fit above their list (they ran past the screen's edge), and each tells its name when hovered; so do
+  the back arrow, the pencil and the trash.
+- The deck list is wider: longer names show whole.
+
+### Leaders' portraits
+
+- Every round portrait of a leader (the opponent picker, the LAN lobby, How to play, the battle's side panels and end screen)
+  is framed on the leader's face: one framing for every card had shown Eredin's portal, an arm or a burning hand. Francesca's
+  covered versions have a framing of their own, and a portrait switches with the Censored artwork setting.
+- The faces load while the main menu is on, and fade in: no more faction card backs swapping to faces as the picker opens.
+- The opponent picker gives the faction and the leader a line each: long leaders' names showed cut short.
+
+### Documentation
+
+- [How to play](docs/how-to-play.md): leaving a battle, the menu button's place, the deck builder's Esc, the new tooltips.
+
 ## 2026-10-19
 
 The game plays in your browser now, at <https://usersina.github.io/gwent-legacy/>. Also: a Multiplayer menu, a gold-edged icon,
