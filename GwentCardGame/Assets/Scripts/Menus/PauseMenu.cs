@@ -7,11 +7,12 @@ using UnityEngine.UIElements;
 
 namespace Gwent.Menus
 {
-    // The battle's pause menu (Escape, the Android back button or the menu button at the top right). Time stops while it
+    // The battle's pause menu (Escape, the Android back button or the menu button at the top left). Time stops while it
     // is open, so the AI waits too; not in a LAN battle, which goes on on the other device (the menu is called so there,
-    // and the board keeps up with the other player's moves). Giving up is not here: a hand laid on your deck does it
-    // (DeckGiveUp), as in Yu-Gi-Oh. A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this component sits on its
-    // object to put time back should the scene close under it.
+    // and the board keeps up with the other player's moves). Leave battle gives the battle up (a loss, asked first) and
+    // goes back to the main menu; a hand laid on your deck gives up too (DeckGiveUp), as in Yu-Gi-Oh, to the end screen.
+    // A UI Toolkit dialog (Assets/UI/Toolkit/PauseMenu.uxml); this component sits on its object to put time back should
+    // the scene close under it.
     public class PauseMenu : MonoBehaviour
     {
         private static PauseMenu current;
@@ -55,11 +56,13 @@ namespace Gwent.Menus
             resume.clicked += Close;
             MenuEntry settings = root.Q<MenuEntry>("Item Settings");
             settings.clicked += () => SettingsPanel.Open(() => UIScreens.Focus(settings));
-            // Once the battle is over, back to the main menu from here too
+            // While the battle is on, leaving gives it up; once it is over, back to the main menu from here too
             BattleController battle = BattleController.Instance;
             bool battle_on = battle != null && !battle.IsBattleOver;
+            Entry(root, "Item Leave battle", battle_on, () => UIOverlay.Confirm("Leave the battle? It counts as a loss.", "Leave", "Stay", GiveUpAndLeave));
             Entry(root, "Item Main menu", !battle_on, () => UIOverlay.Confirm("Leave and go back to the main menu?", "Leave", "Stay", LeaveBattle));
-            Entry(root, "Item Quit game", !GameSettings.IsMobile && !GameSettings.IsWeb, () => UIOverlay.Confirm("Quit the game?", "Quit", "Cancel", Application.Quit));
+            // As the main menu's Quit: everywhere but in a browser, whose tab is closed, not quit
+            Entry(root, "Item Quit game", !GameSettings.IsWeb, () => UIOverlay.Confirm("Quit the game?", "Quit", "Cancel", Application.Quit));
             root.schedule.Execute(() => UIScreens.Focus(resume));
         }
 
@@ -79,6 +82,14 @@ namespace Gwent.Menus
             float previous = current != null ? current.previousTimeScale : 1f;
             Time.timeScale = BattleController.Instance != null ? GameSettings.GameTimeScale : previous > 0 ? previous : 1f;
             current = null;
+        }
+
+        // The battle given up (in a LAN battle, the other player wins), then left
+        private static void GiveUpAndLeave()
+        {
+            if (BattleController.Instance != null)
+                BattleController.Instance.GiveUp(true);
+            LeaveBattle();
         }
 
         // The battle stays paused under the loading screen (leaving it sets the time going again, OnDestroy)

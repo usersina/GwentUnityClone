@@ -49,6 +49,29 @@ namespace Gwent.UI
             return rect;
         }
 
+        // Covers the parent whatever the screen's shape, as a picture of this aspect (width / height) does: cut at the
+        // sides or at the top and bottom, never stretched (the battle's table, the menu's key art)
+        public static RectTransform Cover(this RectTransform rect, float aspect)
+        {
+            AspectRatioFitter fitter = rect.GetComponent<AspectRatioFitter>();
+            if (fitter == null)
+                fitter = rect.gameObject.AddComponent<AspectRatioFitter>();
+            fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            fitter.aspectRatio = aspect;
+            return rect;
+        }
+
+        // On a touch screen, a small control takes a finger's press over a larger square around it (an invisible image
+        // under it, which its clicks reach): the battle's menu button, crowns and pass button
+        public static void GrowTouchArea(RectTransform control, Vector2 size)
+        {
+            if (!GameInput.IsTouch || control.Find("TouchArea") != null)
+                return;
+            Image area = NewImage(control, "TouchArea", null, Color.clear, true);
+            area.rectTransform.Place(new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.Max(size, control.rect.size));
+            area.transform.SetAsFirstSibling();
+        }
+
         // A plain rectangular frame (square corners) around its parent: four bars, outset by the given margin
         public static RectTransform Frame(Transform parent, string name, Color color, float thickness, float outset = 0)
         {

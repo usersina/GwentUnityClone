@@ -308,7 +308,7 @@ namespace Gwent.Menus
             private void ShowDeck()
             {
                 Deck deck = BattleController.PlayerDeck(CardLibrary.Get(), out string unplayable);
-                CardArt.Show(youArt, deck.Leader);
+                CardArt.ShowPortrait(youArt, deck.Leader);
                 deckName.text = unplayable == null ? deck.Name ?? deck.Faction.DisplayName() : "The default deck";
                 youDeck.text = unplayable == null ? deck.Faction.DisplayName() + "  ·  " + deck.Cards.Count + " cards"
                     : "Yours can't be played: " + unplayable;
@@ -341,7 +341,7 @@ namespace Gwent.Menus
                 rejoinTitle.text = "Your battle with " + kept.TheirName + " is still on";
                 rejoinDetail.text = Ago(kept.Saved);
                 if (kept.TheirDeck != null)
-                    CardArt.Show(rejoinArt, kept.TheirDeck.Leader);
+                    CardArt.ShowPortrait(rejoinArt, kept.TheirDeck.Leader);
             }
 
             private static string Ago(DateTime saved)
@@ -388,7 +388,7 @@ namespace Gwent.Menus
                     entry.EnableInClassList("lan__game--touch", GameInput.IsTouch); // "Join" shows: no pointer to light it
                     if (known)
                     {
-                        CardArt.Show(entry.Q("Art"), game.Leader);
+                        CardArt.ShowPortrait(entry.Q("Art"), game.Leader);
                         entry.Q("Question").RemoveFromHierarchy();
                     }
                     else
@@ -527,7 +527,7 @@ namespace Gwent.Menus
                 seat.Clear();
                 seat.AddToClassList("lan__seat--filled");
                 VisualElement portrait = Add(seat, new VisualElement(), "lan__seat-portrait");
-                CardArt.Show(Add(portrait, new VisualElement(), "lan__seat-art"), deck.Leader);
+                CardArt.ShowPortrait(Add(portrait, new VisualElement(), "lan__seat-art"), deck.Leader);
                 string emblem = BattleBanner.FactionEmblem(deck.Faction);
                 if (emblem != null)
                     Add(seat, new VisualElement(), "lan__seat-crest").style.backgroundImage = new StyleBackground(SpriteCache.Load("W3/Notifications/" + emblem));

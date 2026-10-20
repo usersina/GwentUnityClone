@@ -9,7 +9,7 @@
             <Gwent.UI.MenuEntry name="Item Deck builder" text="Deck builder" />
             <Gwent.UI.MenuEntry name="Item How to play" text="How to play" />
             <Gwent.UI.MenuEntry name="Item Settings" text="Settings" />
-            <Gwent.UI.MenuEntry name="Item Quit" text="Quit" />
+            <Gwent.UI.MenuEntry name="Item Quit" text="Quit game" />
         </ui:VisualElement>
         <ui:Label name="Note" text="Fan project, not affiliated with CD PROJEKT RED" class="caption main-menu__note" picking-mode="Ignore" />
         <!-- The version and build (MainMenu fills it in), across from the note -->

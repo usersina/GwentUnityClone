@@ -50,15 +50,16 @@ The battle uses [your battle deck](#your-battle-deck).
 | --- | --- | --- |
 | Preview a card (board, hand, weather, discard pile, leaders) | Hover it | Hold a finger on it: it shows on the right until you lift the finger (a hand card: tap it to select it) |
 | Read a faction's ability | Hover the faction's shield or name on either side panel | Hold a finger on it |
-| Browse a discard pile (either side) | Click it: it opens in the card carousel, its top card in front (arrow keys or the wheel browse, Esc or the × puts it away) | Tap it |
+| Browse a discard pile (either side) | Click it: it opens in the card carousel, its top card in front (arrow keys or the wheel browse, Esc or the × puts it away). Hovered, a pile says whose it is and how many cards it holds; the empty weather slot says what it is for | Tap it; hold a finger on it to read whose it is |
 | Choose a card in a picker (medic, leaders, Emhyr's look at the opponent's hand) | The cards show in the carousel under a title, as in the redraw: click a card to bring it forward, click it again (or Enter) to choose it; arrow keys or the wheel browse. The × (Down reaches it) gives the choice up, after asking, since it ends your turn; for a look, it closes | Tap a card to bring it forward, tap it again to choose it |
 
 ## Pausing, giving up and the end
 
 | Action | Desktop | Android |
 | --- | --- | --- |
-| Pause (resume, settings, quit) | Esc or the menu button at the top right | Back button or the menu button |
+| Pause (resume, settings, leave) | Esc or the menu button at the top left | Back button or the menu button |
 | Give up (Yu-Gi-Oh style: a hand on your deck) | In your turn (in a LAN battle, any time), hover your deck: the cursor turns into a hand. Click it and confirm; it counts as a loss | Hold a finger on your deck, then confirm |
+| Leave the battle | Pause menu > **Leave battle**, and confirm: it counts as a loss (in a LAN battle, the other player wins), and the main menu opens | Same |
 | After the battle | The end screen shows The Witcher 3's emblem of the outcome and every round's score; **Play again** or **Main menu** (in a LAN battle, **Rematch**) | Tap |
 
 ## In a LAN battle
@@ -75,7 +76,7 @@ Only in a LAN battle, never against the AI. More in [Play on LAN](lan.md).
 
 | Action | Desktop | Android |
 | --- | --- | --- |
-| Add or remove a card | Double-click it, or drag it across and drop it anywhere in the other side's column (its title, its cards, the space under them). It flies to the other grid: one copy while others are left, the card itself when it is the last. Each card shows once with its count: the copies in the deck, or in the collection the copies left to add (a card whose copies are all in the deck stays there, greyed, at x0). Tabs: all, close, ranged, siege, heroes, weather, special cards | Tap it, or drag it across |
+| Add or remove a card | Double-click it, or drag it across and drop it anywhere in the other side's column (its title, its cards, the space under them). It flies to the other grid: one copy while others are left, the card itself when it is the last. Each card shows once with its count: the copies in the deck, or in the collection the copies left to add (a card whose copies are all in the deck stays there, greyed, at x0). Tabs: all, close, ranged, siege, heroes, weather, special cards (hover one for its name) | Tap it, or drag it across |
 | Card details | Right-click | Hold a finger on it |
 | Faction ability | Under the faction's banner, at the top of the middle column | Same |
 | Choose the leader | Click the leader card in the middle column: the faction's leaders open in the carousel, the deck's in front and the front one's ability at the bottom right. Click a leader (or the arrow keys, A/D, the wheel) to bring it forward, click it again (or Enter) to make it the deck's leader. The ×, Escape or a right-click leave it as it was | Tap it, tap a leader to bring it forward, tap it again to choose it |
@@ -83,6 +84,7 @@ Only in a LAN battle, never against the AI. More in [Play on LAN](lan.md).
 | New empty deck | "+ New empty deck", the deck list's last entry: the same field opens for its name ("New deck" offered); Enter makes the deck, with no cards, for the faction shown | Same |
 | Presets | Each faction's AI decks are listed after your own decks, marked "(preset)". Pick one to play with it as it is; your first change saves your own copy ("The Monster Horde (copy)"), and naming one makes your own deck from it. The preset stays as it was: presets can't be renamed or deleted | Same, with taps |
 | Delete a deck | The trash, beside the pencil (your own decks; it asks first) | Same |
+| Back to the main menu | The arrow at the top left, or Esc (once the name being typed, the deck list or a card's details are closed: Esc closes them first) | The arrow, or the Back button |
 
 ## Your battle deck
 

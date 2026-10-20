@@ -54,7 +54,7 @@ namespace Gwent.UI
             CanvasScaler scaler = canvas_go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = scaled_by_settings ? ReferenceResolution / GameSettings.MenuScale : ReferenceResolution;
-            scaler.matchWidthOrHeight = 1;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // as the scenes' canvases: all of it on any screen
             canvas_go.AddComponent<GraphicRaycaster>();
 
             if (EventSystem.current == null && UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)

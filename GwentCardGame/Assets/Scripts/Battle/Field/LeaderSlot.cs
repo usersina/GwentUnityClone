@@ -61,6 +61,7 @@ namespace Gwent.Battle
         {
             UITooltip tooltip = ActivateButton.gameObject.AddComponent<UITooltip>();
             tooltip.text = TooltipText;
+            UIKit.GrowTouchArea((RectTransform)ActivateButton.transform, new Vector2(100, 100));
         }
 
         public void UISetPassive()

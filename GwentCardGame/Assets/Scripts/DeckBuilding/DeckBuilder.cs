@@ -87,7 +87,42 @@ namespace Gwent.DeckBuilding
             GameAudio.PlayDeckMusic();
             ConfigureMobileDeckBuilder();
             LayOutDeckControls(); // after the touch sizes
+            AddTooltips();
             UpdateBattleDeckStatus();
+            UIOverlay.SetEscapeAction(OnEscape);
+        }
+
+        // Escape (and Android's Back button) goes back to the main menu, unless that press is closing something of the
+        // builder's own, open the frame before: the name being typed, the deck list, a card's details (they close on it
+        // themselves; the dialogs over the builder, the leaders' too, take it before this)
+        private bool escapeCloses;
+
+        private void LateUpdate()
+        {
+            escapeCloses = naming || deckSummary.deckPicker.IsExpanded
+                || deckCollection.cardDetails != null && deckCollection.cardDetails.activeInHierarchy;
+        }
+
+        private void OnEscape()
+        {
+            if (!escapeCloses)
+                ToMainMenu();
+        }
+
+        // What the icon buttons do, when the pointer rests on them (or a finger is held on them)
+        private void AddTooltips()
+        {
+            string escape = GameInput.IsTouch ? "" : " (Esc)";
+            Tooltip("BackBtn", () => "Back to the main menu" + escape);
+            Tooltip("RenameBtn", () => naming ? "Keep this name" : ShowsPreset ? "Name a copy of this preset" : "Rename this deck");
+            Tooltip("DeleteBtn", () => naming ? "Leave the name as it was" : ShowsPreset ? "Presets can't be deleted" : "Delete this deck");
+        }
+
+        private static void Tooltip(string control, System.Func<string> text)
+        {
+            GameObject button = GameObject.Find(control);
+            if (button != null)
+                button.AddComponent<UITooltip>().text = text;
         }
 
         private void ConfigureMobileDeckBuilder()
@@ -236,9 +271,9 @@ namespace Gwent.DeckBuilding
             nameField = FindAnyObjectByType<TMP_InputField>();
             if (pencil == null || trash == null || nameField == null)
                 return;
-            const float gap = 6;
+            const float gap = 6, wider = 40; // the list reaches further left, for longer names
             RectTransform pencil_rect = (RectTransform)pencil.transform, trash_rect = (RectTransform)trash.transform;
-            float left = list.anchoredPosition.x - list.sizeDelta.x / 2;
+            float left = list.anchoredPosition.x - list.sizeDelta.x / 2 - wider;
             pencil_rect.anchoredPosition = new Vector2(trash_rect.anchoredPosition.x - trash_rect.sizeDelta.x / 2 - gap - pencil_rect.sizeDelta.x / 2,
                 trash_rect.anchoredPosition.y);
             float right = pencil_rect.anchoredPosition.x - pencil_rect.sizeDelta.x / 2 - gap;

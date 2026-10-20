@@ -106,6 +106,38 @@ namespace Gwent.Core
             Show(element, SceneManager.GetActiveScene(), card_id, sprite => element.style.backgroundImage = new StyleBackground(sprite), () => element.panel != null);
         }
 
+        // A leader's round portrait (UI Toolkit): framed on the face of the version it shows (LeaderFaces), framed again
+        // when the setting switches it; no card back while the art loads: the ring stays empty, then the face fades in
+        // (portrait-art, Gwent.uss)
+        public static void ShowPortrait(VisualElement element, int leader_id)
+        {
+            LeaderFaces.Frame(element, leader_id, ShowsCovered(leader_id));
+            element.AddToClassList("portrait-art");
+            element.style.opacity = 0;
+            Show(element, SceneManager.GetActiveScene(), leader_id, sprite =>
+            {
+                LeaderFaces.Frame(element, leader_id, ShowsCovered(leader_id));
+                element.style.backgroundImage = new StyleBackground(sprite);
+                element.style.opacity = 1;
+            }, () => element.panel != null, true);
+        }
+
+        // The same in a uGUI round mask (the battle's side panels, the end screen)
+        public static void ShowPortrait(Image image, int leader_id)
+        {
+            Show(image, image.gameObject.scene, leader_id, sprite =>
+            {
+                image.sprite = sprite;
+                LeaderFaces.Frame(image.rectTransform, leader_id, ShowsCovered(leader_id));
+            }, () => image != null);
+        }
+
+        // The card shows its covered version (the setting is on and it has one)
+        private static bool ShowsCovered(int card_id)
+        {
+            return Shown(card_id) != Address(card_id);
+        }
+
         // keep: what it shows stays until the art is there (the other version of the same card, the setting changed)
         private static void Show(object target, Scene scene, int card_id, Action<Sprite> show, Func<bool> alive, bool keep = false)
         {

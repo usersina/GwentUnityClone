@@ -504,7 +504,7 @@ namespace Gwent.Menus
             holder.AddToClassList("rules__leader");
             VisualElement art = new VisualElement { name = "Art", pickingMode = PickingMode.Ignore };
             art.AddToClassList("rules__leader-art");
-            CardArt.Show(art, leader_id);
+            CardArt.ShowPortrait(art, leader_id);
             holder.Add(art);
             string name;
             string ability = CardDescription.LeaderAbility(leader_id);

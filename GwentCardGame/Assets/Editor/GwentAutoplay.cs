@@ -1346,10 +1346,23 @@ namespace Gwent.EditorTools
                     At(0.8, () => check(PauseMenu.IsOpen && Time.timeScale == 0, "Escape pauses the battle (time stops)"));
                     Key(1.1, UnityEngine.InputSystem.Key.Escape);
                     At(1.6, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Escape again resumes it"));
+                    At(1.8, () =>
+                    {
+                        // At the board's top left: the screen's on 16:9, lower on a squarer screen (a batch run's 4:3), the
+                        // board fitting it with room above and below
+                        Vector2 at = ScreenPoint(GameObject.Find("PauseButton").transform);
+                        check(at.x < Screen.width * 0.15f && at.y > Screen.height * 0.75f, "the menu button is at the top left (" + at + ")");
+                    });
                     Click(1.9, Named("PauseButton"));
                     At(2.4, () => check(PauseMenu.IsOpen, "the menu button opens the pause menu"));
-                    Click(2.7, Named("Item Resume"));
-                    At(3.2, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
+                    At(2.5, () => check(UIScreens.Find("Item Leave battle") != null && UIScreens.Find("Item Main menu") == null,
+                        "while the battle is on, the menu offers Leave battle (not Main menu)"));
+                    Click(2.8, Named("Item Leave battle"));
+                    At(3.3, () => check(UIScreens.Find("Button No") != null && !c.IsBattleOver, "Leave battle asks first"));
+                    Key(3.6, UnityEngine.InputSystem.Key.Escape);
+                    At(4.1, () => check(UIScreens.Find("Button No") == null && PauseMenu.IsOpen && !c.IsBattleOver, "Escape stays in the battle, the menu still open"));
+                    Click(4.4, Named("Item Resume"));
+                    At(4.9, () => check(!PauseMenu.IsOpen && Time.timeScale > 0, "Resume closes it"));
                 }
                 else if (scenario == InputScenario.GiveUpAsked)
                 {

@@ -50,6 +50,8 @@ namespace Gwent.Battle
 
         private void Start()
         {
+            // A thin bar: a finger holds it over a taller strip
+            UIKit.GrowTouchArea((RectTransform)transform, new Vector2(280, 76));
             // The Witcher 3's "[SPACE] [HOLD] Pass" hint, on keyboards: its key in a cap before the words, both centred
             if (GameInput.IsTouch)
                 return;
